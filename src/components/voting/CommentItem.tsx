@@ -5,6 +5,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route'; // Import the ApiComment interface
 import { Clock } from 'lucide-react';
 
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from 'tiptap-markdown'; 
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
+// Ensure highlight.js theme is available. If not imported globally, import here.
+// For now, assuming it might be covered by NewCommentForm's import or a global one.
+// import 'highlight.js/styles/github-dark.css'; 
+
+const lowlight = createLowlight(common);
+
 interface CommentItemProps {
   comment: ApiComment;
 }
@@ -31,6 +42,42 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const authorDisplayName = comment.author_name || 'Unknown User';
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
 
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: false, // Typically no headings in comments
+        codeBlock: false, // Disable StarterKit's codeBlock as CodeBlockLowlight is used
+      }),
+      Markdown.configure({ html: false, tightLists: true }),
+      CodeBlockLowlight.configure({ lowlight }),
+    ],
+    content: '', // Will be set by useEffect
+    editable: false,
+    editorProps: {
+      attributes: {
+        // Apply prose styling for rendered output. Adjust classes as needed.
+        class: 'prose dark:prose-invert prose-sm max-w-none',
+      },
+    },
+  });
+
+  React.useEffect(() => {
+    if (editor && comment.content) {
+      try {
+        const jsonContent = JSON.parse(comment.content);
+        editor.commands.setContent(jsonContent);
+      } catch (e) {
+        // If content is not JSON, set it as plain text (fallback)
+        console.warn('Comment content is not valid JSON, rendering as plain text:', comment.content, e);
+        editor.commands.setContent(comment.content); 
+      }
+    }
+  }, [editor, comment.content]);
+
+  if (!editor) {
+    return null; // Or a loader/placeholder
+  }
+
   return (
     <div className="flex items-start space-x-3 py-3">
       <Avatar className="h-8 w-8 flex-shrink-0">
@@ -44,11 +91,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
           <Clock size={12} className="mr-0.5 flex-shrink-0" />
           <span>{timeSince(comment.created_at)}</span>
         </div>
-        <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">
-          {comment.content}
-        </p>
-        {/* TODO: Add reply button/functionality if supporting threaded comments directly here */}
-        {/* <Button variant="link" size="sm" className="p-0 h-auto text-xs">Reply</Button> */}
+        <div className="mt-1 text-sm">
+            <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   );

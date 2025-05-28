@@ -1,24 +1,47 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label"; // For consistency if needed, though not strictly used here
 import { Loader2 } from 'lucide-react';
+import { EditorToolbar } from './EditorToolbar';
+
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from 'tiptap-markdown';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
+
+// New Tiptap Extension imports
+import Placeholder from '@tiptap/extension-placeholder';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import Heading from '@tiptap/extension-heading';
+import Blockquote from '@tiptap/extension-blockquote';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
+// highlight.js CSS is in layout.tsx
+
+const lowlight = createLowlight(common);
 
 interface NewCommentFormProps {
   postId: number;
   parentCommentId?: number | null;
-  onCommentPosted?: (newComment: ApiComment) => void; // Optional callback
+  onCommentPosted?: (newComment: ApiComment) => void;
 }
 
-interface CreateCommentPayload {
-  content: string;
+interface CreateCommentMutationPayload {
+  content: any;
   parent_comment_id?: number | null;
+}
+
+interface CreateCommentApiPayload {
+    content: string; 
+    parent_comment_id?: number | null;
 }
 
 export const NewCommentForm: React.FC<NewCommentFormProps> = ({
@@ -28,49 +51,88 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 }) => {
   const { token, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
-  const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const addCommentMutation = useMutation<ApiComment, Error, CreateCommentPayload>({
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        codeBlock: false, // Using CodeBlockLowlight instead
+        // We can be more granular here if needed, but StarterKit includes most basics
+        // For comments, we might want to disable headings from StarterKit if we add the Heading extension separately
+        // or ensure the Heading extension levels are appropriate for comments (e.g., only H3-H6)
+        heading: false, // Disable starter kit heading if we use the specific Heading extension with levels
+      }),
+      CodeBlockLowlight.configure({ lowlight }),
+      Markdown.configure({
+        html: false,          
+        tightLists: true,
+      }),
+      Placeholder.configure({
+        placeholder: 'Write your comment here …',
+      }),
+      Link.configure({
+        openOnClick: false, // Recommended for security and better UX
+        autolink: true,
+        linkOnPaste: true,
+      }),
+      Image, // Basic image support (users would need to paste URLs)
+      Heading.configure({ levels: [3, 4] }), // Allow H3, H4 in comments if desired (or remove if no headings in comments)
+      Blockquote,
+      BulletList,
+      OrderedList,
+      ListItem,
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        class: 'prose dark:prose-invert prose-sm sm:prose-base focus:outline-none min-h-[80px] border border-input rounded-md px-3 py-2 w-full',
+      },
+    },
+  });
+
+  const addCommentMutation = useMutation<ApiComment, Error, CreateCommentMutationPayload>({
     mutationFn: async (commentData) => {
       if (!token) throw new Error('Authentication required to comment.');
+      
+      const apiPayload: CreateCommentApiPayload = {
+        content: JSON.stringify(commentData.content),
+        parent_comment_id: commentData.parent_comment_id,
+      };
+
       return authFetchJson<ApiComment>(`/api/posts/${postId}/comments`, {
         method: 'POST',
         token,
-        body: commentData as any, // authFetchJson handles object stringification
+        body: apiPayload as any,
       });
     },
     onSuccess: (newComment) => {
-      setContent('');
+      editor?.commands.clearContent();
       setError(null);
-      // Invalidate the comments query for this post to refresh the list
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-      // Also invalidate the main posts query if comment_count is displayed there
       queryClient.invalidateQueries({ queryKey: ['posts'] }); 
       if (onCommentPosted) {
         onCommentPosted(newComment);
       }
-      // TODO: Add success toast
     },
     onError: (err) => {
       setError(err.message || 'Failed to post comment.');
-      // TODO: Add error toast
     },
   });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!content.trim()) {
+    const editorContentJson = editor?.getJSON();
+
+    if (!editorContentJson || editor?.isEmpty) {
       setError('Comment cannot be empty.');
       return;
     }
     if (!isAuthenticated) {
         setError('You must be logged in to comment.');
-        // TODO: Prompt login if not authenticated
         return;
     }
     setError(null);
-    addCommentMutation.mutate({ content, parent_comment_id: parentCommentId });
+    addCommentMutation.mutate({ content: editorContentJson, parent_comment_id: parentCommentId });
   };
 
   if (!isAuthenticated) {
@@ -78,7 +140,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       <div className="mt-4 p-4 border rounded-md bg-slate-50 dark:bg-slate-800">
         <p className="text-sm text-muted-foreground">
           Please log in to post a comment.
-          {/* TODO: Implement a proper login prompt/modal flow or redirect. */}
         </p>
       </div>
     );
@@ -86,22 +147,14 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-      <div>
-        <Label htmlFor={`comment-content-${postId}-${parentCommentId || 'new'}`} className="sr-only">Your comment</Label>
-        <Textarea
-          id={`comment-content-${postId}-${parentCommentId || 'new'}`}
-          value={content}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)}
-          placeholder="Write a comment..."
-          rows={3}
-          disabled={addCommentMutation.isPending}
-          className="w-full"
-        />
+      <div className="border rounded-md overflow-hidden">
+        <EditorContent editor={editor} />
+        <EditorToolbar editor={editor} /> 
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       <div className="flex justify-end">
-        <Button type="submit" disabled={addCommentMutation.isPending || !content.trim()}>
-          {addCommentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" disabled={addCommentMutation.isPending || editor?.isEmpty}>
+          {addCommentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 
           Post Comment
         </Button>
       </div>

@@ -1,17 +1,35 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, Search } from 'lucide-react';
-import Link from 'next/link'; // For linking to suggested posts if we have a detail view
+import { Loader2 } from 'lucide-react';
+import Link from 'next/link'; 
+
+// Tiptap imports
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from 'tiptap-markdown'; 
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
+import Placeholder from '@tiptap/extension-placeholder';
+import TiptapLink from '@tiptap/extension-link'; // Renamed to avoid conflict with next/link
+import Image from '@tiptap/extension-image';
+import Heading from '@tiptap/extension-heading';
+import Blockquote from '@tiptap/extension-blockquote';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
+import { EditorToolbar } from './EditorToolbar'; // Import the toolbar
+// highlight.js CSS is now in layout.tsx
+
+const lowlight = createLowlight(common);
 
 // Debounce utility
 function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
@@ -26,16 +44,21 @@ function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
 }
 
 interface NewPostFormProps {
-  onPostCreated?: (newPost: ApiPost) => void; // Optional callback after successful creation
+  onPostCreated?: (newPost: ApiPost) => void; 
 }
 
-interface CreatePostPayload {
+interface CreatePostMutationPayload {
   title: string;
-  content: string;
-  tags?: string[]; // Tags will be comma-separated string for input, then parsed
+  content: any; // Tiptap JSON object
+  tags?: string[]; 
 }
 
-// Type for search suggestions (partial post data)
+interface CreatePostApiPayload {
+    title: string;
+    content: string; // Stringified Tiptap JSON
+    tags?: string[];
+}
+
 interface SuggestedPost extends Partial<ApiPost> {}
 
 export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
@@ -43,82 +66,107 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [tags, setTags] = useState(''); // Comma-separated string for input
+  const [tags, setTags] = useState(''); 
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch search suggestions
+  const contentEditor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        codeBlock: false, // Using CodeBlockLowlight instead
+        heading: false, // Control headings with the specific Heading extension
+      }),
+      CodeBlockLowlight.configure({ lowlight }),
+      Markdown.configure({ html: false, tightLists: true }),
+      Placeholder.configure({
+        placeholder: 'Describe your post in detail (Markdown supported!)...',
+      }),
+      TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+      Image, 
+      Heading.configure({ levels: [1, 2, 3, 4] }), // Allow H1-H4 for posts
+      Blockquote,
+      BulletList,
+      OrderedList,
+      ListItem,
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        class: 'prose dark:prose-invert prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-1 focus:outline-none min-h-[150px] border border-input rounded-md px-3 py-2 w-full',
+      },
+    },
+  });
+
   const { 
     data: suggestions, 
     isLoading: isLoadingSuggestions,
-    // error: searchError, // We can handle search error display separately if needed
   } = useQuery<SuggestedPost[], Error>({
     queryKey: ['postSuggestions', searchQuery],
     queryFn: async () => {
-      if (searchQuery.trim().length < 3) return []; // Min length for search
+      if (searchQuery.trim().length < 3) return [];
       return authFetchJson<SuggestedPost[]>(`/api/search/posts?q=${encodeURIComponent(searchQuery)}`);
     },
-    enabled: searchQuery.trim().length >= 3, // Only run query if searchQuery is long enough
-    // staleTime: 1000 * 60 * 5, // 5 minutes for suggestions
+    enabled: searchQuery.trim().length >= 3, 
   });
 
-  // Debounced function to update searchQuery state
   const debouncedSetSearchQuery = useCallback(
-    debounce((query: string) => setSearchQuery(query), 500), // 500ms debounce
+    debounce((query: string) => setSearchQuery(query), 500), 
     []
   );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);
-    debouncedSetSearchQuery(e.target.value); // Update search query based on title
+    // Optionally, update search query based on title AND/OR content in future
+    debouncedSetSearchQuery(e.target.value); 
   };
-
-  const createPostMutation = useMutation<ApiPost, Error, CreatePostPayload>({
-    mutationFn: async (newPostData) => {
+  
+  const createPostMutation = useMutation<ApiPost, Error, CreatePostMutationPayload>({
+    mutationFn: async (postData) => {
       if (!token) throw new Error('Authentication required to create a post.');
+      const apiPayload: CreatePostApiPayload = {
+        title: postData.title,
+        content: JSON.stringify(postData.content), 
+        tags: postData.tags,
+      };
       return authFetchJson<ApiPost>('/api/posts', {
         method: 'POST',
         token,
-        body: newPostData as any, // Explicitly cast body, authFetchJson handles object stringification
+        body: apiPayload as any, 
       });
     },
     onSuccess: (data) => {
       console.log('Post created successfully:', data);
-      queryClient.invalidateQueries({ queryKey: ['posts'] }); // Invalidate posts list to refresh feed
+      queryClient.invalidateQueries({ queryKey: ['posts'] }); 
       setTitle('');
-      setContent('');
+      contentEditor?.commands.clearContent();
       setTags('');
-      setSearchQuery(''); // Clear search query and suggestions
+      setSearchQuery('');
       setError(null);
       if (onPostCreated) {
         onPostCreated(data);
       }
-      // TODO: Show success toast/message
     },
     onError: (error) => {
       console.error('Failed to create post:', error);
       setError(error.message || 'Could not create post. Please try again.');
-      // TODO: Show error toast/message
     },
   });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    if (!title.trim() || !content.trim()) {
+    const currentContentJson = contentEditor?.getJSON();
+
+    if (!title.trim() || !currentContentJson || contentEditor?.isEmpty) {
       setError('Title and content are required.');
       return;
     }
     if (!isAuthenticated) {
         setError('You must be logged in to create a post.');
-        // TODO: Optionally trigger login flow here
         return;
     }
-
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-
-    createPostMutation.mutate({ title, content, tags: tagsArray });
+    createPostMutation.mutate({ title, content: currentContentJson, tags: tagsArray });
   };
 
   if (!isAuthenticated) {
@@ -129,7 +177,6 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
             </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground">Please log in to create a new post.</p>
-                {/* TODO: Add a login prompt/button if desired */}
             </CardContent>
         </Card>
     );
@@ -153,7 +200,6 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
                     required 
                     disabled={createPostMutation.isPending}
                 />
-                {/* Display suggestions */} 
                 {(isLoadingSuggestions || (searchQuery.length >=3 && suggestions && suggestions.length > 0)) && (
                     <div className="mt-2 p-3 border rounded-md bg-slate-50 dark:bg-slate-800 max-h-48 overflow-y-auto text-sm">
                         {isLoadingSuggestions && <p className="flex items-center text-muted-foreground"><Loader2 size={16} className="mr-2 animate-spin"/>Searching for similar posts...</p>}
@@ -163,9 +209,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
                                 <ul className="space-y-1">
                                     {suggestions.map(post => (
                                         <li key={post.id} className="text-muted-foreground hover:text-foreground">
-                                            {/* TODO: Link to post detail page or provide action (e.g., upvote) */}
                                             <span className="font-medium text-primary">{post.title}</span> ({post.upvote_count} upvotes)
-                                            {/* <Link href={`/posts/${post.id}`} passHref><a className="text-blue-600 hover:underline">{post.title}</a></Link> - if detail page exists */}
                                         </li>
                                     ))}
                                 </ul>
@@ -177,18 +221,15 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
                     </div>
                 )}
             </div>
+            
             <div className="space-y-1.5">
-                <Label htmlFor="content">Content/Description</Label>
-                <Textarea 
-                    id="content" 
-                    placeholder="Describe your post in detail..."
-                    value={content} 
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)} 
-                    required 
-                    rows={5}
-                    disabled={createPostMutation.isPending}
-                />
+                <Label htmlFor="content-editor-post">Content/Description</Label> 
+                <div className="border rounded-md overflow-hidden"> {/* Wrapper for editor + toolbar */}
+                    <EditorContent editor={contentEditor} id="content-editor-post" />
+                    <EditorToolbar editor={contentEditor} />
+                </div>
             </div>
+
             <div className="space-y-1.5">
                 <Label htmlFor="tags">Tags (comma-separated)</Label>
                 <Input 
@@ -202,7 +243,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
             {error && <p className="text-sm text-red-500">{error}</p>}
             </CardContent>
             <CardFooter>
-            <Button type="submit" disabled={createPostMutation.isPending} className="w-full">
+            <Button type="submit" disabled={createPostMutation.isPending || contentEditor?.isEmpty}>
                 {createPostMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 
                 Submit Post
             </Button>
