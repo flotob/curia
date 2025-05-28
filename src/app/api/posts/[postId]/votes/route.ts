@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
-import { query } from '@/lib/db';
+import { getClient } from '@/lib/db'; // Use getClient for transactions
+import { PoolClient } from 'pg';
 
 interface VoteParams {
   params: {
@@ -12,6 +13,7 @@ interface VoteParams {
 async function addVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
   const user = req.user;
   const postId = parseInt(context.params.postId, 10);
+  let client: PoolClient | null = null; // Declare client here to be accessible in finally block
 
   if (!user || !user.sub) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -20,17 +22,63 @@ async function addVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
     return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
   }
 
-  // TODO: Implement actual vote insert and post.upvote_count increment
-  // Ensure atomicity (transaction)
-  // Handle unique constraint violation (already voted)
-  console.log(`[API] POST /api/posts/${postId}/votes called by user:`, user.sub);
-  return NextResponse.json({ message: `POST /api/posts/${postId}/votes - Not Implemented` }, { status: 501 });
+  const userId = user.sub;
+
+  try {
+    client = await getClient();
+    await client.query('BEGIN');
+
+    // Attempt to insert the vote
+    try {
+      await client.query('INSERT INTO votes (user_id, post_id) VALUES ($1, $2)', [userId, postId]);
+      // If insert successful, increment upvote_count
+      await client.query('UPDATE posts SET upvote_count = upvote_count + 1 WHERE id = $1', [postId]);
+    } catch (voteInsertError: any) {
+      // Check if it's a unique violation error (already voted)
+      if (voteInsertError.code === '23505') { // 23505 is unique_violation in PostgreSQL
+        // User already voted, this is not an error for the client, effectively a NOP for adding a vote.
+        // The client-side should ideally prevent calling add if already voted.
+        console.log(`[API] User ${userId} already voted for post ${postId}. No action taken.`);
+        // We don't throw an error here, let the transaction commit if this was the only op.
+        // Or, we could query current state and return it.
+      } else {
+        throw voteInsertError; // Re-throw other errors
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    // Fetch the updated post data to return (including new count and userHasUpvoted status)
+    const updatedPostResult = await client.query(
+        `SELECT p.*, u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
+         CASE WHEN v.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS user_has_upvoted
+         FROM posts p
+         JOIN users u ON p.author_user_id = u.user_id
+         LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $1
+         WHERE p.id = $2`,
+        [userId, postId]
+    );
+
+    if (updatedPostResult.rows.length === 0) {
+        return NextResponse.json({ error: 'Post not found after voting' }, { status: 404 });
+    }
+
+    return NextResponse.json({ post: updatedPostResult.rows[0], message: 'Vote added successfully' });
+
+  } catch (error) {
+    if (client) await client.query('ROLLBACK');
+    console.error(`[API] Error adding vote for post ${postId} by user ${userId}:`, error);
+    return NextResponse.json({ error: 'Failed to add vote' }, { status: 500 });
+  } finally {
+    if (client) client.release();
+  }
 }
 
 // DELETE to remove an upvote (protected)
 async function removeVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
   const user = req.user;
   const postId = parseInt(context.params.postId, 10);
+  let client: PoolClient | null = null;
 
   if (!user || !user.sub) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -39,10 +87,43 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: VoteParams)
     return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
   }
 
-  // TODO: Implement actual vote delete and post.upvote_count decrement
-  // Ensure atomicity (transaction)
-  console.log(`[API] DELETE /api/posts/${postId}/votes called by user:`, user.sub);
-  return NextResponse.json({ message: `DELETE /api/posts/${postId}/votes - Not Implemented` }, { status: 501 });
+  const userId = user.sub;
+
+  try {
+    client = await getClient();
+    await client.query('BEGIN');
+
+    const deleteResult = await client.query('DELETE FROM votes WHERE user_id = $1 AND post_id = $2', [userId, postId]);
+
+    if (deleteResult.rowCount && deleteResult.rowCount > 0) { // Check if rowCount is not null and then if > 0
+      await client.query('UPDATE posts SET upvote_count = GREATEST(0, upvote_count - 1) WHERE id = $1', [postId]);
+    }
+    
+    await client.query('COMMIT');
+
+    // Fetch the updated post data to return
+    const updatedPostResult = await client.query(
+        `SELECT p.*, u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
+         FALSE AS user_has_upvoted -- After removing a vote, user_has_upvoted is false
+         FROM posts p
+         JOIN users u ON p.author_user_id = u.user_id
+         WHERE p.id = $1`,
+        [postId] // We don't need userId for this specific part of the query as user_has_upvoted is known
+    );
+
+    if (updatedPostResult.rows.length === 0) {
+        return NextResponse.json({ error: 'Post not found after unvoting' }, { status: 404 });
+    }
+
+    return NextResponse.json({ post: updatedPostResult.rows[0], message: 'Vote removed successfully' });
+
+  } catch (error) {
+    if (client) await client.query('ROLLBACK');
+    console.error(`[API] Error removing vote for post ${postId} by user ${userId}:`, error);
+    return NextResponse.json({ error: 'Failed to remove vote' }, { status: 500 });
+  } finally {
+    if (client) client.release();
+  }
 }
 
 export const POST = withAuth(addVoteHandler, false);

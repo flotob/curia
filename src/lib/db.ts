@@ -18,15 +18,24 @@ pool.on('error', (err: Error, client: PoolClient) => {
 
 export const query = async (text: string, params?: any[]) => {
   const start = Date.now();
+  const client = await pool.connect();
   try {
-    const res = await pool.query(text, params);
+    const res = await client.query(text, params);
     const duration = Date.now() - start;
     console.log('executed query', { text, duration, rows: res.rowCount });
     return res;
   } catch (err) {
     console.error('Error executing query', { text, params, err });
     throw err;
+  } finally {
+    client.release();
   }
+};
+
+// Function to get a client from the pool for manual transaction management
+export const getClient = async (): Promise<PoolClient> => {
+  const client = await pool.connect();
+  return client;
 };
 
 // Optional: A way to gracefully close the pool when the application exits

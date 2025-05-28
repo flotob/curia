@@ -135,20 +135,22 @@ const MyInfo = () => {
 
   // Effect 3: Attempt Plugin Login once initial CG data is loaded, admin status determined, and not already authenticated
   useEffect(() => {
-    if (initialCgDataLoaded && cgUserInfo && isCurrentUserAdmin !== null && !pluginToken && !isAuthContextLoading && !isPluginAuthenticated) {
-      console.log(`[MyInfo] Attempting plugin JWT login for user: ${cgUserInfo.id}, Admin status: ${isCurrentUserAdmin}`);
+    if (initialCgDataLoaded && cgUserInfo && communityInfo && isCurrentUserAdmin !== null && !pluginToken && !isAuthContextLoading && !isPluginAuthenticated) {
+      console.log(`[MyInfo] Attempting plugin JWT login for user: ${cgUserInfo.id}, Admin status: ${isCurrentUserAdmin}, Community: ${communityInfo.id}`);
       setLocalAuthLoginError(null); 
       pluginLogin({
         userId: cgUserInfo.id,
         name: cgUserInfo.name,
-        profilePictureUrl: (cgUserInfo as any)?.profilePictureUrl || null,
-        isAdmin: isCurrentUserAdmin, // Use the determined admin status
+        profilePictureUrl: cgUserInfo.imageUrl || null,
+        isAdmin: isCurrentUserAdmin,
+        iframeUid: iframeUid,
+        communityId: communityInfo.id,
       }).catch(err => {
         console.error("[MyInfo] Plugin login call failed:", err);
         setLocalAuthLoginError(err.message || 'Plugin login attempt failed');
       });
     }
-  }, [initialCgDataLoaded, cgUserInfo, isCurrentUserAdmin, pluginToken, isAuthContextLoading, isPluginAuthenticated, pluginLogin]);
+  }, [initialCgDataLoaded, cgUserInfo, communityInfo, isCurrentUserAdmin, pluginToken, isAuthContextLoading, isPluginAuthenticated, pluginLogin, iframeUid]);
 
   // Effect 4: Fetch /api/me when plugin token is available
   useEffect(() => {

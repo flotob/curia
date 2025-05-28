@@ -22,6 +22,8 @@ interface AuthContextType {
     name?: string | null;
     profilePictureUrl?: string | null;
     isAdmin?: boolean;
+    iframeUid?: string | null;
+    communityId?: string | null;
   }) => Promise<void>;
   logout: () => void;
 }
@@ -79,8 +81,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     name?: string | null;
     profilePictureUrl?: string | null;
     isAdmin?: boolean;
+    iframeUid?: string | null;
+    communityId?: string | null;
   }) => {
     setIsLoading(true);
+    console.log('[AuthContext] login function called. userDataFromCgLib:', JSON.stringify(userDataFromCgLib));
+    console.log('[AuthContext] Value of isAdmin being sent to /api/auth/session:', userDataFromCgLib.isAdmin);
     try {
       const response = await fetch('/api/auth/session', {
         method: 'POST',
@@ -92,6 +98,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             name: userDataFromCgLib.name,
             profilePictureUrl: userDataFromCgLib.profilePictureUrl,
             isAdmin: userDataFromCgLib.isAdmin,
+            iframeUid: userDataFromCgLib.iframeUid,
+            communityId: userDataFromCgLib.communityId,
         }),
       });
 
@@ -102,7 +110,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const { token: newToken } = await response.json();
       if (newToken) {
-        const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number }>(newToken);
+        const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number, uid?: string, cid?: string }>(newToken);
         console.log('[AuthContext] New token received. Decoded expiry (exp):', decoded.exp, 'Current time:', Math.floor(Date.now() / 1000));
         if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
           console.warn('[AuthContext] WARNING: New token is already expired upon reception!');

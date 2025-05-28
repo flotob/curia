@@ -12,6 +12,8 @@ interface SessionRequestBody {
   name?: string | null;
   profilePictureUrl?: string | null;
   isAdmin?: boolean; // This would be determined by the frontend based on CG roles
+  iframeUid?: string | null;      // Added
+  communityId?: string | null;    // Added
   // communityId: string; // Could be added if needed later
 }
 
@@ -24,6 +26,8 @@ interface TokenSignPayload {
   name?: string | null;
   picture?: string | null;
   adm?: boolean;
+  uid?: string | null;      // Added: iframeUid mapped to uid
+  cid?: string | null;      // Added: communityId mapped to cid
 }
 
 export async function POST(req: NextRequest) {
@@ -36,13 +40,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as SessionRequestBody;
+    const rawBodyText = await req.text(); 
+    console.log('[/api/auth/session] Received raw request body text:', rawBodyText);
+    const body = JSON.parse(rawBodyText) as SessionRequestBody; 
+    console.log('[/api/auth/session] Parsed request body object:', body);
 
-    const { userId, name, profilePictureUrl, isAdmin } = body;
+    const { userId, name, profilePictureUrl, isAdmin, iframeUid, communityId } = body;
+    console.log('[/api/auth/session] Destructured isAdmin from parsed body:', isAdmin);
+    console.log('[/api/auth/session] Destructured iframeUid:', iframeUid);
+    console.log('[/api/auth/session] Destructured communityId:', communityId);
+    console.log('[/api/auth/session] Type of destructured isAdmin:', typeof isAdmin);
 
-    if (!userId) {
+    // Make iframeUid and communityId required for session creation, along with userId
+    if (!userId || !iframeUid || !communityId) { 
       return NextResponse.json(
-        { error: 'User ID is required' },
+        { error: 'User ID, iframeUid, and Community ID are required for session' },
         { status: 400 }
       );
     }
@@ -78,8 +90,11 @@ export async function POST(req: NextRequest) {
       sub: userId,
       name: name,
       picture: profilePictureUrl,
-      adm: isAdmin || false, // Default to false if not provided
+      adm: isAdmin || false, 
+      uid: iframeUid,       // Added
+      cid: communityId,     // Added
     };
+    console.log('[/api/auth/session] Payload to sign (checking adm, uid, cid claims):', payloadToSign);
 
     const secret = JWT_SECRET as string;
 

@@ -10,6 +10,8 @@ export interface JwtPayload {
   name?: string | null; // User's name (optional)
   picture?: string | null; // User's profile picture URL (optional)
   adm?: boolean; // Admin status (optional)
+  uid?: string | null;      // Added: iframeUid
+  cid?: string | null;      // Added: communityId
   // Add other claims as needed, e.g., iat, exp which jwt.verify adds
   iat?: number;
   exp?: number;
