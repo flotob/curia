@@ -6,6 +6,74 @@ This sample plugin demonstrates the core capabilities of the [Common Ground Plug
 
 Use this as a reference implementation to understand how to leverage the full feature set of CG plugins in your own applications.
 
+## Database Migrations
+
+This project uses `node-pg-migrate` to manage PostgreSQL database schema changes. Migrations are written in TypeScript and then compiled to JavaScript before being executed.
+
+### Workflow for Adding a New Migration
+
+1.  **Create a New Migration File:**
+    Use the following yarn script to generate a new migration file. Replace `<migration_name>` with a descriptive name for your migration (e.g., `add-posts-table`, `add-status-to-users`).
+    ```bash
+    yarn migrate:create <migration_name>
+    ```
+    This command will create a new TypeScript file in the `migrations/` directory, prefixed with a timestamp (e.g., `migrations/1748449754626_add-posts-table.ts`).
+
+2.  **Edit the Migration File:**
+    Open the newly created `.ts` file in the `migrations/` directory. You will see `up` and `down` functions.
+    *   **`up(pgm: MigrationBuilder): Promise<void>`:** Write your schema changes here (e.g., creating tables, adding columns). Use the `pgm` object provided by `node-pg-migrate` for schema operations.
+    *   **`down(pgm: MigrationBuilder): Promise<void>`:** Write the reverse operations here to roll back the changes made in the `up` function (e.g., dropping tables, removing columns).
+
+    ```typescript
+    // Example: migrations/<timestamp>_your-migration-name.ts
+    import { MigrationBuilder, ColumnDefinitions } from 'node-pg-migrate';
+
+    export const shorthands: ColumnDefinitions | undefined = undefined;
+
+    export async function up(pgm: MigrationBuilder): Promise<void> {
+      // pgm.createTable(...);
+      // pgm.addColumn(...);
+    }
+
+    export async function down(pgm: MigrationBuilder): Promise<void> {
+      // pgm.dropTable(...);
+      // pgm.removeColumn(...);
+    }
+    ```
+
+3.  **Apply the Migration:**
+    Once you have defined your `up` and `down` functions, run the following command to apply the migration (and any other pending migrations):
+    ```bash
+    yarn migrate:up
+    ```
+    This command does two things:
+    *   First, it automatically runs `yarn migrate:compile` (due to the `premigrate:up` script in `package.json`). This compiles all TypeScript files from the `migrations/` directory into JavaScript files in the `dist/migrations/` directory, using `tsconfig.migrations.json` for configuration.
+    *   Then, it executes `node-pg-migrate up`, telling it to use the compiled JavaScript migrations from the `dist/migrations/` directory.
+
+### Rolling Back Migrations
+
+To roll back the last applied migration, use:
+```bash
+yarn migrate:down
+```
+This will also automatically compile first and then run the `down` function of the last applied migration from the compiled files in `dist/migrations/`.
+
+### Key Files and Configuration
+
+*   **`migrations/`**: This directory contains the source TypeScript migration files that you create and edit.
+*   **`dist/migrations/`**: This directory contains the JavaScript files compiled from `migrations/`. It is automatically generated and should be added to `.gitignore` (already done).
+*   **`tsconfig.migrations.json`**: A dedicated TypeScript configuration file used solely for compiling the migration files. It extends the main `tsconfig.json` but overrides settings like `module`, `outDir`, `noEmit`, and `incremental` to ensure migrations are compiled correctly to CommonJS JavaScript.
+*   **`.env` file**: Must contain the `DATABASE_URL` environment variable pointing to your PostgreSQL instance (e.g., `DATABASE_URL=postgres://plugin_user:plugin_password@localhost:5434/plugin_db`). `node-pg-migrate` uses this to connect to the database. The `dotenv` package is included to help load this file.
+*   **`package.json` (scripts section)**:
+    *   `migrate:create`: Generates new TypeScript migration templates.
+    *   `migrate:compile`: Compiles TypeScript migrations to `dist/migrations/`. Cleans `dist/migrations` before compiling.
+    *   `premigrate:up`: Automatically runs `migrate:compile` before `migrate:up`.
+    *   `migrate:up`: Applies pending migrations from `dist/migrations/`.
+    *   `premigrate:down`: Automatically runs `migrate:compile` before `migrate:down`.
+    *   `migrate:down`: Rolls back the last migration from `dist/migrations/`.
+
+This setup ensures that you can write your migrations in TypeScript with full type safety and modern features, while `node-pg-migrate` executes reliable JavaScript code against your database.
+
 ## Getting Started
 Install the dependencies:
 ```bash
