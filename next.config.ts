@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
+        protocol: 'https',
+        hostname: 'app.cg',
+        port: '',
+        pathname: '/files/**',
+      },
+      {
         hostname: '**',
       },
     ],
