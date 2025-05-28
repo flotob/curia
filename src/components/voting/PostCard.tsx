@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { MessageSquare, Share2, Bookmark, Clock } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { VoteButton } from './VoteButton';
 import { ApiPost } from '@/app/api/posts/route'; // Assuming ApiPost is exported from your API route
 import { cn } from '@/lib/utils';
+import { CommentList } from './CommentList'; // Import CommentList
+import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
 
 interface PostCardProps {
   post: ApiPost;
@@ -38,6 +40,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
+  const [showComments, setShowComments] = useState(false);
 
   return (
     <Card className="w-full max-w-2xl mx-auto overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -85,7 +88,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
           <CardFooter className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 md:pb-4">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" className="p-1 h-auto">
+              <Button variant="ghost" size="sm" className="p-1 h-auto" onClick={() => setShowComments(!showComments)} aria-expanded={showComments}>
                 <MessageSquare size={16} className="mr-1.5" /> {post.comment_count}
               </Button>
               <Button variant="ghost" size="sm" className="p-1 h-auto">
@@ -100,6 +103,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           </CardFooter>
         </div>
       </div>
+      {/* Comments Section - Conditionally Rendered */}
+      {showComments && (
+        <div className="border-t border-border p-4">
+          <h4 className="text-md font-semibold mb-3">Comments</h4>
+          <NewCommentForm postId={post.id} />
+          <div className="mt-4">
+            <CommentList postId={post.id} />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }; 
