@@ -74,6 +74,83 @@ This will also automatically compile first and then run the `down` function of t
 
 This setup ensures that you can write your migrations in TypeScript with full type safety and modern features, while `node-pg-migrate` executes reliable JavaScript code against your database.
 
+## Authentication & Protected API Routes
+
+This boilerplate implements a plugin-specific JWT-based authentication system to secure its backend API routes. This allows the plugin to have its own authenticated sessions independent of, but initialized by, the Common Ground platform's user context.
+
+### Core Flow
+
+1.  **Initial Context from Common Ground:** When the plugin loads in an iframe, the frontend (`src/app/myInfo.tsx` or a similar entry component) initializes `CgPluginLib` using the `iframeUid` and your plugin's public/private keys (via `/api/sign`). It then fetches user information (`cgUserInfo`) and community information (`communityInfo`) from `CgPluginLib`.
+2.  **Determine Admin Status:** Based on `cgUserInfo.roles`, `communityInfo.roles`, and the `NEXT_PUBLIC_ADMIN_ROLE_IDS` environment variable, the frontend determines if the current user has administrative privileges within the plugin's context.
+3.  **Request Plugin JWT:** The frontend then calls the `login()` function from `AuthContext` (`src/contexts/AuthContext.tsx`). This function sends a `POST` request to the plugin's backend endpoint `/api/auth/session` with the user's ID, name, profile picture URL (if available), and the determined admin status.
+4.  **Issue Plugin JWT:** The `/api/auth/session/route.ts` endpoint receives this information, validates it, and if successful, mints a new JWT. This JWT is signed with your plugin's `JWT_SECRET` (from `.env`) and includes claims such as:
+    *   `sub`: The user's Common Ground ID.
+    *   `name`: The user's name.
+    *   `picture`: The user's profile picture URL.
+    *   `adm`: A boolean indicating if the user is an admin for this plugin.
+    *   It also includes standard JWT claims like `iat` (issued at) and `exp` (expiry time, controlled by `JWT_EXPIRES_IN_SECONDS` in `.env`).
+5.  **Store JWT on Client:** The `AuthContext` receives this JWT from `/api/auth/session` and stores it in its state. It also decodes the JWT to populate a `user` object in the context and optionally persists the token to `localStorage` to attempt session resumption on subsequent loads (with expiry checks).
+6.  **Authenticated API Calls:** For subsequent calls to the plugin's backend API routes:
+    *   The frontend uses the `authFetchJson` utility (`src/utils/authFetch.ts`).
+    *   This utility retrieves the stored plugin JWT from `AuthContext` (via the `useAuth` hook) and includes it in the `Authorization: Bearer <token>` header of the request.
+7.  **Protect API Routes with `withAuth` Middleware:**
+    *   Backend API routes that require authentication are wrapped with the `withAuth` higher-order function (`src/lib/withAuth.ts`).
+    *   `withAuth` verifies the incoming JWT. If valid, it decodes the claims and attaches them to the `req.user` object.
+    *   **User Profile Sync:** On every successful JWT verification, `withAuth` also performs an `UPSERT` operation into the `users` table in your PostgreSQL database. This syncs the `user_id`, `name`, and `profile_picture_url` from the JWT claims, ensuring your local user profile data is kept up-to-date.
+    *   `withAuth` can also enforce admin-only access to a route.
+
+### Key Files for Authentication
+
+*   **`src/contexts/AuthContext.tsx`:** Manages client-side authentication state (JWT, user info, loading/error states), provides `login` and `logout` functions, and handles `localStorage` persistence of the token.
+*   **`src/app/api/auth/session/route.ts`:** Server-side Next.js API route that issues the plugin-specific JWTs.
+*   **`src/lib/withAuth.ts`:** Server-side middleware (higher-order function) to protect API routes by verifying JWTs and performing user profile sync to the database.
+*   **`src/utils/authFetch.ts`:** Client-side utility for making `fetch` requests that automatically include the plugin JWT in the `Authorization` header.
+*   **`src/app/myInfo.tsx` (Example Usage):** Demonstrates initializing `CgPluginLib`, determining admin status, calling `auth.login()`, and then making an authenticated API call to a protected route (`/api/me`).
+*   **`src/app/api/me/route.ts` (Example Protected Route):** A simple GET route protected by `withAuth` that returns information from the authenticated user's JWT.
+*   **`.env` (and `.env.example`):** Contains crucial secrets and configurations:
+    *   `JWT_SECRET`: For signing and verifying plugin JWTs.
+    *   `JWT_EXPIRES_IN_SECONDS`: Defines the lifetime of the plugin JWTs.
+    *   `NEXT_PUBLIC_ADMIN_ROLE_IDS`: Comma-separated list of role *titles* from Common Ground that grant admin privileges in this plugin.
+
+### Creating a New Protected API Route
+
+1.  Create your API route file (e.g., `src/app/api/my-data/route.ts`).
+2.  Import `withAuth` and `AuthenticatedRequest` (if you need to access `req.user`) from `src/lib/withAuth.ts`.
+3.  Define your handler function(s) (e.g., `async function GET(req: AuthenticatedRequest) { ... }`).
+4.  Wrap your handler with `withAuth`. For admin-only routes, pass `true` as the second argument to `withAuth`.
+
+    ```typescript
+    // src/app/api/my-data/route.ts
+    import { NextResponse } from 'next/server';
+    import { withAuth, AuthenticatedRequest, JwtPayload } from '@/lib/withAuth';
+
+    async function myDataHandler(req: AuthenticatedRequest) {
+      // Access claims from the verified JWT via req.user
+      const userId = req.user?.sub;
+      const isAdmin = req.user?.adm;
+
+      if (!userId) {
+        return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
+      }
+
+      // Your logic here...
+      const data = { message: `Hello user ${userId}! Your admin status is: ${isAdmin}` };
+      return NextResponse.json(data);
+    }
+
+    // Protect the GET method for this route. 
+    // Set second arg to `true` if it should be admin-only: export const GET = withAuth(myDataHandler, true);
+    export const GET = withAuth(myDataHandler, false);
+    ```
+
+### Important Security Considerations
+
+*   **`JWT_SECRET`:** Keep this secret secure and ensure it's a strong, random string. Do not commit it to version control (it should only be in your `.env` file, which is gitignored).
+*   **HTTPS:** Always use HTTPS in production environments to protect JWTs transmitted in headers.
+*   **Token Expiry:** Use reasonably short expiry times for your JWTs (e.g., 15 minutes to a few hours, configured by `JWT_EXPIRES_IN_SECONDS`) and implement a token refresh strategy if longer-lived sessions are required (currently not implemented in this boilerplate).
+*   **Input Validation:** Always validate any data received in API route handlers, even for protected routes.
+*   **Admin Logic:** The current admin determination relies on matching role *titles* defined in `NEXT_PUBLIC_ADMIN_ROLE_IDS`. Ensure these titles are accurate and consistently managed in your Common Ground community settings.
+
 ## Getting Started
 Install the dependencies:
 ```bash
