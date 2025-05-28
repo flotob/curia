@@ -40,21 +40,36 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Effect to initialize auth state from localStorage (optional persistence)
   useEffect(() => {
     const storedToken = localStorage.getItem('plugin_jwt');
+    let validTokenFound = false;
     if (storedToken) {
       try {
-        const decoded = jwtDecode<AuthUser & { sub: string, adm?:boolean }>(storedToken);
-        // TODO: Add token expiry check here. If expired, clear localStorage and don't set state.
-        setToken(storedToken);
-        setUser({
-            userId: decoded.sub,
-            name: decoded.name,
-            picture: decoded.picture,
-            isAdmin: decoded.adm || false
-        });
+        const decoded = jwtDecode<AuthUser & { sub: string, adm?:boolean, exp?: number }>(storedToken);
+        const currentTime = Math.floor(Date.now() / 1000);
+        console.log('[AuthContext] Checking stored token. Decoded expiry (exp):', decoded.exp, 'Current time:', currentTime);
+
+        if (decoded.exp && decoded.exp > currentTime) {
+          console.log('[AuthContext] Stored token is valid, using it.');
+          setToken(storedToken);
+          setUser({
+              userId: decoded.sub,
+              name: decoded.name,
+              picture: decoded.picture,
+              isAdmin: decoded.adm || false
+          });
+          validTokenFound = true;
+        } else {
+          console.warn('[AuthContext] Stored token is expired or has no expiry. Clearing.');
+          localStorage.removeItem('plugin_jwt');
+        }
       } catch (error) {
-        console.error('Error decoding stored token:', error);
-        localStorage.removeItem('plugin_jwt'); // Clear invalid token
+        console.error('[AuthContext] Error decoding stored token, clearing it:', error);
+        localStorage.removeItem('plugin_jwt');
       }
+    }
+    if (!validTokenFound) {
+        // Ensure state is clear if no valid token was found
+        setToken(null);
+        setUser(null);
     }
     setIsLoading(false);
   }, []);
@@ -87,7 +102,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const { token: newToken } = await response.json();
       if (newToken) {
-        const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean }>(newToken);
+        const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number }>(newToken);
+        console.log('[AuthContext] New token received. Decoded expiry (exp):', decoded.exp, 'Current time:', Math.floor(Date.now() / 1000));
+        if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+          console.warn('[AuthContext] WARNING: New token is already expired upon reception!');
+        }
         setToken(newToken);
         setUser({
             userId: decoded.sub,

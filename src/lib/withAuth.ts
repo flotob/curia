@@ -58,6 +58,7 @@ export function withAuth<Params = Record<string, string>>(
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+      console.log('[withAuth] Token verified successfully. Decoded exp:', decoded.exp, 'Current time:', Math.floor(Date.now() / 1000));
 
       // --- User Profile UPSERT Logic --- //
       const userId = decoded.sub;
@@ -102,7 +103,9 @@ export function withAuth<Params = Record<string, string>>(
       // Call the original handler with the augmented request and original context
       return await handler(authReq, context);
     } catch (error) {
+      console.error('[withAuth] Error during token verification or handler execution:', error);
       if (error instanceof jwt.TokenExpiredError) {
+        console.error('[withAuth] TokenExpiredError caught. Token exp:', (error as any).expiredAt, 'Current time:', new Date());
         return NextResponse.json({ error: 'Token expired' }, { status: 401 });
       } else if (error instanceof jwt.JsonWebTokenError) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 });

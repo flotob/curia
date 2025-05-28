@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
     const signOptions: SignOptions = {
       expiresIn: JWT_EXPIRES_IN_SECONDS, 
     };
+    console.log('[/api/auth/session] JWT Sign Options:', signOptions); // Log signOptions
 
     const token = jwt.sign(payloadToSign, secret, signOptions);
 
