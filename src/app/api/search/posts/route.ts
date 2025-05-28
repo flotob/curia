@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { ApiPost } from '@/app/api/posts/route'; // Import ApiPost to type the response
 
 // GET similar posts based on a query (publicly accessible)
 export async function GET(req: NextRequest) {
@@ -10,9 +11,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Search query must be at least 3 characters long' }, { status: 400 });
   }
 
-  // TODO: Implement actual search logic against posts.title and posts.content
-  // - Use ILIKE for case-insensitive partial matching or full-text search
-  // - Limit results (e.g., top 3-5)
-  console.log(`[API] GET /api/search/posts called with query:`, searchQuery);
-  return NextResponse.json({ message: `GET /api/search/posts?q=${searchQuery} - Not Implemented` }, { status: 501 });
+  const searchTerm = `%${searchQuery.trim()}%`;
+  const limit = 5; // Max number of suggestions to return
+
+  try {
+    const result = await query(
+      `SELECT 
+        p.id,
+        p.author_user_id,
+        p.title,
+        p.content,
+        p.tags,
+        p.upvote_count,
+        p.comment_count,
+        p.created_at,
+        p.updated_at,
+        u.name AS author_name,
+        u.profile_picture_url AS author_profile_picture_url,
+        false AS user_has_upvoted -- Search results don't need user-specific vote status for suggestions
+      FROM posts p
+      JOIN users u ON p.author_user_id = u.user_id
+      WHERE p.title ILIKE $1 OR p.content ILIKE $1
+      ORDER BY p.upvote_count DESC, p.created_at DESC -- Or by relevance if using FTS
+      LIMIT $2`,
+      [searchTerm, limit]
+    );
+
+    const suggestedPosts: Partial<ApiPost>[] = result.rows; // Use Partial as user_has_upvoted might be different
+
+    return NextResponse.json(suggestedPosts);
+
+  } catch (error) {
+    console.error('[API] Error searching posts:', error);
+    return NextResponse.json({ error: 'Failed to search posts' }, { status: 500 });
+  }
 } 

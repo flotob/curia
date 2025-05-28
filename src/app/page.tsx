@@ -1,6 +1,7 @@
 'use client'; // Marking as client component as FeedList uses client-side hooks
 
 import { FeedList } from '@/components/voting/FeedList';
+import { NewPostForm } from '@/components/voting/NewPostForm';
 
 export default function HomePage() {
   return (
@@ -13,6 +14,11 @@ export default function HomePage() {
           Discover and upvote the most relevant needs and issues from our community.
         </p>
       </header>
+      
+      <section className="mb-12">
+        <NewPostForm />
+      </section>
+
       <main>
         <FeedList />
       </main>
