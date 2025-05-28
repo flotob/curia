@@ -17,6 +17,7 @@
   "dependencies": {
     "@common-ground-dao/cg-plugin-lib": "^0.9.6",
     "@common-ground-dao/cg-plugin-lib-host": "^0.9.6",
+    "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-slot": "^1.2.3",
     "@tanstack/react-query": "^5.77.2",
     "class-variance-authority": "^0.7.1",

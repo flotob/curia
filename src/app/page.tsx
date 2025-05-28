@@ -1,12 +1,20 @@
-import MyInfo from "./myInfo";
+'use client'; // Marking as client component as FeedList uses client-side hooks
 
-export default async function Home() {
+import { FeedList } from '@/components/voting/FeedList';
+
+export default function HomePage() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <h1 className="text-2xl font-bold">Hey there, welcome to my test plugin</h1>
-
-        <MyInfo />
+    <div className="container mx-auto py-8 px-4">
+      <header className="mb-8 text-center">
+        <h1 className="text-4xl font-bold tracking-tight lg:text-5xl">
+          Community Posts
+        </h1>
+        <p className="mt-3 text-lg text-muted-foreground">
+          Discover and upvote the most relevant needs and issues from our community.
+        </p>
+      </header>
+      <main>
+        <FeedList />
       </main>
     </div>
   );
