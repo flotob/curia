@@ -44,3 +44,6 @@ docs/
 
 # Docker volumes
 postgres_data/
+
+# Compiled output
+/dist/

@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/migrations",
+    "noEmit": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "incremental": false,
+    "paths": {}
+  },
+  "include": [
+    "./migrations/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "./src",
+    ".next",
+    "./dist"
+  ]
+} 

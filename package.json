@@ -6,28 +6,39 @@
     "dev": "next dev --turbopack -p 5000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate:compile": "rimraf dist/migrations && tsc -p tsconfig.migrations.json",
+    "migrate:create": "node-pg-migrate create -j ts",
+    "premigrate:up": "yarn migrate:compile",
+    "migrate:up": "node-pg-migrate up -m dist/migrations",
+    "premigrate:down": "yarn migrate:compile",
+    "migrate:down": "node-pg-migrate down -m dist/migrations"
   },
   "dependencies": {
     "@common-ground-dao/cg-plugin-lib": "^0.9.6",
     "@common-ground-dao/cg-plugin-lib-host": "^0.9.6",
     "crypto": "^1.0.1",
     "next": "15.1.6",
-    "pg": "^8.11.3",
+    "pg": "^8.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
-    "@types/pg": "^8.10.9",
+    "@types/pg": "^8.15.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "config": "^4.0.0",
+    "dotenv": "^16.5.0",
+    "dotenv-expand": "^12.0.2",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
-    "node-pg-migrate": "^6.2.2",
+    "node-pg-migrate": "^8.0.0",
     "postcss": "^8",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.1",
+    "ts-node": "^11.0.0-beta.1",
     "typescript": "^5"
   }
 }
