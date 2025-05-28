@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: plugin_user
+      POSTGRES_PASSWORD: plugin_password
+      POSTGRES_DB: plugin_db
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432" # Changed host port mapping to 5433 to avoid conflict
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data: 
