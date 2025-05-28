@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import jwtDecode from 'jwt-decode'; // Utility to decode JWTs on the client-side
+import { jwtDecode } from 'jwt-decode'; // Utility to decode JWTs on the client-side
 
 // Define the shape of the user object derived from the JWT
 interface AuthUser {
