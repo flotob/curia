@@ -25,6 +25,7 @@ const MyInfo = () => {
   const [friends, setFriends] = useState<UserFriendsResponsePayload | null>(null);
   const [cgLibInstance, setCgLibInstance] = useState<CgPluginLib | null>(null);
   const [initialCgDataLoaded, setInitialCgDataLoaded] = useState(false);
+  const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState<boolean | null>(null); // null = loading, boolean = determined
 
   const searchParams = useSearchParams();
   const iframeUid = searchParams.get('iframeUid');
@@ -79,21 +80,46 @@ const MyInfo = () => {
     let didUnmount = false;
     console.log('[MyInfo] CgPluginLib instance available, fetching initial CG data...');
     setInitialCgDataLoaded(false); // Reset before fetching
+    setIsCurrentUserAdmin(null); // Reset admin status while loading new data
 
     const fetchInitialData = async () => {
       try {
-        const userInfoResponse = await cgLibInstance.getUserInfo();
+        // Fetch user and community info concurrently for admin check
+        const [userInfoResponse, communityInfoResponse] = await Promise.all([
+          cgLibInstance.getUserInfo(),
+          cgLibInstance.getCommunityInfo(),
+        ]);
+        
         if (didUnmount) return;
+
         console.log('[MyInfo] Fetched CG UserInfo:', userInfoResponse.data);
         setCgUserInfo(userInfoResponse.data);
+        console.log('[MyInfo] Fetched CG CommunityInfo:', communityInfoResponse.data);
+        setCommunityInfo(communityInfoResponse.data);
 
-        // Fetch other data concurrently
-        cgLibInstance.getCommunityInfo().then(communityInfoResponse => {
-          if (!didUnmount) setCommunityInfo(communityInfoResponse.data);
-        });
+        // Determine admin status once both are fetched
+        if (userInfoResponse.data && communityInfoResponse.data) {
+          const adminRoleTitlesEnv = process.env.NEXT_PUBLIC_ADMIN_ROLE_IDS || 'Admin';
+          const requiredAdminTitlesLower = adminRoleTitlesEnv.split(',').map(t => t.trim().toLowerCase()).filter(t => !!t);
+          
+          const roleIdToTitleLowerMap = new Map<string, string>();
+          communityInfoResponse.data.roles.forEach(role => {
+            roleIdToTitleLowerMap.set(role.id, role.title.toLowerCase());
+          });
+
+          const isAdminCheck = userInfoResponse.data.roles.some(userRoleId => {
+            const userRoleTitleLower = roleIdToTitleLowerMap.get(userRoleId);
+            return userRoleTitleLower ? requiredAdminTitlesLower.includes(userRoleTitleLower) : false;
+          });
+          console.log(`[MyInfo] Admin check: User has roles [${userInfoResponse.data.roles.join(', ')}], required admin titles [${requiredAdminTitlesLower.join(', ')}], is admin: ${isAdminCheck}`);
+          setIsCurrentUserAdmin(isAdminCheck);
+        }
+
+        // Fetch friends (less critical for initial admin check)
         cgLibInstance.getUserFriends(10, 0).then(friendsResponse => {
           if (!didUnmount) setFriends(friendsResponse.data);
         });
+
         setInitialCgDataLoaded(true);
       } catch (error) {
         if (!didUnmount) {
@@ -107,22 +133,22 @@ const MyInfo = () => {
     return () => { didUnmount = true; };
   }, [cgLibInstance]);
 
-  // Effect 3: Attempt Plugin Login once initial CG data is loaded and not already authenticated
+  // Effect 3: Attempt Plugin Login once initial CG data is loaded, admin status determined, and not already authenticated
   useEffect(() => {
-    if (initialCgDataLoaded && cgUserInfo && !pluginToken && !isAuthContextLoading && !isPluginAuthenticated) {
-      console.log('[MyInfo] Attempting plugin JWT login for user:', cgUserInfo.id);
-      setLocalAuthLoginError(null);
+    if (initialCgDataLoaded && cgUserInfo && isCurrentUserAdmin !== null && !pluginToken && !isAuthContextLoading && !isPluginAuthenticated) {
+      console.log(`[MyInfo] Attempting plugin JWT login for user: ${cgUserInfo.id}, Admin status: ${isCurrentUserAdmin}`);
+      setLocalAuthLoginError(null); 
       pluginLogin({
         userId: cgUserInfo.id,
         name: cgUserInfo.name,
         profilePictureUrl: (cgUserInfo as any)?.profilePictureUrl || null,
-        isAdmin: false, // Placeholder - determine admin status from cgUserInfo.roles or similar
+        isAdmin: isCurrentUserAdmin, // Use the determined admin status
       }).catch(err => {
         console.error("[MyInfo] Plugin login call failed:", err);
         setLocalAuthLoginError(err.message || 'Plugin login attempt failed');
       });
     }
-  }, [initialCgDataLoaded, cgUserInfo, pluginToken, isAuthContextLoading, isPluginAuthenticated, pluginLogin]);
+  }, [initialCgDataLoaded, cgUserInfo, isCurrentUserAdmin, pluginToken, isAuthContextLoading, isPluginAuthenticated, pluginLogin]);
 
   // Effect 4: Fetch /api/me when plugin token is available
   useEffect(() => {
@@ -154,6 +180,7 @@ const MyInfo = () => {
         <div className='flex flex-col gap-2 p-2 border border-gray-300 rounded-md'>
           <p>Name: {cgUserInfo.name}</p>
           <p>ID: {cgUserInfo.id}</p>
+          <p>Determined Admin Status: {isCurrentUserAdmin === null ? 'Checking...' : isCurrentUserAdmin ? 'Yes' : 'No'}</p>
           {!!(cgUserInfo as any)?.twitter && <p>Twitter: {(cgUserInfo as any)?.twitter?.username || 'Not connected'}</p>}
           {!!(cgUserInfo as any)?.lukso && <p>Lukso: {(cgUserInfo as any)?.lukso?.username || 'Not connected'}</p>}
           {!!(cgUserInfo as any)?.farcaster && <p>Farcaster: {(cgUserInfo as any)?.farcaster?.username || 'Not connected'}</p>}
