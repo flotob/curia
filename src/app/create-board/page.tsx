@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
@@ -12,13 +12,49 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 export default function CreateBoardPage() {
   const { user, token } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [boardName, setBoardName] = useState('');
   const [boardDescription, setBoardDescription] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [bgColor, setBgColor] = useState('#ffffff');
+
+  // Initialize theme from URL params
+  useEffect(() => {
+    const cgTheme = searchParams?.get('cg_theme') || 'light';
+    const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
+    
+    setTheme(cgTheme as 'light' | 'dark');
+    setBgColor(cgBgColor);
+    
+    // Set CSS custom properties for dynamic theming
+    document.documentElement.style.setProperty('--cg-bg', cgBgColor);
+    document.documentElement.setAttribute('data-cg-theme', cgTheme);
+  }, [searchParams]);
+
+  // Helper function to preserve existing URL params
+  const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  };
 
   const createBoardMutation = useMutation({
     mutationFn: async (data: { name: string; description: string }) => {
@@ -34,8 +70,8 @@ export default function CreateBoardPage() {
     onSuccess: () => {
       // Invalidate boards list to refresh sidebar
       queryClient.invalidateQueries({ queryKey: ['boards'] });
-      // Redirect to home
-      router.push('/');
+      // Redirect to home with preserved params
+      router.push(buildUrl('/'));
     },
   });
 
@@ -52,11 +88,24 @@ export default function CreateBoardPage() {
   // Redirect if not admin
   if (!user?.isAdmin && user?.userId !== process.env.NEXT_PUBLIC_SUPERADMIN_ID) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: bgColor }}
+      >
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-semibold text-red-600">Access Denied</h1>
-          <p className="text-slate-600">You need admin permissions to create boards.</p>
-          <Link href="/">
+          <h1 className={cn(
+            "text-2xl font-semibold text-red-600",
+            theme === 'dark' && "text-red-400"
+          )}>
+            Access Denied
+          </h1>
+          <p className={cn(
+            "text-slate-600",
+            theme === 'dark' && "text-slate-400"
+          )}>
+            You need admin permissions to create boards.
+          </p>
+          <Link href={buildUrl('/')}>
             <Button variant="outline">
               <ArrowLeft size={16} className="mr-2" />
               Back to Home
@@ -67,22 +116,36 @@ export default function CreateBoardPage() {
     );
   }
 
+  // Dynamic theme styles
+  const pageBackground = theme === 'dark' 
+    ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95'
+    : 'bg-gradient-to-br from-white/95 via-white to-slate-50/95';
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div 
+      className={cn("min-h-screen", pageBackground)}
+      style={{ backgroundColor: bgColor }}
+    >
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <Link href="/">
+            <Link href={buildUrl('/')}>
               <Button variant="ghost" className="mb-4">
                 <ArrowLeft size={16} className="mr-2" />
                 Back to Home
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+            <h1 className={cn(
+              "text-3xl font-bold",
+              theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+            )}>
               Create New Board
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-2">
+            <p className={cn(
+              "mt-2",
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            )}>
               Create a new discussion board for your community
             </p>
           </div>
@@ -122,8 +185,16 @@ export default function CreateBoardPage() {
                 </div>
 
                 {createBoardMutation.error && (
-                  <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-red-600 dark:text-red-400 text-sm">
+                  <div className={cn(
+                    "p-4 border rounded-lg",
+                    theme === 'dark' 
+                      ? 'bg-red-950 border-red-800' 
+                      : 'bg-red-50 border-red-200'
+                  )}>
+                    <p className={cn(
+                      "text-sm",
+                      theme === 'dark' ? 'text-red-400' : 'text-red-600'
+                    )}>
                       Error: {createBoardMutation.error.message}
                     </p>
                   </div>
@@ -147,7 +218,7 @@ export default function CreateBoardPage() {
                       </>
                     )}
                   </Button>
-                  <Link href="/">
+                  <Link href={buildUrl('/')}>
                     <Button variant="outline" disabled={createBoardMutation.isPending}>
                       Cancel
                     </Button>

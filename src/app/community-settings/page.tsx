@@ -23,17 +23,77 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function CommunitySettingsPage() {
   const { cgInstance, isInitializing } = useCgLib();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [bgColor, setBgColor] = useState('#ffffff');
+  const { user } = useAuth();
 
   // Initialize theme from URL params
   useEffect(() => {
     const cgTheme = searchParams?.get('cg_theme') || 'light';
+    const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
+    
     setTheme(cgTheme as 'light' | 'dark');
+    setBgColor(cgBgColor);
+    
+    // Set CSS custom properties for dynamic theming
+    document.documentElement.style.setProperty('--cg-bg', cgBgColor);
+    document.documentElement.setAttribute('data-cg-theme', cgTheme);
   }, [searchParams]);
+
+  // Helper function to preserve existing URL params
+  const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  };
+
+  // Admin access control
+  if (user && !user.isAdmin && user.userId !== process.env.NEXT_PUBLIC_SUPERADMIN_ID) {
+    return (
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: bgColor }}
+      >
+        <div className="text-center space-y-4">
+          <h1 className={cn(
+            "text-2xl font-semibold text-red-600",
+            theme === 'dark' && "text-red-400"
+          )}>
+            Access Denied
+          </h1>
+          <p className={cn(
+            "text-slate-600",
+            theme === 'dark' && "text-slate-400"
+          )}>
+            You need admin permissions to access community settings.
+          </p>
+          <Link href={buildUrl('/')}>
+            <Button variant="outline">
+              <ArrowLeft size={16} className="mr-2" />
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch community info
   const { data: communityInfo, isLoading: isLoadingCommunityInfo } = useQuery<CommunityInfoResponsePayload | null>({
@@ -49,14 +109,26 @@ export default function CommunitySettingsPage() {
 
   if (isInitializing || isLoadingCommunityInfo) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div 
+        className="min-h-screen"
+        style={{ backgroundColor: bgColor }}
+      >
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
             <div className="animate-pulse space-y-6">
-              <div className="h-8 w-64 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className={cn(
+                "h-8 w-64 rounded",
+                theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+              )} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="h-64 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                <div className="h-64 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                <div className={cn(
+                  "h-64 rounded-xl",
+                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                )} />
+                <div className={cn(
+                  "h-64 rounded-xl", 
+                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                )} />
               </div>
             </div>
           </div>
@@ -67,12 +139,18 @@ export default function CommunitySettingsPage() {
 
   if (!communityInfo) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: bgColor }}
+      >
         <div className="text-center space-y-4">
-          <div className="text-2xl font-semibold text-slate-700 dark:text-slate-300">
+          <div className={cn(
+            "text-2xl font-semibold",
+            theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+          )}>
             Unable to load community information
           </div>
-          <Link href="/">
+          <Link href={buildUrl('/')}>
             <Button variant="outline">
               <ArrowLeft size={16} className="mr-2" />
               Back to Home
@@ -83,13 +161,21 @@ export default function CommunitySettingsPage() {
     );
   }
 
+  // Dynamic theme styles
+  const pageBackground = theme === 'dark' 
+    ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95'
+    : 'bg-gradient-to-br from-white/95 via-white to-slate-50/95';
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div 
+      className={cn("min-h-screen", pageBackground)}
+      style={{ backgroundColor: bgColor }}
+    >
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <Link href="/">
+            <Link href={buildUrl('/')}>
               <Button variant="ghost" className="mb-4">
                 <ArrowLeft size={16} className="mr-2" />
                 Back to Home
@@ -97,11 +183,16 @@ export default function CommunitySettingsPage() {
             </Link>
             <div className="flex items-center gap-3 mb-2">
               <Settings size={28} className="text-primary" />
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              <h1 className={cn(
+                "text-3xl font-bold",
+                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+              )}>
                 Community Settings
               </h1>
             </div>
-            <p className="text-slate-600 dark:text-slate-400">
+            <p className={cn(
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            )}>
               View and manage your community configuration
             </p>
           </div>
@@ -135,10 +226,16 @@ export default function CommunitySettingsPage() {
                     </div>
                   )}
                   <div>
-                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+                    <h3 className={cn(
+                      "text-xl font-semibold",
+                      theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+                    )}>
                       {communityInfo.title}
                     </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className={cn(
+                      "text-sm",
+                      theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                    )}>
                       Community ID: {communityInfo.id}
                     </p>
                   </div>
@@ -148,11 +245,20 @@ export default function CommunitySettingsPage() {
 
                 {/* Community URLs */}
                 <div className="space-y-3">
-                  <h4 className="font-medium text-slate-700 dark:text-slate-300">Assets</h4>
+                  <h4 className={cn(
+                    "font-medium",
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  )}>
+                    Assets
+                  </h4>
                   <div className="space-y-2 text-sm">
                     {communityInfo.largeLogoUrl && (
                       <div className="flex justify-between">
-                        <span className="text-slate-500 dark:text-slate-400">Logo URL:</span>
+                        <span className={cn(
+                          theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                        )}>
+                          Logo URL:
+                        </span>
                         <a 
                           href={communityInfo.largeLogoUrl} 
                           target="_blank" 
@@ -165,7 +271,11 @@ export default function CommunitySettingsPage() {
                     )}
                     {communityInfo.headerImageUrl && (
                       <div className="flex justify-between">
-                        <span className="text-slate-500 dark:text-slate-400">Header URL:</span>
+                        <span className={cn(
+                          theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                        )}>
+                          Header URL:
+                        </span>
                         <a 
                           href={communityInfo.headerImageUrl} 
                           target="_blank" 
@@ -211,10 +321,16 @@ export default function CommunitySettingsPage() {
                             )}
                           </div>
                           <div>
-                            <h5 className="font-medium text-slate-900 dark:text-slate-100">
+                            <h5 className={cn(
+                              "font-medium",
+                              theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+                            )}>
                               {role.title}
                             </h5>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className={cn(
+                              "text-xs",
+                              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                            )}>
                               Role ID: {role.id}
                             </p>
                           </div>
@@ -226,7 +342,10 @@ export default function CommunitySettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-slate-500 dark:text-slate-400">
+                  <div className={cn(
+                    "text-center py-6",
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                  )}>
                     <Users size={32} className="mx-auto mb-2 opacity-50" />
                     <p>No roles configured</p>
                   </div>
@@ -262,7 +381,10 @@ export default function CommunitySettingsPage() {
                   <span className="text-sm">Advanced Settings</span>
                 </Button>
               </div>
-              <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-4">
+              <p className={cn(
+                "text-center text-sm mt-4",
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+              )}>
                 More configuration options coming soon...
               </p>
             </CardContent>

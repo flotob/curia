@@ -87,6 +87,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return `${path}?${params.toString()}`;
   };
 
+  // Helper function for Home link - removes boardId to ensure we go to actual home
+  const buildHomeUrl = () => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params except boardId
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        if (key !== 'boardId') {
+          params.set(key, value);
+        }
+      });
+    }
+    
+    // Always include communityId
+    params.set('communityId', communityInfo.id);
+    
+    return `/?${params.toString()}`;
+  };
+
   // Dynamic theme styles
   const sidebarBg = theme === 'dark' 
     ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95 backdrop-blur-xl'
@@ -179,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {/* Home Link */}
         <Link
-          href={buildUrl('/', { communityId: communityInfo.id })}
+          href={buildHomeUrl()}
           className={cn(
             'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
             isHome
@@ -358,25 +377,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? 'border-slate-700/40 bg-slate-900/50' 
           : 'border-slate-200/60 bg-white/50'
       )}>
-        <Link
-          href={buildUrl('/community-settings')}
-          className={cn(
-            'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
-            theme === 'dark'
-              ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-          )}
-        >
-          <div className={cn(
-            'p-1.5 rounded-lg mr-3 transition-all duration-200',
-            theme === 'dark'
-              ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-              : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
-          )}>
-            <Settings size={16} />
-          </div>
-          <span className="flex-1 text-sm font-medium">Community Settings</span>
-        </Link>
+        {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+          <Link
+            href={buildUrl('/community-settings')}
+            className={cn(
+              'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
+              theme === 'dark'
+                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            )}
+          >
+            <div className={cn(
+              'p-1.5 rounded-lg mr-3 transition-all duration-200',
+              theme === 'dark'
+                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+            )}>
+              <Settings size={16} />
+            </div>
+            <span className="flex-1 text-sm font-medium">Community Settings</span>
+          </Link>
+        )}
       </div>
     </aside>
   );
