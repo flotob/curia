@@ -4,7 +4,7 @@ import "./globals.css";
 import 'highlight.js/styles/github-dark.css';
 import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayoutWithSidebar } from "@/components/layout/MainLayoutWithSidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,13 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Providers>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <main className="flex-grow p-4 md:p-6">
-                {/* You might want to add a Navbar here later if needed */}
-                {children}
-              </main>
-            </div>
+            <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
           </Providers>
         </ThemeProvider>
       </body>
