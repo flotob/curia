@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import NextImage from 'next/image';
-import { MessageSquare, Share2, Bookmark, Clock } from 'lucide-react';
+import { MessageSquare, Share2, Bookmark, Clock, Trash } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { VoteButton } from './VoteButton';
-import { ApiPost } from '@/app/api/posts/route'; // Assuming ApiPost is exported from your API route
+import { ApiPost } from '@/app/api/posts/route';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { authFetchJson } from '@/utils/authFetch';
 import { cn } from '@/lib/utils';
 import { CommentList } from './CommentList'; // Import CommentList
 import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
@@ -52,6 +55,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
   const [showComments, setShowComments] = useState(false);
+  const { user, token } = useAuth();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error('No auth token');
+      await authFetchJson(`/api/posts/${post.id}`, { method: 'DELETE', token });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
 
   const contentDisplayEditor = useEditor({
     extensions: [
@@ -154,6 +169,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               <Bookmark size={16} />
               {/* <span className="ml-1.5 hidden md:inline">Bookmark</span> Uncomment to show text */}
             </Button>
+            {user?.isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 h-auto text-destructive"
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash size={16} />
+              </Button>
+            )}
           </CardFooter>
         </div>
       </div>

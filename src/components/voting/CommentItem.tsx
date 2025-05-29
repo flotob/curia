@@ -3,7 +3,11 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route'; // Import the ApiComment interface
-import { Clock } from 'lucide-react';
+import { Clock, Trash } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { authFetchJson } from '@/utils/authFetch';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -43,6 +47,18 @@ function timeSince(dateString: string): string {
 export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const authorDisplayName = comment.author_name || 'Unknown User';
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
+  const { user, token } = useAuth();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error('No auth token');
+      await authFetchJson(`/api/posts/${comment.post_id}/comments/${comment.id}`, { method: 'DELETE', token });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', comment.post_id] });
+    },
+  });
 
   const editor = useEditor({
     extensions: [
@@ -95,12 +111,24 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
         <AvatarFallback>{avatarFallback}</AvatarFallback>
       </Avatar>
       <div className="flex-grow">
-        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">{authorDisplayName}</span>
-          <span className="mx-1">•</span>
-          <Clock size={12} className="mr-0.5 flex-shrink-0" />
-          <span>{timeSince(comment.created_at)}</span>
-        </div>
+      <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+        <span className="font-semibold text-foreground">{authorDisplayName}</span>
+        <span className="mx-1">•</span>
+        <Clock size={12} className="mr-0.5 flex-shrink-0" />
+        <span>{timeSince(comment.created_at)}</span>
+        {user?.isAdmin && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="p-1 h-auto text-destructive ml-2"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash size={12} />
+          </Button>
+        )}
+      </div>
         <div className="mt-1 text-sm">
             <article className="prose dark:prose-invert prose-sm max-w-none">
                 <EditorContent editor={editor} />

@@ -26,4 +26,20 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: SinglePo
 
 export const GET = withAuth(getSinglePostHandler, false);
 
-// Future: Add PUT/DELETE handlers here for post management if needed, protected by withAuth 
+// DELETE a post (admin only)
+async function deletePostHandler(req: AuthenticatedRequest, context: SinglePostParams) {
+  const postId = parseInt(context.params.postId, 10);
+  if (isNaN(postId)) {
+    return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+  }
+
+  try {
+    await query('DELETE FROM posts WHERE id = $1', [postId]);
+    return NextResponse.json({ message: 'Post deleted' });
+  } catch (error) {
+    console.error(`[API] Error deleting post ${postId}:`, error);
+    return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
+  }
+}
+
+export const DELETE = withAuth(deletePostHandler, true);

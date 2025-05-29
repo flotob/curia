@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react'; // Added React import for React.ElementType
+import React, { useState } from 'react';
 import { Editor } from '@tiptap/react';
 import {
   Bold,
@@ -20,6 +20,11 @@ interface EditorToolbarProps { // Changed from Props to avoid conflict if Props 
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   if (!editor) return null;
+
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [imageMode, setImageMode] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
 
   // Helper to create toolbar buttons
   const ToolbarButton = (
@@ -54,25 +59,39 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   );
 
   const handleLink = () => {
-    const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt('Enter URL', previousUrl || 'https://');
-    if (url === null) return; // User cancelled
-    if (url === '') {
+    if (editor.isActive('link')) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       return;
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    setLinkMode(true);
+    setLinkUrl(editor.getAttributes('link').href || '');
+  };
+
+  const applyLink = () => {
+    if (linkUrl.trim() === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    } else {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl.trim() }).run();
+    }
+    setLinkMode(false);
+    setLinkUrl('');
   };
 
   const handleImage = () => {
-    const src = window.prompt('Enter image URL');
-    if (src) {
-      editor.chain().focus().setImage({ src }).run();
+    setImageMode(true);
+    setImageUrl('');
+  };
+
+  const applyImage = () => {
+    if (imageUrl.trim()) {
+      editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
     }
+    setImageMode(false);
+    setImageUrl('');
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-background">
+    <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-background relative">
       <ToolbarButton 
         onClick={() => editor.chain().focus().toggleBold().run()}
         isActive={editor.isActive('bold')}
@@ -128,14 +147,38 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         ariaLabel='Toggle bullet list' 
         title='Bullet List'
         disabled={!editor.can().chain().focus().toggleBulletList().run()} />
-      <ToolbarButton 
+      <ToolbarButton
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         isActive={editor.isActive('orderedList')}
-        icon={ListOrdered} 
-        ariaLabel='Toggle ordered list' 
+        icon={ListOrdered}
+        ariaLabel='Toggle ordered list'
         title='Ordered List'
         disabled={!editor.can().chain().focus().toggleOrderedList().run()} />
       {/* Add more buttons as needed, e.g., for other heading levels, strikethrough, etc. */}
+
+      {linkMode && (
+        <div className="absolute top-full left-0 mt-1 flex gap-1 bg-background border rounded-md p-2 shadow z-10">
+          <input
+            className="border rounded px-2 py-1 text-sm bg-background"
+            placeholder="https://example.com"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+          />
+          <button className="text-sm px-2" onClick={applyLink}>Ok</button>
+        </div>
+      )}
+
+      {imageMode && (
+        <div className="absolute top-full left-0 mt-1 flex gap-1 bg-background border rounded-md p-2 shadow z-10">
+          <input
+            className="border rounded px-2 py-1 text-sm bg-background"
+            placeholder="Image URL"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+          />
+          <button className="text-sm px-2" onClick={applyImage}>Ok</button>
+        </div>
+      )}
     </div>
   );
-}; 
+};
