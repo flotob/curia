@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import NextImage from 'next/image';
-import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -13,10 +13,21 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { VoteButton } from './VoteButton';
 import { ApiPost } from '@/app/api/posts/route';
+import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
 import { cn } from '@/lib/utils';
 import { CommentList } from './CommentList'; // Import CommentList
@@ -61,9 +72,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
   const [showComments, setShowComments] = useState(false);
+  const [isPostContentExpanded, setIsPostContentExpanded] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [selectedBoardId, setSelectedBoardId] = useState<string>('');
+  
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
-  const [isPostContentExpanded, setIsPostContentExpanded] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -74,6 +88,37 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
   });
+
+  // Fetch available boards for moving
+  const { data: boardsList } = useQuery<ApiBoard[]>({
+    queryKey: ['boards', user?.cid],
+    queryFn: async () => {
+      if (!user?.cid || !token) throw new Error('Community context or token not available');
+      return authFetchJson<ApiBoard[]>(`/api/communities/${user.cid}/boards`, { token });
+    },
+    enabled: !!user?.isAdmin && !!user?.cid && !!token,
+  });
+
+  const movePostMutation = useMutation({
+    mutationFn: async (targetBoardId: string) => {
+      if (!token) throw new Error('No auth token');
+      await authFetchJson(`/api/posts/${post.id}/move`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({ boardId: parseInt(targetBoardId) }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      setShowMoveDialog(false);
+      setSelectedBoardId('');
+    },
+  });
+
+  const handleMovePost = () => {
+    if (!selectedBoardId) return;
+    movePostMutation.mutate(selectedBoardId);
+  };
 
   const contentDisplayEditor = useEditor({
     extensions: [
@@ -231,6 +276,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem 
+                      onClick={() => setShowMoveDialog(true)}
+                      disabled={movePostMutation.isPending}
+                    >
+                      <Move size={14} className="mr-2" /> Move to Board
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
                       onClick={() => deleteMutation.mutate()}
                       disabled={deleteMutation.isPending}
                       className="text-destructive focus:text-destructive focus:bg-destructive/10"
@@ -244,6 +295,68 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           </CardFooter>
         </div>
       </div>
+      
+      {/* Move Post Dialog */}
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Move Post to Another Board</DialogTitle>
+            <DialogDescription>
+              Select which board you want to move "{post.title}" to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="board-select">Select Board</Label>
+              {boardsList && boardsList.length > 0 ? (
+                <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
+                  <SelectTrigger id="board-select">
+                    <SelectValue placeholder="Choose a board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {boardsList.map((board) => (
+                      <SelectItem key={board.id} value={board.id.toString()}>
+                        <div>
+                          <div className="font-medium">{board.name}</div>
+                          {board.description && (
+                            <div className="text-xs text-muted-foreground">{board.description}</div>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="p-3 border rounded-md bg-muted/50">
+                  <p className="text-sm text-muted-foreground">Loading boards...</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMoveDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleMovePost}
+              disabled={!selectedBoardId || movePostMutation.isPending}
+            >
+              {movePostMutation.isPending ? (
+                <>
+                  <Move className="mr-2 h-4 w-4 animate-spin" />
+                  Moving...
+                </>
+              ) : (
+                <>
+                  <Move className="mr-2 h-4 w-4" />
+                  Move Post
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Comments Section - Conditionally Rendered */}
       {showComments && (
         <div className="border-t border-border p-4">
