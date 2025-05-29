@@ -68,6 +68,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const currentBoardId = searchParams?.get('boardId');
   const isHome = !currentBoardId;
 
+  // Helper function to preserve existing URL params
+  const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  };
+
   // Dynamic theme styles
   const sidebarBg = theme === 'dark' 
     ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95 backdrop-blur-xl'
@@ -160,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {/* Home Link */}
         <Link
-          href={`/?communityId=${communityInfo.id}`}
+          href={buildUrl('/', { communityId: communityInfo.id })}
           className={cn(
             'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
             isHome
@@ -210,7 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <Link
                     key={board.id}
-                    href={`/?communityId=${communityInfo.id}&boardId=${board.id}`}
+                    href={buildUrl('/', { communityId: communityInfo.id, boardId: board.id.toString() })}
                     className={cn(
                       'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
                       isActive
@@ -250,7 +269,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Create Board Link - Admin Only */}
               {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
                 <Link
-                  href="/create-board"
+                  href={buildUrl('/create-board')}
                   className={cn(
                     'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2',
                     theme === 'dark'
@@ -309,7 +328,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Create Board Link - Admin Only */}
             {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
               <Link
-                href="/create-board"
+                href={buildUrl('/create-board')}
                 className={cn(
                   'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
                   theme === 'dark'
@@ -340,7 +359,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           : 'border-slate-200/60 bg-white/50'
       )}>
         <Link
-          href="/community-settings"
+          href={buildUrl('/community-settings')}
           className={cn(
             'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
             theme === 'dark'
