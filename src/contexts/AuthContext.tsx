@@ -32,6 +32,7 @@ interface AuthContextType {
     profilePictureUrl?: string | null;
     roles?: string[]; // User's assigned role IDs
     communityRoles?: CommunityRoleInfo[]; // Full list of community role definitions
+    communityName?: string | null;
     iframeUid?: string | null;
     communityId?: string | null;
   }) => Promise<void>;
@@ -60,26 +61,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     profilePictureUrl?: string | null;
     roles?: string[]; // User's assigned role IDs
     communityRoles?: CommunityRoleInfo[]; // Full list of community role definitions
+    communityName?: string | null;
     iframeUid?: string | null; 
     communityId?: string | null; 
   }) => {
-    console.log('[AuthContext] LOGIN FUNCTION ENTERED. User roles from input:', userDataFromCgLib.roles, 'Community roles from input:', userDataFromCgLib.communityRoles, 'Full data:', JSON.stringify(userDataFromCgLib));
+    console.log('[AuthContext] LOGIN FUNCTION ENTERED. User roles from input:', userDataFromCgLib.roles, 'Community roles from input:', userDataFromCgLib.communityRoles, 'Full data from CG:', JSON.stringify(userDataFromCgLib));
     setIsLoading(true);
+
+    const payloadForBackend = {
+        userId: userDataFromCgLib.userId,
+        name: userDataFromCgLib.name,
+        profilePictureUrl: userDataFromCgLib.profilePictureUrl,
+        roles: userDataFromCgLib.roles, 
+        communityRoles: userDataFromCgLib.communityRoles,
+        iframeUid: userDataFromCgLib.iframeUid,       
+        communityId: userDataFromCgLib.communityId,
+        communityName: userDataFromCgLib.communityName,
+    };
+
+    console.log('[AuthContext] EXACT PAYLOAD BEING STRINGIFIED FOR BACKEND:', payloadForBackend);
+    console.log('[AuthContext] Value of userDataFromCgLib.communityName directly before stringify:', userDataFromCgLib.communityName);
+
     try {
       const response = await fetch('/api/auth/session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            userId: userDataFromCgLib.userId,
-            name: userDataFromCgLib.name,
-            profilePictureUrl: userDataFromCgLib.profilePictureUrl,
-            roles: userDataFromCgLib.roles,
-            communityRoles: userDataFromCgLib.communityRoles, // Pass community roles to backend
-            iframeUid: userDataFromCgLib.iframeUid,       
-            communityId: userDataFromCgLib.communityId,   
-        }),
+        body: JSON.stringify(payloadForBackend),
       });
 
       if (!response.ok) {

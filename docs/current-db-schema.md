@@ -1,5 +1,28 @@
 -- Adminer 5.2.1 PostgreSQL 17.5 dump
 
+DROP TABLE IF EXISTS "boards";
+DROP SEQUENCE IF EXISTS boards_id_seq;
+CREATE SEQUENCE boards_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
+
+CREATE TABLE "public"."boards" (
+    "id" integer DEFAULT nextval('boards_id_seq') NOT NULL,
+    "community_id" text NOT NULL,
+    "name" character varying(255) NOT NULL,
+    "description" text,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "boards_pkey" PRIMARY KEY ("id")
+) WITH (oids = false);
+
+CREATE INDEX boards_community_id_index ON public.boards USING btree (community_id);
+
+
+DELIMITER ;;
+
+CREATE TRIGGER "set_timestamp_boards" BEFORE UPDATE ON "public"."boards" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
+
+DELIMITER ;
+
 DROP TABLE IF EXISTS "comments";
 DROP SEQUENCE IF EXISTS comments_id_seq;
 CREATE SEQUENCE comments_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -70,6 +93,7 @@ CREATE TABLE "public"."posts" (
     "comment_count" integer DEFAULT '0' NOT NULL,
     "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "board_id" integer NOT NULL,
     CONSTRAINT "posts_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
@@ -80,6 +104,8 @@ CREATE INDEX posts_upvote_count_index ON public.posts USING btree (upvote_count)
 CREATE INDEX posts_created_at_index ON public.posts USING btree (created_at);
 
 CREATE INDEX posts_tags_index ON public.posts USING gin (tags);
+
+CREATE INDEX posts_board_id_index ON public.posts USING btree (board_id);
 
 
 DELIMITER ;;
@@ -107,13 +133,16 @@ CREATE TABLE "public"."votes" (
 ) WITH (oids = false);
 
 
+ALTER TABLE ONLY "public"."boards" ADD CONSTRAINT "boards_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_author_user_id_fkey" FOREIGN KEY (author_user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_parent_comment_id_fkey" FOREIGN KEY (parent_comment_id) REFERENCES comments(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_author_user_id_fkey" FOREIGN KEY (author_user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
--- 2025-05-29 13:01:36 UTC
+-- 2025-05-29 20:17:09 UTC

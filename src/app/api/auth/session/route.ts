@@ -47,18 +47,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const rawBodyText = await req.text(); 
-    console.log('[/api/auth/session] Received raw request body text:', rawBodyText);
+    // console.log('[/api/auth/session] Received raw request body text:', rawBodyText); // Optional: keep if useful
     const body = JSON.parse(rawBodyText) as SessionRequestBody; 
-    console.log('[/api/auth/session] Parsed request body object:', body);
+    console.log('[/api/auth/session] Parsed request body object immediately after parse:', body);
+    console.log('[/api/auth/session] Value of body.communityName immediately after parse:', body.communityName);
 
-    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId, communityName } = body;
-    console.log('[/api/auth/session] Destructured user role IDs:', userRoleIds);
-    console.log('[/api/auth/session] Destructured communityRoles:', communityRoles);
-    console.log('[/api/auth/session] Destructured iframeUid:', iframeUid);
-    console.log('[/api/auth/session] Destructured communityId:', communityId);
-    console.log('[/api/auth/session] Destructured communityName:', communityName);
+    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId /*, communityName - will access directly from body */ } = body;
+    // console.log('[/api/auth/session] Destructured user role IDs:', userRoleIds);
+    // console.log('[/api/auth/session] Destructured communityRoles:', communityRoles);
+    // console.log('[/api/auth/session] Destructured iframeUid:', iframeUid);
+    // console.log('[/api/auth/session] Destructured communityId:', communityId);
+    // console.log('[/api/auth/session] Destructured communityName (from destructuring):', communityName); // This was showing undefined
 
-    // Make iframeUid and communityId required for session creation, along with userId
     if (!userId || !iframeUid || !communityId) { 
       return NextResponse.json(
         { error: 'User ID, iframeUid, and Community ID are required for session' },
@@ -69,13 +69,16 @@ export async function POST(req: NextRequest) {
     // --- Community and Default Board Upsert Logic --- 
     if (communityId) {
       try {
+        const nameForCommunityUpsert = body.communityName; // Explicit access from body again
+        console.log('[/api/auth/session] Value of body.communityName right before community upsert:', nameForCommunityUpsert);
+        
         // 1. Upsert Community
         await query(
           `INSERT INTO communities (id, name, updated_at) VALUES ($1, $2, NOW())
            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
-          [communityId, communityName || communityId] // Use communityId as name if communityName is not provided
+          [communityId, nameForCommunityUpsert || communityId] // Use the explicitly accessed variable
         );
-        console.log(`[/api/auth/session] Upserted community: ${communityId}`);
+        console.log(`[/api/auth/session] Upserted community: ${communityId} with name parameter: ${nameForCommunityUpsert || communityId}`);
 
         // 2. Upsert Default Board for this Community
         const defaultBoardName = 'General Discussion';
