@@ -71,52 +71,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
       sidebarBg,
       borderColor
     )}>
-      {/* Branding Section - Gorgeous header */}
-      <div className="relative overflow-hidden">
-        <div className={cn(
-          'p-6 pb-4 border-b backdrop-blur-sm',
-          theme === 'dark' 
-            ? 'border-slate-700/40 bg-gradient-to-r from-slate-800/50 to-slate-700/30' 
-            : 'border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white/50'
-        )}>
-          <div className="flex items-center space-x-4 relative z-10">
-            {communityInfo.smallLogoUrl && (
-              <div className="relative">
-                <div className={cn(
-                  'w-11 h-11 rounded-xl shadow-lg ring-1 overflow-hidden',
-                  theme === 'dark' 
-                    ? 'ring-slate-600/30 shadow-slate-900/20' 
-                    : 'ring-slate-200/40 shadow-slate-900/10'
-                )}>
-                  <Image
-                    src={communityInfo.smallLogoUrl}
-                    alt={`${communityInfo.title} logo`}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-transparent via-white/10 to-white/20" />
+      {/* Community Header - Sleek & Seamless */}
+      <div className="p-6 relative">
+        <div className="flex items-center space-x-4">
+          {communityInfo.smallLogoUrl ? (
+            <div className="relative group">
+              {/* Logo with beautiful shadow and hover effect */}
+              <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-lg shadow-slate-900/20 dark:shadow-slate-900/40 ring-1 ring-slate-200/60 dark:ring-slate-700/60 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-slate-900/30 group-hover:scale-105">
+                <Image
+                  src={communityInfo.smallLogoUrl}
+                  alt={`${communityInfo.title} logo`}
+                  fill
+                  className="object-cover"
+                />
+                {/* Subtle shine overlay on hover */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <h1 className={cn(
-                'text-base font-semibold truncate',
-                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-              )}>
-                {communityInfo.title}
-              </h1>
-              <p className={cn(
-                'text-xs mt-0.5',
-                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-              )}>
-                Community
-              </p>
+              {/* Glow effect */}
+              <div className="absolute inset-0 w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary/20 to-primary/10 opacity-0 group-hover:opacity-50 transition-all duration-300 blur-sm -z-10" />
             </div>
+          ) : (
+            <div className="relative group">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary/80 to-primary/60 shadow-lg shadow-primary/20 dark:shadow-primary/30 flex items-center justify-center transition-all duration-300 group-hover:shadow-xl group-hover:shadow-primary/40 group-hover:scale-105">
+                <span className="text-lg font-bold text-white">
+                  {communityInfo.title.charAt(0)}
+                </span>
+              </div>
+              {/* Glow effect */}
+              <div className="absolute inset-0 w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary/40 to-primary/20 opacity-0 group-hover:opacity-70 transition-all duration-300 blur-sm -z-10" />
+            </div>
+          )}
+          
+          <div className="flex-1 min-w-0">
+            <h1 className={cn(
+              'text-lg font-bold truncate bg-gradient-to-r bg-clip-text text-transparent',
+              theme === 'dark' 
+                ? 'from-slate-100 to-slate-300' 
+                : 'from-slate-900 to-slate-700'
+            )}>
+              {communityInfo.title}
+            </h1>
+            <p className={cn(
+              'text-xs font-medium tracking-wide',
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            )}>
+              Community
+            </p>
           </div>
         </div>
         
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/5 dark:to-white/5 pointer-events-none" />
+        {/* Beautiful subtle drop shadow */}
+        <div className="absolute bottom-0 left-3 right-3 h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent dark:via-slate-700/80" />
+        <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-b from-transparent to-slate-100/20 dark:to-slate-900/20 pointer-events-none" />
       </div>
 
       {/* Navigation Section - Beautiful menu */}
