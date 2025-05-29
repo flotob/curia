@@ -163,10 +163,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, post.content]);
 
   return (
-    <Card className="w-full max-w-2xl mx-auto overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className="w-full overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
       <div className="flex">
         {/* Vote Section */}
-        <div className="flex flex-col items-center justify-start p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
+        <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
           <VoteButton 
             postId={post.id} 
             initialUpvoteCount={post.upvote_count} 
@@ -176,25 +176,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         </div>
 
         {/* Main Content Section */}
-        <div className="flex-grow relative">
-          <CardHeader className="pb-2">
-            <div className="flex items-center text-xs text-muted-foreground mb-2">
-              <Avatar className="h-6 w-6 mr-2">
-                <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                <AvatarFallback>{avatarFallback}</AvatarFallback>
-              </Avatar>
-              <span className="font-medium text-foreground">{authorDisplayName}</span>
+        <div className="flex-grow relative min-w-0">
+          <CardHeader className="pb-2 px-3 sm:px-6">
+            <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1">
+              <div className="flex items-center">
+                <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2">
+                  <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                  <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                </Avatar>
+                <span className="font-medium text-foreground truncate">{authorDisplayName}</span>
+              </div>
               {showBoardContext && (
-                <>
+                <div className="flex items-center">
                   <span className="mx-1">in</span>
-                  <span className="font-medium text-primary">{post.board_name}</span>
-                </>
+                  <span className="font-medium text-primary truncate">{post.board_name}</span>
+                </div>
               )}
-              <span className="mx-1">•</span>
-              <Clock size={14} className="mr-1 flex-shrink-0" /> 
-              <span>{timeSince(post.created_at)}</span>
+              <div className="flex items-center">
+                <span className="mx-1">•</span>
+                <Clock size={12} className="mr-1 flex-shrink-0" /> 
+                <span className="truncate">{timeSince(post.created_at)}</span>
+              </div>
             </div>
-            <CardTitle className="text-lg md:text-xl leading-tight">{post.title}</CardTitle>
+            <CardTitle className="text-base sm:text-lg md:text-xl leading-tight pr-8">{post.title}</CardTitle>
             {post.content && contentDisplayEditor && (
               <div className="mt-1"> {/* Main container for content block + button */}
                 <div // Wrapper for text content and gradient
@@ -250,37 +254,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           </CardHeader>
 
           {(post.tags && post.tags.length > 0) && (
-            <CardContent className="py-2">
-              <div className="flex flex-wrap gap-2">
+            <CardContent className="py-2 px-3 sm:px-6">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {post.tags.map((tag, index) => (
-                  <Badge key={index} variant="secondary">{tag}</Badge>
+                  <Badge key={index} variant="secondary" className="text-xs">{tag}</Badge>
                 ))}
               </div>
             </CardContent>
           )}
 
-          <CardFooter className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 md:pb-4">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" className="p-1 h-auto" onClick={() => setShowComments(!showComments)} aria-expanded={showComments}>
-                <MessageSquare size={16} className="mr-1.5" /> {post.comment_count}
+          <CardFooter className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 md:pb-4 px-3 sm:px-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button variant="ghost" size="sm" className="p-1 h-auto text-xs sm:text-sm" onClick={() => setShowComments(!showComments)} aria-expanded={showComments}>
+                <MessageSquare size={14} className="mr-1 sm:mr-1.5" /> 
+                <span className="hidden xs:inline">{post.comment_count}</span>
+                <span className="xs:hidden">{post.comment_count}</span>
               </Button>
               <Button variant="ghost" size="sm" className="p-1 h-auto">
-                <Share2 size={16} /> 
+                <Share2 size={14} /> 
               </Button>
             </div>
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" className="p-1 h-auto">
-                <Bookmark size={16} />
+                <Bookmark size={14} />
               </Button>
               {user?.isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="p-1 h-8 w-8">
-                      <MoreVertical size={16} />
+                    <Button variant="ghost" size="icon" className="p-1 h-7 w-7 sm:h-8 sm:w-8">
+                      <MoreVertical size={14} />
                       <span className="sr-only">Post Options</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem 
                       onClick={() => setShowMoveDialog(true)}
                       disabled={movePostMutation.isPending}
@@ -304,10 +310,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       
       {/* Move Post Dialog */}
       <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] mx-4 max-w-[calc(100vw-2rem)]">
           <DialogHeader>
-            <DialogTitle>Move Post to Another Board</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg">Move Post to Another Board</DialogTitle>
+            <DialogDescription className="text-sm">
               Select which board you want to move "{post.title}" to.
             </DialogDescription>
           </DialogHeader>
@@ -339,13 +345,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowMoveDialog(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button 
               onClick={handleMovePost}
               disabled={!selectedBoardId || movePostMutation.isPending}
+              className="w-full sm:w-auto"
             >
               {movePostMutation.isPending ? (
                 <>
@@ -365,8 +372,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
       {/* Comments Section - Conditionally Rendered */}
       {showComments && (
-        <div className="border-t border-border p-4">
-          <h4 className="text-md font-semibold mb-3">Comments</h4>
+        <div className="border-t border-border p-3 sm:p-4">
+          <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
           <NewCommentForm postId={post.id} />
           <div className="mt-4">
             <CommentList postId={post.id} />

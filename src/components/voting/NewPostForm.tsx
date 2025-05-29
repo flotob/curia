@@ -237,7 +237,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
   if (!isExpanded) {
     return (
       <div 
-        className="w-full max-w-2xl mx-auto mt-6 mb-8 p-4 border-2 border-dashed border-muted hover:border-primary/70 rounded-lg cursor-pointer transition-all duration-200 ease-in-out group bg-card hover:bg-muted/30"
+        className="w-full mx-auto mt-4 sm:mt-6 mb-6 sm:mb-8 p-3 sm:p-4 border-2 border-dashed border-muted hover:border-primary/70 rounded-lg cursor-pointer transition-all duration-200 ease-in-out group bg-card hover:bg-muted/30"
         onClick={() => setIsExpanded(true)}
         role="button"
         tabIndex={0}
@@ -245,23 +245,23 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
         aria-label="Create a new post"
       >
         <div className="flex items-center text-muted-foreground group-hover:text-primary transition-colors">
-          <Edit3 size={20} className="mr-3 flex-shrink-0" />
-          <p className="text-md font-medium">Share an issue, need, or idea...</p>
+          <Edit3 size={18} className="mr-3 flex-shrink-0 sm:mr-3" />
+          <p className="text-sm sm:text-md font-medium">Share an issue, need, or idea...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto mt-6 mb-8">
-        <CardHeader>
-            <CardTitle>Create a New Post</CardTitle>
-            <CardDescription>Share an issue, need, or idea with the community.</CardDescription>
+    <Card className="w-full mx-auto mt-4 sm:mt-6 mb-6 sm:mb-8">
+        <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="text-lg sm:text-xl">Create a New Post</CardTitle>
+            <CardDescription className="text-sm">Share an issue, need, or idea with the community.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6">
             <div className="space-y-1.5">
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title" className="text-sm font-medium">Title</Label>
                 <Input 
                     id="title" 
                     placeholder="Enter a clear and concise title"
@@ -269,10 +269,11 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
                     onChange={handleTitleChange} 
                     required 
                     disabled={createPostMutation.isPending}
+                    className="text-sm sm:text-base"
                 />
                 {(isLoadingSuggestions || (searchQuery.length >=3 && suggestions && suggestions.length > 0)) && (
-                    <div className="mt-2 p-3 border rounded-md bg-slate-50 dark:bg-slate-800 max-h-48 overflow-y-auto text-sm">
-                        {isLoadingSuggestions && <p className="flex items-center text-muted-foreground"><Loader2 size={16} className="mr-2 animate-spin"/>Searching for similar posts...</p>}
+                    <div className="mt-2 p-3 border rounded-md bg-slate-50 dark:bg-slate-800 max-h-40 sm:max-h-48 overflow-y-auto text-xs sm:text-sm">
+                        {isLoadingSuggestions && <p className="flex items-center text-muted-foreground"><Loader2 size={14} className="mr-2 animate-spin"/>Searching for similar posts...</p>}
                         {!isLoadingSuggestions && suggestions && suggestions.length > 0 && (
                             <>
                                 <p className="font-semibold mb-1.5 text-muted-foreground">Similar posts found:</p>
@@ -295,22 +296,22 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
             {/* Only show board selector if no specific board is provided (i.e., on home page) */}
             {!boardId && (
                 <div className="space-y-1.5">
-                    <Label htmlFor="board-select">Board</Label>
+                    <Label htmlFor="board-select" className="text-sm font-medium">Board</Label>
                     {isLoadingBoards ? (
                         <div className="flex items-center p-3 border rounded-md bg-muted/50">
-                            <Loader2 size={16} className="mr-2 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Loading boards...</span>
+                            <Loader2 size={14} className="mr-2 animate-spin" />
+                            <span className="text-xs sm:text-sm text-muted-foreground">Loading boards...</span>
                         </div>
                     ) : boardsList && boardsList.length > 0 ? (
                         <Select value={selectedBoardId} onValueChange={setSelectedBoardId} disabled={createPostMutation.isPending}>
-                            <SelectTrigger id="board-select">
+                            <SelectTrigger id="board-select" className="text-sm sm:text-base">
                                 <SelectValue placeholder="Select a board" />
                             </SelectTrigger>
                             <SelectContent>
                                 {boardsList.map((board) => (
                                     <SelectItem key={board.id} value={board.id.toString()}>
                                         <div>
-                                            <div className="font-medium">{board.name}</div>
+                                            <div className="font-medium text-sm">{board.name}</div>
                                             {board.description && (
                                                 <div className="text-xs text-muted-foreground">{board.description}</div>
                                             )}
@@ -321,14 +322,14 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
                         </Select>
                     ) : (
                         <div className="p-3 border rounded-md bg-muted/50">
-                            <p className="text-sm text-muted-foreground">No boards available</p>
+                            <p className="text-xs sm:text-sm text-muted-foreground">No boards available</p>
                         </div>
                     )}
                 </div>
             )}
             
             <div className="space-y-1.5">
-                <Label htmlFor="content-editor-post">Content/Description</Label> 
+                <Label htmlFor="content-editor-post" className="text-sm font-medium">Content/Description</Label> 
                 <div className="border rounded-md overflow-hidden"> {/* Wrapper for editor + toolbar */}
                     <EditorContent editor={contentEditor} id="content-editor-post" />
                     <EditorToolbar editor={contentEditor} />
@@ -336,29 +337,31 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="tags">Tags (comma-separated)</Label>
+                <Label htmlFor="tags" className="text-sm font-medium">Tags (comma-separated)</Label>
                 <Input 
                     id="tags" 
                     placeholder="e.g., bug, feature-request, discussion"
                     value={tags} 
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTags(e.target.value)} 
                     disabled={createPostMutation.isPending}
+                    className="text-sm sm:text-base"
                 />
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && <p className="text-xs sm:text-sm text-red-500">{error}</p>}
             </CardContent>
-            <CardFooter className="flex justify-end gap-2">
+            <CardFooter className="flex justify-end gap-2 px-4 sm:px-6">
             <Button 
               type="button" 
               variant="outline" 
               onClick={() => {
                 setIsExpanded(false);
               }}
+              className="text-sm sm:text-base px-3 sm:px-4"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createPostMutation.isPending || contentEditor?.isEmpty}>
-                {createPostMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 
+            <Button type="submit" disabled={createPostMutation.isPending || contentEditor?.isEmpty} className="text-sm sm:text-base px-3 sm:px-4">
+                {createPostMutation.isPending && <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />} 
                 Submit Post
             </Button>
             </CardFooter>

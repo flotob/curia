@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -14,9 +14,18 @@ import { usePathname, useSearchParams } from 'next/navigation';
 interface SidebarProps {
   communityInfo: CommunityInfoResponsePayload | null;
   boardsList: ApiBoard[] | null;
+  isOpen?: boolean;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  communityInfo, 
+  boardsList, 
+  isOpen = true, 
+  isMobile = false, 
+  onClose 
+}) => {
   const { user } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -41,7 +50,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
 
   if (!mounted || !communityInfo) {
     return (
-      <aside className="w-64 h-screen sticky top-0 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-r border-slate-200/60 dark:border-slate-700/60">
+      <aside className={cn(
+        "w-64 h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-r border-slate-200/60 dark:border-slate-700/60",
+        isMobile ? "fixed top-0 left-0 z-50" : "sticky top-0"
+      )}>
         <div className="space-y-4 animate-pulse">
           <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-xl" />
           <div className="space-y-2">
@@ -67,12 +79,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
 
   return (
     <aside className={cn(
-      'w-64 h-screen sticky top-0 flex flex-col border-r shadow-xl shadow-slate-900/5',
+      'w-64 h-screen flex flex-col border-r shadow-xl shadow-slate-900/5 transition-transform duration-300',
       sidebarBg,
-      borderColor
+      borderColor,
+      // Mobile positioning and animation
+      isMobile ? [
+        'fixed top-0 left-0 z-50',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      ] : 'sticky top-0'
     )}>
+      {/* Mobile close button */}
+      {isMobile && (
+        <div className="lg:hidden flex justify-end p-4 pb-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            <X size={20} />
+          </Button>
+        </div>
+      )}
+
       {/* Community Header - Sleek & Seamless */}
-      <div className="p-6 relative">
+      <div className={cn("p-6 relative", isMobile && "pt-2")}>
         <div className="flex items-center space-x-4">
           {communityInfo.smallLogoUrl ? (
             <div className="relative group">
