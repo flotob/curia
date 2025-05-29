@@ -15,7 +15,7 @@ import Link from 'next/link';
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Markdown, markdownToTiptap } from 'tiptap-markdown';
+import { Markdown } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -101,7 +101,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
       // Explicitly use CodeBlockLowlight for its input rules and syntax highlighting
       CodeBlockLowlight.configure({ lowlight }),
       // Markdown extension for parsing pasted Markdown
-      Markdown.configure({ html: false, tightLists: true }),
+      Markdown.configure({ html: false, tightLists: true, transformPastedText: true }),
       // Utility extensions
       Placeholder.configure({
         placeholder: 'Describe your post in detail (Markdown supported!)...',
@@ -112,22 +112,6 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert leading-snug focus:outline-none min-h-[150px] border border-input rounded-md px-3 py-2 w-full',
-      },
-      handlePaste(view, event) {
-        const text = event.clipboardData?.getData('text/plain');
-        if (text) {
-          try {
-            const json = markdownToTiptap(text, contentEditor?.extensionManager.extensions || []);
-            if (json) {
-              contentEditor?.commands.insertContent(json);
-              event.preventDefault();
-              return true;
-            }
-          } catch (e) {
-            console.warn('Failed to parse pasted markdown', e);
-          }
-        }
-        return false;
       },
     },
   });
