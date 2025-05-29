@@ -73,26 +73,45 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
   const contentEditor = useEditor({
     extensions: [
       StarterKit.configure({
-        codeBlock: false, // Using CodeBlockLowlight instead
-        heading: false, // Control headings with the specific Heading extension
+        // codeBlock: false, // Kept false to allow CodeBlockLowlight to handle it
+        // heading: { levels: [1, 2, 3, 4] }, // Let StarterKit handle headings
+        // Defaults from StarterKit that we want to keep active, explicitly listed for clarity 
+        // (though not strictly necessary if we are not overriding them to false)
+        // paragraph: {},
+        // text: {},
+        // document: {},
+        // bold: {},
+        // italic: {},
+        // strike: {},
+        // history: {},
+        // dropcursor: {},
+        // gapcursor: {},
+        // HardBreak is part of StarterKit but not explicitly listed here as an example
+
+        // Configure heading levels for posts via StarterKit
+        heading: { levels: [1, 2, 3, 4] }, 
+        // Disable StarterKit's default codeBlock to use CodeBlockLowlight's input rules and features
+        codeBlock: false, 
       }),
+      // Other standard node extensions (if not adequately covered by StarterKit or if specific configs are needed)
+      // Note: BulletList, OrderedList, ListItem, Blockquote are part of StarterKit by default.
+      // We list them if we were to disable them in StarterKit and use standalone versions, but here StarterKit handles them.
+      TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+      Image, 
+      // Explicitly use CodeBlockLowlight for its input rules and syntax highlighting
       CodeBlockLowlight.configure({ lowlight }),
-      Markdown.configure({ html: false, tightLists: true }),
+      // Markdown extension for parsing pasted Markdown and potentially serializing
+      // Markdown.configure({ html: false, tightLists: true }), // Temporarily commented out for testing input rules
+      // Utility extensions
       Placeholder.configure({
         placeholder: 'Describe your post in detail (Markdown supported!)...',
       }),
-      TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
-      Image, 
-      Heading.configure({ levels: [1, 2, 3, 4] }), // Allow H1-H4 for posts
-      Blockquote,
-      BulletList,
-      OrderedList,
-      ListItem,
+      // REMOVED: Standalone Heading.configure(...) - StarterKit now handles headings
     ],
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose dark:prose-invert prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-1 focus:outline-none min-h-[150px] border border-input rounded-md px-3 py-2 w-full',
+        class: 'prose prose-sm dark:prose-invert leading-snug focus:outline-none min-h-[150px] border border-input rounded-md px-3 py-2 w-full',
       },
     },
   });

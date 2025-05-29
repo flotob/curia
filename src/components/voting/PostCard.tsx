@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import { MessageSquare, Share2, Bookmark, Clock } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -16,9 +16,10 @@ import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from 'tiptap-markdown'; 
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
+import TiptapLink from '@tiptap/extension-link'; // For rendering links
+import TiptapImage from '@tiptap/extension-image'; // Aliased Tiptap Image to TiptapImage
 // highlight.js CSS is imported globally in layout.tsx
 
 const lowlight = createLowlight(common);
@@ -55,18 +56,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const contentDisplayEditor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] }, // Allow headings in post content
-        codeBlock: false, // Using CodeBlockLowlight
+        heading: { levels: [1, 2, 3, 4] }, // Match input form, allow H1-H4
+        codeBlock: false, // Crucial: Let CodeBlockLowlight handle this
+        // Other StarterKit defaults like blockquote, lists, bold, italic will be active
       }),
-      Markdown.configure({ html: false, tightLists: true }),
-      CodeBlockLowlight.configure({ lowlight }),
+      TiptapLink.configure({
+        // Configure how links should behave in read-only mode
+        openOnClick: true, // Or false, depending on desired UX for rendered links
+        HTMLAttributes: {
+          target: '_blank',
+          rel: 'noopener noreferrer nofollow',
+        },
+      }),
+      TiptapImage, // Use aliased TiptapImage for rendering images
+      CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
+      // Markdown.configure({ html: false, tightLists: true }), // Generally not needed for rendering from JSON
     ],
     content: '', // Initial content, will be updated by useEffect
     editable: false,
+    immediatelyRender: false, // Explicitly set for SSR compatibility
     editorProps: {
       attributes: {
-        // Apply prose styling for rendered output. Adjust max-w-none as needed.
-        class: 'prose dark:prose-invert prose-sm max-w-none',
+        // REMOVED prose classes from here: class: 'prose dark:prose-invert prose-sm max-w-none',
+        // Prose styling will be applied by the wrapping <article> element
       },
     },
   });
@@ -112,9 +124,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             <CardTitle className="text-lg md:text-xl leading-tight">{post.title}</CardTitle>
             {post.content && contentDisplayEditor && (
               // Render Tiptap content directly with prose styling
-              <div className="text-sm mt-1 prose dark:prose-invert prose-sm max-w-none">
+              <article className="prose dark:prose-invert prose-sm sm:prose-base max-w-none mt-1">
                 <EditorContent editor={contentDisplayEditor} />
-              </div>
+              </article>
             )}
           </CardHeader>
 

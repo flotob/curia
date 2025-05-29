@@ -56,36 +56,37 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        codeBlock: false, // Using CodeBlockLowlight instead
-        // We can be more granular here if needed, but StarterKit includes most basics
-        // For comments, we might want to disable headings from StarterKit if we add the Heading extension separately
-        // or ensure the Heading extension levels are appropriate for comments (e.g., only H3-H6)
-        heading: false, // Disable starter kit heading if we use the specific Heading extension with levels
+        // Configure heading levels for comments via StarterKit
+        heading: { levels: [3, 4] }, 
+        // Disable StarterKit's default codeBlock to use CodeBlockLowlight's input rules and features
+        codeBlock: false, 
+        // Other StarterKit defaults (like paragraph, text, bold, italic, lists, blockquote) remain active.
       }),
+      // Other standard node extensions (if not adequately covered by StarterKit or if specific configs are needed)
+      Link.configure({
+        openOnClick: false, 
+        autolink: true,
+        linkOnPaste: true,
+      }),
+      Image, // Basic image support 
+      // Explicitly use CodeBlockLowlight for its input rules and syntax highlighting
       CodeBlockLowlight.configure({ lowlight }),
+      // Markdown extension for parsing pasted Markdown and potentially serializing
       Markdown.configure({
         html: false,          
         tightLists: true,
       }),
+      // Utility extensions
       Placeholder.configure({
         placeholder: 'Write your comment here …',
       }),
-      Link.configure({
-        openOnClick: false, // Recommended for security and better UX
-        autolink: true,
-        linkOnPaste: true,
-      }),
-      Image, // Basic image support (users would need to paste URLs)
-      Heading.configure({ levels: [3, 4] }), // Allow H3, H4 in comments if desired (or remove if no headings in comments)
-      Blockquote,
-      BulletList,
-      OrderedList,
-      ListItem,
+      // REMOVED: Standalone Heading.configure({ levels: [3, 4] })
+      // REMOVED: Standalone Blockquote, BulletList, OrderedList, ListItem (handled by StarterKit)
     ],
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose dark:prose-invert prose-sm sm:prose-base focus:outline-none min-h-[80px] border border-input rounded-md px-3 py-2 w-full',
+        class: 'prose prose-sm dark:prose-invert leading-snug focus:outline-none min-h-[80px] border border-input rounded-md px-3 py-2 w-full',
       },
     },
   });

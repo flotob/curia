@@ -10,6 +10,8 @@ import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown'; 
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
+import TiptapLink from '@tiptap/extension-link'; // For rendering links
+import TiptapImage from '@tiptap/extension-image'; // For rendering images (though comments might not use images often)
 // Ensure highlight.js theme is available. If not imported globally, import here.
 // For now, assuming it might be covered by NewCommentForm's import or a global one.
 // import 'highlight.js/styles/github-dark.css'; 
@@ -45,18 +47,26 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: false, // Typically no headings in comments
-        codeBlock: false, // Disable StarterKit's codeBlock as CodeBlockLowlight is used
+        heading: { levels: [3, 4] }, // Match comment input form, allow H3-H4
+        codeBlock: false, // Crucial: Let CodeBlockLowlight handle this
+        // Other StarterKit defaults like blockquote, lists, bold, italic will be active
       }),
-      Markdown.configure({ html: false, tightLists: true }),
-      CodeBlockLowlight.configure({ lowlight }),
+      TiptapLink.configure({
+        openOnClick: true, 
+        HTMLAttributes: {
+          target: '_blank',
+          rel: 'noopener noreferrer nofollow',
+        },
+      }),
+      TiptapImage, // For rendering images, if they ever appear in comments
+      CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
     ],
     content: '', // Will be set by useEffect
     editable: false,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
-        // Apply prose styling for rendered output. Adjust classes as needed.
-        class: 'prose dark:prose-invert prose-sm max-w-none',
+        // REMOVED prose classes from here
       },
     },
   });
@@ -92,7 +102,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
           <span>{timeSince(comment.created_at)}</span>
         </div>
         <div className="mt-1 text-sm">
-            <EditorContent editor={editor} />
+            <article className="prose dark:prose-invert prose-sm max-w-none">
+                <EditorContent editor={editor} />
+            </article>
         </div>
       </div>
     </div>

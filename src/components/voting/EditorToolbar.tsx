@@ -101,7 +101,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         ariaLabel='Insert image'
         disabled={!editor.can().chain().focus().setImage({src: ''}).run()} />
       <ToolbarButton 
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        onClick={() => editor.chain().focus().toggleCodeBlock({ language: 'plaintext' }).run()}
         isActive={editor.isActive('codeBlock')}
         icon={Code} 
         ariaLabel='Toggle code block' 
