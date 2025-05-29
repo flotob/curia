@@ -16,6 +16,9 @@ export default function HomePage() {
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
+  // Get boardId from URL params for board-specific filtering
+  const boardId = searchParams?.get('boardId');
+
   // Initialize theme from URL params (same as sidebar)
   useEffect(() => {
     const cgTheme = searchParams?.get('cg_theme') || 'light';
@@ -32,6 +35,19 @@ export default function HomePage() {
       return response.data;
     },
     enabled: !!cgInstance && !isInitializing,
+  });
+
+  // If we have a boardId, fetch board info to display board name
+  const { data: boardInfo } = useQuery({
+    queryKey: ['board', boardId],
+    queryFn: async () => {
+      if (!boardId || !communityInfo?.id) return null;
+      const response = await fetch(`/api/communities/${communityInfo.id}/boards`);
+      if (!response.ok) return null;
+      const boards = await response.json();
+      return boards.find((board: any) => board.id.toString() === boardId) || null;
+    },
+    enabled: !!boardId && !!communityInfo?.id,
   });
 
   if (isInitializing || isLoadingCommunityInfo) {
@@ -83,29 +99,39 @@ export default function HomePage() {
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* New Post Form */}
         <section className="max-w-2xl mx-auto">
-          <NewPostForm />
+          <NewPostForm boardId={boardId} />
         </section>
 
         {/* Feed Section */}
         <main className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className={cn(
-              'text-xl font-semibold',
-              theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-            )}>
-              Recent Discussions
-            </h2>
+            <div>
+              <h2 className={cn(
+                'text-xl font-semibold',
+                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+              )}>
+                {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
+              </h2>
+              {boardId && boardInfo && boardInfo.description && (
+                <p className={cn(
+                  'text-sm mt-1',
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                )}>
+                  {boardInfo.description}
+                </p>
+              )}
+            </div>
             <div className={cn(
               'px-3 py-1.5 rounded-full text-sm font-medium',
               theme === 'dark' 
                 ? 'bg-slate-800/50 text-slate-400 border border-slate-700/40'
                 : 'bg-slate-100/70 text-slate-600 border border-slate-200/60'
             )}>
-              Latest Posts
+              {boardId ? 'Board Posts' : 'Latest Posts'}
             </div>
           </div>
           
-          <FeedList />
+          <FeedList boardId={boardId} />
         </main>
       </div>
     </div>

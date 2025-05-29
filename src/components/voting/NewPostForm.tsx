@@ -5,9 +5,11 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
+import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Loader2, Edit3 } from 'lucide-react';
 import Link from 'next/link'; 
@@ -46,31 +48,55 @@ function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
 
 interface NewPostFormProps {
   onPostCreated?: (newPost: ApiPost) => void; 
+  boardId?: string | null; // Optional - pre-select this board if provided
 }
 
 interface CreatePostMutationPayload {
   title: string;
   content: any; // Tiptap JSON object
   tags?: string[]; 
+  boardId: string; // Add boardId to the mutation payload
 }
 
 interface CreatePostApiPayload {
     title: string;
     content: string; // Stringified Tiptap JSON
     tags?: string[];
+    boardId: string; // Add boardId to the API payload
 }
 
 interface SuggestedPost extends Partial<ApiPost> {}
 
-export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
-  const { token, isAuthenticated } = useAuth();
+export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId }) => {
+  const { token, isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState(''); 
+  const [selectedBoardId, setSelectedBoardId] = useState<string>(boardId || ''); // Add board selection state
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch available boards for the user's community
+  const { data: boardsList, isLoading: isLoadingBoards } = useQuery<ApiBoard[]>({
+    queryKey: ['boards', user?.cid],
+    queryFn: async () => {
+      if (!user?.cid || !token) throw new Error('Community context or token not available');
+      return authFetchJson<ApiBoard[]>(`/api/communities/${user.cid}/boards`, { token });
+    },
+    enabled: !!isAuthenticated && !!token && !!user?.cid,
+  });
+
+  // Set default board when boardId prop changes or boards load
+  React.useEffect(() => {
+    if (boardId) {
+      setSelectedBoardId(boardId);
+    } else if (boardsList && boardsList.length > 0 && !selectedBoardId) {
+      // If no board is pre-selected, default to first board
+      setSelectedBoardId(boardsList[0].id.toString());
+    }
+  }, [boardId, boardsList, selectedBoardId]);
 
   const contentEditor = useEditor({
     extensions: [
@@ -148,6 +174,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
         title: postData.title,
         content: JSON.stringify(postData.content), 
         tags: postData.tags,
+        boardId: postData.boardId,
       };
       return authFetchJson<ApiPost>('/api/posts', {
         method: 'POST',
@@ -182,12 +209,16 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
       setError('Title and content are required.');
       return;
     }
+    if (!selectedBoardId) {
+      setError('Please select a board for your post.');
+      return;
+    }
     if (!isAuthenticated) {
         setError('You must be logged in to create a post.');
         return;
     }
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-    createPostMutation.mutate({ title, content: currentContentJson, tags: tagsArray });
+    createPostMutation.mutate({ title, content: currentContentJson, tags: tagsArray, boardId: selectedBoardId });
   };
 
   if (!isAuthenticated) {
@@ -260,6 +291,41 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
                     </div>
                 )}
             </div>
+
+            {/* Only show board selector if no specific board is provided (i.e., on home page) */}
+            {!boardId && (
+                <div className="space-y-1.5">
+                    <Label htmlFor="board-select">Board</Label>
+                    {isLoadingBoards ? (
+                        <div className="flex items-center p-3 border rounded-md bg-muted/50">
+                            <Loader2 size={16} className="mr-2 animate-spin" />
+                            <span className="text-sm text-muted-foreground">Loading boards...</span>
+                        </div>
+                    ) : boardsList && boardsList.length > 0 ? (
+                        <Select value={selectedBoardId} onValueChange={setSelectedBoardId} disabled={createPostMutation.isPending}>
+                            <SelectTrigger id="board-select">
+                                <SelectValue placeholder="Select a board" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {boardsList.map((board) => (
+                                    <SelectItem key={board.id} value={board.id.toString()}>
+                                        <div>
+                                            <div className="font-medium">{board.name}</div>
+                                            {board.description && (
+                                                <div className="text-xs text-muted-foreground">{board.description}</div>
+                                            )}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <div className="p-3 border rounded-md bg-muted/50">
+                            <p className="text-sm text-muted-foreground">No boards available</p>
+                        </div>
+                    )}
+                </div>
+            )}
             
             <div className="space-y-1.5">
                 <Label htmlFor="content-editor-post">Content/Description</Label> 

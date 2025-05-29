@@ -19,7 +19,11 @@ interface FetchPostsResponse {
   };
 }
 
-export const FeedList: React.FC = () => {
+interface FeedListProps {
+  boardId?: string | null; // New prop for board filtering
+}
+
+export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
   const { token, isAuthenticated, isLoading: isAuthLoading } = useAuth(); // Get isAuthenticated and isLoading
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 10; // Or make this configurable
@@ -27,15 +31,26 @@ export const FeedList: React.FC = () => {
   const fetchPosts = async (page: number) => {
     // Token will only be non-null if isAuthenticated is true, but double check for safety
     if (!token) throw new Error('Attempted to fetch posts without a token.'); 
+    
+    // Build query string with optional boardId
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: postsPerPage.toString(),
+    });
+    
+    if (boardId) {
+      params.append('boardId', boardId);
+    }
+    
     const response = await authFetchJson<FetchPostsResponse>(
-      `/api/posts?page=${page}&limit=${postsPerPage}`,
+      `/api/posts?${params.toString()}`,
       { token }
     );
     return response;
   };
 
   const { data, isLoading, error, isFetching, isPlaceholderData } = useQuery<FetchPostsResponse, Error>({ 
-    queryKey: ['posts', currentPage], // isAuthenticated is implicitly part of this via the enabled flag
+    queryKey: ['posts', currentPage, boardId], // Include boardId in query key
     queryFn: () => fetchPosts(currentPage),
     enabled: isAuthenticated, // Only fetch if authenticated
     placeholderData: (previousData) => previousData, 

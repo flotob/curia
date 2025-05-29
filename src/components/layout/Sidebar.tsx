@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Home, Bug, LayoutDashboard, Settings, ChevronRight } from 'lucide-react';
+import { Home, Bug, LayoutDashboard, Settings, ChevronRight, Plus } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -252,33 +252,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
           : 'border-slate-200/60 bg-white/50'
       )}>
         {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
-          <Link
-            href="/debug"
-            className={cn(
-              'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-2',
-              isDebug
-                ? theme === 'dark'
-                  ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300'
-                  : 'bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-700'
-                : theme === 'dark'
+          <>
+            <Link
+              href="/debug"
+              className={cn(
+                'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-2',
+                isDebug
+                  ? theme === 'dark'
+                    ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300'
+                    : 'bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-700'
+                  : theme === 'dark'
+                    ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              )}
+            >
+              <div className={cn(
+                'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                isDebug
+                  ? theme === 'dark'
+                    ? 'bg-orange-500/20 text-orange-300'
+                    : 'bg-orange-500/10 text-orange-600'
+                  : theme === 'dark'
+                    ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50'
+                    : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50'
+              )}>
+                <Bug size={16} />
+              </div>
+              Debug
+            </Link>
+
+            <Link
+              href="/create-board"
+              className={cn(
+                'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-2',
+                theme === 'dark'
                   ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-            )}
-          >
-            <div className={cn(
-              'p-1.5 rounded-lg mr-3 transition-all duration-200',
-              isDebug
-                ? theme === 'dark'
-                  ? 'bg-orange-500/20 text-orange-300'
-                  : 'bg-orange-500/10 text-orange-600'
-                : theme === 'dark'
-                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50'
-                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50'
-            )}>
-              <Bug size={16} />
-            </div>
-            Debug
-          </Link>
+              )}
+            >
+              <div className={cn(
+                'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                theme === 'dark'
+                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+              )}>
+                <Plus size={16} />
+              </div>
+              Create Board
+            </Link>
+          </>
         )}
         
         <Button

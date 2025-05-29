@@ -25,6 +25,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') || '1', 10);
   const limit = parseInt(searchParams.get('limit') || '10', 10);
+  const boardId = searchParams.get('boardId'); // New: Get boardId for filtering
   const offset = (page - 1) * limit;
 
   // If no community context, we cannot fetch relevant posts.
@@ -35,6 +36,17 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
   }
 
   try {
+    // Build the WHERE clause - filter by community, and optionally by board
+    let whereClause = 'WHERE b.community_id = $' + (currentUserId ? '2' : '1');
+    const queryParams: any[] = [];
+    if (currentUserId) queryParams.push(currentUserId);
+    queryParams.push(currentCommunityId);
+    
+    if (boardId) {
+      whereClause += ` AND p.board_id = $${queryParams.length + 1}`;
+      queryParams.push(parseInt(boardId, 10));
+    }
+
     let postsQueryText = `
       SELECT
         p.id, p.author_user_id, p.title, p.content, p.tags,
@@ -45,14 +57,11 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
       JOIN users u ON p.author_user_id = u.user_id
       JOIN boards b ON p.board_id = b.id
       ${currentUserId ? "LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $1" : ""}
-      WHERE b.community_id = $${currentUserId ? 2 : 1} 
+      ${whereClause}
       ORDER BY p.upvote_count DESC, p.created_at DESC 
-      LIMIT $${currentUserId ? 3 : 2} OFFSET $${currentUserId ? 4 : 3};
+      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2};
     `;
 
-    const queryParams: any[] = [];
-    if (currentUserId) queryParams.push(currentUserId);
-    queryParams.push(currentCommunityId);
     queryParams.push(limit);
     queryParams.push(offset);
 
@@ -62,12 +71,20 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
       user_has_upvoted: row.user_has_upvoted === undefined ? false : row.user_has_upvoted,
     }));
 
-    // Get total count for pagination metadata, specific to the community
+    // Get total count for pagination metadata - use same filtering
+    let countWhereClause = 'WHERE b.community_id = $1';
+    const countParams: any[] = [currentCommunityId];
+    
+    if (boardId) {
+      countWhereClause += ' AND p.board_id = $2';
+      countParams.push(parseInt(boardId, 10));
+    }
+
     const totalPostsResult = await query(
       `SELECT COUNT(p.id) FROM posts p
        JOIN boards b ON p.board_id = b.id
-       WHERE b.community_id = $1`,
-      [currentCommunityId]
+       ${countWhereClause}`,
+      countParams
     );
     const totalPosts = parseInt(totalPostsResult.rows[0].count, 10);
 
@@ -98,51 +115,31 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
   try {
     const body = await req.json();
-    const { title, content, tags } = body;
+    const { title, content, tags, boardId } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
-    // Find the default board ID for the user's current community
-    const defaultBoardName = 'General Discussion';
-    let boardId: number | null = null;
-    try {
-      const boardResult = await query(
-        'SELECT id FROM boards WHERE community_id = $1 AND name = $2 LIMIT 1',
-        [currentCommunityId, defaultBoardName]
-      );
-      if (boardResult.rows.length > 0) {
-        boardId = boardResult.rows[0].id;
-      } else {
-        // This case should ideally not happen if /api/auth/session correctly creates the default board.
-        // However, as a fallback, try to create it here too, or log a critical error.
-        console.warn(`[/api/posts] Default board '${defaultBoardName}' not found for community ${currentCommunityId}. Attempting to create.`);
-        const newBoardResult = await query(
-          `INSERT INTO boards (community_id, name, description, updated_at)
-           VALUES ($1, $2, $3, NOW()) RETURNING id;`,
-          [currentCommunityId, defaultBoardName, 'Main discussion board for the community.']
-        );
-        if (newBoardResult.rows.length > 0) {
-            boardId = newBoardResult.rows[0].id;
-            console.log(`[/api/posts] Created default board ${boardId} for community ${currentCommunityId} as fallback.`);
-        } else {
-            throw new Error(`Failed to find or create default board for community ${currentCommunityId}`);
-        }
-      }
-    } catch (dbError) {
-      console.error(`[/api/posts] Error finding/creating default board for community ${currentCommunityId}:`, dbError);
-      return NextResponse.json({ error: 'Database error finding board' }, { status: 500 });
+    if (!boardId) {
+      return NextResponse.json({ error: 'Board selection is required' }, { status: 400 });
     }
 
-    if (!boardId) {
-        // Should be caught by the error above, but as a safeguard.
-        return NextResponse.json({ error: 'Could not determine board for post' }, { status: 500 });
+    // Verify the board exists and belongs to the user's community
+    const boardResult = await query(
+      'SELECT id FROM boards WHERE id = $1 AND community_id = $2',
+      [parseInt(boardId), currentCommunityId]
+    );
+
+    if (boardResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Invalid board or board does not belong to your community' }, { status: 400 });
     }
+
+    const validBoardId = boardResult.rows[0].id;
     
     const result = await query(
       'INSERT INTO posts (author_user_id, title, content, tags, board_id, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, 0, 0) RETURNING *',
-      [user.sub, title, content, tags || [], boardId]
+      [user.sub, title, content, tags || [], validBoardId]
     );
     const newPost = result.rows[0];
         
