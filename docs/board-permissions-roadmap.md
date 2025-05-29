@@ -348,50 +348,241 @@ export async function validateRoleIds(roleIds: string[], communityId: string): P
 
 ### Phase 3: API Route Updates
 
-#### A. Enhanced Board Creation/Editing
+#### A. Community Settings Management
 ```typescript
-// PATCH /api/communities/[communityId]/boards/[boardId]
+// GET /api/communities/[communityId]
+export const GET = withCommunityAccess(async (req: CommunityAccessRequest, context) => {
+  // User already validated for community access by middleware
+  const community = req.communityAccess!.community;
+  
+  // Return community with user's access status
+  return NextResponse.json({
+    ...community,
+    user_can_access: req.communityAccess!.canAccess
+  });
+});
+
+// PATCH /api/communities/[communityId] - Admin only
 export const PATCH = withAuth(async (req: AuthenticatedRequest, context) => {
-  const { boardId } = context.params;
-  const { name, description, settings } = await req.json();
+  const { communityId } = context.params;
+  const { name, settings } = await req.json();
+  
+  // Validate user is admin for this community
+  if (req.user?.cid !== communityId) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
   
   // Validate settings schema
   if (settings?.permissions?.allowedRoles) {
-    await validateRoleIds(settings.permissions.allowedRoles, context.params.communityId);
+    const isValid = await validateRoleIds(settings.permissions.allowedRoles, communityId);
+    if (!isValid) {
+      return NextResponse.json({ error: 'Invalid role IDs provided' }, { status: 400 });
+    }
   }
   
-  // Update board with new settings
+  // Update community with new settings
   const result = await query(
-    'UPDATE boards SET name = $1, description = $2, settings = $3, updated_at = NOW() WHERE id = $4 AND community_id = $5 RETURNING *',
-    [name, description, JSON.stringify(settings), boardId, context.params.communityId]
+    'UPDATE communities SET name = $1, settings = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+    [name, JSON.stringify(settings), communityId]
   );
   
   return NextResponse.json(result.rows[0]);
 }, true); // Admin only
 ```
 
-#### B. Access-Controlled Post Operations
+#### B. Enhanced Board Creation/Editing
 ```typescript
-// GET /api/posts?boardId=X - Filter accessible boards
-// POST /api/posts - Validate board access before creation
-// GET /api/boards/[boardId]/posts - Use withBoardAccess middleware
-
-export const GET = withBoardAccess(async (req: BoardAccessRequest, context) => {
-  const { boardId } = context.params;
+// GET /api/communities/[communityId]/boards
+export const GET = withCommunityAccess(async (req: CommunityAccessRequest, context) => {
+  const communityId = context.params.communityId;
   
-  // User already validated for board access by middleware
-  const posts = await query(
-    'SELECT * FROM posts WHERE board_id = $1 ORDER BY created_at DESC',
-    [boardId]
+  try {
+    const result = await query(
+      'SELECT id, name, description, settings FROM boards WHERE community_id = $1 ORDER BY name ASC',
+      [communityId]
+    );
+
+    // Check board access for each board and add user_can_access field
+    const userRoles = await getUserRoles(req.user!.sub, communityId);
+    const boardsWithAccess = await Promise.all(
+      result.rows.map(async (board) => {
+        const canAccess = await checkBoardAccess(board, userRoles, req.user!.adm);
+        return {
+          ...board,
+          user_can_access: canAccess
+        };
+      })
+    );
+
+    // Filter to only return accessible boards (or show all to admins for management)
+    const accessibleBoards = req.user?.adm 
+      ? boardsWithAccess 
+      : boardsWithAccess.filter(board => board.user_can_access);
+
+    return NextResponse.json(accessibleBoards);
+  } catch (error) {
+    console.error(`[API] Error fetching boards for community ${communityId}:`, error);
+    return NextResponse.json({ error: 'Failed to fetch boards' }, { status: 500 });
+  }
+});
+
+// PATCH /api/communities/[communityId]/boards/[boardId] - Admin only
+export const PATCH = withAuth(async (req: AuthenticatedRequest, context) => {
+  const { communityId, boardId } = context.params;
+  const { name, description, settings } = await req.json();
+  
+  // Validate settings schema
+  if (settings?.permissions?.allowedRoles) {
+    const isValid = await validateRoleIds(settings.permissions.allowedRoles, communityId);
+    if (!isValid) {
+      return NextResponse.json({ error: 'Invalid role IDs provided' }, { status: 400 });
+    }
+  }
+  
+  // Update board with new settings
+  const result = await query(
+    'UPDATE boards SET name = $1, description = $2, settings = $3, updated_at = NOW() WHERE id = $4 AND community_id = $5 RETURNING *',
+    [name, description, JSON.stringify(settings), boardId, communityId]
   );
   
-  return NextResponse.json(posts.rows);
+  return NextResponse.json(result.rows[0]);
+}, true); // Admin only
+```
+
+#### C. Access-Controlled Post Operations
+```typescript
+// GET /api/posts?boardId=X - Filter accessible boards
+export const GET = withCommunityAccess(async (req: CommunityAccessRequest, context) => {
+  const url = new URL(req.url);
+  const boardId = url.searchParams.get('boardId');
+  const communityId = req.communityAccess!.communityId;
+  
+  let postsQuery = 'SELECT p.*, b.name as board_name FROM posts p JOIN boards b ON p.board_id = b.id WHERE b.community_id = $1';
+  let queryParams = [communityId];
+  
+  if (boardId) {
+    // Validate board access before showing posts
+    const board = await getBoardWithSettings(parseInt(boardId));
+    if (board) {
+      const userRoles = await getUserRoles(req.user!.sub, communityId);
+      const canAccess = await checkBoardAccess(board, userRoles, req.user!.adm);
+      
+      if (!canAccess) {
+        return NextResponse.json({ error: 'Access denied to this board' }, { status: 403 });
+      }
+      
+      postsQuery += ' AND p.board_id = $2';
+      queryParams.push(boardId);
+    }
+  } else {
+    // Filter to only accessible boards
+    const userRoles = await getUserRoles(req.user!.sub, communityId);
+    const accessibleBoards = await getAccessibleBoards(userRoles, communityId, req.user!.adm);
+    const boardIds = accessibleBoards.map(board => board.id);
+    
+    if (boardIds.length === 0) {
+      return NextResponse.json({ posts: [], pagination: { currentPage: 1, totalPages: 0, totalPosts: 0, limit: 10 } });
+    }
+    
+    postsQuery += ` AND p.board_id = ANY($2)`;
+    queryParams.push(boardIds);
+  }
+  
+  postsQuery += ' ORDER BY p.created_at DESC';
+  
+  const result = await query(postsQuery, queryParams);
+  return NextResponse.json({ posts: result.rows });
+});
+
+// POST /api/posts - Validate both community and board access
+export const POST = withBoardAccess(async (req: BoardAccessRequest, context) => {
+  // User already validated for both community and board access by middleware
+  const { title, content, tags, boardId } = await req.json();
+  
+  // Proceed with post creation - access already verified
+  const result = await query(
+    'INSERT INTO posts (author_user_id, title, content, tags, board_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [req.user!.sub, title, content, tags || [], boardId]
+  );
+  
+  return NextResponse.json(result.rows[0], { status: 201 });
 });
 ```
 
 ### Phase 4: Frontend Implementation
 
-#### A. Enhanced Board Creation Form
+#### A. Community Settings Management
+```typescript
+// src/components/community/CommunitySettingsForm.tsx
+interface CommunitySettingsFormProps {
+  community: ApiCommunity;
+  onSave: (community: Partial<ApiCommunity>) => void;
+}
+
+export const CommunitySettingsForm: React.FC<CommunitySettingsFormProps> = ({ community, onSave }) => {
+  const [settings, setSettings] = useState<CommunitySettings>(community?.settings || {});
+  const { data: communityRoles } = useQuery(['communityRoles'], fetchCommunityRoles);
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Plugin Access Control</CardTitle>
+        <CardDescription>
+          Control who can access this community's plugin
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>
+              <Checkbox 
+                checked={!settings.permissions?.allowedRoles?.length}
+                onChange={(checked) => {
+                  if (checked) {
+                    setSettings(prev => ({
+                      ...prev,
+                      permissions: { ...prev.permissions, allowedRoles: [] }
+                    }));
+                  }
+                }}
+              />
+              Allow all community members to access the plugin
+            </Label>
+            
+            {settings.permissions?.allowedRoles?.length > 0 && (
+              <div className="ml-6 space-y-2">
+                <Label>Restrict plugin access to specific roles:</Label>
+                <MultiSelect
+                  options={communityRoles?.map(role => ({ 
+                    value: role.id, 
+                    label: role.title 
+                  }))}
+                  value={settings.permissions.allowedRoles}
+                  onChange={(roleIds) => {
+                    setSettings(prev => ({
+                      ...prev,
+                      permissions: { ...prev.permissions, allowedRoles: roleIds }
+                    }));
+                  }}
+                />
+                <div className="text-sm text-muted-foreground">
+                  Only users with these roles will be able to access the plugin
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <Button onClick={() => onSave({ ...community, settings })}>
+          Save Community Settings
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+```
+
+#### B. Enhanced Board Creation Form
 ```typescript
 // src/components/boards/BoardForm.tsx
 interface BoardFormProps {
@@ -403,6 +594,20 @@ interface BoardFormProps {
 export const BoardForm: React.FC<BoardFormProps> = ({ mode, board, onSave }) => {
   const [settings, setSettings] = useState<BoardSettings>(board?.settings || {});
   const { data: communityRoles } = useQuery(['communityRoles'], fetchCommunityRoles);
+  const { data: communitySettings } = useQuery(['communitySettings'], fetchCommunitySettings);
+  
+  // Available roles are limited by community-level restrictions
+  const availableRoles = useMemo(() => {
+    if (!communityRoles) return [];
+    
+    const communityAllowedRoles = communitySettings?.permissions?.allowedRoles;
+    if (!communityAllowedRoles || communityAllowedRoles.length === 0) {
+      return communityRoles; // Community allows all roles
+    }
+    
+    // Only show roles that are allowed at community level
+    return communityRoles.filter(role => communityAllowedRoles.includes(role.id));
+  }, [communityRoles, communitySettings]);
   
   return (
     <form onSubmit={handleSubmit}>
@@ -412,7 +617,22 @@ export const BoardForm: React.FC<BoardFormProps> = ({ mode, board, onSave }) => 
       
       {/* Permissions Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Access Permissions</h3>
+        <h3 className="text-lg font-semibold">Board Access Permissions</h3>
+        
+        {communitySettings?.permissions?.allowedRoles?.length > 0 && (
+          <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-start space-x-2">
+              <Info size={16} className="text-blue-600 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-blue-900 dark:text-blue-100">Community Access Restriction Active</p>
+                <p className="text-blue-700 dark:text-blue-300">
+                  This community restricts plugin access to specific roles. Board permissions can only further restrict access within those roles.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="space-y-2">
           <Label>
             <Checkbox 
@@ -426,14 +646,14 @@ export const BoardForm: React.FC<BoardFormProps> = ({ mode, board, onSave }) => 
                 }
               }}
             />
-            Allow all community members
+            Allow all users with community access
           </Label>
           
           {settings.permissions?.allowedRoles?.length > 0 && (
             <div className="ml-6 space-y-2">
               <Label>Restrict to specific roles:</Label>
               <MultiSelect
-                options={communityRoles?.map(role => ({ 
+                options={availableRoles?.map(role => ({ 
                   value: role.id, 
                   label: role.title 
                 }))}
@@ -444,7 +664,13 @@ export const BoardForm: React.FC<BoardFormProps> = ({ mode, board, onSave }) => 
                     permissions: { ...prev.permissions, allowedRoles: roleIds }
                   }));
                 }}
+                disabled={availableRoles.length === 0}
               />
+              {availableRoles.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No additional role restrictions available due to community settings
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -458,23 +684,294 @@ export const BoardForm: React.FC<BoardFormProps> = ({ mode, board, onSave }) => 
 };
 ```
 
-#### B. Board Access Feedback
+#### C. Access Denied States & Error Handling
 ```typescript
-// Enhanced PostCard to show access restrictions
+// src/components/access/CommunityAccessDenied.tsx
+export const CommunityAccessDenied: React.FC = () => {
+  const { user } = useAuth();
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="text-center space-y-6 max-w-md">
+        <div className="space-y-4">
+          <Lock size={64} className="mx-auto text-muted-foreground" />
+          <h1 className="text-2xl font-semibold">Community Access Restricted</h1>
+          <p className="text-muted-foreground">
+            This community has restricted access to this plugin. You need specific permissions to continue.
+          </p>
+        </div>
+        
+        <div className="space-y-3">
+          <div className="p-4 bg-muted/50 rounded-lg text-sm">
+            <p className="font-medium mb-1">Your Current Status:</p>
+            <p>User: {user?.name}</p>
+            <p>Community Member: Yes</p>
+            <p>Plugin Access: Denied</p>
+          </div>
+          
+          <p className="text-sm text-muted-foreground">
+            Please contact a community administrator if you believe you should have access.
+          </p>
+        </div>
+        
+        <Button 
+          onClick={() => window.location.reload()} 
+          variant="outline"
+          className="w-full"
+        >
+          Refresh Page
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// src/components/access/BoardAccessDenied.tsx
+export const BoardAccessDenied: React.FC<{ boardName?: string }> = ({ boardName }) => {
+  return (
+    <div className="text-center py-12">
+      <Lock size={48} className="mx-auto text-muted-foreground mb-4" />
+      <h2 className="text-xl font-semibold mb-2">Board Access Restricted</h2>
+      <p className="text-muted-foreground mb-4">
+        {boardName 
+          ? `You don't have permission to view the "${boardName}" board.`
+          : "You don't have permission to view this board."
+        }
+      </p>
+      <p className="text-sm text-muted-foreground mb-6">
+        This board is restricted to specific community roles.
+      </p>
+      <Button asChild>
+        <Link href="/">Return to Home</Link>
+      </Button>
+    </div>
+  );
+};
+
+// Enhanced error handling in API calls
+export const useApiWithAccessHandling = () => {
+  const navigate = useNavigate();
+  
+  const handleApiError = useCallback((error: any) => {
+    if (error?.response?.status === 403) {
+      const errorCode = error?.response?.data?.code;
+      
+      switch (errorCode) {
+        case 'COMMUNITY_ACCESS_DENIED':
+          // Redirect to community access denied page
+          navigate('/access-denied/community');
+          break;
+        case 'BOARD_ACCESS_DENIED':
+          // Show board access denied component
+          return { showBoardAccessDenied: true };
+        default:
+          // Generic access denied
+          toast.error('Access denied');
+      }
+    }
+    
+    return { error };
+  }, [navigate]);
+  
+  return { handleApiError };
+};
+```
+
+#### D. Enhanced Community Settings Page
+```typescript
+// src/app/community-settings/page.tsx - Updated to include access control
+export default function CommunitySettingsPage() {
+  // ... existing code ...
+  
+  return (
+    <div className="space-y-8">
+      {/* Existing community overview section */}
+      
+      {/* New: Community Access Control Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield size={20} />
+            Access Control
+          </CardTitle>
+          <CardDescription>
+            Manage who can access this community's plugin
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CommunitySettingsForm 
+            community={communityInfo} 
+            onSave={handleSaveCommunitySettings} 
+          />
+        </CardContent>
+      </Card>
+      
+      {/* Enhanced: Board Management with Access Info */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LayoutDashboard size={20} />
+            Board Management
+          </CardTitle>
+          <CardDescription>
+            Manage boards and their access permissions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {boardsList?.map(board => (
+              <div key={board.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h4 className="font-medium">{board.name}</h4>
+                  <p className="text-sm text-muted-foreground">{board.description}</p>
+                  {board.settings?.permissions?.allowedRoles?.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Lock size={12} />
+                      <span className="text-xs text-muted-foreground">Access restricted</span>
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => openBoardSettings(board.id)}
+                >
+                  <Settings size={14} className="mr-1" />
+                  Settings
+                </Button>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+```
+
+### Phase 5: Navigation & UX Enhancements
+
+#### A. Enhanced Authentication Flow
+```typescript
+// src/components/layout/AppInitializer.tsx
+export const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isAuthenticated, login } = useAuth();
+  const [accessStatus, setAccessStatus] = useState<'loading' | 'granted' | 'community_denied' | 'board_denied'>('loading');
+  
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!isAuthenticated) return;
+      
+      try {
+        // Check community access first
+        const communityAccess = await checkCommunityAccess();
+        if (!communityAccess.canAccess) {
+          setAccessStatus('community_denied');
+          return;
+        }
+        
+        setAccessStatus('granted');
+      } catch (error) {
+        console.error('Access check failed:', error);
+        setAccessStatus('community_denied');
+      }
+    };
+    
+    checkAccess();
+  }, [isAuthenticated, user]);
+  
+  if (accessStatus === 'loading') {
+    return <LoadingScreen />;
+  }
+  
+  if (accessStatus === 'community_denied') {
+    return <CommunityAccessDenied />;
+  }
+  
+  return <>{children}</>;
+};
+```
+
+#### B. Filtered Board Lists & Navigation
+```typescript
+// Enhanced sidebar to only show accessible boards
+const { data: accessibleBoards } = useQuery(
+  ['accessibleBoards', user?.userId], 
+  async () => {
+    // This API call will now handle both community and board level filtering
+    const allBoards = await fetchBoards();
+    return allBoards.filter(board => board.user_can_access);
+  }
+);
+
+// Enhanced board navigation with access indicators
+export const BoardNavigation: React.FC = () => {
+  const { data: boards } = useQuery(['boards'], fetchBoards);
+  const { user } = useAuth();
+  
+  return (
+    <div className="space-y-1">
+      {boards?.map(board => (
+        <div key={board.id} className="relative">
+          <Link
+            href={`/boards/${board.id}`}
+            className={cn(
+              "flex items-center justify-between p-2 rounded-lg hover:bg-muted",
+              !board.user_can_access && "opacity-50 pointer-events-none"
+            )}
+          >
+            <div className="flex items-center space-x-2">
+              <LayoutDashboard size={16} />
+              <span>{board.name}</span>
+            </div>
+            
+            {!board.user_can_access && (
+              <Lock size={12} className="text-muted-foreground" />
+            )}
+          </Link>
+          
+          {!board.user_can_access && user?.isAdmin && (
+            <Tooltip content="You can access this as an admin, but regular users cannot">
+              <Info size={12} className="absolute top-2 right-6 text-amber-500" />
+            </Tooltip>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+#### C. Progressive Access Feedback
+```typescript
+// Enhanced PostCard to show multi-level access info
 export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const { user } = useAuth();
-  const { data: boardAccess } = useQuery(
-    ['boardAccess', post.board_id], 
-    () => checkBoardAccess(post.board_id)
+  const { data: accessInfo } = useQuery(
+    ['postAccess', post.id], 
+    () => checkPostAccess(post.id)
   );
   
-  if (!boardAccess?.canAccess) {
+  if (accessInfo?.communityAccessDenied) {
     return (
-      <Card className="opacity-60">
+      <Card className="opacity-60 border-amber-200">
         <CardContent className="p-4">
-          <div className="flex items-center space-x-2 text-muted-foreground">
+          <div className="flex items-center space-x-2 text-amber-600">
+            <Shield size={16} />
+            <span>Community access required</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (accessInfo?.boardAccessDenied) {
+    return (
+      <Card className="opacity-60 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-2 text-blue-600">
             <Lock size={16} />
-            <span>This post is in a restricted board</span>
+            <span>Board "{post.board_name}" access required</span>
           </div>
         </CardContent>
       </Card>
@@ -485,119 +982,86 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 };
 ```
 
-#### C. Board Management UI
-```typescript
-// src/components/boards/BoardSettings.tsx
-export const BoardSettings: React.FC<{ boardId: number }> = ({ boardId }) => {
-  const { data: board } = useQuery(['board', boardId], () => fetchBoard(boardId));
-  const [showPermissions, setShowPermissions] = useState(false);
-  
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{board?.name} Settings</h2>
-        <Button variant="outline" onClick={() => setShowPermissions(!showPermissions)}>
-          <Settings size={16} className="mr-2" />
-          Permissions
-        </Button>
-      </div>
-      
-      {showPermissions && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Access Permissions</CardTitle>
-            <CardDescription>
-              Control who can see and interact with this board
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BoardForm mode="edit" board={board} onSave={handleSave} />
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
-```
-
-### Phase 5: Navigation & UX Enhancements
-
-#### A. Filtered Board Lists
-```typescript
-// Only show accessible boards in sidebar
-const { data: accessibleBoards } = useQuery(
-  ['accessibleBoards', user?.userId], 
-  async () => {
-    const allBoards = await fetchBoards();
-    return allBoards.filter(board => board.user_can_access);
-  }
-);
-```
-
-#### B. Access Denied States
-```typescript
-// Graceful handling when accessing restricted boards directly
-if (boardAccessError?.status === 403) {
-  return (
-    <div className="text-center py-12">
-      <Lock size={48} className="mx-auto text-muted-foreground mb-4" />
-      <h2 className="text-xl font-semibold mb-2">Board Access Restricted</h2>
-      <p className="text-muted-foreground mb-4">
-        You don't have permission to view this board.
-      </p>
-      <Button asChild>
-        <Link href="/">Return to Home</Link>
-      </Button>
-    </div>
-  );
-}
-```
-
 ## Performance Considerations
 
-### 1. Caching Strategy
-- **Role lookups**: Cache user roles per community (5-15 min TTL)
-- **Board settings**: Cache board configurations (until update)
-- **Access checks**: Memoize access validation within request
+### 1. Enhanced Caching Strategy
+- **Community settings**: Cache per community (30 min TTL, invalidate on update)
+- **Board settings**: Cache per board (15 min TTL, invalidate on update)  
+- **User roles**: Cache user roles per community (5-15 min TTL)
+- **Access computations**: Memoize access validation within request lifecycle
+- **Role hierarchy**: Cache community → board role relationships
 
 ### 2. Database Optimization
-- **JSONB indexing**: GIN index on settings column for efficient queries
-- **Role validation**: Batch role existence checks
-- **Query optimization**: Join boards + settings in single query
+- **JSONB indexing**: GIN indexes on both community and board settings columns
+- **Composite queries**: Join communities + boards + settings in single queries
+- **Role batch validation**: Validate multiple role IDs in single Common Ground call
+- **Access aggregation**: Pre-compute user access for frequently accessed content
 
 ### 3. Security Best Practices
-- **Input validation**: Validate all role IDs against community
-- **Admin override**: Always allow admin access regardless of settings
-- **Audit logging**: Log permission changes and access attempts
-- **Rate limiting**: Prevent abuse of role validation endpoints
+- **Hierarchical validation**: Always check community access before board access
+- **Input validation**: Validate all role IDs against community at both levels
+- **Admin override consistency**: Ensure admin bypass works at all levels
+- **Audit logging**: Log permission changes and access attempts at both levels
+- **Rate limiting**: Prevent abuse of role validation and access check endpoints
+- **Defense in depth**: Multiple validation layers (middleware, business logic, UI)
 
 ## Migration & Rollback Strategy
 
-### 1. Backward Compatibility
-- **Default settings**: Empty permissions = unrestricted access
-- **Existing boards**: Auto-migrate with default unrestricted settings
-- **API versioning**: Maintain compatibility during transition
+### 1. Enhanced Backward Compatibility
+- **Community settings**: Default empty object = unrestricted access (existing behavior)
+- **Board settings**: Default empty object = unrestricted access (existing behavior)
+- **Hierarchical defaults**: If community restricts access, boards inherit those restrictions
+- **API versioning**: Maintain compatibility during transition for both levels
+- **Graceful degradation**: System works if either level's settings are invalid
 
-### 2. Rollback Plan
-- **Database rollback**: Migration down() removes settings column
-- **API fallback**: Graceful degradation if settings invalid/missing
-- **Frontend fallback**: Hide permission UI if backend doesn't support
+### 2. Multi-Level Rollback Plan
+- **Database rollback**: Both migrations have clean down() functions
+- **API fallback**: Graceful degradation if settings invalid/missing at either level
+- **Frontend fallback**: Hide permission UI if backend doesn't support either level
+- **Cache invalidation**: Clear all permission-related cache on rollback
+- **Progressive rollout**: Can rollback community OR board level independently
 
 ## Future Extensibility
 
-### 1. Additional Permission Types
+### 1. Enhanced Permission Types
 ```typescript
+interface CommunitySettings {
+  permissions?: {
+    allowedRoles?: string[];
+    allowedUsers?: string[];     // Individual user overrides
+    requireMembership?: boolean; // Require active community membership
+    guestAccess?: boolean;       // Allow non-members limited access
+  };
+  features?: {
+    enableNotifications?: boolean;
+    enableIntegrations?: boolean;
+    customBranding?: boolean;
+  };
+  branding?: {
+    customTheme?: string;
+    logoOverride?: string;
+    customCSS?: string;
+  };
+  moderation?: {
+    globalModerationLevel?: 'strict' | 'moderate' | 'permissive';
+    requireApproval?: boolean;
+    autoModerationEnabled?: boolean;
+  };
+}
+
 interface BoardSettings {
   permissions?: {
     allowedRoles?: string[];
     allowedUsers?: string[];     // Individual user overrides
     postingRoles?: string[];     // Separate read vs write permissions
     moderatorRoles?: string[];   // Board-specific moderation
+    requireInvite?: boolean;     // Invitation-only boards
   };
   moderation?: {
     autoModerationLevel?: 'strict' | 'moderate' | 'permissive';
     requireApproval?: boolean;
     wordFilter?: string[];
+    pinRoles?: string[];         // Who can pin posts
   };
   notifications?: {
     emailDigest?: boolean;
@@ -608,61 +1072,100 @@ interface BoardSettings {
     theme?: string;
     customCSS?: string;
     bannerImage?: string;
+    description?: string;
+  };
+  scheduling?: {
+    activeHours?: { start: string; end: string };
+    timezone?: string;
+    maintenanceMode?: boolean;
   };
 }
 ```
 
 ### 2. Advanced Features Roadmap
-- **Time-based restrictions**: Schedule access windows
-- **Invitation-only boards**: Generate invite links
-- **Board hierarchies**: Parent/child board relationships
-- **Cross-community boards**: Multi-community collaboration
-- **Custom permissions**: Plugin-specific permission types
+- **Time-based restrictions**: Schedule access windows for communities/boards
+- **Invitation systems**: Generate invite links for both levels
+- **Cross-community access**: Multi-community collaboration frameworks
+- **Role inheritance**: Complex parent-child permission relationships
+- **Custom permission engines**: Plugin-specific permission computation
+- **Access analytics**: Track and analyze permission usage patterns
+- **Automated role assignment**: Rule-based role granting systems
 
 ## Testing Strategy
 
 ### 1. Unit Tests
-- Role validation logic
-- Access check algorithms  
-- Settings schema validation
-- Migration up/down operations
+- Community access validation logic
+- Board access validation logic (with community prerequisite)
+- Hierarchical permission checking
+- Settings schema validation at both levels
+- Migration up/down operations for both tables
+- Role validation and caching logic
 
 ### 2. Integration Tests
-- API endpoint access control
-- Board creation with permissions
-- User role changes impact
+- Community-level API endpoint access control
+- Board-level API endpoint access control (with community context)
+- User role changes impact on both levels
 - Cross-community access prevention
+- Permission inheritance and override scenarios
+- Cache invalidation on permission changes
 
 ### 3. End-to-End Tests
-- Admin creates restricted board
-- Non-privileged user access denied
-- Role-based board visibility
-- Permission changes take effect
+- Admin restricts community access → user denied plugin access
+- Admin restricts board access → user denied board access but can access other boards
+- Role-based visibility across the entire permission hierarchy
+- Permission changes take effect immediately at both levels
+- Admin override functionality at all levels
 
 ## Deployment Checklist
 
 ### 1. Pre-deployment
-- [ ] Database migration tested in staging
-- [ ] Role validation service deployed
-- [ ] Cache warming strategy implemented
-- [ ] Monitoring/alerting configured
+- [ ] Community settings migration tested in staging
+- [ ] Board settings migration tested in staging
+- [ ] Role validation service deployed and tested
+- [ ] Multi-level cache warming strategy implemented
+- [ ] Monitoring/alerting configured for both permission levels
+- [ ] Access denied pages created and tested
 
 ### 2. Deployment
-- [ ] Run database migration
-- [ ] Deploy API changes
-- [ ] Deploy frontend updates
-- [ ] Verify cache invalidation
+- [ ] Run community settings migration
+- [ ] Run board settings migration  
+- [ ] Deploy enhanced API changes (community + board)
+- [ ] Deploy frontend updates with access control
+- [ ] Verify cache invalidation at both levels
+- [ ] Test permission hierarchy in production
 
 ### 3. Post-deployment
-- [ ] Verify existing boards accessible
-- [ ] Test permission creation/editing
-- [ ] Monitor performance metrics
-- [ ] Check error rates/logs
+- [ ] Verify existing communities accessible (no breaking changes)
+- [ ] Verify existing boards accessible (no breaking changes)
+- [ ] Test community permission creation/editing
+- [ ] Test board permission creation/editing
+- [ ] Monitor performance metrics for permission checks
+- [ ] Check error rates/logs for access denied scenarios
+- [ ] Validate admin override functionality
 
 ---
 
 ## Summary
 
-This roadmap provides a comprehensive path to implementing board-level role permissions while maintaining system performance, security, and extensibility. The phased approach allows for incremental development and testing, minimizing risk while delivering significant value to community administrators.
+This enhanced roadmap provides a comprehensive path to implementing **multi-level role-based permissions** that work hierarchically:
 
-The JSON-based settings storage provides flexibility for future enhancements while the role-based access control integrates seamlessly with Common Ground's existing permission system. 
+1. **Community Level**: Controls who can access the plugin at all
+2. **Board Level**: Controls who can access specific boards (within community access)
+3. **Content Level**: Future expansion for post/comment-level permissions
+
+### Key Benefits:
+- **Hierarchical Security**: Community restrictions apply before board restrictions
+- **Administrative Control**: Granular control at multiple levels
+- **Performance Optimized**: Efficient caching and validation strategies
+- **Future-Proof**: JSON settings allow unlimited expansion
+- **Backward Compatible**: Existing communities and boards work unchanged
+- **Admin Friendly**: Clear UI for managing permissions at both levels
+
+### Technical Highlights:
+- **Dual migration approach**: Separate migrations for community and board settings
+- **Middleware chaining**: `withCommunityAccess` → `withBoardAccess` → content access
+- **Smart caching**: Multi-level caching with appropriate TTLs
+- **Error granularity**: Specific error codes for different access denial reasons
+- **Progressive enhancement**: Features can be enabled incrementally
+
+The JSON-based settings storage provides maximum flexibility for future enhancements while the hierarchical role-based access control integrates seamlessly with Common Ground's existing permission system at multiple levels. 
