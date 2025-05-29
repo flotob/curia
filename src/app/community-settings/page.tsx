@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { 
   Settings, 
   Users, 
@@ -17,20 +19,30 @@ import {
   ArrowLeft, 
   Edit, 
   UserCheck,
-  Crown
+  Crown,
+  Lock,
+  Info,
+  Save
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { useAuth } from '@/contexts/AuthContext';
+import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
+import { CommunitySettings } from '@/types/settings';
+import { authFetchJson } from '@/utils/authFetch';
+import { useToast } from '@/hooks/use-toast';
+import { CommunityAccessForm } from '@/components/CommunityAccessForm';
 
 export default function CommunitySettingsPage() {
   const { cgInstance, isInitializing } = useCgLib();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [bgColor, setBgColor] = useState('#ffffff');
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Initialize theme from URL params
   useEffect(() => {
@@ -63,6 +75,48 @@ export default function CommunitySettingsPage() {
     
     return `${path}?${params.toString()}`;
   };
+
+  // Fetch community settings from our new API
+  const { data: communitySettings, isLoading: isLoadingSettings } = useQuery<ApiCommunity>({
+    queryKey: ['communitySettings', user?.cid],
+    queryFn: async () => {
+      if (!user?.cid || !token) throw new Error('No community ID or token available');
+      const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, { token });
+      return response;
+    },
+    enabled: !!user?.cid && !!token,
+  });
+
+  // Update community settings mutation
+  const updateCommunityMutation = useMutation({
+    mutationFn: async (settings: CommunitySettings) => {
+      if (!user?.cid || !token) throw new Error('No community ID or token available');
+      const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ settings }),
+        token
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['communitySettings'] });
+      toast({
+        title: "Settings updated",
+        description: "Community settings updated successfully!",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Failed to update community settings:', error);
+      toast({
+        title: "Update failed",
+        description: "Failed to update community settings. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Admin access control
   if (user && !user.isAdmin && user.userId !== process.env.NEXT_PUBLIC_SUPERADMIN_ID) {
@@ -350,13 +404,41 @@ export default function CommunitySettingsPage() {
                     <p>No roles configured</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
 
-                <div className="pt-4">
-                  <Button variant="outline" disabled className="w-full">
-                    <Shield size={16} className="mr-2" />
-                    Manage Permissions (Coming Soon)
-                  </Button>
-                </div>
+            {/* Community Access Control */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock size={20} />
+                  Plugin Access Control
+                </CardTitle>
+                <CardDescription>
+                  Control who can access this community's forum plugin
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isLoadingSettings ? (
+                  <div className="space-y-4">
+                    <div className={cn(
+                      "h-4 w-48 rounded animate-pulse",
+                      theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                    )} />
+                    <div className={cn(
+                      "h-20 w-full rounded animate-pulse",
+                      theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                    )} />
+                  </div>
+                ) : (
+                  <CommunityAccessForm
+                    currentSettings={communitySettings?.settings || {}}
+                    communityRoles={communityInfo.roles || []}
+                    onSave={(settings: CommunitySettings) => updateCommunityMutation.mutate(settings)}
+                    isLoading={updateCommunityMutation.isPending}
+                    theme={theme}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>

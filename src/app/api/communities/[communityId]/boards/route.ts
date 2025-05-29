@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
+import { BoardSettings } from '@/types/settings';
 
 interface BoardsRouteParams {
   params: {
@@ -10,13 +11,20 @@ interface BoardsRouteParams {
 
 export interface ApiBoard {
   id: number;
+  community_id: string;
   name: string;
   description: string | null;
-  // Add other fields like post_count if you implement it later
+  settings: BoardSettings;
+  created_at: string;
+  updated_at: string;
+  // Computed fields:
+  user_can_access?: boolean;  // Based on current user's roles (after community access)
+  user_can_post?: boolean;    // Future: differentiate read vs write
 }
 
 async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: BoardsRouteParams) {
-  const communityId = context.params.communityId;
+  const params = await context.params;
+  const communityId = params.communityId;
   const requestingUserId = req.user?.sub; // For logging or future checks
   const requestingUserCommunityId = req.user?.cid; // User's own community from token
 
@@ -38,11 +46,15 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Boa
 
   try {
     const result = await query(
-      'SELECT id, name, description FROM boards WHERE community_id = $1 ORDER BY name ASC',
+      'SELECT id, community_id, name, description, settings, created_at, updated_at FROM boards WHERE community_id = $1 ORDER BY name ASC',
       [communityId]
     );
 
-    const boards: ApiBoard[] = result.rows;
+    const boards: ApiBoard[] = result.rows.map(row => ({
+      ...row,
+      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+    }));
+    
     return NextResponse.json(boards);
 
   } catch (error) {
@@ -56,7 +68,8 @@ export const GET = withAuth(getCommunityBoardsHandler, false);
 
 // POST handler for creating new boards (admin only)
 async function createBoardHandler(req: AuthenticatedRequest, context: BoardsRouteParams) {
-  const communityId = context.params.communityId;
+  const params = await context.params;
+  const communityId = params.communityId;
   const requestingUserId = req.user?.sub;
   const requestingUserCommunityId = req.user?.cid;
 
@@ -71,10 +84,18 @@ async function createBoardHandler(req: AuthenticatedRequest, context: BoardsRout
 
   try {
     const body = await req.json();
-    const { name, description } = body;
+    const { name, description, settings = {} } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Board name is required' }, { status: 400 });
+    }
+
+    // Validate settings if provided
+    if (settings && Object.keys(settings).length > 0) {
+      // Basic validation - could be enhanced with a proper schema validator
+      if (settings.permissions?.allowedRoles && !Array.isArray(settings.permissions.allowedRoles)) {
+        return NextResponse.json({ error: 'allowedRoles must be an array' }, { status: 400 });
+      }
     }
 
     // Check if board name already exists in this community
@@ -87,16 +108,22 @@ async function createBoardHandler(req: AuthenticatedRequest, context: BoardsRout
       return NextResponse.json({ error: 'A board with this name already exists' }, { status: 409 });
     }
 
-    // Create the board
+    // Create the board with settings
     const result = await query(
-      'INSERT INTO boards (community_id, name, description) VALUES ($1, $2, $3) RETURNING *',
-      [communityId, name.trim(), description?.trim() || null]
+      'INSERT INTO boards (community_id, name, description, settings) VALUES ($1, $2, $3, $4) RETURNING *',
+      [communityId, name.trim(), description?.trim() || null, JSON.stringify(settings)]
     );
 
     const newBoard = result.rows[0];
     console.log(`[API] Board created: ${newBoard.name} (ID: ${newBoard.id}) in community ${communityId} by user ${requestingUserId}`);
 
-    return NextResponse.json(newBoard, { status: 201 });
+    // Parse settings for response
+    const boardResponse = {
+      ...newBoard,
+      settings: typeof newBoard.settings === 'string' ? JSON.parse(newBoard.settings) : newBoard.settings
+    };
+
+    return NextResponse.json(boardResponse, { status: 201 });
 
   } catch (error) {
     console.error(`[API] Error creating board for community ${communityId}:`, error);

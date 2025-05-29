@@ -9,12 +9,14 @@ CREATE TABLE "public"."boards" (
     "community_id" text NOT NULL,
     "name" character varying(255) NOT NULL,
     "description" text,
+    "settings" jsonb DEFAULT '{}' NOT NULL,
     "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT "boards_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
 CREATE INDEX boards_community_id_index ON public.boards USING btree (community_id);
+CREATE INDEX boards_settings_index ON public.boards USING gin (settings);
 
 
 DELIMITER ;;
@@ -55,10 +57,13 @@ DROP TABLE IF EXISTS "communities";
 CREATE TABLE "public"."communities" (
     "id" text NOT NULL,
     "name" text NOT NULL,
+    "settings" jsonb DEFAULT '{}' NOT NULL,
     "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT "communities_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
+
+CREATE INDEX communities_settings_index ON public.communities USING gin (settings);
 
 
 DELIMITER ;;
@@ -145,4 +150,7 @@ ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_board_id_fkey" FOREIGN K
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
--- 2025-05-29 20:17:09 UTC
+-- Updated: 2025-05-29 21:45:00 UTC
+-- New: Added settings JSONB columns to communities and boards tables for permission management
+-- Community settings: Control plugin-wide access and features
+-- Board settings: Control board-specific access and features (hierarchical with community settings)

@@ -5,6 +5,7 @@ import 'highlight.js/styles/github-dark.css';
 import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MainLayoutWithSidebar } from "@/components/layout/MainLayoutWithSidebar";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
           <Providers>
             <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
           </Providers>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
