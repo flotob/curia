@@ -20,6 +20,7 @@ interface SessionRequestBody {
   communityRoles?: CommunityRole[]; // Full list of community role definitions
   iframeUid?: string | null;
   communityId?: string | null;
+  communityName?: string | null; // Added for community upsert
 }
 
 // This should match or be compatible with JwtPayload in withAuth.ts
@@ -50,11 +51,12 @@ export async function POST(req: NextRequest) {
     const body = JSON.parse(rawBodyText) as SessionRequestBody; 
     console.log('[/api/auth/session] Parsed request body object:', body);
 
-    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId } = body;
+    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId, communityName } = body;
     console.log('[/api/auth/session] Destructured user role IDs:', userRoleIds);
     console.log('[/api/auth/session] Destructured communityRoles:', communityRoles);
     console.log('[/api/auth/session] Destructured iframeUid:', iframeUid);
     console.log('[/api/auth/session] Destructured communityId:', communityId);
+    console.log('[/api/auth/session] Destructured communityName:', communityName);
 
     // Make iframeUid and communityId required for session creation, along with userId
     if (!userId || !iframeUid || !communityId) { 
@@ -64,32 +66,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- Optional: Initial User Profile UPSERT Logic on first session --- 
-    // withAuth.ts will also do this on every authenticated request, so this might be redundant
-    // but can be useful if you want the profile created/updated immediately upon session creation.
-    // For now, we'll rely on withAuth.ts to handle the upsert.
-    /*
-    if (userId) {
+    // --- Community and Default Board Upsert Logic --- 
+    if (communityId) {
       try {
+        // 1. Upsert Community
         await query(
-          `INSERT INTO users (user_id, name, profile_picture_url, updated_at)
+          `INSERT INTO communities (id, name, updated_at) VALUES ($1, $2, NOW())
+           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
+          [communityId, communityName || communityId] // Use communityId as name if communityName is not provided
+        );
+        console.log(`[/api/auth/session] Upserted community: ${communityId}`);
+
+        // 2. Upsert Default Board for this Community
+        const defaultBoardName = 'General Discussion';
+        const defaultBoardDescription = 'Main discussion board for the community.';
+        const boardResult = await query(
+          `INSERT INTO boards (community_id, name, description, updated_at)
            VALUES ($1, $2, $3, NOW())
-           ON CONFLICT (user_id)
-           DO UPDATE SET
-             name = EXCLUDED.name,
-             profile_picture_url = EXCLUDED.profile_picture_url,
-             updated_at = NOW();`,
-          [userId, name ?? null, profilePictureUrl ?? null]
+           ON CONFLICT (community_id, name) DO UPDATE SET description = EXCLUDED.description, updated_at = NOW()
+           RETURNING id;`,
+          [communityId, defaultBoardName, defaultBoardDescription]
         );
-      } catch (profileError) {
-        console.error(
-          'Error initially syncing user profile in session route (non-critical):',
-          profileError
-        );
+        console.log(`[/api/auth/session] Upserted default board for community ${communityId}. Board ID: ${boardResult.rows[0]?.id}`);
+
+      } catch (dbError) {
+        console.error(`[/api/auth/session] Error during community/board upsert for community ${communityId}:`, dbError);
+        // Non-critical for session token generation, but log it. 
+        // Depending on requirements, you might want to return an error here.
       }
     }
-    */
-    // --- END Optional Initial UPSERT --- 
+    // --- END Community and Default Board Upsert Logic --- 
 
     let isUserAdmin = false;
     const adminRoleTitleEnvVar = process.env.NEXT_PUBLIC_ADMIN_ROLE_IDS;
@@ -97,15 +103,15 @@ export async function POST(req: NextRequest) {
     if (adminRoleTitleEnvVar && userRoleIds && userRoleIds.length > 0 && communityRoles && communityRoles.length > 0) {
       const adminTitlesFromEnv = adminRoleTitleEnvVar.split(',').map(roleTitle => roleTitle.trim().toLowerCase());
       
-      const userRoleTitles = userRoleIds.map(roleId => {
+      const userTitles = userRoleIds.map(roleId => {
         const matchingCommunityRole = communityRoles.find(cr => cr.id === roleId);
         return matchingCommunityRole ? matchingCommunityRole.title.trim().toLowerCase() : null;
       }).filter(title => title !== null) as string[];
 
-      console.log('[/api/auth/session] User role titles derived:', userRoleTitles);
+      console.log('[/api/auth/session] User role titles derived:', userTitles);
       console.log('[/api/auth/session] Admin role titles from ENV:', adminTitlesFromEnv);
 
-      isUserAdmin = userRoleTitles.some(userRoleTitle => adminTitlesFromEnv.includes(userRoleTitle));
+      isUserAdmin = userTitles.some(userRoleTitle => adminTitlesFromEnv.includes(userRoleTitle));
     }
     console.log(`[/api/auth/session] Determined admin status based on role titles and env var: ${isUserAdmin}`);
 

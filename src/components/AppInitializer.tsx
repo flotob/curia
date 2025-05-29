@@ -60,6 +60,7 @@ export function AppInitializer() {
             communityRoles: communityInfo.roles, // Pass all community role definitions
             iframeUid: iframeUid,
             communityId: communityInfo.id,
+            communityName: communityInfo.title,
           };
 
           console.log('[AppInitializer] Data fetched successfully. Calling auth.login() with payload:', loginPayload);

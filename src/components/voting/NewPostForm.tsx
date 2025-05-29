@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Edit3 } from 'lucide-react';
 import Link from 'next/link'; 
+import { cn } from '@/lib/utils';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -64,6 +65,7 @@ interface SuggestedPost extends Partial<ApiPost> {}
 export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
   const { token, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState(''); 
@@ -190,7 +192,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
 
   if (!isAuthenticated) {
     return (
-        <Card className="w-full max-w-lg mx-auto mt-8">
+        <Card className="w-full max-w-2xl mx-auto mt-6 mb-8">
             <CardHeader>
                 <CardTitle>Create a New Post</CardTitle>
             </CardHeader>
@@ -201,8 +203,26 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
     );
   }
 
+  if (!isExpanded) {
+    return (
+      <div 
+        className="w-full max-w-2xl mx-auto mt-6 mb-8 p-4 border-2 border-dashed border-muted hover:border-primary/70 rounded-lg cursor-pointer transition-all duration-200 ease-in-out group bg-card hover:bg-muted/30"
+        onClick={() => setIsExpanded(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setIsExpanded(true)}
+        aria-label="Create a new post"
+      >
+        <div className="flex items-center text-muted-foreground group-hover:text-primary transition-colors">
+          <Edit3 size={20} className="mr-3 flex-shrink-0" />
+          <p className="text-md font-medium">Share an issue, need, or idea...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Card className="w-full max-w-lg mx-auto mt-8">
+    <Card className="w-full max-w-2xl mx-auto mt-6 mb-8">
         <CardHeader>
             <CardTitle>Create a New Post</CardTitle>
             <CardDescription>Share an issue, need, or idea with the community.</CardDescription>
@@ -261,7 +281,16 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated }) => {
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex justify-end gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setIsExpanded(false);
+              }}
+            >
+              Cancel
+            </Button>
             <Button type="submit" disabled={createPostMutation.isPending || contentEditor?.isEmpty}>
                 {createPostMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} 
                 Submit Post
