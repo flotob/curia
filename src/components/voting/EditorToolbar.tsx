@@ -14,6 +14,20 @@ import {
   ListOrdered // For OrderedList
 } from 'lucide-react';
 
+// ShadCN components for Dialog
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  // DialogClose, // Not explicitly used if buttons handle close
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+
 interface EditorToolbarProps { // Changed from Props to avoid conflict if Props is used elsewhere
     editor: Editor | null;
 }
@@ -21,10 +35,10 @@ interface EditorToolbarProps { // Changed from Props to avoid conflict if Props 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   if (!editor) return null;
 
-  const [linkMode, setLinkMode] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [imageMode, setImageMode] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [currentLinkUrl, setCurrentLinkUrl] = useState('');
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState('');
 
   // Helper to create toolbar buttons
   const ToolbarButton = (
@@ -59,35 +73,41 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   );
 
   const handleLink = () => {
+    if (!editor) return;
     if (editor.isActive('link')) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       return;
     }
-    setLinkMode(true);
-    setLinkUrl(editor.getAttributes('link').href || '');
+    setCurrentLinkUrl(editor.getAttributes('link').href || '');
+    setIsLinkDialogOpen(true);
   };
 
   const applyLink = () => {
-    if (linkUrl.trim() === '') {
+    if (!editor) return;
+    if (currentLinkUrl.trim() === '') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
     } else {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl.trim() }).run();
+      editor.chain().focus().extendMarkRange('link').setLink({ href: currentLinkUrl.trim() }).run();
     }
-    setLinkMode(false);
-    setLinkUrl('');
+    setIsLinkDialogOpen(false);
+    setCurrentLinkUrl('');
   };
 
   const handleImage = () => {
-    setImageMode(true);
-    setImageUrl('');
+    if (!editor) return;
+    // For new images, URL is empty. If editing an existing image (not typical via toolbar), prefill.
+    const existingSrc = editor.getAttributes('image').src;
+    setCurrentImageUrl(existingSrc || ''); 
+    setIsImageDialogOpen(true);
   };
 
   const applyImage = () => {
-    if (imageUrl.trim()) {
-      editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    if (!editor) return;
+    if (currentImageUrl.trim()) {
+      editor.chain().focus().setImage({ src: currentImageUrl.trim() }).run();
     }
-    setImageMode(false);
-    setImageUrl('');
+    setIsImageDialogOpen(false);
+    setCurrentImageUrl('');
   };
 
   return (
@@ -156,29 +176,68 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         disabled={!editor.can().chain().focus().toggleOrderedList().run()} />
       {/* Add more buttons as needed, e.g., for other heading levels, strikethrough, etc. */}
 
-      {linkMode && (
-        <div className="absolute top-full left-0 mt-1 flex gap-1 bg-background border rounded-md p-2 shadow z-10">
-          <input
-            className="border rounded px-2 py-1 text-sm bg-background"
-            placeholder="https://example.com"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-          />
-          <button className="text-sm px-2" onClick={applyLink}>Ok</button>
-        </div>
-      )}
+      {/* Link Dialog */}
+      <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Link</DialogTitle>
+            <DialogDescription>
+              Enter the URL for the link. Leave blank or submit an empty URL to remove the link.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="link-url" className="text-right">
+                URL
+              </Label>
+              <Input
+                id="link-url"
+                value={currentLinkUrl}
+                onChange={(e) => setCurrentLinkUrl(e.target.value)}
+                className="col-span-3"
+                placeholder="https://example.com"
+                onKeyDown={(e) => e.key === 'Enter' && applyLink()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsLinkDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={applyLink}>Save Link</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {imageMode && (
-        <div className="absolute top-full left-0 mt-1 flex gap-1 bg-background border rounded-md p-2 shadow z-10">
-          <input
-            className="border rounded px-2 py-1 text-sm bg-background"
-            placeholder="Image URL"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-          />
-          <button className="text-sm px-2" onClick={applyImage}>Ok</button>
-        </div>
-      )}
+      {/* Image Dialog */}
+      <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Insert Image</DialogTitle>
+            <DialogDescription>
+              Enter the URL for the image.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="image-url" className="text-right">
+                URL
+              </Label>
+              <Input
+                id="image-url"
+                value={currentImageUrl}
+                onChange={(e) => setCurrentImageUrl(e.target.value)}
+                className="col-span-3"
+                placeholder="https://example.com/image.png"
+                onKeyDown={(e) => e.key === 'Enter' && applyImage()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsImageDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={applyImage}>Insert Image</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
