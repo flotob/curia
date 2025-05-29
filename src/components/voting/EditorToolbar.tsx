@@ -43,12 +43,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   // Helper to create toolbar buttons
   const ToolbarButton = (
     {
-      onClick,
+      onClick: action,
       isActive,
       icon: Icon,
       ariaLabel,
       title,
-      disabled = false // Allow individual buttons to be disabled
+      disabled = false
     }: {
       onClick: () => void;
       isActive: boolean;
@@ -60,10 +60,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   ) => (
     <button
       type="button"
-      onClick={onClick}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        action();
+      }}
       aria-label={ariaLabel}
       title={title || ariaLabel}
-      disabled={disabled || !editor.isEditable} // Also disable if editor is not editable
+      disabled={disabled || !editor.isEditable}
       className={`p-2 rounded-md hover:bg-muted/70 disabled:opacity-50 ${
         isActive ? 'bg-muted text-primary' : 'text-muted-foreground'
       }`}
