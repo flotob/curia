@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Home, Bug, LayoutDashboard, Settings, ChevronRight, Plus } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -54,8 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
   }
 
   const currentBoardId = searchParams?.get('boardId');
-  const isHome = !currentBoardId && !pathname?.includes('/debug');
-  const isDebug = pathname?.includes('/debug');
+  const isHome = !currentBoardId;
 
   // Dynamic theme styles
   const sidebarBg = theme === 'dark' 
@@ -210,6 +209,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
                   </Link>
                 );
               })}
+              
+              {/* Create Board Link - Admin Only */}
+              {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+                <Link
+                  href="/create-board"
+                  className={cn(
+                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2',
+                    theme === 'dark'
+                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                  )}
+                >
+                  <div className={cn(
+                    'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                    theme === 'dark'
+                      ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                      : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                  )}>
+                    <Plus size={16} />
+                  </div>
+                  <span className="flex-1">Create Board</span>
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -232,82 +254,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
 
         {boardsList?.length === 0 && (
           <div className="pt-6">
+            <h3 className={cn(
+              'px-3 text-xs font-semibold uppercase tracking-wider mb-3',
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            )}>
+              Boards
+            </h3>
             <p className={cn(
-              'px-3 py-4 text-sm rounded-xl text-center',
+              'px-3 py-4 text-sm rounded-xl text-center mb-2',
               theme === 'dark' 
                 ? 'text-slate-400 bg-slate-800/30' 
                 : 'text-slate-500 bg-slate-100/50'
             )}>
               No boards available
             </p>
+            
+            {/* Create Board Link - Admin Only */}
+            {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+              <Link
+                href="/create-board"
+                className={cn(
+                  'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                  theme === 'dark'
+                    ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                )}
+              >
+                <div className={cn(
+                  'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                  theme === 'dark'
+                    ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                    : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                )}>
+                  <Plus size={16} />
+                </div>
+                <span className="flex-1">Create Board</span>
+              </Link>
+            )}
           </div>
         )}
       </nav>
 
-      {/* Footer Section - Admin & Settings */}
+      {/* Footer Section - Community Settings */}
       <div className={cn(
         'p-3 border-t backdrop-blur-sm',
         theme === 'dark' 
           ? 'border-slate-700/40 bg-slate-900/50' 
           : 'border-slate-200/60 bg-white/50'
       )}>
-        {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
-          <>
-            <Link
-              href="/debug"
-              className={cn(
-                'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-2',
-                isDebug
-                  ? theme === 'dark'
-                    ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300'
-                    : 'bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-700'
-                  : theme === 'dark'
-                    ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-              )}
-            >
-              <div className={cn(
-                'p-1.5 rounded-lg mr-3 transition-all duration-200',
-                isDebug
-                  ? theme === 'dark'
-                    ? 'bg-orange-500/20 text-orange-300'
-                    : 'bg-orange-500/10 text-orange-600'
-                  : theme === 'dark'
-                    ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50'
-                    : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50'
-              )}>
-                <Bug size={16} />
-              </div>
-              Debug
-            </Link>
-
-            <Link
-              href="/create-board"
-              className={cn(
-                'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-2',
-                theme === 'dark'
-                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-              )}
-            >
-              <div className={cn(
-                'p-1.5 rounded-lg mr-3 transition-all duration-200',
-                theme === 'dark'
-                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
-              )}>
-                <Plus size={16} />
-              </div>
-              Create Board
-            </Link>
-          </>
-        )}
-        
-        <Button
-          variant="ghost"
-          size="sm"
+        <Link
+          href="/community-settings"
           className={cn(
-            'w-full justify-start h-10 rounded-xl font-medium transition-all duration-200',
+            'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
             theme === 'dark'
               ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
@@ -316,13 +314,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) =
           <div className={cn(
             'p-1.5 rounded-lg mr-3 transition-all duration-200',
             theme === 'dark'
-              ? 'bg-slate-700/50 text-slate-400'
-              : 'bg-slate-200/50 text-slate-500'
+              ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+              : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
           )}>
             <Settings size={16} />
           </div>
-          Settings
-        </Button>
+          <span className="flex-1 text-sm font-medium">Community Settings</span>
+        </Link>
       </div>
     </aside>
   );

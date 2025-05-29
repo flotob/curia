@@ -104,7 +104,7 @@ export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
       )}
       <div className="space-y-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} showBoardContext={!boardId} />
         ))}
       </div>
 

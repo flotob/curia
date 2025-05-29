@@ -46,7 +46,7 @@ const lowlight = createLowlight(common);
 
 interface PostCardProps {
   post: ApiPost;
-  // currentUserId?: string | null; // To determine if current user has voted - this is now in post.user_has_upvoted
+  showBoardContext?: boolean; // Whether to show which board this post belongs to
 }
 
 // Helper to format time since posted (simplified)
@@ -67,7 +67,7 @@ function timeSince(dateString: string): string {
   return Math.floor(seconds) + " seconds ago";
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
@@ -184,6 +184,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                 <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
               <span className="font-medium text-foreground">{authorDisplayName}</span>
+              {showBoardContext && (
+                <>
+                  <span className="mx-1">in</span>
+                  <span className="font-medium text-primary">{post.board_name}</span>
+                </>
+              )}
               <span className="mx-1">•</span>
               <Clock size={14} className="mr-1 flex-shrink-0" /> 
               <span>{timeSince(post.created_at)}</span>

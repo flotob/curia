@@ -16,6 +16,8 @@ export interface ApiPost {
   author_name: string | null; // Joined from users table
   author_profile_picture_url: string | null; // Joined from users table
   user_has_upvoted: boolean; // Calculated based on current user
+  board_id: number; // Board ID
+  board_name: string; // Board name from boards table
 }
 
 // GET all posts (now protected to get user context for userHasUpvoted)
@@ -51,7 +53,8 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
       SELECT
         p.id, p.author_user_id, p.title, p.content, p.tags,
         p.upvote_count, p.comment_count, p.created_at, p.updated_at,
-        u.name AS author_name, u.profile_picture_url AS author_profile_picture_url
+        u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
+        b.id AS board_id, b.name AS board_name
         ${currentUserId ? ", CASE WHEN v.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS user_has_upvoted" : ""}
       FROM posts p
       JOIN users u ON p.author_user_id = u.user_id
