@@ -5,6 +5,8 @@ import { authFetchJson } from '@/utils/authFetch';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { checkCommunityAccess, getUserRoles, AccessControlUtils } from '@/lib/roleService';
 import { CommunityAccessDenied } from './CommunityAccessDenied';
+import { useCgLib } from '@/contexts/CgLibContext';
+import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { cn } from '@/lib/utils';
 
 interface CommunityAccessGateProps {
@@ -17,6 +19,19 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
   theme = 'light' 
 }) => {
   const { user, token, isAuthenticated } = useAuth();
+  const { cgInstance } = useCgLib();
+
+  // Fetch community info for role names
+  const { data: communityInfo } = useQuery<CommunityInfoResponsePayload | null>({
+    queryKey: ['communityInfo', cgInstance?.getCommunityInfo !== undefined],
+    queryFn: async () => {
+      if (!cgInstance) throw new Error('CgInstance not available');
+      const response = await cgInstance.getCommunityInfo();
+      if (!response?.data) throw new Error('Failed to fetch community info data from CgLib.');
+      return response.data;
+    },
+    enabled: !!cgInstance,
+  });
 
   // Fetch community settings to check access permissions
   const { data: communityData, isLoading, error } = useQuery<ApiCommunity>({
@@ -74,6 +89,19 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
     enabled: !!communityData && !!user,
   });
 
+  // Get required role names for display
+  const requiredRoleNames = React.useMemo(() => {
+    if (!communityData?.settings?.permissions?.allowedRoles || !communityInfo?.roles) {
+      return [];
+    }
+    
+    const allowedRoleIds = communityData.settings.permissions.allowedRoles;
+    return communityInfo.roles
+      .filter(role => allowedRoleIds.includes(role.id))
+      .filter(role => !role.title.toLowerCase().includes('admin')) // Hide admin roles
+      .map(role => role.title);
+  }, [communityData?.settings?.permissions?.allowedRoles, communityInfo?.roles]);
+
   // Loading state
   if (!isAuthenticated || isLoading || isCheckingAccess) {
     return (
@@ -98,6 +126,7 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
       <CommunityAccessDenied 
         theme={theme}
         communityName={communityData?.name}
+        requiredRoles={requiredRoleNames}
       />
     );
   }
@@ -108,6 +137,7 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
       <CommunityAccessDenied 
         theme={theme}
         communityName={communityData?.name}
+        requiredRoles={requiredRoleNames}
       />
     );
   }

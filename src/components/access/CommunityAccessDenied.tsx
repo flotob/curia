@@ -8,13 +8,17 @@ import { cn } from '@/lib/utils';
 interface CommunityAccessDeniedProps {
   theme?: 'light' | 'dark';
   communityName?: string;
+  requiredRoles?: string[];
 }
 
 export const CommunityAccessDenied: React.FC<CommunityAccessDeniedProps> = ({ 
   theme = 'light',
-  communityName 
+  communityName,
+  requiredRoles = []
 }) => {
   const { user } = useAuth();
+  
+  const hasSpecificRoles = requiredRoles.length > 0;
   
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -36,6 +40,35 @@ export const CommunityAccessDenied: React.FC<CommunityAccessDeniedProps> = ({
                 : "Access to this community's forum plugin is restricted to specific community roles."
               }
             </p>
+            
+            {hasSpecificRoles && (
+              <div className={cn(
+                "p-3 rounded-lg border",
+                theme === 'dark' ? 'bg-amber-950/20 border-amber-800' : 'bg-amber-50 border-amber-200'
+              )}>
+                <p className={cn(
+                  "font-medium text-sm mb-2",
+                  theme === 'dark' ? 'text-amber-200' : 'text-amber-800'
+                )}>
+                  Required Roles for Access:
+                </p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {requiredRoles.map((roleName, index) => (
+                    <span
+                      key={index}
+                      className={cn(
+                        "inline-flex items-center px-2 py-1 rounded text-xs font-medium",
+                        theme === 'dark' 
+                          ? 'bg-amber-900/30 text-amber-300 border border-amber-700' 
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      )}
+                    >
+                      {roleName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           
           <div className={cn(
@@ -60,7 +93,7 @@ export const CommunityAccessDenied: React.FC<CommunityAccessDeniedProps> = ({
                 )}>
                   <p>• Community Member: Yes</p>
                   <p>• Plugin Access: Denied</p>
-                  <p>• Required: Specific community role</p>
+                  <p>• Required: {hasSpecificRoles ? `One of the roles above` : 'Specific community role'}</p>
                 </div>
               </div>
             </div>
@@ -71,7 +104,10 @@ export const CommunityAccessDenied: React.FC<CommunityAccessDeniedProps> = ({
               "text-xs",
               theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
             )}>
-              Please contact a community administrator if you believe you should have access to this plugin.
+              {hasSpecificRoles 
+                ? "Please contact a community administrator to request one of the required roles listed above."
+                : "Please contact a community administrator if you believe you should have access to this plugin."
+              }
             </p>
             
             <div className="flex flex-col gap-2">
