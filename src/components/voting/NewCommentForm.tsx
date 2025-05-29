@@ -11,7 +11,7 @@ import { EditorToolbar } from './EditorToolbar';
 
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from 'tiptap-markdown';
+import { Markdown, markdownToTiptap } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 
@@ -87,6 +87,22 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert leading-snug focus:outline-none min-h-[80px] border border-input rounded-md px-3 py-2 w-full',
+      },
+      handlePaste(view, event) {
+        const text = event.clipboardData?.getData('text/plain');
+        if (text) {
+          try {
+            const json = markdownToTiptap(text, editor?.extensionManager.extensions || []);
+            if (json) {
+              editor?.commands.insertContent(json);
+              event.preventDefault();
+              return true;
+            }
+          } catch (e) {
+            console.warn('Failed to parse pasted markdown', e);
+          }
+        }
+        return false;
       },
     },
   });
