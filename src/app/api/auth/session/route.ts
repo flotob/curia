@@ -34,6 +34,7 @@ interface TokenSignPayload {
   adm?: boolean;
   uid?: string | null;
   cid?: string | null;
+  roles?: string[]; // Add user roles to JWT
 }
 
 export async function POST(req: NextRequest) {
@@ -125,6 +126,7 @@ export async function POST(req: NextRequest) {
       adm: isUserAdmin, // Set adm based on role title check
       uid: iframeUid,
       cid: communityId,
+      roles: userRoleIds,
     };
     console.log('[/api/auth/session] Payload to sign (checking adm, uid, cid claims):', payloadToSign);
 

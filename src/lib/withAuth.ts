@@ -12,6 +12,7 @@ export interface JwtPayload {
   adm?: boolean; // Admin status (optional)
   uid?: string | null;      // Added: iframeUid
   cid?: string | null;      // Added: communityId
+  roles?: string[];         // Added: user role IDs from Common Ground
   // Add other claims as needed, e.g., iat, exp which jwt.verify adds
   iat?: number;
   exp?: number;

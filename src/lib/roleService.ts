@@ -16,24 +16,20 @@ export interface CommunityRole {
 
 /**
  * Get user's roles for a specific community
- * TODO: Implement with Common Ground integration
+ * Now gets roles from the user's JWT token (via Common Ground)
  * TODO: Add caching strategy (Redis/memory cache for role lookups)
  * Key: `user_roles:${userId}:${communityId}`
  * TTL: 5-15 minutes
- * Fallback: Re-fetch from Common Ground if needed
  */
-export async function getUserRoles(userId: string, communityId: string): Promise<string[]> {
-  // Temporary implementation for testing
-  // In production, this would fetch from Common Ground API
+export async function getUserRoles(userId: string, communityId: string, userRoles?: string[]): Promise<string[]> {
+  // If roles are provided directly (from auth context), use them
+  if (userRoles) {
+    console.log(`[RoleService] Using provided roles for user ${userId} in community ${communityId}:`, userRoles);
+    return userRoles;
+  }
   
-  // For now, simulate that regular users have no special roles
-  // and admins have admin roles
-  // This is a placeholder - real implementation would fetch actual user roles from Common Ground
-  
-  console.log(`[RoleService] Getting roles for user ${userId} in community ${communityId}`);
-  
-  // Return empty array for non-admin users (they'll be denied access if restrictions are set)
-  // In real implementation, this would return actual role IDs from Common Ground
+  // Fallback: roles should come from auth context, but if not available, return empty
+  console.warn(`[RoleService] No roles provided for user ${userId} in community ${communityId} - returning empty array`);
   return [];
 }
 
@@ -58,15 +54,9 @@ export async function checkCommunityAccess(
     return true;
   }
   
-  // Check if user has any allowed role
+  // Check if user has any allowed role (OR logic)
   const hasAccess = userRoles.some(roleId => allowedRoles.includes(roleId));
   console.log(`[RoleService] Community access check: user roles [${userRoles.join(', ')}], allowed roles [${allowedRoles.join(', ')}], access: ${hasAccess}`);
-  
-  // For testing: if there are restrictions and user is not admin, deny access
-  if (allowedRoles.length > 0 && !isAdmin) {
-    console.log('[RoleService] Community has role restrictions and user is not admin - denying access');
-    return false;
-  }
   
   return hasAccess;
 }

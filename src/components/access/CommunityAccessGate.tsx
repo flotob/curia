@@ -73,7 +73,7 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
       }
 
       // Get user roles and check access
-      const userRoles = await getUserRoles(user.userId, communityData.id);
+      const userRoles = await getUserRoles(user.userId, communityData.id, user.roles);
       const hasAccess = await checkCommunityAccess(communityData, userRoles, user.isAdmin);
       
       AccessControlUtils.logAccessAttempt(

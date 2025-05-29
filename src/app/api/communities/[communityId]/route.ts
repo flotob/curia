@@ -81,6 +81,8 @@ async function updateCommunityHandler(req: AuthenticatedRequest, context: Commun
 
   try {
     const body = await req.json();
+    console.log(`[API] Updating community ${communityId} with body:`, JSON.stringify(body, null, 2));
+    
     const { name, settings = {} } = body;
 
     // Validate settings if provided
@@ -90,14 +92,31 @@ async function updateCommunityHandler(req: AuthenticatedRequest, context: Commun
         return NextResponse.json({ error: 'allowedRoles must be an array' }, { status: 400 });
       }
 
-      // TODO: Add role validation here - validate that all role IDs exist in the community
-      // This would require fetching from Common Ground or caching community roles
+      // Validate that allowedRoles are strings
+      if (settings.permissions?.allowedRoles) {
+        for (const roleId of settings.permissions.allowedRoles) {
+          if (typeof roleId !== 'string' || roleId.trim() === '') {
+            return NextResponse.json({ error: 'All role IDs must be non-empty strings' }, { status: 400 });
+          }
+        }
+      }
+    }
+
+    // Ensure settings can be JSON stringified
+    let settingsJson: string;
+    try {
+      settingsJson = JSON.stringify(settings);
+      console.log(`[API] Settings JSON length: ${settingsJson.length} chars`);
+    } catch (jsonError) {
+      console.error(`[API] JSON stringify error:`, jsonError);
+      return NextResponse.json({ error: 'Invalid settings format' }, { status: 400 });
     }
 
     // Update community with new settings
+    console.log(`[API] Executing UPDATE query for community ${communityId}`);
     const result = await query(
       'UPDATE communities SET name = COALESCE($1, name), settings = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
-      [name?.trim() || null, JSON.stringify(settings), communityId]
+      [name?.trim() || null, settingsJson, communityId]
     );
 
     if (result.rows.length === 0) {
@@ -105,7 +124,7 @@ async function updateCommunityHandler(req: AuthenticatedRequest, context: Commun
     }
 
     const updatedCommunity = result.rows[0];
-    console.log(`[API] Community updated: ${updatedCommunity.name} (ID: ${updatedCommunity.id}) by user ${requestingUserId}`);
+    console.log(`[API] Community updated successfully: ${updatedCommunity.name} (ID: ${updatedCommunity.id})`);
 
     // Parse settings for response
     const communityResponse: ApiCommunity = {
@@ -117,10 +136,21 @@ async function updateCommunityHandler(req: AuthenticatedRequest, context: Commun
 
   } catch (error) {
     console.error(`[API] Error updating community ${communityId}:`, error);
+    console.error(`[API] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
+    
     if (error instanceof SyntaxError) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Failed to update community' }, { status: 500 });
+    
+    // Check for database-specific errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      console.error(`[API] Database error code:`, (error as any).code);
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to update community', 
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined 
+    }, { status: 500 });
   }
 }
 
