@@ -1,128 +1,305 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // For Next.js optimized images
-import { Home, Bug, LayoutDashboard, Settings } from 'lucide-react'; // Added LayoutDashboard for generic board icon and Settings for admin-only debug link
-import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib'; // Correct import
+import Image from 'next/image';
+import { Home, Bug, LayoutDashboard, Settings, ChevronRight } from 'lucide-react';
+import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext'; // For admin-only debug link
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 interface SidebarProps {
-  communityInfo: CommunityInfoResponsePayload | null; // Or your specific type for community data
+  communityInfo: CommunityInfoResponsePayload | null;
   boardsList: ApiBoard[] | null;
-  // currentBoardId?: string | number; // For highlighting active board, TBD in WP1.4
 }
 
-// Test comment to trigger re-parse after library update
 export const Sidebar: React.FC<SidebarProps> = ({ communityInfo, boardsList }) => {
-  const { user } = useAuth(); // Get user for admin check for debug link
-  
-  if (!communityInfo) { // boardsList can be empty, but communityInfo is essential for branding
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [bgColor, setBgColor] = useState('#ffffff');
+
+  useEffect(() => {
+    setMounted(true);
+    
+    // Get theme from URL params
+    const cgTheme = searchParams?.get('cg_theme') || 'light';
+    const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
+    
+    setTheme(cgTheme as 'light' | 'dark');
+    setBgColor(cgBgColor);
+    
+    // Set CSS custom properties for dynamic theming
+    document.documentElement.style.setProperty('--cg-bg', cgBgColor);
+    document.documentElement.setAttribute('data-cg-theme', cgTheme);
+  }, [searchParams]);
+
+  if (!mounted || !communityInfo) {
     return (
-      <aside className="w-64 bg-slate-100 dark:bg-slate-800 p-4 border-r border-border h-screen sticky top-0 flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading community data...</p>
+      <aside className="w-64 h-screen sticky top-0 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-r border-slate-200/60 dark:border-slate-700/60">
+        <div className="space-y-4 animate-pulse">
+          <div className="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-xl" />
+          <div className="space-y-2">
+            <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded-full" />
+            <div className="h-3 w-24 bg-slate-200 dark:bg-slate-700 rounded-full" />
+          </div>
+        </div>
       </aside>
     );
   }
+
+  const currentBoardId = searchParams?.get('boardId');
+  const isHome = !currentBoardId && !pathname?.includes('/debug');
+  const isDebug = pathname?.includes('/debug');
+
+  // Dynamic theme styles
+  const sidebarBg = theme === 'dark' 
+    ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95 backdrop-blur-xl'
+    : 'bg-gradient-to-br from-white/95 via-white to-slate-50/95 backdrop-blur-xl';
   
-  const headerStyle = communityInfo.headerImageUrl
-    ? {
-        backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url(${communityInfo.headerImageUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : { backgroundColor: 'hsl(var(--muted))' }; // Fallback background if no header image
+  const borderColor = theme === 'dark' 
+    ? 'border-slate-700/40' 
+    : 'border-slate-200/60';
 
   return (
-    <aside className="w-64 bg-background dark:bg-slate-900 flex flex-col h-screen sticky top-0 border-r border-border">
-      {/* Branding Section */}
-      <div 
-        className="relative p-4 pt-5 pb-4 border-b border-border group/branding"
-        style={headerStyle}
-      >
-        {/* <div className='absolute inset-0 bg-black/30 group-hover/branding:bg-black/20 transition-colors duration-200' /> */} {/* Optional darker overlay on hover */}
-        <div className="relative z-10 flex items-center space-x-3 mb-1">
-          {communityInfo.smallLogoUrl && (
-            <Image 
-              src={communityInfo.smallLogoUrl} 
-              alt={`${communityInfo.title} logo`} 
-              width={36} 
-              height={36} 
-              className="rounded-md border border-slate-700/50 bg-white/10 p-0.5"
-            />
-          )}
-          <h1 className="text-lg font-semibold text-white break-words leading-tight">
-            {communityInfo.title}
-          </h1>
+    <aside className={cn(
+      'w-64 h-screen sticky top-0 flex flex-col border-r shadow-xl shadow-slate-900/5',
+      sidebarBg,
+      borderColor
+    )}>
+      {/* Branding Section - Gorgeous header */}
+      <div className="relative overflow-hidden">
+        <div className={cn(
+          'p-6 pb-4 border-b backdrop-blur-sm',
+          theme === 'dark' 
+            ? 'border-slate-700/40 bg-gradient-to-r from-slate-800/50 to-slate-700/30' 
+            : 'border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white/50'
+        )}>
+          <div className="flex items-center space-x-4 relative z-10">
+            {communityInfo.smallLogoUrl && (
+              <div className="relative">
+                <div className={cn(
+                  'w-11 h-11 rounded-xl shadow-lg ring-1 overflow-hidden',
+                  theme === 'dark' 
+                    ? 'ring-slate-600/30 shadow-slate-900/20' 
+                    : 'ring-slate-200/40 shadow-slate-900/10'
+                )}>
+                  <Image
+                    src={communityInfo.smallLogoUrl}
+                    alt={`${communityInfo.title} logo`}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-transparent via-white/10 to-white/20" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h1 className={cn(
+                'text-base font-semibold truncate',
+                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+              )}>
+                {communityInfo.title}
+              </h1>
+              <p className={cn(
+                'text-xs mt-0.5',
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+              )}>
+                Community
+              </p>
+            </div>
+          </div>
         </div>
-        {/* Can add more info here like member count or a short tagline if available and desired */}
+        
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/5 dark:to-white/5 pointer-events-none" />
       </div>
 
-      {/* Navigation Section */}
-      <nav className="flex-grow p-2 space-y-1 overflow-y-auto">
-        <Link 
-            href={`/?communityId=${communityInfo.id}`} // Link to main feed, perhaps ensuring community context if needed by feed page
-            className={cn(
-                "flex items-center py-2 px-2.5 rounded-md text-sm font-medium transition-colors",
-                // TODO: Add active state based on current path/board
-                "hover:bg-muted hover:text-accent-foreground text-muted-foreground"
-            )}
+      {/* Navigation Section - Beautiful menu */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {/* Home Link */}
+        <Link
+          href={`/?communityId=${communityInfo.id}`}
+          className={cn(
+            'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
+            isHome
+              ? theme === 'dark'
+                ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 shadow-lg shadow-blue-500/10'
+                : 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-700 shadow-lg shadow-blue-500/10'
+              : theme === 'dark'
+                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+          )}
         >
-            <Home size={16} className="mr-2.5 flex-shrink-0" />
-            Home / All Posts
+          <div className={cn(
+            'p-1.5 rounded-lg mr-3 transition-all duration-200',
+            isHome
+              ? theme === 'dark'
+                ? 'bg-blue-500/20 text-blue-300'
+                : 'bg-blue-500/10 text-blue-600'
+              : theme === 'dark'
+                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+          )}>
+            <Home size={16} />
+          </div>
+          <span className="flex-1">Home</span>
+          {isHome && (
+            <ChevronRight size={14} className="opacity-60" />
+          )}
+          
+          {/* Active indicator */}
+          {isHome && (
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-xl" />
+          )}
         </Link>
 
+        {/* Boards Section */}
         {boardsList && boardsList.length > 0 && (
-          <p className="text-xs text-muted-foreground px-2.5 pt-3 pb-1 font-semibold uppercase tracking-wider">
-            Boards
-          </p>
-        )}
-        {boardsList ? (
-          boardsList.length > 0 ? (
-            boardsList.map(board => (
-              <Link 
-                key={board.id} 
-                href={`/?communityId=${communityInfo.id}&boardId=${board.id}`} // Example path, adjust as needed
-                className={cn(
-                    "flex items-center py-2 px-2.5 rounded-md text-sm font-medium transition-colors group/boardlink",
-                    // TODO: Add active state based on current path/board (e.g., if currentBoardId === board.id)
-                    "hover:bg-muted hover:text-accent-foreground text-muted-foreground"
-                )}
-              >
-                <LayoutDashboard size={16} className="mr-2.5 flex-shrink-0 text-muted-foreground group-hover/boardlink:text-accent-foreground" /> 
-                <span className="truncate">{board.name}</span>
-              </Link>
-            ))
-          ) : (
-            <p className="px-2.5 py-2 text-sm text-muted-foreground">No boards yet.</p>
-          )
-        ) : (
-          <p className="px-2.5 py-2 text-sm text-muted-foreground">Loading boards...</p> // Loading state for boards
+          <div className="pt-6 pb-2">
+            <h3 className={cn(
+              'px-3 text-xs font-semibold uppercase tracking-wider mb-3',
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            )}>
+              Boards
+            </h3>
+            <div className="space-y-1">
+              {boardsList.map((board) => {
+                const isActive = currentBoardId === board.id.toString();
+                return (
+                  <Link
+                    key={board.id}
+                    href={`/?communityId=${communityInfo.id}&boardId=${board.id}`}
+                    className={cn(
+                      'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
+                      isActive
+                        ? theme === 'dark'
+                          ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                          : 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-700 shadow-lg shadow-emerald-500/10'
+                        : theme === 'dark'
+                          ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    )}
+                  >
+                    <div className={cn(
+                      'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                      isActive
+                        ? theme === 'dark'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-emerald-500/10 text-emerald-600'
+                        : theme === 'dark'
+                          ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                          : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                    )}>
+                      <LayoutDashboard size={16} />
+                    </div>
+                    <span className="flex-1 truncate">{board.name}</span>
+                    {isActive && (
+                      <ChevronRight size={14} className="opacity-60" />
+                    )}
+                    
+                    {/* Active indicator */}
+                    {isActive && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 rounded-xl" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         )}
 
-        {/* Utility Links - Only show Debug if user is an admin */}
-        {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
-          <>
-            <hr className="my-3"/>
-            <Link href="/debug" className={cn(
-                "flex items-center py-2 px-2.5 rounded-md text-sm font-medium transition-colors",
-                "hover:bg-muted hover:text-accent-foreground text-muted-foreground"
+        {!boardsList && (
+          <div className="pt-6 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={cn(
+                  'h-10 rounded-xl animate-pulse',
+                  theme === 'dark' 
+                    ? 'bg-gradient-to-r from-slate-800/50 to-slate-700/30' 
+                    : 'bg-gradient-to-r from-slate-200/50 to-slate-100/30'
                 )}
-            >
-              <Bug size={16} className="mr-2.5 flex-shrink-0" />
-              Debug
-            </Link>
-          </>
+              />
+            ))}
+          </div>
+        )}
+
+        {boardsList?.length === 0 && (
+          <div className="pt-6">
+            <p className={cn(
+              'px-3 py-4 text-sm rounded-xl text-center',
+              theme === 'dark' 
+                ? 'text-slate-400 bg-slate-800/30' 
+                : 'text-slate-500 bg-slate-100/50'
+            )}>
+              No boards available
+            </p>
+          </div>
         )}
       </nav>
-      
-      {/* Footer for Pin/Collapse - WP1.5 */}
-      <div className="p-2 border-t border-border mt-auto">
-        {/* Placeholder for pin button */}
-        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
-            <Settings size={16} className="mr-2.5" /> Settings (placeholder)
+
+      {/* Footer Section - Admin & Settings */}
+      <div className={cn(
+        'p-3 border-t backdrop-blur-sm',
+        theme === 'dark' 
+          ? 'border-slate-700/40 bg-slate-900/50' 
+          : 'border-slate-200/60 bg-white/50'
+      )}>
+        {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+          <Link
+            href="/debug"
+            className={cn(
+              'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-2',
+              isDebug
+                ? theme === 'dark'
+                  ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300'
+                  : 'bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-700'
+                : theme === 'dark'
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            )}
+          >
+            <div className={cn(
+              'p-1.5 rounded-lg mr-3 transition-all duration-200',
+              isDebug
+                ? theme === 'dark'
+                  ? 'bg-orange-500/20 text-orange-300'
+                  : 'bg-orange-500/10 text-orange-600'
+                : theme === 'dark'
+                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50'
+                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50'
+            )}>
+              <Bug size={16} />
+            </div>
+            Debug
+          </Link>
+        )}
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'w-full justify-start h-10 rounded-xl font-medium transition-all duration-200',
+            theme === 'dark'
+              ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+          )}
+        >
+          <div className={cn(
+            'p-1.5 rounded-lg mr-3 transition-all duration-200',
+            theme === 'dark'
+              ? 'bg-slate-700/50 text-slate-400'
+              : 'bg-slate-200/50 text-slate-500'
+          )}>
+            <Settings size={16} />
+          </div>
+          Settings
         </Button>
       </div>
     </aside>
