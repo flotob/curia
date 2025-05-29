@@ -15,7 +15,7 @@ interface AuthUser {
 interface AuthContextType {
   token: string | null;
   user: AuthUser | null;
-  isLoading: boolean;
+  isLoading: boolean; // Will now primarily reflect in-flight login(), not initial load from storage
   isAuthenticated: boolean;
   login: (userDataFromCgLib: {
     userId: string;
@@ -37,56 +37,23 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start with loading true
+  // isLoading can now be primarily for the login() async operation itself
+  // Or, we can set it to false initially if there's no async loading from storage
+  const [isLoading, setIsLoading] = useState<boolean>(false); 
 
-  // Effect to initialize auth state from localStorage (optional persistence)
-  useEffect(() => {
-    const storedToken = localStorage.getItem('plugin_jwt');
-    let validTokenFound = false;
-    if (storedToken) {
-      try {
-        const decoded = jwtDecode<AuthUser & { sub: string, adm?:boolean, exp?: number }>(storedToken);
-        const currentTime = Math.floor(Date.now() / 1000);
-        console.log('[AuthContext] Checking stored token. Decoded expiry (exp):', decoded.exp, 'Current time:', currentTime);
-
-        if (decoded.exp && decoded.exp > currentTime) {
-          console.log('[AuthContext] Stored token is valid, using it.');
-          setToken(storedToken);
-          setUser({
-              userId: decoded.sub,
-              name: decoded.name,
-              picture: decoded.picture,
-              isAdmin: decoded.adm || false
-          });
-          validTokenFound = true;
-        } else {
-          console.warn('[AuthContext] Stored token is expired or has no expiry. Clearing.');
-          localStorage.removeItem('plugin_jwt');
-        }
-      } catch (error) {
-        console.error('[AuthContext] Error decoding stored token, clearing it:', error);
-        localStorage.removeItem('plugin_jwt');
-      }
-    }
-    if (!validTokenFound) {
-        // Ensure state is clear if no valid token was found
-        setToken(null);
-        setUser(null);
-    }
-    setIsLoading(false);
-  }, []);
+  // Removed useEffect that loaded token from localStorage
+  // The component will now start with token: null, user: null, isLoading: false (or true until first actual login attempt)
 
   const login = async (userDataFromCgLib: {
     userId: string;
     name?: string | null;
     profilePictureUrl?: string | null;
     isAdmin?: boolean;
-    iframeUid?: string | null;
-    communityId?: string | null;
+    iframeUid?: string | null; 
+    communityId?: string | null; 
   }) => {
+    console.log('[AuthContext] LOGIN FUNCTION ENTERED. isAdmin from input:', userDataFromCgLib.isAdmin, 'Full data:', JSON.stringify(userDataFromCgLib));
     setIsLoading(true);
-    console.log('[AuthContext] login function called. userDataFromCgLib:', JSON.stringify(userDataFromCgLib));
-    console.log('[AuthContext] Value of isAdmin being sent to /api/auth/session:', userDataFromCgLib.isAdmin);
     try {
       const response = await fetch('/api/auth/session', {
         method: 'POST',
@@ -98,13 +65,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             name: userDataFromCgLib.name,
             profilePictureUrl: userDataFromCgLib.profilePictureUrl,
             isAdmin: userDataFromCgLib.isAdmin,
-            iframeUid: userDataFromCgLib.iframeUid,
-            communityId: userDataFromCgLib.communityId,
+            iframeUid: userDataFromCgLib.iframeUid,       
+            communityId: userDataFromCgLib.communityId,   
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('[AuthContext] Fetch session token failed:', errorData);
         throw new Error(errorData.error || 'Failed to fetch session token');
       }
 
@@ -112,9 +80,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (newToken) {
         const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number, uid?: string, cid?: string }>(newToken);
         console.log('[AuthContext] New token received. Decoded expiry (exp):', decoded.exp, 'Current time:', Math.floor(Date.now() / 1000));
-        if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
-          console.warn('[AuthContext] WARNING: New token is already expired upon reception!');
-        }
+        // No need to check expiry here as it's a fresh token
         setToken(newToken);
         setUser({
             userId: decoded.sub,
@@ -122,17 +88,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             picture: decoded.picture,
             isAdmin: decoded.adm || false
         });
-        localStorage.setItem('plugin_jwt', newToken); // Optional: persist token
+        // Removed localStorage.setItem('plugin_jwt', newToken);
       } else {
         throw new Error('No token received from session endpoint');
       }
     } catch (error) {
-      console.error('Login failed:', error);
-      // Clear any potentially inconsistent state
+      console.error('Login failed overall:', error);
       setToken(null);
       setUser(null);
-      localStorage.removeItem('plugin_jwt');
-      throw error; // Re-throw to allow caller to handle
+      // Removed localStorage.removeItem('plugin_jwt');
+      throw error; 
     } finally {
       setIsLoading(false);
     }
@@ -141,8 +106,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('plugin_jwt'); // Clear persisted token
-    // Potentially redirect or notify other parts of the app
+    // Removed localStorage.removeItem('plugin_jwt'); 
+    setIsLoading(false); // Reset loading state on logout
+    console.log('[AuthContext] Logged out, token and user cleared.');
   };
 
   const isAuthenticated = !!token && !!user;

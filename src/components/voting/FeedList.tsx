@@ -20,26 +20,48 @@ interface FetchPostsResponse {
 }
 
 export const FeedList: React.FC = () => {
-  const { token, isAuthenticated } = useAuth(); // Get token for authenticated requests
+  const { token, isAuthenticated, isLoading: isAuthLoading } = useAuth(); // Get isAuthenticated and isLoading
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 10; // Or make this configurable
 
   const fetchPosts = async (page: number) => {
+    // Token will only be non-null if isAuthenticated is true, but double check for safety
+    if (!token) throw new Error('Attempted to fetch posts without a token.'); 
     const response = await authFetchJson<FetchPostsResponse>(
       `/api/posts?page=${page}&limit=${postsPerPage}`,
-      { token: isAuthenticated ? token : null } // Send token only if authenticated
+      { token }
     );
     return response;
   };
 
   const { data, isLoading, error, isFetching, isPlaceholderData } = useQuery<FetchPostsResponse, Error>({ 
-    queryKey: ['posts', currentPage, isAuthenticated], // Include currentPage and auth status in queryKey
+    queryKey: ['posts', currentPage], // isAuthenticated is implicitly part of this via the enabled flag
     queryFn: () => fetchPosts(currentPage),
-    placeholderData: (previousData, previousQuery) => previousData, // Keep previous data while new page loads
-    // staleTime: 1000 * 60 * 1, // 1 minute, example
+    enabled: isAuthenticated, // Only fetch if authenticated
+    placeholderData: (previousData) => previousData, 
   });
 
-  if (isLoading && !data) { // Initial load
+  // Handle case where auth is still loading initially
+  if (isAuthLoading) {
+    return (
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-3 text-lg">Authenticating...</p>
+      </div>
+    );
+  }
+  
+  // Handle case where user is not authenticated after auth loading is complete
+  if (!isAuthenticated && !isAuthLoading) {
+    return (
+        <div className="text-center py-10 text-muted-foreground">
+            <p>Please log in to view posts.</p>
+            {/* Optionally, a more prominent login prompt could be here */}
+        </div>
+    );
+  }
+
+  if (isLoading && !data) { // Initial load for posts query, after authentication
     return (
       <div className="flex justify-center items-center py-10">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
