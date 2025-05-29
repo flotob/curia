@@ -6,15 +6,20 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Use seconds for expiresIn to satisfy linter with current @types/jsonwebtoken
 const JWT_EXPIRES_IN_SECONDS = parseInt(process.env.JWT_EXPIRES_IN_SECONDS || '3600', 10); 
 
-// Expected request body structure from the frontend
+interface CommunityRole {
+  id: string;
+  title: string;
+  // Add other properties from Community Info roles if needed by the backend
+}
+
 interface SessionRequestBody {
   userId: string;
   name?: string | null;
   profilePictureUrl?: string | null;
-  isAdmin?: boolean; // This would be determined by the frontend based on CG roles
-  iframeUid?: string | null;      // Added
-  communityId?: string | null;    // Added
-  // communityId: string; // Could be added if needed later
+  roles?: string[]; // User's role IDs
+  communityRoles?: CommunityRole[]; // Full list of community role definitions
+  iframeUid?: string | null;
+  communityId?: string | null;
 }
 
 // This should match or be compatible with JwtPayload in withAuth.ts
@@ -26,8 +31,8 @@ interface TokenSignPayload {
   name?: string | null;
   picture?: string | null;
   adm?: boolean;
-  uid?: string | null;      // Added: iframeUid mapped to uid
-  cid?: string | null;      // Added: communityId mapped to cid
+  uid?: string | null;
+  cid?: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -45,11 +50,11 @@ export async function POST(req: NextRequest) {
     const body = JSON.parse(rawBodyText) as SessionRequestBody; 
     console.log('[/api/auth/session] Parsed request body object:', body);
 
-    const { userId, name, profilePictureUrl, isAdmin, iframeUid, communityId } = body;
-    console.log('[/api/auth/session] Destructured isAdmin from parsed body:', isAdmin);
+    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId } = body;
+    console.log('[/api/auth/session] Destructured user role IDs:', userRoleIds);
+    console.log('[/api/auth/session] Destructured communityRoles:', communityRoles);
     console.log('[/api/auth/session] Destructured iframeUid:', iframeUid);
     console.log('[/api/auth/session] Destructured communityId:', communityId);
-    console.log('[/api/auth/session] Type of destructured isAdmin:', typeof isAdmin);
 
     // Make iframeUid and communityId required for session creation, along with userId
     if (!userId || !iframeUid || !communityId) { 
@@ -86,13 +91,31 @@ export async function POST(req: NextRequest) {
     */
     // --- END Optional Initial UPSERT --- 
 
+    let isUserAdmin = false;
+    const adminRoleTitleEnvVar = process.env.NEXT_PUBLIC_ADMIN_ROLE_IDS;
+
+    if (adminRoleTitleEnvVar && userRoleIds && userRoleIds.length > 0 && communityRoles && communityRoles.length > 0) {
+      const adminTitlesFromEnv = adminRoleTitleEnvVar.split(',').map(roleTitle => roleTitle.trim().toLowerCase());
+      
+      const userRoleTitles = userRoleIds.map(roleId => {
+        const matchingCommunityRole = communityRoles.find(cr => cr.id === roleId);
+        return matchingCommunityRole ? matchingCommunityRole.title.trim().toLowerCase() : null;
+      }).filter(title => title !== null) as string[];
+
+      console.log('[/api/auth/session] User role titles derived:', userRoleTitles);
+      console.log('[/api/auth/session] Admin role titles from ENV:', adminTitlesFromEnv);
+
+      isUserAdmin = userRoleTitles.some(userRoleTitle => adminTitlesFromEnv.includes(userRoleTitle));
+    }
+    console.log(`[/api/auth/session] Determined admin status based on role titles and env var: ${isUserAdmin}`);
+
     const payloadToSign: TokenSignPayload = {
       sub: userId,
       name: name,
       picture: profilePictureUrl,
-      adm: isAdmin || false, 
-      uid: iframeUid,       // Added
-      cid: communityId,     // Added
+      adm: isUserAdmin, // Set adm based on role title check
+      uid: iframeUid,
+      cid: communityId,
     };
     console.log('[/api/auth/session] Payload to sign (checking adm, uid, cid claims):', payloadToSign);
 

@@ -4,6 +4,7 @@ import "./globals.css";
 import 'highlight.js/styles/github-dark.css';
 import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Sidebar } from "@/components/layout/Sidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <ThemeProvider
           attribute="class"
@@ -36,7 +37,15 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Providers>{children}</Providers>
+          <Providers>
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <main className="flex-grow p-4 md:p-6">
+                {/* You might want to add a Navbar here later if needed */}
+                {children}
+              </main>
+            </div>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>

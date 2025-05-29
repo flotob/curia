@@ -3,8 +3,14 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route'; // Import the ApiComment interface
-import { Clock, Trash } from 'lucide-react';
+import { Clock, Trash, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
@@ -111,24 +117,34 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
         <AvatarFallback>{avatarFallback}</AvatarFallback>
       </Avatar>
       <div className="flex-grow">
-      <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-        <span className="font-semibold text-foreground">{authorDisplayName}</span>
-        <span className="mx-1">•</span>
-        <Clock size={12} className="mr-0.5 flex-shrink-0" />
-        <span>{timeSince(comment.created_at)}</span>
-        {user?.isAdmin && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="p-1 h-auto text-destructive ml-2"
-            onClick={() => deleteMutation.mutate()}
-            disabled={deleteMutation.isPending}
-          >
-            <Trash size={12} />
-          </Button>
-        )}
-      </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{authorDisplayName}</span>
+            <span className="mx-1">•</span>
+            <Clock size={12} className="mr-0.5 flex-shrink-0" />
+            <span>{timeSince(comment.created_at)}</span>
+          </div>
+          {user?.isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="p-1 h-7 w-7">
+                  <MoreVertical size={14} />
+                  <span className="sr-only">Comment Options</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                >
+                  <Trash size={12} className="mr-2" /> Delete Comment
+                </DropdownMenuItem>
+                {/* Add more DropdownMenuItems here later */}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
         <div className="mt-1 text-sm">
             <article className="prose dark:prose-invert prose-sm max-w-none">
                 <EditorContent editor={editor} />

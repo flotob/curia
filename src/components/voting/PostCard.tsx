@@ -2,11 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import NextImage from 'next/image';
-import { MessageSquare, Share2, Bookmark, Clock, Trash } from 'lucide-react';
+import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { VoteButton } from './VoteButton';
 import { ApiPost } from '@/app/api/posts/route';
 import { useAuth } from '@/contexts/AuthContext';
@@ -57,6 +63,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
+  const [isPostContentExpanded, setIsPostContentExpanded] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -124,7 +131,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
         </div>
 
         {/* Main Content Section */}
-        <div className="flex-grow">
+        <div className="flex-grow relative">
           <CardHeader className="pb-2">
             <div className="flex items-center text-xs text-muted-foreground mb-2">
               <Avatar className="h-6 w-6 mr-2">
@@ -138,10 +145,56 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             </div>
             <CardTitle className="text-lg md:text-xl leading-tight">{post.title}</CardTitle>
             {post.content && contentDisplayEditor && (
-              // Render Tiptap content directly with prose styling
-              <article className="prose dark:prose-invert prose-sm sm:prose-base max-w-none mt-1">
-                <EditorContent editor={contentDisplayEditor} />
-              </article>
+              <div className="mt-1"> {/* Main container for content block + button */}
+                <div // Wrapper for text content and gradient
+                  className={cn(
+                    "relative", 
+                    !isPostContentExpanded && "max-h-32 overflow-hidden"
+                  )}
+                >
+                  <div // Inner Content area for prose styling and bottom padding for gradient
+                    className={cn(
+                      "prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none",
+                      !isPostContentExpanded && "pb-8" // Increased padding for taller gradient + spacing
+                    )}
+                  >
+                    <EditorContent editor={contentDisplayEditor} />
+                  </div>
+                  {!isPostContentExpanded && (
+                    <div // Gradient div, taller now
+                      className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none"
+                    />
+                  )}
+                </div>
+
+                {/* "Show more..." / "Show less..." buttons are now siblings, outside the overflow-hidden div */}
+                {!isPostContentExpanded && (
+                  <div className="mt-1 text-left"> {/* Changed to text-left, removed text-center */}
+                     <Button 
+                        variant="link" // Reverted to link for text+icon style
+                        size="sm"      // Standard small size
+                        onClick={() => setIsPostContentExpanded(true)} 
+                        className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
+                        aria-label="Show more content"
+                     >
+                        <ChevronDown size={18} className="mr-1.5" /> Show more
+                     </Button>
+                  </div>
+                )}
+                 {isPostContentExpanded && (
+                  <div className="mt-2 text-left"> {/* Changed to text-left, removed text-center */}
+                     <Button 
+                        variant="link"
+                        size="sm"
+                        onClick={() => setIsPostContentExpanded(false)} 
+                        className="text-muted-foreground hover:text-foreground/80 px-2 py-1 h-auto font-medium"
+                        aria-label="Show less content"
+                     >
+                        <ChevronUp size={18} className="mr-1.5" /> Show less
+                     </Button>
+                  </div>
+                )}
+              </div>
             )}
           </CardHeader>
 
@@ -162,24 +215,32 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               </Button>
               <Button variant="ghost" size="sm" className="p-1 h-auto">
                 <Share2 size={16} /> 
-                {/* <span className="ml-1.5 hidden md:inline">Share</span> Uncomment to show text */}
               </Button>
             </div>
-            <Button variant="ghost" size="sm" className="p-1 h-auto">
-              <Bookmark size={16} />
-              {/* <span className="ml-1.5 hidden md:inline">Bookmark</span> Uncomment to show text */}
-            </Button>
-            {user?.isAdmin && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-1 h-auto text-destructive"
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash size={16} />
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="p-1 h-auto">
+                <Bookmark size={16} />
               </Button>
-            )}
+              {user?.isAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="p-1 h-8 w-8">
+                      <MoreVertical size={16} />
+                      <span className="sr-only">Post Options</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={deleteMutation.isPending}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                    >
+                      <Trash size={14} className="mr-2" /> Delete Post
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </CardFooter>
         </div>
       </div>

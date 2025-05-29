@@ -11,6 +11,15 @@ interface AuthUser {
   isAdmin?: boolean;
 }
 
+// Define the structure for a community role, mirroring cg-data.md
+interface CommunityRoleInfo {
+  id: string;
+  title: string;
+  type?: string; // Or other relevant fields from your cg-data.md Community Info roles
+  permissions?: string[];
+  // Add other fields if necessary for other logic, but id and title are key for admin check
+}
+
 // Define the shape of the AuthContext
 interface AuthContextType {
   token: string | null;
@@ -21,7 +30,8 @@ interface AuthContextType {
     userId: string;
     name?: string | null;
     profilePictureUrl?: string | null;
-    isAdmin?: boolean;
+    roles?: string[]; // User's assigned role IDs
+    communityRoles?: CommunityRoleInfo[]; // Full list of community role definitions
     iframeUid?: string | null;
     communityId?: string | null;
   }) => Promise<void>;
@@ -48,11 +58,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     userId: string;
     name?: string | null;
     profilePictureUrl?: string | null;
-    isAdmin?: boolean;
+    roles?: string[]; // User's assigned role IDs
+    communityRoles?: CommunityRoleInfo[]; // Full list of community role definitions
     iframeUid?: string | null; 
     communityId?: string | null; 
   }) => {
-    console.log('[AuthContext] LOGIN FUNCTION ENTERED. isAdmin from input:', userDataFromCgLib.isAdmin, 'Full data:', JSON.stringify(userDataFromCgLib));
+    console.log('[AuthContext] LOGIN FUNCTION ENTERED. User roles from input:', userDataFromCgLib.roles, 'Community roles from input:', userDataFromCgLib.communityRoles, 'Full data:', JSON.stringify(userDataFromCgLib));
     setIsLoading(true);
     try {
       const response = await fetch('/api/auth/session', {
@@ -64,7 +75,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             userId: userDataFromCgLib.userId,
             name: userDataFromCgLib.name,
             profilePictureUrl: userDataFromCgLib.profilePictureUrl,
-            isAdmin: userDataFromCgLib.isAdmin,
+            roles: userDataFromCgLib.roles,
+            communityRoles: userDataFromCgLib.communityRoles, // Pass community roles to backend
             iframeUid: userDataFromCgLib.iframeUid,       
             communityId: userDataFromCgLib.communityId,   
         }),

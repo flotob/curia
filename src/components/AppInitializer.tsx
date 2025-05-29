@@ -47,21 +47,19 @@ export function AppInitializer() {
           const userInfo = userInfoResponse.data;
           const communityInfo = communityInfoResponse.data;
 
-          // Determine isAdmin status
-          // This is a placeholder. Adjust based on how admin status is truly determined in your app.
-          // It might involve checking specific roles in userInfo.roles, etc.
-          const isAdmin = userInfo.roles?.includes('admin') || false; 
-          console.log(`[AppInitializer] Determined isAdmin: ${isAdmin} from roles:`, userInfo.roles);
+          // isAdmin is now determined by the backend based on roles and communityRoles
+          // const isAdmin = userInfo.roles?.includes('admin') || false; 
+          // console.log(`[AppInitializer] Determined isAdmin: ${isAdmin} from roles:`, userInfo.roles);
 
           const loginPayload = {
             userId: userInfo.id,
             name: userInfo.name,
             profilePictureUrl: userInfo.imageUrl,
-            isAdmin: isAdmin,
+            // isAdmin: isAdmin, // No longer sending isAdmin from client
+            roles: userInfo.roles, // Pass user's role IDs
+            communityRoles: communityInfo.roles, // Pass all community role definitions
             iframeUid: iframeUid,
             communityId: communityInfo.id,
-            // If your backend expects communityShortId, retrieve it from communityInfo if available
-            // communityShortId: communityInfo.shortId, // Example, adjust field name as needed
           };
 
           console.log('[AppInitializer] Data fetched successfully. Calling auth.login() with payload:', loginPayload);
