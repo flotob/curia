@@ -9,6 +9,7 @@ interface AuthUser {
   name?: string | null;
   picture?: string | null;
   isAdmin?: boolean;
+  cid?: string | null; // Added communityId
 }
 
 // Define the structure for a community role, mirroring cg-data.md
@@ -100,14 +101,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { token: newToken } = await response.json();
       if (newToken) {
         const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number, uid?: string, cid?: string }>(newToken);
-        console.log('[AuthContext] New token received. Decoded expiry (exp):', decoded.exp, 'Current time:', Math.floor(Date.now() / 1000));
+        console.log('[AuthContext] New token received. Decoded JWT:', decoded);
         // No need to check expiry here as it's a fresh token
         setToken(newToken);
         setUser({
             userId: decoded.sub,
             name: decoded.name,
             picture: decoded.picture,
-            isAdmin: decoded.adm || false
+            isAdmin: decoded.adm || false,
+            cid: decoded.cid, // Assign cid from decoded token
         });
         // Removed localStorage.setItem('plugin_jwt', newToken);
       } else {
