@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
+import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
 
 interface MainLayoutWithSidebarProps {
   children: React.ReactNode;
@@ -121,81 +122,89 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     );
   }
 
+  // If not authenticated, just show children without access control
+  if (!isAuthenticated) {
+    return <div className="min-h-screen">{children}</div>;
+  }
+
+  // For authenticated users, wrap with access control
   return (
-    <div className="flex min-h-screen relative">
-      {/* Mobile backdrop overlay */}
-      {isMobile && sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      {showSidebar && communityInfo && boardsList && (
-        <div data-sidebar>
-          <Sidebar 
-            communityInfo={communityInfo} 
-            boardsList={boardsList}
-            isOpen={sidebarOpen}
-            isMobile={isMobile}
-            onClose={() => setSidebarOpen(false)}
+    <CommunityAccessGate theme={theme}>
+      <div className="flex min-h-screen relative">
+        {/* Mobile backdrop overlay */}
+        {isMobile && sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
           />
-        </div>
-      )}
-
-      {/* Main content area */}
-      <main className={cn(
-        "flex-1 flex flex-col min-h-screen transition-all duration-300",
-        showSidebar && !isMobile ? "lg:ml-0" : "ml-0"
-      )}>
-        {/* Mobile header with menu button */}
-        {showSidebar && isMobile && (
-          <header className={cn(
-            "lg:hidden border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30 backdrop-blur-xl",
-            theme === 'dark' 
-              ? 'bg-gradient-to-r from-slate-900/95 via-slate-900 to-slate-800/95 border-slate-700/40' 
-              : 'bg-gradient-to-r from-white/95 via-white to-slate-50/95 border-slate-200/60'
-          )}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarOpen(true)}
-              data-sidebar-trigger
-              className="lg:hidden"
-            >
-              <Menu size={20} />
-            </Button>
-            <div className="flex items-center space-x-2">
-              {communityInfo?.smallLogoUrl && (
-                <div className="relative">
-                  <div className="w-6 h-6 rounded overflow-hidden shadow-sm">
-                    <img 
-                      src={communityInfo.smallLogoUrl} 
-                      alt={communityInfo.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-              )}
-              <span className={cn(
-                "font-semibold truncate bg-gradient-to-r bg-clip-text text-transparent",
-                theme === 'dark' 
-                  ? 'from-slate-100 to-slate-300' 
-                  : 'from-slate-900 to-slate-700'
-              )}>
-                {communityInfo?.title}
-              </span>
-            </div>
-            <div className="w-8" /> {/* Spacer for centering */}
-          </header>
         )}
 
-        {/* Page content */}
-        <div className="flex-1 p-4 md:p-6 lg:p-8">
-          {children}
-        </div>
-      </main>
-    </div>
+        {/* Sidebar */}
+        {showSidebar && communityInfo && boardsList && (
+          <div data-sidebar>
+            <Sidebar 
+              communityInfo={communityInfo} 
+              boardsList={boardsList}
+              isOpen={sidebarOpen}
+              isMobile={isMobile}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Main content area */}
+        <main className={cn(
+          "flex-1 flex flex-col min-h-screen transition-all duration-300",
+          showSidebar && !isMobile ? "lg:ml-0" : "ml-0"
+        )}>
+          {/* Mobile header with menu button */}
+          {showSidebar && isMobile && (
+            <header className={cn(
+              "lg:hidden border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30 backdrop-blur-xl",
+              theme === 'dark' 
+                ? 'bg-gradient-to-r from-slate-900/95 via-slate-900 to-slate-800/95 border-slate-700/40' 
+                : 'bg-gradient-to-r from-white/95 via-white to-slate-50/95 border-slate-200/60'
+            )}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(true)}
+                data-sidebar-trigger
+                className="lg:hidden"
+              >
+                <Menu size={20} />
+              </Button>
+              <div className="flex items-center space-x-2">
+                {communityInfo?.smallLogoUrl && (
+                  <div className="relative">
+                    <div className="w-6 h-6 rounded overflow-hidden shadow-sm">
+                      <img 
+                        src={communityInfo.smallLogoUrl} 
+                        alt={communityInfo.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
+                <span className={cn(
+                  "font-semibold truncate bg-gradient-to-r bg-clip-text text-transparent",
+                  theme === 'dark' 
+                    ? 'from-slate-100 to-slate-300' 
+                    : 'from-slate-900 to-slate-700'
+                )}>
+                  {communityInfo?.title}
+                </span>
+              </div>
+              <div className="w-8" /> {/* Spacer for centering */}
+            </header>
+          )}
+
+          {/* Page content */}
+          <div className="flex-1 p-4 md:p-6 lg:p-8">
+            {children}
+          </div>
+        </main>
+      </div>
+    </CommunityAccessGate>
   );
 }; 

@@ -23,13 +23,17 @@ export interface CommunityRole {
  * Fallback: Re-fetch from Common Ground if needed
  */
 export async function getUserRoles(userId: string, communityId: string): Promise<string[]> {
-  // Placeholder implementation - in real implementation this would:
-  // 1. Check cache first
-  // 2. Fetch from Common Ground API if not cached
-  // 3. Cache the result with appropriate TTL
-  // 4. Return array of role IDs for the user in this community
+  // Temporary implementation for testing
+  // In production, this would fetch from Common Ground API
   
-  console.warn('[RoleService] getUserRoles not yet implemented - returning empty array');
+  // For now, simulate that regular users have no special roles
+  // and admins have admin roles
+  // This is a placeholder - real implementation would fetch actual user roles from Common Ground
+  
+  console.log(`[RoleService] Getting roles for user ${userId} in community ${communityId}`);
+  
+  // Return empty array for non-admin users (they'll be denied access if restrictions are set)
+  // In real implementation, this would return actual role IDs from Common Ground
   return [];
 }
 
@@ -57,6 +61,12 @@ export async function checkCommunityAccess(
   // Check if user has any allowed role
   const hasAccess = userRoles.some(roleId => allowedRoles.includes(roleId));
   console.log(`[RoleService] Community access check: user roles [${userRoles.join(', ')}], allowed roles [${allowedRoles.join(', ')}], access: ${hasAccess}`);
+  
+  // For testing: if there are restrictions and user is not admin, deny access
+  if (allowedRoles.length > 0 && !isAdmin) {
+    console.log('[RoleService] Community has role restrictions and user is not admin - denying access');
+    return false;
+  }
   
   return hasAccess;
 }
