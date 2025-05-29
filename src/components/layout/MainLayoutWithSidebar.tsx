@@ -13,6 +13,7 @@ import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
+import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 
 interface MainLayoutWithSidebarProps {
   children: React.ReactNode;
@@ -96,14 +97,48 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     enabled: !!isAuthenticated && !!token && !!communityIdForBoards && !!communityInfo,
   });
 
-  const showSidebar = isAuthenticated && communityInfo && boardsList && !isLoadingCommunityInfo && !isLoadingBoards && !cgLibError && !communityInfoError && !boardsError;
+  // Filter boards based on user access permissions
+  const { data: accessibleBoardsList, isLoading: isFilteringBoards } = useQuery<ApiBoard[]>({
+    queryKey: ['accessibleBoards', boardsList, user?.userId, user?.roles],
+    queryFn: async () => {
+      if (!boardsList || !user || !communityIdForBoards) return [];
+      
+      // Admin override - admins can see all boards for management
+      if (user.isAdmin) {
+        console.log('[MainLayout] Admin user - showing all boards');
+        return boardsList;
+      }
+      
+      // Get user roles for permission checking
+      const userRoles = await getUserRoles(user.userId, communityIdForBoards, user.roles);
+      
+      // Filter boards based on access permissions
+      const accessibleBoards = await Promise.all(
+        boardsList.map(async (board) => {
+          const hasAccess = await checkBoardAccess(board, userRoles, user.isAdmin);
+          return hasAccess ? board : null;
+        })
+      );
+      
+      // Remove null entries (boards user can't access)
+      const filteredBoards = accessibleBoards.filter((board): board is ApiBoard => board !== null);
+      
+      console.log(`[MainLayout] Filtered boards: ${filteredBoards.length}/${boardsList.length} accessible`);
+      return filteredBoards;
+    },
+    enabled: !!boardsList && !!user && !!communityIdForBoards,
+  });
 
-  if (isCgLibInitializing || (isAuthenticated && (isLoadingCommunityInfo || (communityIdForBoards && isLoadingBoards && communityInfo)))) {
+  const showSidebar = isAuthenticated && communityInfo && accessibleBoardsList && !isLoadingCommunityInfo && !isLoadingBoards && !isFilteringBoards && !cgLibError && !communityInfoError && !boardsError;
+
+  if (isCgLibInitializing || (isAuthenticated && (isLoadingCommunityInfo || (communityIdForBoards && isLoadingBoards && communityInfo) || isFilteringBoards))) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-slate-600 dark:text-slate-400">Loading application data...</p>
+          <p className="text-slate-600 dark:text-slate-400">
+            {isFilteringBoards ? 'Checking board permissions...' : 'Loading application data...'}
+          </p>
         </div>
       </div>
     );
@@ -140,11 +175,11 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
         )}
 
         {/* Sidebar */}
-        {showSidebar && communityInfo && boardsList && (
+        {showSidebar && communityInfo && accessibleBoardsList && (
           <div data-sidebar>
             <Sidebar 
               communityInfo={communityInfo} 
-              boardsList={boardsList}
+              boardsList={accessibleBoardsList}
               isOpen={sidebarOpen}
               isMobile={isMobile}
               onClose={() => setSidebarOpen(false)}

@@ -10,9 +10,13 @@ import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { Users, TrendingUp, MessageSquare } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { authFetchJson } from '@/utils/authFetch';
+import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
+  const { token } = useAuth();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -41,13 +45,11 @@ export default function HomePage() {
   const { data: boardInfo } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      if (!boardId || !communityInfo?.id) return null;
-      const response = await fetch(`/api/communities/${communityInfo.id}/boards`);
-      if (!response.ok) return null;
-      const boards = await response.json();
-      return boards.find((board: any) => board.id.toString() === boardId) || null;
+      if (!boardId || !communityInfo?.id || !token) return null;
+      const boards = await authFetchJson<ApiBoard[]>(`/api/communities/${communityInfo.id}/boards`, { token });
+      return boards.find((board) => board.id.toString() === boardId) || null;
     },
-    enabled: !!boardId && !!communityInfo?.id,
+    enabled: !!boardId && !!communityInfo?.id && !!token,
   });
 
   if (isInitializing || isLoadingCommunityInfo) {

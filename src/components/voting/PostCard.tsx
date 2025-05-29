@@ -32,6 +32,7 @@ import { authFetchJson } from '@/utils/authFetch';
 import { cn } from '@/lib/utils';
 import { CommentList } from './CommentList'; // Import CommentList
 import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
+import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -97,6 +98,38 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       return authFetchJson<ApiBoard[]>(`/api/communities/${user.cid}/boards`, { token });
     },
     enabled: !!user?.isAdmin && !!user?.cid && !!token,
+  });
+
+  // Filter boards based on user access permissions (though admins typically see all)
+  const { data: accessibleBoardsList } = useQuery<ApiBoard[]>({
+    queryKey: ['accessibleBoardsMove', boardsList, user?.userId, user?.roles],
+    queryFn: async () => {
+      if (!boardsList || !user || !user.cid) return [];
+      
+      // Admin override - admins can move posts to all boards
+      if (user.isAdmin) {
+        console.log('[PostCard] Admin user - showing all boards for move');
+        return boardsList;
+      }
+      
+      // Get user roles for permission checking (though this path likely won't execute for move)
+      const userRoles = await getUserRoles(user.userId, user.cid, user.roles);
+      
+      // Filter boards based on access permissions
+      const accessibleBoards = await Promise.all(
+        boardsList.map(async (board) => {
+          const hasAccess = await checkBoardAccess(board, userRoles, user.isAdmin);
+          return hasAccess ? board : null;
+        })
+      );
+      
+      // Remove null entries (boards user can't access)
+      const filteredBoards = accessibleBoards.filter((board): board is ApiBoard => board !== null);
+      
+      console.log(`[PostCard] Filtered boards for move: ${filteredBoards.length}/${boardsList.length} accessible`);
+      return filteredBoards;
+    },
+    enabled: !!boardsList && !!user && !!user.cid,
   });
 
   const movePostMutation = useMutation({
@@ -320,13 +353,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="board-select">Select Board</Label>
-              {boardsList && boardsList.length > 0 ? (
+              {accessibleBoardsList && accessibleBoardsList.length > 0 ? (
                 <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
                   <SelectTrigger id="board-select">
                     <SelectValue placeholder="Choose a board" />
                   </SelectTrigger>
                   <SelectContent>
-                    {boardsList.map((board) => (
+                    {accessibleBoardsList.map((board) => (
                       <SelectItem key={board.id} value={board.id.toString()}>
                         <div>
                           <div className="font-medium">{board.name}</div>

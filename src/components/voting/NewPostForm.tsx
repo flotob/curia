@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, Edit3 } from 'lucide-react';
+import { Loader2, Edit3, Search, Tag, X, Sparkles } from 'lucide-react';
 import Link from 'next/link'; 
 import { cn } from '@/lib/utils';
+import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -88,15 +89,47 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
     enabled: !!isAuthenticated && !!token && !!user?.cid,
   });
 
+  // Filter boards based on user access permissions
+  const { data: accessibleBoardsList, isLoading: isFilteringBoards } = useQuery<ApiBoard[]>({
+    queryKey: ['accessibleBoardsNewPost', boardsList, user?.userId, user?.roles],
+    queryFn: async () => {
+      if (!boardsList || !user || !user.cid) return [];
+      
+      // Admin override - admins can post to all boards
+      if (user.isAdmin) {
+        console.log('[NewPostForm] Admin user - showing all boards');
+        return boardsList;
+      }
+      
+      // Get user roles for permission checking
+      const userRoles = await getUserRoles(user.userId, user.cid, user.roles);
+      
+      // Filter boards based on access permissions
+      const accessibleBoards = await Promise.all(
+        boardsList.map(async (board) => {
+          const hasAccess = await checkBoardAccess(board, userRoles, user.isAdmin);
+          return hasAccess ? board : null;
+        })
+      );
+      
+      // Remove null entries (boards user can't access)
+      const filteredBoards = accessibleBoards.filter((board): board is ApiBoard => board !== null);
+      
+      console.log(`[NewPostForm] Filtered boards: ${filteredBoards.length}/${boardsList.length} accessible`);
+      return filteredBoards;
+    },
+    enabled: !!boardsList && !!user && !!user.cid,
+  });
+
   // Set default board when boardId prop changes or boards load
   React.useEffect(() => {
     if (boardId) {
       setSelectedBoardId(boardId);
-    } else if (boardsList && boardsList.length > 0 && !selectedBoardId) {
-      // If no board is pre-selected, default to first board
-      setSelectedBoardId(boardsList[0].id.toString());
+    } else if (accessibleBoardsList && accessibleBoardsList.length > 0 && !selectedBoardId) {
+      // If no board is pre-selected, default to first accessible board
+      setSelectedBoardId(accessibleBoardsList[0].id.toString());
     }
-  }, [boardId, boardsList, selectedBoardId]);
+  }, [boardId, accessibleBoardsList, selectedBoardId]);
 
   const contentEditor = useEditor({
     extensions: [
@@ -297,18 +330,20 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
             {!boardId && (
                 <div className="space-y-1.5">
                     <Label htmlFor="board-select" className="text-sm font-medium">Board</Label>
-                    {isLoadingBoards ? (
+                    {isLoadingBoards || isFilteringBoards ? (
                         <div className="flex items-center p-3 border rounded-md bg-muted/50">
                             <Loader2 size={14} className="mr-2 animate-spin" />
-                            <span className="text-xs sm:text-sm text-muted-foreground">Loading boards...</span>
+                            <span className="text-xs sm:text-sm text-muted-foreground">
+                              {isFilteringBoards ? 'Checking board permissions...' : 'Loading boards...'}
+                            </span>
                         </div>
-                    ) : boardsList && boardsList.length > 0 ? (
+                    ) : accessibleBoardsList && accessibleBoardsList.length > 0 ? (
                         <Select value={selectedBoardId} onValueChange={setSelectedBoardId} disabled={createPostMutation.isPending}>
                             <SelectTrigger id="board-select" className="text-sm sm:text-base">
                                 <SelectValue placeholder="Select a board" />
                             </SelectTrigger>
                             <SelectContent>
-                                {boardsList.map((board) => (
+                                {accessibleBoardsList.map((board) => (
                                     <SelectItem key={board.id} value={board.id.toString()}>
                                         <div>
                                             <div className="font-medium text-sm">{board.name}</div>
