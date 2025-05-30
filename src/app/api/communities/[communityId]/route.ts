@@ -57,16 +57,54 @@ async function updateCommunityHandler(req: AuthenticatedRequest, context: RouteC
     const body = await req.json();
     const { name, settings } = body;
 
-    const result = await query(
-      'UPDATE communities SET name = $1, settings = $2, updated_at = NOW() WHERE id = $3 RETURNING id, name, settings, created_at, updated_at',
-      [name, JSON.stringify(settings), communityId]
-    );
+    // Build dynamic query based on what fields are provided
+    const updateFields: string[] = [];
+    const updateValues: (string | number | boolean | null)[] = [];
+    let paramCount = 1;
+
+    if (name !== undefined) {
+      updateFields.push(`name = $${paramCount}`);
+      updateValues.push(name);
+      paramCount++;
+    }
+
+    if (settings !== undefined) {
+      updateFields.push(`settings = $${paramCount}`);
+      updateValues.push(JSON.stringify(settings));
+      paramCount++;
+    }
+
+    if (updateFields.length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    // Always update the updated_at timestamp
+    updateFields.push('updated_at = NOW()');
+    
+    // Add the WHERE clause parameter
+    updateValues.push(communityId);
+
+    const updateQuery = `
+      UPDATE communities 
+      SET ${updateFields.join(', ')} 
+      WHERE id = $${paramCount} 
+      RETURNING id, name, settings, created_at, updated_at
+    `;
+
+    console.log(`[API] Executing query: ${updateQuery}`, updateValues);
+
+    const result = await query(updateQuery, updateValues);
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
     const community: ApiCommunity = result.rows[0];
+    // Parse settings if they're stored as a string
+    if (typeof community.settings === 'string') {
+      community.settings = JSON.parse(community.settings);
+    }
+    
     return NextResponse.json(community);
   } catch (error) {
     console.error(`[API] Error updating community ${communityId}:`, error);
