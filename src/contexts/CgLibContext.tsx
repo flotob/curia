@@ -27,21 +27,41 @@ export function CgLibProvider({ children }: { children: React.ReactNode }) {
 
   const searchParams = useSearchParams();
 
-  // Effect to update iframeUid state from searchParams
+  // Effect to update iframeUid state from searchParams and handle redirect
   useEffect(() => {
     const uidFromParams = searchParams.get('iframeUid');
-    if (uidFromParams) {
+    const pluginInstanceUrl = process.env.NEXT_PUBLIC_PLUGIN_INSTANCE_URL;
+
+    if (!uidFromParams) {
+      console.log("[CgLibContext] iframeUid is not present in URL parameters.");
+      // Check if running in the top window (not in an iframe)
+      if (typeof window !== 'undefined' && window.top === window.self) {
+        if (pluginInstanceUrl) {
+          console.log(`[CgLibContext] Top-level access without iframeUid. Redirecting to: ${pluginInstanceUrl}`);
+          window.location.replace(pluginInstanceUrl);
+          // Important: Return early to prevent further state updates in this render cycle while redirecting.
+          // Setting isInitializing to true can also prevent rendering child components temporarily.
+          setIsInitializing(true); 
+          return; 
+        } else {
+          console.warn("[CgLibContext] Top-level access without iframeUid, but NEXT_PUBLIC_PLUGIN_INSTANCE_URL is not set. Cannot redirect.");
+        }
+      } else if (typeof window !== 'undefined' && window.top !== window.self) {
+        console.warn("[CgLibContext] Running in an iframe but iframeUid is missing from URL. This is unexpected.");
+        // Proceed to set iframeUid to null, which will likely cause an initError handled by UI.
+      }
+      // If not redirecting, and uidFromParams is not present, ensure iframeUid state is null.
+      if (iframeUid !== null) {
+         setIframeUid(null);
+      }
+    } else {
+      // iframeUid is present in params, set it if different from current state
       if (iframeUid !== uidFromParams) {
         console.log(`[CgLibContext] Setting iframeUid from params: ${uidFromParams}`);
         setIframeUid(uidFromParams);
       }
-    } else {
-      if (iframeUid !== null) {
-        console.log("[CgLibContext] iframeUid removed from params or became null.");
-        setIframeUid(null);
-      }
     }
-  }, [searchParams, iframeUid]);
+  }, [searchParams, iframeUid]); // iframeUid is in deps because we compare its current state
 
   // Effect to initialize CgPluginLib once iframeUid (from state) and publicKey are available
   useEffect(() => {
