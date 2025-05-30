@@ -217,7 +217,13 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
     },
     onSuccess: (data) => {
       console.log('Post created successfully:', data);
-      queryClient.invalidateQueries({ queryKey: ['posts'] }); 
+      
+      // Invalidate infinite scroll queries to refresh the feed
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      
+      // Also invalidate accessible boards queries in case board list needs updating
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoardsNewPost'] });
+      
       setTitle('');
       contentEditor?.commands.clearContent();
       setTags('');

@@ -20,34 +20,111 @@ export interface ApiPost {
   board_name: string; // Board name from boards table
 }
 
-// GET all posts (now protected to get user context for userHasUpvoted)
+// Cursor data interface for parsing
+interface CursorData {
+  upvoteCount: number;
+  createdAt: string;
+  postId: number;
+}
+
+// Generate cursor from post data
+function generateCursor(post: ApiPost): string {
+  // Ensure we use ISO format for the date that PostgreSQL can understand
+  const isoDate = new Date(post.created_at).toISOString();
+  return `${post.upvote_count}_${isoDate}_${post.id}`;
+}
+
+// Parse cursor string into structured data
+function parseCursor(cursor: string): CursorData | null {
+  if (!cursor) return null;
+  
+  try {
+    const parts = cursor.split('_');
+    if (parts.length !== 3) {
+      console.warn('[API] Invalid cursor format - expected 3 parts:', cursor);
+      return null;
+    }
+    
+    const [upvoteCount, createdAt, postId] = parts;
+    
+    // Validate that createdAt is a valid ISO date
+    const date = new Date(createdAt);
+    if (isNaN(date.getTime())) {
+      console.warn('[API] Invalid date in cursor:', createdAt);
+      return null;
+    }
+    
+    return {
+      upvoteCount: parseInt(upvoteCount, 10),
+      createdAt: createdAt, // Keep as ISO string for PostgreSQL
+      postId: parseInt(postId, 10)
+    };
+  } catch (error) {
+    console.warn('[API] Invalid cursor format:', cursor, error);
+    return null;
+  }
+}
+
+// Build WHERE clause for cursor-based pagination
+function buildCursorWhere(cursor: string | null, baseWhere: string, currentParamIndex: number): { where: string; params: any[] } {
+  if (!cursor) return { where: baseWhere, params: [] };
+  
+  const cursorData = parseCursor(cursor);
+  if (!cursorData) return { where: baseWhere, params: [] };
+  
+  const cursorWhere = `${baseWhere} AND (
+    p.upvote_count < $${currentParamIndex} OR 
+    (p.upvote_count = $${currentParamIndex} AND p.created_at < $${currentParamIndex + 1}) OR
+    (p.upvote_count = $${currentParamIndex} AND p.created_at = $${currentParamIndex + 1} AND p.id < $${currentParamIndex + 2})
+  )`;
+  
+  return {
+    where: cursorWhere,
+    params: [cursorData.upvoteCount, cursorData.createdAt, cursorData.postId]
+  };
+}
+
+// GET all posts (now with cursor-based pagination)
 async function getAllPostsHandler(req: AuthenticatedRequest) {
   const currentUserId = req.user?.sub; 
   const currentCommunityId = req.user?.cid; // Get communityId from JWT
   const { searchParams } = new URL(req.url);
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const limit = parseInt(searchParams.get('limit') || '10', 10);
-  const boardId = searchParams.get('boardId'); // New: Get boardId for filtering
-  const offset = (page - 1) * limit;
+  const cursor = searchParams.get('cursor'); // Replace page param with cursor
+  const limit = parseInt(searchParams.get('limit') || '20', 10); // Increase default for infinite scroll
+  const boardId = searchParams.get('boardId'); // Board filtering
 
   // If no community context, we cannot fetch relevant posts.
-  // This could happen if a token doesn't have cid, or if the route is somehow hit unauthenticated (though withAuth should prevent that).
   if (!currentCommunityId) {
     console.warn('[API GET /api/posts] Attempted to fetch posts without a community ID in token.');
-    return NextResponse.json({ posts: [], pagination: { currentPage: 1, totalPages: 0, totalPosts: 0, limit } }, { status: 200 }); // Return empty for no community
+    return NextResponse.json({ 
+      posts: [], 
+      pagination: { nextCursor: null, hasMore: false, limit } 
+    }, { status: 200 });
   }
 
   try {
-    // Build the WHERE clause - filter by community, and optionally by board
-    let whereClause = 'WHERE b.community_id = $' + (currentUserId ? '2' : '1');
-    const queryParams: any[] = [];
-    if (currentUserId) queryParams.push(currentUserId);
-    queryParams.push(currentCommunityId);
+    // Build base query parameters
+    const baseParams: any[] = [];
+    if (currentUserId) baseParams.push(currentUserId);
+    baseParams.push(currentCommunityId);
+    
+    // Build base WHERE clause - filter by community, and optionally by board
+    let baseWhere = `WHERE b.community_id = $${currentUserId ? '2' : '1'}`;
     
     if (boardId) {
-      whereClause += ` AND p.board_id = $${queryParams.length + 1}`;
-      queryParams.push(parseInt(boardId, 10));
+      baseWhere += ` AND p.board_id = $${baseParams.length + 1}`;
+      baseParams.push(parseInt(boardId, 10));
     }
+
+    // Build cursor-based WHERE clause
+    const { where: whereClause, params: cursorParams } = buildCursorWhere(
+      cursor, 
+      baseWhere, 
+      baseParams.length + 1
+    );
+
+    // Combine all parameters
+    const allParams = [...baseParams, ...cursorParams];
 
     let postsQueryText = `
       SELECT
@@ -61,42 +138,28 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
       JOIN boards b ON p.board_id = b.id
       ${currentUserId ? "LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $1" : ""}
       ${whereClause}
-      ORDER BY p.upvote_count DESC, p.created_at DESC 
-      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2};
+      ORDER BY p.upvote_count DESC, p.created_at DESC, p.id DESC
+      LIMIT $${allParams.length + 1};
     `;
 
-    queryParams.push(limit);
-    queryParams.push(offset);
+    allParams.push(limit);
 
-    const result = await query(postsQueryText, queryParams);
+    const result = await query(postsQueryText, allParams);
     const posts: ApiPost[] = result.rows.map(row => ({
       ...row,
       user_has_upvoted: row.user_has_upvoted === undefined ? false : row.user_has_upvoted,
     }));
 
-    // Get total count for pagination metadata - use same filtering
-    let countWhereClause = 'WHERE b.community_id = $1';
-    const countParams: any[] = [currentCommunityId];
-    
-    if (boardId) {
-      countWhereClause += ' AND p.board_id = $2';
-      countParams.push(parseInt(boardId, 10));
-    }
-
-    const totalPostsResult = await query(
-      `SELECT COUNT(p.id) FROM posts p
-       JOIN boards b ON p.board_id = b.id
-       ${countWhereClause}`,
-      countParams
-    );
-    const totalPosts = parseInt(totalPostsResult.rows[0].count, 10);
+    // Generate next cursor from last post (if we have a full page)
+    const nextCursor = posts.length === limit && posts.length > 0 
+      ? generateCursor(posts[posts.length - 1])
+      : null;
 
     return NextResponse.json({
       posts,
       pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalPosts / limit),
-        totalPosts,
+        nextCursor,
+        hasMore: posts.length === limit,
         limit,
       },
     });
@@ -106,6 +169,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
     return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
   }
 }
+
 export const GET = withAuth(getAllPostsHandler, false); // Protect with withAuth, not admin-only
 
 // POST a new post (protected by withAuth)

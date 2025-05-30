@@ -69,9 +69,26 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
       // On success, the server returns the updated post. Update our local state from it.
       setCurrentUpvoteCount(data.post.upvote_count);
       setCurrentUserHasUpvoted(data.post.user_has_upvoted);
-      // Invalidate and refetch to ensure consistency and get the latest sorted list
+      
+      // Invalidate infinite scroll queries - this will refetch and update the feed
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      // Potentially invalidate a query for a single post if that exists, e.g., queryKey: ['post', postId]
+      
+      // Also do optimistic update for infinite queries to make it feel instant
+      queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: any) => {
+        if (!oldData?.pages) return oldData;
+        
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.map((post: any) => 
+              post.id === postId 
+                ? { ...post, upvote_count: data.post.upvote_count, user_has_upvoted: data.post.user_has_upvoted }
+                : post
+            )
+          }))
+        };
+      });
     },
     onError: (error, variables, context: any) => {
       console.error('Vote mutation failed:', error);
