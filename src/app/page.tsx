@@ -9,14 +9,16 @@ import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
-import { Users, TrendingUp, MessageSquare } from 'lucide-react';
+import { Users, TrendingUp, MessageSquare, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -28,6 +30,25 @@ export default function HomePage() {
     const cgTheme = searchParams?.get('cg_theme') || 'light';
     setTheme(cgTheme as 'light' | 'dark');
   }, [searchParams]);
+
+  // Helper function to preserve existing URL params
+  const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  };
 
   // Fetch community info
   const { data: communityInfo, isLoading: isLoadingCommunityInfo } = useQuery<CommunityInfoResponsePayload | null>({
@@ -123,13 +144,25 @@ export default function HomePage() {
                 </p>
               )}
             </div>
-            <div className={cn(
-              'px-3 py-1.5 rounded-full text-sm font-medium',
-              theme === 'dark' 
-                ? 'bg-slate-800/50 text-slate-400 border border-slate-700/40'
-                : 'bg-slate-100/70 text-slate-600 border border-slate-200/60'
-            )}>
-              {boardId ? 'Board Posts' : 'Latest Posts'}
+            <div className="flex items-center space-x-3">
+              <div className={cn(
+                'px-3 py-1.5 rounded-full text-sm font-medium',
+                theme === 'dark' 
+                  ? 'bg-slate-800/50 text-slate-400 border border-slate-700/40'
+                  : 'bg-slate-100/70 text-slate-600 border border-slate-200/60'
+              )}>
+                {boardId ? 'Board Posts' : 'Latest Posts'}
+              </div>
+              
+              {/* Board Settings Button - Admin Only */}
+              {user?.isAdmin && boardId && boardInfo && (
+                <Link href={buildUrl('/board-settings', { boardId })}>
+                  <Button variant="outline" size="sm" className="flex items-center">
+                    <Settings size={14} className="mr-2" />
+                    Settings
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
           

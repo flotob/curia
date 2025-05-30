@@ -246,42 +246,60 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {boardsList.map((board) => {
                 const isActive = currentBoardId === board.id.toString();
                 return (
-                  <Link
-                    key={board.id}
-                    href={buildUrl('/', { communityId: communityInfo.id, boardId: board.id.toString() })}
-                    className={cn(
-                      'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
-                      isActive
-                        ? theme === 'dark'
-                          ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 shadow-lg shadow-emerald-500/10'
-                          : 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-700 shadow-lg shadow-emerald-500/10'
-                        : theme === 'dark'
-                          ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                    )}
-                  >
-                    <div className={cn(
-                      'p-1.5 rounded-lg mr-3 transition-all duration-200',
-                      isActive
-                        ? theme === 'dark'
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : 'bg-emerald-500/10 text-emerald-600'
-                        : theme === 'dark'
-                          ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                          : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
-                    )}>
-                      <LayoutDashboard size={16} />
-                    </div>
-                    <span className="flex-1 truncate">{board.name}</span>
-                    {isActive && (
-                      <ChevronRight size={14} className="opacity-60" />
-                    )}
+                  <div key={board.id} className="relative group">
+                    <Link
+                      href={buildUrl('/', { communityId: communityInfo.id, boardId: board.id.toString() })}
+                      className={cn(
+                        'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
+                        isActive
+                          ? theme === 'dark'
+                            ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                            : 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-700 shadow-lg shadow-emerald-500/10'
+                          : theme === 'dark'
+                            ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      )}
+                    >
+                      <div className={cn(
+                        'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                        isActive
+                          ? theme === 'dark'
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-emerald-500/10 text-emerald-600'
+                          : theme === 'dark'
+                            ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                            : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                      )}>
+                        <LayoutDashboard size={16} />
+                      </div>
+                      <span className="flex-1 truncate pr-8">{board.name}</span>
+                      {isActive && (
+                        <ChevronRight size={14} className="opacity-60" />
+                      )}
+                      
+                      {/* Active indicator */}
+                      {isActive && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 rounded-xl" />
+                      )}
+                    </Link>
                     
-                    {/* Active indicator */}
-                    {isActive && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 rounded-xl" />
+                    {/* Board Settings Button - Admin Only */}
+                    {user?.isAdmin && (
+                      <Link
+                        href={buildUrl('/board-settings', { boardId: board.id.toString() })}
+                        className={cn(
+                          'absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 z-10',
+                          theme === 'dark'
+                            ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/80'
+                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/80'
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                        title={`Settings for ${board.name}`}
+                      >
+                        <Settings size={14} />
+                      </Link>
                     )}
-                  </Link>
+                  </div>
                 );
               })}
               
