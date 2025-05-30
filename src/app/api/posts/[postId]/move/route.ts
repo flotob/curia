@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 
-interface MovePostRouteParams {
-  params: {
-    postId: string;
-  };
-}
-
 // PATCH handler for moving posts between boards (admin only)
-async function movePostHandler(req: AuthenticatedRequest, context: MovePostRouteParams) {
-  const postId = parseInt(context.params.postId, 10);
+async function movePostHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
   const requestingUserId = req.user?.sub;
   const requestingUserCommunityId = req.user?.cid;
 

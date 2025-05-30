@@ -116,12 +116,12 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
       }
       
       // Get user roles for permission checking
-      const userRoles = await getUserRoles(user.userId, communityIdForBoards, user.roles);
+      const userRoles = await getUserRoles(user.roles);
       
       // Filter boards based on access permissions
       const accessibleBoards = await Promise.all(
         boardsList.map(async (board) => {
-          const hasAccess = await checkBoardAccess(board, userRoles, user.isAdmin);
+          const hasAccess = await checkBoardAccess(board, userRoles);
           return hasAccess ? board : null;
         })
       );

@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 
-interface CommentDeleteParams {
-  params: {
-    postId: string;
-    commentId: string;
-  };
-}
-
-async function deleteCommentHandler(req: AuthenticatedRequest, context: CommentDeleteParams) {
-  const commentId = parseInt(context.params.commentId, 10);
+async function deleteCommentHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const commentId = parseInt(params.commentId, 10);
   if (isNaN(commentId)) {
     return NextResponse.json({ error: 'Invalid comment ID' }, { status: 400 });
   }

@@ -23,19 +23,17 @@ export interface AuthenticatedRequest extends NextRequest {
   user?: JwtPayload;
 }
 
-// Define the type for the handler function that receives the authenticated request
-// Context type for Next.js App Router route handlers typically includes { params: YourParamsType }
-export function withAuth<Params = Record<string, string>>(
-  handler: (
-    req: AuthenticatedRequest,
-    context: { params: Params }
-  ) => Promise<NextResponse> | NextResponse,
+// Define the type for Next.js App Router route context
+export interface RouteContext {
+  params: Promise<Record<string, string>>;
+}
+
+// Simplified withAuth function that returns exactly the signature Next.js expects
+export function withAuth(
+  handler: (req: AuthenticatedRequest, context: RouteContext) => Promise<NextResponse> | NextResponse,
   adminOnly: boolean = false
 ) {
-  return async (
-    req: NextRequest, // Incoming request is initially a standard NextRequest
-    context: { params: Params } // Context from Next.js (e.g., dynamic route params)
-  ): Promise<NextResponse> => {
+  return async (req: NextRequest, context: RouteContext): Promise<NextResponse> => {
     if (!JWT_SECRET) {
       console.error('JWT_SECRET is not configured for verification.');
       return NextResponse.json(
@@ -103,7 +101,7 @@ export function withAuth<Params = Record<string, string>>(
         );
       }
       
-      // Call the original handler with the augmented request and original context
+      // Call the original handler with the augmented request and context
       return await handler(authReq, context);
     } catch (error) {
       console.error('[withAuth] Error during token verification or handler execution:', error);

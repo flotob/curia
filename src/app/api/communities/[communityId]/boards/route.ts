@@ -1,17 +1,10 @@
 // This route is temporarily disabled due to TypeScript interface issues with withAuth
 // Need to investigate the correct Next.js App Router + withAuth pattern
 
-/*
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { BoardSettings } from '@/types/settings';
-
-interface BoardsRouteParams {
-  params: {
-    communityId: string;
-  };
-}
 
 export interface ApiBoard {
   id: number;
@@ -26,9 +19,9 @@ export interface ApiBoard {
   user_can_post?: boolean;    // Future: differentiate read vs write
 }
 
-async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: BoardsRouteParams) {
+async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: RouteContext) {
   const params = await context.params;
-  const communityId = params.communityId;
+  const { communityId } = params;
   const requestingUserId = req.user?.sub; // For logging or future checks
   const requestingUserCommunityId = req.user?.cid; // User's own community from token
 
@@ -37,13 +30,9 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Boa
   }
 
   // Security check: Ensure the user is requesting boards for their own community
-  // or if you want to allow fetching boards of other communities by admins/publicly (adjust logic here)
   if (communityId !== requestingUserCommunityId) {
     console.warn(`User ${requestingUserId} from community ${requestingUserCommunityId} attempted to fetch boards for community ${communityId}`);
-    // Depending on policy, you might allow this for admins, or block entirely.
-    // For now, let's restrict to user's own community for non-admins.
-    // If req.user.adm is true, you could bypass this check.
-    if (!req.user?.adm) { // Example: only allow if admin or it's their own community
+    if (!req.user?.adm) { // Only allow if admin or it's their own community
         return NextResponse.json({ error: 'Forbidden: You can only fetch boards for your own community.' }, { status: 403 });
     }
   }
@@ -67,13 +56,10 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Boa
   }
 }
 
-// All authenticated users can attempt to fetch boards, the handler itself checks for community membership/admin status.
-export const GET = withAuth(getCommunityBoardsHandler, false); 
-
 // POST handler for creating new boards (admin only)
-async function createBoardHandler(req: AuthenticatedRequest, context: BoardsRouteParams) {
+async function createBoardHandler(req: AuthenticatedRequest, context: RouteContext) {
   const params = await context.params;
-  const communityId = params.communityId;
+  const { communityId } = params;
   const requestingUserId = req.user?.sub;
   const requestingUserCommunityId = req.user?.cid;
 
@@ -138,30 +124,5 @@ async function createBoardHandler(req: AuthenticatedRequest, context: BoardsRout
   }
 }
 
+export const GET = withAuth(getCommunityBoardsHandler, false);
 export const POST = withAuth(createBoardHandler, true); // true = admin only 
-*/
-
-// Placeholder exports to satisfy Next.js App Router
-import { NextResponse } from 'next/server';
-import { BoardSettings } from '@/types/settings';
-
-export interface ApiBoard {
-  id: number;
-  community_id: string;
-  name: string;
-  description: string | null;
-  settings: BoardSettings;
-  created_at: string;
-  updated_at: string;
-  // Computed fields:
-  user_can_access?: boolean;  // Based on current user's roles (after community access)
-  user_can_post?: boolean;    // Future: differentiate read vs write
-}
-
-export async function GET() {
-  return NextResponse.json({ error: 'Route temporarily disabled' }, { status: 503 });
-}
-
-export async function POST() {
-  return NextResponse.json({ error: 'Route temporarily disabled' }, { status: 503 });
-} 

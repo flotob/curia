@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MainLayoutWithSidebar } from "@/components/layout/MainLayoutWithSidebar";
 import { Toaster } from "@/components/ui/toaster";
+import { Suspense } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,17 +33,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <Providers>
-            <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
-          </Providers>
-          <Toaster />
-        </ThemeProvider>
+        <Suspense fallback={<div>Loading...</div>}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <Providers>
+              <Suspense fallback={<div>Loading application...</div>}>
+                <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
+              </Suspense>
+            </Providers>
+            <Toaster />
+          </ThemeProvider>
+        </Suspense>
       </body>
     </html>
   );

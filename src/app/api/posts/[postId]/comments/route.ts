@@ -1,12 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query, getClient } from '@/lib/db';
-
-interface CommentRouteParams {
-  params: {
-    postId: string;
-  };
-}
 
 // Interface for the structure of a comment when returned by the API
 export interface ApiComment {
@@ -22,8 +16,9 @@ export interface ApiComment {
 }
 
 // GET comments for a post
-export async function GET(req: NextRequest, context: CommentRouteParams) {
-  const postId = parseInt(context.params.postId, 10);
+export async function GET(req: NextRequest, context: RouteContext) {
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
   if (isNaN(postId)) {
     return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
   }
@@ -57,9 +52,10 @@ export async function GET(req: NextRequest, context: CommentRouteParams) {
 }
 
 // POST a new comment (protected)
-async function createCommentHandler(req: AuthenticatedRequest, context: CommentRouteParams) {
+async function createCommentHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
-  const postId = parseInt(context.params.postId, 10);
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
 
   if (!user || !user.sub) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

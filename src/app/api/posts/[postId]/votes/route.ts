@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { getClient } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
 
-interface VoteParams {
-  params: {
-    postId: string;
-  };
-}
-
 // POST to upvote a post (protected)
-async function addVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
+async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
-  const postId = parseInt(context.params.postId, 10);
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
   let client: PoolClient | null = null; // Declare client here to be accessible in finally block
 
   if (!user || !user.sub) {
@@ -78,9 +73,10 @@ async function addVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
 }
 
 // DELETE to remove an upvote (protected)
-async function removeVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
+async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
-  const postId = parseInt(context.params.postId, 10);
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
   let client: PoolClient | null = null;
 
   if (!user || !user.sub) {

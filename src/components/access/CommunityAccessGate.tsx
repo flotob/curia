@@ -63,9 +63,7 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
       // Admin override - admins always have access
       if (user.isAdmin) {
         AccessControlUtils.logAccessAttempt(
-          user.userId, 
           'community', 
-          communityData.id, 
           'granted', 
           'admin override'
         );
@@ -73,13 +71,11 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
       }
 
       // Get user roles and check access
-      const userRoles = await getUserRoles(user.userId, communityData.id, user.roles);
-      const hasAccess = await checkCommunityAccess(communityData, userRoles, user.isAdmin);
+      const userRoles = await getUserRoles(user.roles);
+      const hasAccess = await checkCommunityAccess(communityData, userRoles);
       
       AccessControlUtils.logAccessAttempt(
-        user.userId, 
         'community', 
-        communityData.id, 
         hasAccess ? 'granted' : 'denied',
         hasAccess ? 'role-based access' : 'insufficient permissions'
       );

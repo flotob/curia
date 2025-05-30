@@ -1,22 +1,12 @@
-/*
-// This route is temporarily disabled due to TypeScript interface issues with withAuth
-// Need to investigate the correct Next.js App Router + withAuth pattern
-
 import { NextResponse } from 'next/server';
-import { AuthenticatedRequest, withAuth } from '@/lib/withAuth';
+import { AuthenticatedRequest, withAuth, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { ApiBoard } from '../route';
 
-interface BoardRouteParams {
-  params: {
-    communityId: string;
-    boardId: string;
-  };
-}
-
 // PATCH /api/communities/[communityId]/boards/[boardId] - Update board settings (Admin only)
-async function updateBoardHandler(req: AuthenticatedRequest, context: BoardRouteParams) {
-  const { communityId, boardId } = context.params;
+async function updateBoardHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const { communityId, boardId } = params;
   const requestingUserId = req.user?.sub;
   const requestingUserCommunityId = req.user?.cid;
 
@@ -74,19 +64,42 @@ async function updateBoardHandler(req: AuthenticatedRequest, context: BoardRoute
   }
 }
 
+// DELETE /api/communities/[communityId]/boards/[boardId] - Delete board (Admin only)
+async function deleteBoardHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const { communityId, boardId } = params;
+  const requestingUserId = req.user?.sub;
+  const requestingUserCommunityId = req.user?.cid;
+
+  if (!communityId || !boardId) {
+    return NextResponse.json({ error: 'Community ID and Board ID are required' }, { status: 400 });
+  }
+
+  // Security check: Only allow deleting boards in user's own community
+  if (communityId !== requestingUserCommunityId) {
+    return NextResponse.json({ error: 'Forbidden: You can only delete boards in your own community.' }, { status: 403 });
+  }
+
+  try {
+    const result = await query(
+      'DELETE FROM boards WHERE id = $1 AND community_id = $2 RETURNING name',
+      [boardId, communityId]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    }
+
+    const deletedBoard = result.rows[0];
+    console.log(`[API] Board deleted: ${deletedBoard.name} (ID: ${boardId}) by user ${requestingUserId}`);
+
+    return NextResponse.json({ message: 'Board deleted successfully' });
+
+  } catch (error) {
+    console.error(`[API] Error deleting board ${boardId}:`, error);
+    return NextResponse.json({ error: 'Failed to delete board' }, { status: 500 });
+  }
+}
+
 export const PATCH = withAuth(updateBoardHandler, true); // Admin only
-
-// DELETE function was here but commented out due to TypeScript issues
-
-*/ 
-
-// Placeholder exports to satisfy Next.js App Router
-import { NextResponse } from 'next/server';
-
-export async function PATCH() {
-  return NextResponse.json({ error: 'Route temporarily disabled' }, { status: 503 });
-}
-
-export async function DELETE() {
-  return NextResponse.json({ error: 'Route temporarily disabled' }, { status: 503 });
-}
+export const DELETE = withAuth(deleteBoardHandler, true); // Admin only

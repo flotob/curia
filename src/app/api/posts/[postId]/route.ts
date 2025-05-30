@@ -1,16 +1,11 @@
 import { /* NextRequest, */ NextResponse } from 'next/server';
-import { AuthenticatedRequest, withAuth } from '@/lib/withAuth';
+import { AuthenticatedRequest, withAuth, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 
-interface SinglePostParams {
-  params: {
-    postId: string;
-  };
-}
-
 // GET a single post by ID (now protected)
-async function getSinglePostHandler(req: AuthenticatedRequest, context: SinglePostParams) {
-  const postId = parseInt(context.params.postId, 10);
+async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
   const userId = req.user?.sub;
 
   if (isNaN(postId)) {
@@ -27,8 +22,10 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: SinglePo
 export const GET = withAuth(getSinglePostHandler, false);
 
 // DELETE a post (admin only)
-async function deletePostHandler(req: AuthenticatedRequest, context: SinglePostParams) {
-  const postId = parseInt(context.params.postId, 10);
+async function deletePostHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const postId = parseInt(params.postId, 10);
+  
   if (isNaN(postId)) {
     return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
   }

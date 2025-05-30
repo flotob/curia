@@ -30,6 +30,11 @@ import { cn } from '@/lib/utils';
 import { BoardAccessForm } from '@/components/BoardAccessForm';
 import { useToast } from '@/hooks/use-toast';
 
+interface DeleteBoardResponse {
+  boardName: string;
+  deletedPosts: number;
+}
+
 export default function BoardSettingsPage() {
   const { user, token } = useAuth();
   const { cgInstance } = useCgLib();
@@ -192,13 +197,13 @@ export default function BoardSettingsPage() {
       if (!token || !user?.cid || !boardId) throw new Error('Authentication or board ID required');
       
       const url = `/api/communities/${user.cid}/boards/${boardId}${force ? '?force=true' : ''}`;
-      const response = await authFetchJson(url, {
+      const response = await authFetchJson<DeleteBoardResponse>(url, {
         method: 'DELETE',
         token,
       });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: DeleteBoardResponse) => {
       queryClient.invalidateQueries({ queryKey: ['boards'] });
       toast({
         title: "Board deleted",
