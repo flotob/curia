@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# package manager locks (prevent conflicts - this project uses yarn)
+package-lock.json
+
 # testing
 /coverage
 
