@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
+import { useCgLib } from '@/contexts/CgLibContext'; // Import useCgLib
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -56,6 +57,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
+  const { cgInstance } = useCgLib(); // Get cgInstance
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -75,10 +77,10 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
         // Other StarterKit defaults like blockquote, lists, bold, italic will be active
       }),
       TiptapLink.configure({
-        openOnClick: true, 
+        openOnClick: false, // Set to false as we handle clicks via event delegation
         HTMLAttributes: {
-          target: '_blank',
-          rel: 'noopener noreferrer nofollow',
+          // target: '_blank',
+          // rel: 'noopener noreferrer nofollow',
         },
       }),
       TiptapImage, // For rendering images, if they ever appear in comments
@@ -106,6 +108,36 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
       }
     }
   }, [editor, comment.content]);
+
+  // Effect for handling link clicks in rendered Tiptap content
+  React.useEffect(() => {
+    if (!editor || !cgInstance) return;
+
+    const editorElement = editor.view.dom;
+    if (!editorElement) return;
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const anchor = target.closest('a');
+
+      if (anchor && anchor.href) {
+        const href = anchor.href;
+        if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/')) {
+          event.preventDefault();
+          console.log(`[CommentItem] Intercepted link click: ${href}, navigating with cgInstance.`);
+          cgInstance.navigate(href)
+            .then(() => console.log(`[CommentItem] cgInstance.navigate called for ${href}`))
+            .catch(err => console.error(`[CommentItem] Error calling cgInstance.navigate for ${href}:`, err));
+        }
+      }
+    };
+
+    editorElement.addEventListener('click', handleClick);
+
+    return () => {
+      editorElement.removeEventListener('click', handleClick);
+    };
+  }, [editor, cgInstance, comment.content]); // Rerun if editor or cgInstance changes, or content changes
 
   if (!editor) {
     return null; // Or a loader/placeholder

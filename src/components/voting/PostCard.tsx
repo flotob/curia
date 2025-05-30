@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { CommentList } from './CommentList'; // Import CommentList
 import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
+import { useCgLib } from '@/contexts/CgLibContext'; // Import useCgLib
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -80,6 +81,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
+  const { cgInstance } = useCgLib(); // Get cgInstance
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -162,11 +164,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         // Other StarterKit defaults like blockquote, lists, bold, italic will be active
       }),
       TiptapLink.configure({
-        // Configure how links should behave in read-only mode
-        openOnClick: true, // Or false, depending on desired UX for rendered links
+        openOnClick: false, // Set to false as we handle clicks via event delegation
         HTMLAttributes: {
-          target: '_blank',
-          rel: 'noopener noreferrer nofollow',
+          // target: '_blank', // Not strictly needed if openOnClick is false and we use cgInstance.navigate
+          // rel: 'noopener noreferrer nofollow', // Good to keep for any links that might somehow bypass our handler
         },
       }),
       TiptapImage, // Use aliased TiptapImage for rendering images
@@ -195,6 +196,38 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       }
     }
   }, [contentDisplayEditor, post.content]);
+
+  // Effect for handling link clicks in rendered Tiptap content
+  useEffect(() => {
+    if (!contentDisplayEditor || !cgInstance) return;
+
+    const editorElement = contentDisplayEditor.view.dom;
+    if (!editorElement) return;
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const anchor = target.closest('a');
+
+      if (anchor && anchor.href) {
+        const href = anchor.href;
+        // Basic check if it's an external link or could be an internal CG link
+        // More robust checking (e.g. against current window.location.origin) can be added
+        if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/')) {
+          event.preventDefault();
+          console.log(`[PostCard] Intercepted link click: ${href}, navigating with cgInstance.`);
+          cgInstance.navigate(href)
+            .then(() => console.log(`[PostCard] cgInstance.navigate called for ${href}`))
+            .catch(err => console.error(`[PostCard] Error calling cgInstance.navigate for ${href}:`, err));
+        }
+      }
+    };
+
+    editorElement.addEventListener('click', handleClick);
+
+    return () => {
+      editorElement.removeEventListener('click', handleClick);
+    };
+  }, [contentDisplayEditor, cgInstance, post.content]); // Rerun if editor or cgInstance changes, or content changes (rebinding needed)
 
   return (
     <Card className="w-full overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
