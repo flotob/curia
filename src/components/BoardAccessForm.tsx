@@ -327,7 +327,7 @@ export const BoardAccessForm: React.FC<BoardAccessFormProps> = ({
           )}>
             <li>• Community admins always have full access to all boards</li>
             <li>• Community access is checked first, then board access</li>
-            <li>• Users without board access won't see the board in lists</li>
+            <li>• Users without board access won&apos;t see the board in lists</li>
             <li>• Changes take effect immediately for all users</li>
           </ul>
         </div>

@@ -96,7 +96,10 @@ export default function BoardSettingsPage() {
   });
 
   // Fetch board data
-  const { data: boardData, isLoading: isLoadingBoard } = useQuery<ApiBoard>({
+  const {
+    data: boardData,
+    isLoading: isLoadingBoard,
+  } = useQuery<ApiBoard, Error>({
     queryKey: ['board', boardId],
     queryFn: async () => {
       if (!boardId || !user?.cid || !token) throw new Error('Board ID, community, or token not available');
@@ -175,7 +178,7 @@ export default function BoardSettingsPage() {
         description: "Board settings have been saved successfully.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Update failed",
         description: error.message || "Failed to update board settings.",
@@ -203,7 +206,7 @@ export default function BoardSettingsPage() {
       });
       router.push(buildUrl('/'));
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Delete failed",
         description: error.message || "Failed to delete board.",
@@ -419,7 +422,7 @@ export default function BoardSettingsPage() {
                 Delete Board
               </DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete "{boardData?.name}"? This action cannot be undone.
+                Are you sure you want to delete &quot;{boardData?.name}&quot;? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             
@@ -437,7 +440,7 @@ export default function BoardSettingsPage() {
                   >
                     Force delete (including all posts and comments)
                   </Label>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Check this to delete the board even if it contains posts. All posts and comments will be permanently deleted.
                   </p>
                 </div>
@@ -450,7 +453,7 @@ export default function BoardSettingsPage() {
                   : 'bg-amber-50 border-amber-200 text-amber-800'
               )}>
                 <p className="font-medium">Warning:</p>
-                <p>If this board contains posts and you don't check "Force delete", the deletion will fail. Consider moving posts to another board first.</p>
+                <p>If this board contains posts and you don&apos;t check &quot;Force delete&quot;, the deletion will fail. Consider moving posts to another board first.</p>
               </div>
             </div>
 

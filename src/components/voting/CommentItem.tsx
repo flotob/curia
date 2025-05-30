@@ -17,11 +17,12 @@ import { authFetchJson } from '@/utils/authFetch';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from 'tiptap-markdown'; 
+// import { Markdown } from 'tiptap-markdown'; 
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import TiptapLink from '@tiptap/extension-link'; // For rendering links
 import TiptapImage from '@tiptap/extension-image'; // For rendering images (though comments might not use images often)
+// import { cn } from '@/lib/utils';
 // Ensure highlight.js theme is available. If not imported globally, import here.
 // For now, assuming it might be covered by NewCommentForm's import or a global one.
 // import 'highlight.js/styles/github-dark.css'; 

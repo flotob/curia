@@ -74,14 +74,14 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       
       // Also do optimistic update for infinite queries to make it feel instant
-      queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: any) => {
+      queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: { pages?: { posts: { id: number; upvote_count: number; user_has_upvoted: boolean }[] }[] } | undefined) => {
         if (!oldData?.pages) return oldData;
         
         return {
           ...oldData,
-          pages: oldData.pages.map((page: any) => ({
+          pages: oldData.pages.map((page: { posts: { id: number; upvote_count: number; user_has_upvoted: boolean }[] }) => ({
             ...page,
-            posts: page.posts.map((post: any) => 
+            posts: page.posts.map((post: { id: number; upvote_count: number; user_has_upvoted: boolean }) => 
               post.id === postId 
                 ? { ...post, upvote_count: data.post.upvote_count, user_has_upvoted: data.post.user_has_upvoted }
                 : post
@@ -90,7 +90,7 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
         };
       });
     },
-    onError: (error, variables, context: any) => {
+    onError: (error, variables, /* context */) => {
       console.error('Vote mutation failed:', error);
       // Revert optimistic update
       setCurrentUserHasUpvoted(!variables.isUpvoting); // Revert to previous state

@@ -9,7 +9,13 @@ import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { Button } from '@/components/ui/button';
-import { Menu, X } from 'lucide-react';
+import { 
+  Menu, 
+  // PlusCircle, 
+  // Settings, 
+  // MoreHorizontal, 
+  // Plus 
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';

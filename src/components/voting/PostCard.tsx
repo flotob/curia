@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import NextImage from 'next/image';
+// import Link from 'next/link';
+// import NextImage from 'next/image';
 import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move } from 'lucide-react';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, /* CardDescription */ } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -347,7 +348,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           <DialogHeader>
             <DialogTitle className="text-lg">Move Post to Another Board</DialogTitle>
             <DialogDescription className="text-sm">
-              Select which board you want to move "{post.title}" to.
+              Select which board you want to move &quot;{post.title}&quot; to.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from 'lucide-react';
 import { EditorToolbar } from './EditorToolbar';
 
-import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
@@ -19,11 +19,6 @@ import { common, createLowlight } from 'lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
-import Heading from '@tiptap/extension-heading';
-import Blockquote from '@tiptap/extension-blockquote';
-import BulletList from '@tiptap/extension-bullet-list';
-import OrderedList from '@tiptap/extension-ordered-list';
-import ListItem from '@tiptap/extension-list-item';
 // highlight.js CSS is in layout.tsx
 
 const lowlight = createLowlight(common);
@@ -35,7 +30,7 @@ interface NewCommentFormProps {
 }
 
 interface CreateCommentMutationPayload {
-  content: any;
+  content: object; // Tiptap JSON content
   parent_comment_id?: number | null;
 }
 
@@ -81,8 +76,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       Placeholder.configure({
         placeholder: 'Write your comment here …',
       }),
-      // REMOVED: Standalone Heading.configure({ levels: [3, 4] })
-      // REMOVED: Standalone Blockquote, BulletList, OrderedList, ListItem (handled by StarterKit)
     ],
     content: '',
     editorProps: {
@@ -104,7 +97,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       return authFetchJson<ApiComment>(`/api/posts/${postId}/comments`, {
         method: 'POST',
         token,
-        body: apiPayload as any,
+        body: JSON.stringify(apiPayload),
       });
     },
     onSuccess: (newComment) => {

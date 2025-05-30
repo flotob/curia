@@ -5,27 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { 
-  Settings, 
-  Users, 
-  Shield, 
-  Globe, 
-  ArrowLeft, 
-  Edit, 
-  UserCheck,
-  Crown,
-  Lock,
-  Info,
-  Save
+import {
+  Settings,
+  Shield,
+  ArrowLeft,
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { useAuth } from '@/contexts/AuthContext';
@@ -108,7 +94,7 @@ export default function CommunitySettingsPage() {
         description: "Community settings updated successfully!",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error('Failed to update community settings:', error);
       toast({
         title: "Update failed",
@@ -116,6 +102,18 @@ export default function CommunitySettingsPage() {
         variant: "destructive",
       });
     },
+  });
+
+  // Fetch community info
+  const { data: communityInfo, isLoading: isLoadingCommunityInfo } = useQuery<CommunityInfoResponsePayload | null>({
+    queryKey: ['communityInfo', cgInstance?.getCommunityInfo !== undefined],
+    queryFn: async () => {
+      if (!cgInstance) throw new Error('CgInstance not available');
+      const response = await cgInstance.getCommunityInfo();
+      if (!response?.data) throw new Error('Failed to fetch community info data from CgLib.');
+      return response.data;
+    },
+    enabled: !!cgInstance && !isInitializing,
   });
 
   // Admin access control
@@ -148,18 +146,6 @@ export default function CommunitySettingsPage() {
       </div>
     );
   }
-
-  // Fetch community info
-  const { data: communityInfo, isLoading: isLoadingCommunityInfo } = useQuery<CommunityInfoResponsePayload | null>({
-    queryKey: ['communityInfo', cgInstance?.getCommunityInfo !== undefined],
-    queryFn: async () => {
-      if (!cgInstance) throw new Error('CgInstance not available');
-      const response = await cgInstance.getCommunityInfo();
-      if (!response?.data) throw new Error('Failed to fetch community info data from CgLib.');
-      return response.data;
-    },
-    enabled: !!cgInstance && !isInitializing,
-  });
 
   if (isInitializing || isLoadingCommunityInfo) {
     return (
@@ -410,11 +396,11 @@ export default function CommunitySettingsPage() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Lock size={20} />
+                  <Shield size={20} />
                   Plugin Access Control
                 </CardTitle>
                 <CardDescription>
-                  Control who can access this community's forum plugin
+                  Control who can access this community&apos;s forum plugin
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">

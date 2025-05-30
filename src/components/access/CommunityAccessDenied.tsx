@@ -1,22 +1,24 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lock, ArrowLeft, Shield, Info } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { Lock, ArrowLeft, /* Shield, */ Info } from 'lucide-react';
+// import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface CommunityAccessDeniedProps {
-  theme?: 'light' | 'dark';
   communityName?: string;
   requiredRoles?: string[];
+  // onBack?: () => void;
+  theme?: 'light' | 'dark';
 }
 
-export const CommunityAccessDenied: React.FC<CommunityAccessDeniedProps> = ({ 
-  theme = 'light',
-  communityName,
-  requiredRoles = []
-}) => {
-  const { user } = useAuth();
+export function CommunityAccessDenied({ 
+  communityName = 'this community', 
+  requiredRoles = [], 
+  // onBack, 
+  theme = 'light' 
+}: CommunityAccessDeniedProps) {
+  // const { user } = useAuth();
   
   const hasSpecificRoles = requiredRoles.length > 0;
   
@@ -134,4 +136,4 @@ export const CommunityAccessDenied: React.FC<CommunityAccessDeniedProps> = ({
       </Card>
     </div>
   );
-}; 
+} 

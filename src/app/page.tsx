@@ -1,20 +1,21 @@
 'use client'; // Marking as client component as FeedList uses client-side hooks
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
 import { NewPostForm } from '@/components/voting/NewPostForm';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
-import { Users, TrendingUp, MessageSquare, Settings } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+import { 
+  Settings, 
+} from 'lucide-react';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();

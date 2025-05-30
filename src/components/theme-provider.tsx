@@ -15,15 +15,15 @@ interface CustomThemeProviderProps extends Omit<NextThemesProviderActualProps, '
 // Utility to convert HEX to HSL (simplified version)
 // Note: For full accuracy and edge cases, a more robust library might be preferred.
 function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return null;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
 
-  let r = parseInt(result[1], 16) / 255;
-  let g = parseInt(result[2], 16) / 255;
-  let b = parseInt(result[3], 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
 
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
+  let h = 0, s = 0;
 
   if (max === min) {
     h = s = 0; // achromatic

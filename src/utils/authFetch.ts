@@ -48,14 +48,15 @@ export async function authFetch(url: string, options: AuthFetchOptions = {}): Pr
  * @param options Fetch options, including an optional `token`.
  * @returns Promise<T> The parsed JSON response body.
  */
-export async function authFetchJson<T = any>(url: string, options: AuthFetchOptions = {}): Promise<T> {
+export async function authFetchJson<T = unknown>(url: string, options: AuthFetchOptions = {}): Promise<T> {
     const response = await authFetch(url, options);
 
     if (!response.ok) {
         let errorPayload;
         try {
             errorPayload = await response.json();
-        } catch (e) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_) {
             // If parsing error JSON fails, use status text
             throw new Error(response.statusText || `HTTP error! status: ${response.status}`);
         }

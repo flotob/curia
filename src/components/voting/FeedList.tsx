@@ -22,7 +22,7 @@ export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
     error,
     hasMore,
     fetchMore,
-    refresh
+    // refresh
   } = useInfiniteScroll({
     token,
     boardId,
@@ -81,7 +81,9 @@ export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
   if (!isLoading && posts.length === 0) {
     return (
       <div className="text-center py-8 sm:py-10 text-muted-foreground px-4 text-sm sm:text-base">
-        No posts yet. Be the first to submit one!
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          No posts yet. Be the first to start a discussion!
+        </p>
       </div>
     );
   }
@@ -123,7 +125,7 @@ export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
       {/* End of Feed */}
       {!hasMore && posts.length > 0 && (
         <div className="text-center py-6 text-muted-foreground">
-          <p className="text-sm">You've reached the end!</p>
+          <p className="text-sm">You&apos;ve reached the end!</p>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
@@ -11,9 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, Edit3, Search, Tag, X, Sparkles } from 'lucide-react';
-import Link from 'next/link'; 
-import { cn } from '@/lib/utils';
+import { Loader2, Edit3 } from 'lucide-react';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 
 // Tiptap imports
@@ -23,28 +21,21 @@ import { Markdown } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
-import TiptapLink from '@tiptap/extension-link'; // Renamed to avoid conflict with next/link
-import Image from '@tiptap/extension-image';
-import Heading from '@tiptap/extension-heading';
-import Blockquote from '@tiptap/extension-blockquote';
-import BulletList from '@tiptap/extension-bullet-list';
-import OrderedList from '@tiptap/extension-ordered-list';
-import ListItem from '@tiptap/extension-list-item';
+import TiptapLink from '@tiptap/extension-link';
+import TiptapImage from '@tiptap/extension-image';
 import { EditorToolbar } from './EditorToolbar'; // Import the toolbar
 // highlight.js CSS is now in layout.tsx
 
 const lowlight = createLowlight(common);
 
-// Debounce utility
-function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  return (...args: Parameters<F>): Promise<ReturnType<F>> =>
-    new Promise(resolve => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      timeout = setTimeout(() => resolve(func(...args)), waitFor);
-    });
+// Simple debounce utility
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function debounce<T extends (...args: any[]) => any>(func: T, waitFor: number) {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), waitFor);
+  };
 }
 
 interface NewPostFormProps {
@@ -54,7 +45,7 @@ interface NewPostFormProps {
 
 interface CreatePostMutationPayload {
   title: string;
-  content: any; // Tiptap JSON object
+  content: object; // Tiptap JSON object
   tags?: string[]; 
   boardId: string; // Add boardId to the mutation payload
 }
@@ -66,7 +57,7 @@ interface CreatePostApiPayload {
     boardId: string; // Add boardId to the API payload
 }
 
-interface SuggestedPost extends Partial<ApiPost> {}
+type SuggestedPost = Partial<ApiPost>;
 
 export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId }) => {
   const { token, isAuthenticated, user } = useAuth();
@@ -122,7 +113,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
   });
 
   // Set default board when boardId prop changes or boards load
-  React.useEffect(() => {
+  useEffect(() => {
     if (boardId) {
       setSelectedBoardId(boardId);
     } else if (accessibleBoardsList && accessibleBoardsList.length > 0 && !selectedBoardId) {
@@ -158,7 +149,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
       // Note: BulletList, OrderedList, ListItem, Blockquote are part of StarterKit by default.
       // We list them if we were to disable them in StarterKit and use standalone versions, but here StarterKit handles them.
       TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
-      Image, 
+      TiptapImage, 
       // Explicitly use CodeBlockLowlight for its input rules and syntax highlighting
       CodeBlockLowlight.configure({ lowlight }),
       // Markdown extension for parsing pasted Markdown
@@ -209,10 +200,10 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
         tags: postData.tags,
         boardId: postData.boardId,
       };
-      return authFetchJson<ApiPost>('/api/posts', {
+      return authFetchJson<ApiPost>(`/api/posts`, {
         method: 'POST',
         token,
-        body: apiPayload as any, 
+        body: JSON.stringify(apiPayload),
       });
     },
     onSuccess: (data) => {

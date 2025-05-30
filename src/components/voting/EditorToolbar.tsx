@@ -33,12 +33,14 @@ interface EditorToolbarProps { // Changed from Props to avoid conflict if Props 
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
-  if (!editor) return null;
-
+  // Hooks must be called before any early returns
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [currentLinkUrl, setCurrentLinkUrl] = useState('');
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState('');
+
+  // Early return after hooks
+  if (!editor) return null;
 
   // Helper to create toolbar buttons
   const ToolbarButton = (

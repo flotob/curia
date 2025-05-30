@@ -108,7 +108,7 @@ export function withAuth<Params = Record<string, string>>(
     } catch (error) {
       console.error('[withAuth] Error during token verification or handler execution:', error);
       if (error instanceof jwt.TokenExpiredError) {
-        console.error('[withAuth] TokenExpiredError caught. Token exp:', (error as any).expiredAt, 'Current time:', new Date());
+        console.error('[withAuth] TokenExpiredError caught. Token exp:', (error as jwt.TokenExpiredError).expiredAt, 'Current time:', new Date());
         return NextResponse.json({ error: 'Token expired' }, { status: 401 });
       } else if (error instanceof jwt.JsonWebTokenError) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 });

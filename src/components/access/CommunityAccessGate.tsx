@@ -42,9 +42,9 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
       try {
         const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, { token });
         return response;
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If we get a 404, the community doesn't exist or user doesn't have basic access
-        if (error.message?.includes('404')) {
+        if ((error as Error).message?.includes('404')) {
           throw new Error('Community not found or no access');
         }
         throw error;

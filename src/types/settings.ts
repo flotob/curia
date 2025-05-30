@@ -41,7 +41,7 @@ export const SettingsUtils = {
   /**
    * Validates if a settings object conforms to the schema
    */
-  validateCommunitySettings: (settings: any): SettingsValidationResult => {
+  validateCommunitySettings: (settings: unknown): SettingsValidationResult => {
     const errors: string[] = [];
     
     if (settings && typeof settings !== 'object') {
@@ -49,10 +49,13 @@ export const SettingsUtils = {
       return { isValid: false, errors };
     }
     
-    if (settings?.permissions?.allowedRoles) {
-      if (!Array.isArray(settings.permissions.allowedRoles)) {
+    const settingsObj = settings as Record<string, unknown>;
+    const permissions = settingsObj?.permissions as Record<string, unknown> | undefined;
+    
+    if (permissions?.allowedRoles) {
+      if (!Array.isArray(permissions.allowedRoles)) {
         errors.push('allowedRoles must be an array');
-      } else if (!settings.permissions.allowedRoles.every((role: any) => typeof role === 'string')) {
+      } else if (!permissions.allowedRoles.every((role: unknown) => typeof role === 'string')) {
         errors.push('All allowedRoles must be strings');
       }
     }
@@ -60,7 +63,7 @@ export const SettingsUtils = {
     return { isValid: errors.length === 0, errors };
   },
 
-  validateBoardSettings: (settings: any): SettingsValidationResult => {
+  validateBoardSettings: (settings: unknown): SettingsValidationResult => {
     const errors: string[] = [];
     
     if (settings && typeof settings !== 'object') {
@@ -68,10 +71,13 @@ export const SettingsUtils = {
       return { isValid: false, errors };
     }
     
-    if (settings?.permissions?.allowedRoles) {
-      if (!Array.isArray(settings.permissions.allowedRoles)) {
+    const settingsObj = settings as Record<string, unknown>;
+    const permissions = settingsObj?.permissions as Record<string, unknown> | undefined;
+    
+    if (permissions?.allowedRoles) {
+      if (!Array.isArray(permissions.allowedRoles)) {
         errors.push('allowedRoles must be an array');
-      } else if (!settings.permissions.allowedRoles.every((role: any) => typeof role === 'string')) {
+      } else if (!permissions.allowedRoles.every((role: unknown) => typeof role === 'string')) {
         errors.push('All allowedRoles must be strings');
       }
     }

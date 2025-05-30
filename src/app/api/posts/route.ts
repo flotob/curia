@@ -66,7 +66,7 @@ function parseCursor(cursor: string): CursorData | null {
 }
 
 // Build WHERE clause for cursor-based pagination
-function buildCursorWhere(cursor: string | null, baseWhere: string, currentParamIndex: number): { where: string; params: any[] } {
+function buildCursorWhere(cursor: string | null, baseWhere: string, currentParamIndex: number): { where: string; params: (string | number)[] } {
   if (!cursor) return { where: baseWhere, params: [] };
   
   const cursorData = parseCursor(cursor);
@@ -104,7 +104,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
 
   try {
     // Build base query parameters
-    const baseParams: any[] = [];
+    const baseParams: (string | number)[] = [];
     if (currentUserId) baseParams.push(currentUserId);
     baseParams.push(currentCommunityId);
     
@@ -126,7 +126,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
     // Combine all parameters
     const allParams = [...baseParams, ...cursorParams];
 
-    let postsQueryText = `
+    const postsQueryText = `
       SELECT
         p.id, p.author_user_id, p.title, p.content, p.tags,
         p.upvote_count, p.comment_count, p.created_at, p.updated_at,
@@ -166,7 +166,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
 
   } catch (error) {
     console.error('[API] Error fetching posts:', error);
-    return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
 
@@ -194,7 +194,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
     // Verify the board exists and belongs to the user's community
     const boardResult = await query(
-      'SELECT id FROM boards WHERE id = $1 AND community_id = $2',
+      'SELECT id, settings FROM boards WHERE id = $1 AND community_id = $2',
       [parseInt(boardId), currentCommunityId]
     );
 
@@ -204,15 +204,22 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
     const validBoardId = boardResult.rows[0].id;
     
+    // Board settings are available but not used in this basic implementation
+    // In future, we could use them to validate permissions, etc.
+    
     const result = await query(
       'INSERT INTO posts (author_user_id, title, content, tags, board_id, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, 0, 0) RETURNING *',
       [user.sub, title, content, tags || [], validBoardId]
     );
-    const newPost = result.rows[0];
+    const newPost: ApiPost = {
+      ...result.rows[0],
+      author_name: user.name || null, // Get from JWT
+      author_profile_picture_url: user.picture || null, // Get from JWT
+      user_has_upvoted: false, // New post, so user cannot have upvoted yet
+      board_name: '' // This would require another query or joining in the INSERT, for now empty
+    };
         
     console.log('[API] POST /api/posts called by user:', user.sub, 'with body:', body);
-    // To return the full ApiPost structure, we'd need to re-query or construct it here.
-    // For now, just returning the created post from DB.
     return NextResponse.json(newPost, { status: 201 }); 
 
   } catch (error) {
@@ -220,7 +227,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
     if (error instanceof SyntaxError) { // from req.json()
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
 

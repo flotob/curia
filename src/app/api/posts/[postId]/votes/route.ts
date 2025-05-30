@@ -33,9 +33,9 @@ async function addVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
       await client.query('INSERT INTO votes (user_id, post_id) VALUES ($1, $2)', [userId, postId]);
       // If insert successful, increment upvote_count
       await client.query('UPDATE posts SET upvote_count = upvote_count + 1 WHERE id = $1', [postId]);
-    } catch (voteInsertError: any) {
+    } catch (voteInsertError: unknown) {
       // Check if it's a unique violation error (already voted)
-      if (voteInsertError.code === '23505') { // 23505 is unique_violation in PostgreSQL
+      if ((voteInsertError as { code?: string }).code === '23505') { // 23505 is unique_violation in PostgreSQL
         // User already voted, this is not an error for the client, effectively a NOP for adding a vote.
         // The client-side should ideally prevent calling add if already voted.
         console.log(`[API] User ${userId} already voted for post ${postId}. No action taken.`);
@@ -68,7 +68,10 @@ async function addVoteHandler(req: AuthenticatedRequest, context: VoteParams) {
   } catch (error) {
     if (client) await client.query('ROLLBACK');
     console.error(`[API] Error adding vote for post ${postId} by user ${userId}:`, error);
-    return NextResponse.json({ error: 'Failed to add vote' }, { status: 500 });
+    return NextResponse.json(
+      { error: (error as Error).message }, 
+      { status: 500 }
+    );
   } finally {
     if (client) client.release();
   }
@@ -120,7 +123,10 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: VoteParams)
   } catch (error) {
     if (client) await client.query('ROLLBACK');
     console.error(`[API] Error removing vote for post ${postId} by user ${userId}:`, error);
-    return NextResponse.json({ error: 'Failed to remove vote' }, { status: 500 });
+    return NextResponse.json(
+      { error: (error as Error).message }, 
+      { status: 500 }
+    );
   } finally {
     if (client) client.release();
   }

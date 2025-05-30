@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X } from 'lucide-react';
@@ -9,7 +9,7 @@ import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useSearchParams, /* usePathname */ } from 'next/navigation';
 
 interface SidebarProps {
   communityInfo: CommunityInfoResponsePayload | null;
@@ -27,11 +27,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose 
 }) => {
   const { user } = useAuth();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
+  // const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [bgColor, setBgColor] = useState('#ffffff');
+  // const [bgColor, setBgColor] = useState('#ffffff');
 
   useEffect(() => {
     setMounted(true);
@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
     
     setTheme(cgTheme as 'light' | 'dark');
-    setBgColor(cgBgColor);
+    // setBgColor(cgBgColor);
     
     // Set CSS custom properties for dynamic theming
     document.documentElement.style.setProperty('--cg-bg', cgBgColor);

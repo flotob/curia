@@ -1,5 +1,5 @@
-import { NextResponse, NextRequest } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { /* NextRequest, */ NextResponse } from 'next/server';
+import { AuthenticatedRequest, withAuth } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 
 interface SinglePostParams {
