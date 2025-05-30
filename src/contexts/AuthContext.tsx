@@ -188,8 +188,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       await performLoginLogic(dataForRefresh, true);
       return true;
-    } catch (error) {
-      console.error('[AuthContext] Token refresh failed after attempting with available data. Logging out.');
+    } catch (_error: unknown) {
+      console.error('[AuthContext] Token refresh failed after attempting with available data. Logging out. Details:', _error);
       logout(); 
       return false;
     }
