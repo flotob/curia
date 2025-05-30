@@ -252,7 +252,7 @@ export default function CommunitySettingsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Community Overview */}
+            {/* Community Overview - HIDDEN FOR NOW
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -261,7 +261,6 @@ export default function CommunitySettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Community Logo & Name */}
                 <div className="flex items-center gap-4">
                   {communityInfo.smallLogoUrl ? (
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden shadow-lg">
@@ -297,7 +296,6 @@ export default function CommunitySettingsPage() {
 
                 <Separator />
 
-                {/* Community URLs */}
                 <div className="space-y-3">
                   <h4 className={cn(
                     "font-medium",
@@ -343,7 +341,6 @@ export default function CommunitySettingsPage() {
                   </div>
                 </div>
 
-                {/* Settings Placeholder */}
                 <div className="pt-4">
                   <Button variant="outline" disabled className="w-full">
                     <Edit size={16} className="mr-2" />
@@ -352,8 +349,9 @@ export default function CommunitySettingsPage() {
                 </div>
               </CardContent>
             </Card>
+            */}
 
-            {/* Roles & Permissions */}
+            {/* Roles & Permissions - HIDDEN FOR NOW
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -406,9 +404,10 @@ export default function CommunitySettingsPage() {
                 )}
               </CardContent>
             </Card>
+            */}
 
             {/* Community Access Control */}
-            <Card>
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Lock size={20} />
@@ -443,7 +442,7 @@ export default function CommunitySettingsPage() {
             </Card>
           </div>
 
-          {/* Coming Soon Section */}
+          {/* Additional Settings - HIDDEN FOR NOW
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Additional Settings</CardTitle>
@@ -471,6 +470,7 @@ export default function CommunitySettingsPage() {
               </p>
             </CardContent>
           </Card>
+          */}
         </div>
       </div>
     </div>
