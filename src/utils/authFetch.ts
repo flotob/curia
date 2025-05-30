@@ -1,4 +1,5 @@
 // src/utils/authFetch.ts
+import { AuthService } from '@/services/AuthService';
 
 interface AuthFetchOptions extends RequestInit {
   token?: string | null;
@@ -13,12 +14,15 @@ interface AuthFetchOptions extends RequestInit {
  * @returns Promise<Response> The raw fetch Response object.
  */
 export async function authFetch(url: string, options: AuthFetchOptions = {}): Promise<Response> {
-  const { token, ...fetchOptions } = options;
+  const { token: initialToken, ...fetchOptions } = options;
 
   const headers = new Headers(fetchOptions.headers || {});
 
-  if (token) {
-    headers.append('Authorization', `Bearer ${token}`);
+  // Use token from AuthService if available and no explicit token was passed in options
+  const tokenToUse = initialToken ?? AuthService.getAuthToken();
+
+  if (tokenToUse) {
+    headers.append('Authorization', `Bearer ${tokenToUse}`);
   }
 
   // Ensure Content-Type is set for POST/PUT/PATCH if body is an object (and not FormData)
@@ -49,7 +53,33 @@ export async function authFetch(url: string, options: AuthFetchOptions = {}): Pr
  * @returns Promise<T> The parsed JSON response body.
  */
 export async function authFetchJson<T = unknown>(url: string, options: AuthFetchOptions = {}): Promise<T> {
-    const response = await authFetch(url, options);
+    let response = await authFetch(url, options);
+
+    if (!response.ok && response.status === 401) {
+        // Attempt to refresh token only if the error indicates it might be an expired token
+        // You might need to inspect the error body if the backend sends specific codes/messages for expiry
+        const errorBodyForCheck = await response.clone().json().catch(() => ({})); // Clone and try to parse error
+
+        if (errorBodyForCheck?.error === 'Token expired' && !AuthService.getIsRefreshing()) {
+            console.log('[authFetchJson] Token expired, attempting refresh...');
+            const refreshSuccess = await AuthService.attemptRefreshToken();
+
+            if (refreshSuccess) {
+                console.log('[authFetchJson] Token refresh successful, retrying original request.');
+                // Retry the request with the new token (AuthService.getAuthToken() should now provide it)
+                // Ensure the original options (especially body) are correctly passed
+                const retryOptions = { ...options }; // Create a mutable copy of options
+                // authFetch will pick up the new token from AuthService
+                response = await authFetch(url, retryOptions); 
+            } else {
+                console.error('[authFetchJson] Token refresh failed. Logging out.');
+                AuthService.performLogout();
+                // Throw an error to indicate failed refresh, or re-throw the original error
+                // depending on how you want to signal this upstream.
+                throw new Error(errorBodyForCheck?.error || 'Token refresh failed and logged out');
+            }
+        }
+    }
 
     if (!response.ok) {
         let errorPayload;

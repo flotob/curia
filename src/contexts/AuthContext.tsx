@@ -1,7 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { jwtDecode } from 'jwt-decode'; // Utility to decode JWTs on the client-side
+import { AuthService } from '@/services/AuthService';
+import { useCgLib } from '@/contexts/CgLibContext';
 
 // Define the shape of the user object derived from the JWT
 interface AuthUser {
@@ -28,17 +30,21 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean; // Will now primarily reflect in-flight login(), not initial load from storage
   isAuthenticated: boolean;
-  login: (userDataFromCgLib: {
-    userId: string;
-    name?: string | null;
-    profilePictureUrl?: string | null;
-    roles?: string[]; // User's assigned role IDs
-    communityRoles?: CommunityRoleInfo[]; // Full list of community role definitions
-    communityName?: string | null;
-    iframeUid?: string | null;
-    communityId?: string | null;
-  }) => Promise<void>;
+  login: (userDataFromCgLib: UserDataFromCgLib) => Promise<void>;
   logout: () => void;
+  refreshToken: () => Promise<boolean>;
+}
+
+// Type for data expected from CgLib, used in login and stored for refresh
+interface UserDataFromCgLib {
+  userId: string;
+  name?: string | null;
+  profilePictureUrl?: string | null;
+  roles?: string[]; 
+  communityRoles?: CommunityRoleInfo[]; 
+  communityName?: string | null;
+  iframeUid?: string | null; 
+  communityId?: string | null; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,39 +56,24 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
-  // isLoading can now be primarily for the login() async operation itself
-  // Or, we can set it to false initially if there's no async loading from storage
   const [isLoading, setIsLoading] = useState<boolean>(false); 
+  const { cgInstance, isInitializing: isCgLibInitializing, iframeUid: cgIframeUid } = useCgLib();
+  const lastCgUserData = useRef<UserDataFromCgLib | null>(null);
 
-  // Removed useEffect that loaded token from localStorage
-  // The component will now start with token: null, user: null, isLoading: false (or true until first actual login attempt)
-
-  const login = async (userDataFromCgLib: {
-    userId: string;
-    name?: string | null;
-    profilePictureUrl?: string | null;
-    roles?: string[]; // User's assigned role IDs
-    communityRoles?: CommunityRoleInfo[]; // Full list of community role definitions
-    communityName?: string | null;
-    iframeUid?: string | null; 
-    communityId?: string | null; 
-  }) => {
-    console.log('[AuthContext] LOGIN FUNCTION ENTERED. User roles from input:', userDataFromCgLib.roles, 'Community roles from input:', userDataFromCgLib.communityRoles, 'Full data from CG:', JSON.stringify(userDataFromCgLib));
+  const performLoginLogic = useCallback(async (loginData: UserDataFromCgLib, isRefresh: boolean = false) => {
+    console.log(`[AuthContext] ${isRefresh ? 'REFRESHING TOKEN' : 'LOGIN ATTEMPT'}. User roles from input:`, loginData.roles, 'Community roles from input:', loginData.communityRoles);
     setIsLoading(true);
 
     const payloadForBackend = {
-        userId: userDataFromCgLib.userId,
-        name: userDataFromCgLib.name,
-        profilePictureUrl: userDataFromCgLib.profilePictureUrl,
-        roles: userDataFromCgLib.roles, 
-        communityRoles: userDataFromCgLib.communityRoles,
-        iframeUid: userDataFromCgLib.iframeUid,       
-        communityId: userDataFromCgLib.communityId,
-        communityName: userDataFromCgLib.communityName,
+        userId: loginData.userId,
+        name: loginData.name,
+        profilePictureUrl: loginData.profilePictureUrl,
+        roles: loginData.roles, 
+        communityRoles: loginData.communityRoles,
+        iframeUid: loginData.iframeUid,       
+        communityId: loginData.communityId,
+        communityName: loginData.communityName,
     };
-
-    console.log('[AuthContext] EXACT PAYLOAD BEING STRINGIFIED FOR BACKEND:', payloadForBackend);
-    console.log('[AuthContext] Value of userDataFromCgLib.communityName directly before stringify:', userDataFromCgLib.communityName);
 
     try {
       const response = await fetch('/api/auth/session', {
@@ -103,43 +94,120 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (newToken) {
         const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number, uid?: string, cid?: string, roles?: string[] }>(newToken);
         console.log('[AuthContext] New token received. Decoded JWT:', decoded);
-        // No need to check expiry here as it's a fresh token
         setToken(newToken);
         setUser({
             userId: decoded.sub,
             name: decoded.name,
             picture: decoded.picture,
             isAdmin: decoded.adm || false,
-            cid: decoded.cid, // Assign cid from decoded token
-            roles: decoded.roles, // Assign roles from decoded token
+            cid: decoded.cid, 
+            roles: decoded.roles, 
         });
-        // Removed localStorage.setItem('plugin_jwt', newToken);
+        lastCgUserData.current = loginData; // Store successful login data for potential refresh fallback
+        return true; // Indicate success
       } else {
         throw new Error('No token received from session endpoint');
       }
     } catch (error) {
-      console.error('Login failed overall:', error);
-      setToken(null);
-      setUser(null);
-      // Removed localStorage.removeItem('plugin_jwt');
+      console.error(`${isRefresh ? 'Token refresh' : 'Login'} failed overall:`, error);
+      if (!isRefresh) {
+        setToken(null);
+        setUser(null);
+      }
       throw error; 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const login = useCallback(async (userDataFromCgLib: UserDataFromCgLib) => {
+    await performLoginLogic(userDataFromCgLib, false);
+  }, [performLoginLogic]);
+
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
-    // Removed localStorage.removeItem('plugin_jwt'); 
-    setIsLoading(false); // Reset loading state on logout
+    lastCgUserData.current = null; 
+    setIsLoading(false); 
     console.log('[AuthContext] Logged out, token and user cleared.');
-  };
+  }, []);
+
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    console.log('[AuthContext] Attempting to refresh token.');
+    if (isCgLibInitializing) {
+      console.warn('[AuthContext] CgLib still initializing, refresh deferred.');
+      return false;
+    }
+
+    let freshCgData: UserDataFromCgLib | null = null;
+    const currentIframeUid = cgIframeUid || lastCgUserData.current?.iframeUid;
+
+    if (cgInstance && currentIframeUid) {
+      try {
+        const [userInfoResponse, communityInfoResponse] = await Promise.all([
+          cgInstance.getUserInfo(),
+          cgInstance.getCommunityInfo(),
+        ]);
+
+        if (userInfoResponse?.data?.id && communityInfoResponse?.data?.id) {
+          freshCgData = {
+            userId: userInfoResponse.data.id,
+            name: userInfoResponse.data.name,
+            profilePictureUrl: userInfoResponse.data.imageUrl,
+            roles: userInfoResponse.data.roles,
+            communityRoles: communityInfoResponse.data.roles, 
+            communityName: communityInfoResponse.data.title,
+            iframeUid: currentIframeUid,
+            communityId: communityInfoResponse.data.id,
+          };
+        } else {
+          console.warn('[AuthContext] Failed to get complete fresh data from CgLib for refresh.', {userInfoResponse, communityInfoResponse});
+        }
+      } catch (error) {
+        console.error('[AuthContext] Error fetching fresh data from CgLib for refresh:', error);
+      }
+    }
+
+    const dataForRefresh = freshCgData || lastCgUserData.current;
+
+    if (!dataForRefresh) {
+      console.error('[AuthContext] No user data available for token refresh. Logging out.');
+      logout();
+      return false;
+    }
+
+    try {
+      if (!dataForRefresh.iframeUid) {
+        dataForRefresh.iframeUid = currentIframeUid;
+      }
+      if (!dataForRefresh.iframeUid) {
+         console.error('[AuthContext] iframeUid missing, cannot refresh token. Logging out.');
+         logout();
+         return false;
+      }
+
+      await performLoginLogic(dataForRefresh, true);
+      return true;
+    } catch (error) {
+      console.error('[AuthContext] Token refresh failed after attempting with available data. Logging out.');
+      logout(); 
+      return false;
+    }
+  }, [cgInstance, isCgLibInitializing, performLoginLogic, logout, cgIframeUid]);
+
+  useEffect(() => {
+    AuthService.initialize(
+      () => token,
+      refreshToken,
+      logout
+    );
+    console.log('[AuthContext] AuthService initialized.');
+  }, [token, refreshToken, logout]);
 
   const isAuthenticated = !!token && !!user;
 
   return (
-    <AuthContext.Provider value={{ token, user, isLoading, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ token, user, isLoading, isAuthenticated, login, logout, refreshToken }}>
       {children}
     </AuthContext.Provider>
   );

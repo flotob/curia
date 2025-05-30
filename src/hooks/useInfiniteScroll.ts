@@ -44,6 +44,7 @@ export function useInfiniteScroll({ token, boardId, enabled = true }: UseInfinit
     enabled: enabled && !!token,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 90 * 1000, // 90 seconds
   });
 
   // Flatten pages into single posts array

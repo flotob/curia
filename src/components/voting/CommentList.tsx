@@ -24,7 +24,8 @@ export const CommentList: React.FC<CommentListProps> = ({ postId }) => {
 } = useQuery<ApiComment[], Error>({
     queryKey: ['comments', postId], // Query key specific to this post's comments
     queryFn: () => fetchComments(postId),
-    // staleTime: 1000 * 60 * 2, // e.g., comments are stale after 2 minutes
+    staleTime: 1 * 60 * 1000, // comments are stale after 1 minute
+    refetchInterval: 45 * 1000, // refetch every 45 seconds
   });
 
   if (isLoading) {
