@@ -182,7 +182,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
 
   const debouncedSetSearchQuery = useCallback(
     debounce((query: string) => setSearchQuery(query), 500), 
-    []
+    [setSearchQuery]
   );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

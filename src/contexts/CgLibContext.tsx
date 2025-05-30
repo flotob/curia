@@ -86,7 +86,7 @@ export function CgLibProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
       console.log("[CgLibContext] Cleanup from initialize effect for iframeUid:", iframeUid);
     };
-  }, [iframeUid, publicKey]);
+  }, [iframeUid]);
 
   const value = useMemo(() => ({
     cgInstance,
