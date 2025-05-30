@@ -122,8 +122,16 @@ export default function BoardSettingsPage() {
     if (boardData) {
       const hasNameChange = boardName !== boardData.name;
       const hasDescChange = boardDescription !== (boardData.description || '');
-      const hasSettingsChange = JSON.stringify(boardSettings) !== JSON.stringify(boardData.settings || {});
-      setHasChanges(hasNameChange || hasDescChange || hasSettingsChange);
+      
+      // More robust settings comparison
+      const originalSettings = boardData.settings || {};
+      const currentSettingsJson = JSON.stringify(boardSettings);
+      const originalSettingsJson = JSON.stringify(originalSettings);
+      const hasSettingsChange = currentSettingsJson !== originalSettingsJson;
+      
+      const hasAnyChanges = hasNameChange || hasDescChange || hasSettingsChange;
+      
+      setHasChanges(hasAnyChanges);
     }
   }, [boardName, boardDescription, boardSettings, boardData]);
 
@@ -142,8 +150,25 @@ export default function BoardSettingsPage() {
       return response;
     },
     onSuccess: () => {
+      // Invalidate board data queries
       queryClient.invalidateQueries({ queryKey: ['boards'] });
+      queryClient.invalidateQueries({ queryKey: ['boards', user?.cid] });
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
+      
+      // Invalidate all access-related queries to refresh UI filtering
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoards'] });
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoardsNewPost'] });
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoardsMove'] });
+      
+      // Remove cached data completely to force fresh queries
+      queryClient.removeQueries({ queryKey: ['accessibleBoards'] });
+      
+      // Force refresh with a small delay to ensure proper sequencing
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['boards'] });
+        queryClient.refetchQueries({ queryKey: ['accessibleBoards'] });
+      }, 100);
+      
       setHasChanges(false);
       toast({
         title: "Board updated",
@@ -335,6 +360,7 @@ export default function BoardSettingsPage() {
                   isLoading={updateBoardMutation.isPending}
                   theme={theme}
                   showSaveButton={false}
+                  autoSave={true}
                 />
               ) : (
                 <div className="space-y-4">
