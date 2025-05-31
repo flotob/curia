@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, CircleDotDashed } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -384,6 +384,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="flex-1">Create Board</span>
               </Link>
             )}
+          </div>
+        )}
+
+        {/* Test Links Section - for development/testing new features */}
+        {(process.env.NODE_ENV === 'development' || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+          <div className="px-3 pt-4 pb-2">
+            <h3 className={cn(
+              'px-3 text-xs font-semibold uppercase tracking-wider mb-2',
+              theme === 'dark' ? 'text-slate-500' : 'text-slate-600'
+            )}>
+              Dev Tests
+            </h3>
+            <Link
+              href={buildUrl('/circles-tests')}
+              className={cn(
+                'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
+                theme === 'dark'
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              )}
+            >
+              <div className={cn(
+                'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                theme === 'dark'
+                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+              )}>
+                <CircleDotDashed size={16} />
+              </div>
+              <span className="flex-1 text-sm font-medium">Circles Tests</span>
+            </Link>
           </div>
         )}
       </nav>

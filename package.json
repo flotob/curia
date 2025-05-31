@@ -19,6 +19,12 @@
     "migrate:down": "node-pg-migrate down -m dist/migrations"
   },
   "dependencies": {
+    "@circles-sdk/adapter-ethers": "^0.27.3",
+    "@circles-sdk/data": "^0.27.3",
+    "@circles-sdk/pathfinder": "^0.27.3",
+    "@circles-sdk/profiles": "^0.27.3",
+    "@circles-sdk/sdk": "^0.27.3",
+    "@circles-sdk/utils": "^0.27.3",
     "@common-ground-dao/cg-plugin-lib": "^0.9.13",
     "@common-ground-dao/cg-plugin-lib-host": "^0.9.6",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -46,6 +52,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "crypto": "^1.0.1",
+    "ethers": "^6",
     "highlight.js": "^11.11.1",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
