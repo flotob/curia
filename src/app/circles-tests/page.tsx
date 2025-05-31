@@ -4,15 +4,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Sdk, circlesConfig, type Avatar } from '@circles-sdk/sdk';
 import { BrowserProviderContractRunner } from '@circles-sdk/adapter-ethers';
 import { Button } from '@/components/ui/button';
-import { isAddress, getAddress, type Eip1193Provider } from 'ethers';
+import { isAddress, getAddress } from 'ethers';
 import { useAuth } from '@/contexts/AuthContext';
-
-// Extend the Window interface for TypeScript to recognize window.ethereum
-declare global {
-  interface Window {
-    ethereum?: Eip1193Provider;
-  }
-}
 
 // Type alias for Ethereum address format expected by Circles SDK
 type EthereumAddress = `0x${string}`;
