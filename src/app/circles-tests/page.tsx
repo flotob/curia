@@ -6,6 +6,8 @@ import { BrowserProviderContractRunner } from '@circles-sdk/adapter-ethers';
 import { Button } from '@/components/ui/button';
 import { isAddress, getAddress } from 'ethers';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWalletConnection } from '@/hooks/useWalletConnection';
+import { useWalletClient } from 'wagmi';
 
 // Type alias for Ethereum address format expected by Circles SDK
 type EthereumAddress = `0x${string}`;
@@ -14,16 +16,67 @@ const GNOSIS_CHAIN_ID = 100;
 
 export default function CirclesTestsPage() {
   const { token, isAuthenticated } = useAuth();
+  const { 
+    address: connectedAddress, 
+    isConnected, 
+    availableWallets,
+    connectWallet,
+    disconnect,
+    walletType,
+    isPortoAvailable,
+    isMetaMaskAvailable 
+  } = useWalletConnection();
+  const { data: walletClient } = useWalletClient();
+
   const [sdkInstance, setSdkInstance] = useState<Sdk | null>(null);
-  const [connectedEoaAddress, setConnectedEoaAddress] = useState<string | null>(null);
   const [userCirclesSafeAddress, setUserCirclesSafeAddress] = useState<string | null>(null);
   const [linkedCirclesSafeAddress, setLinkedCirclesSafeAddress] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isInitializingSdk, setIsInitializingSdk] = useState<boolean>(false);
   const [isFetchingSafe, setIsFetchingSafe] = useState<boolean>(false);
   const [isLinkingAddress, setIsLinkingAddress] = useState<boolean>(false);
   const [isCheckingLinkedAddress, setIsCheckingLinkedAddress] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [webAuthnStatus, setWebAuthnStatus] = useState<string>('Checking...');
+
+  // Check for existing linked Circles address when component mounts
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      checkLinkedCirclesAddress();
+    }
+  }, [isAuthenticated, token]);
+
+  // Auto-initialize SDK when wallet connects
+  useEffect(() => {
+    if (isConnected && walletClient && !sdkInstance) {
+      initializeCirclesSDK();
+    }
+  }, [isConnected, walletClient, sdkInstance]);
+
+  // Check WebAuthn capabilities
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hasWebAuthn = 'credentials' in navigator && 'create' in navigator.credentials;
+      
+      if (!hasWebAuthn) {
+        setWebAuthnStatus('Not supported');
+        return;
+      }
+
+      // Try to check permissions
+      if ('permissions' in navigator) {
+        navigator.permissions.query({ name: 'publickey-credentials-create' as any })
+          .then(result => {
+            setWebAuthnStatus(`Available (${result.state})`);
+          })
+          .catch(() => {
+            setWebAuthnStatus('Available (permission unknown)');
+          });
+      } else {
+        setWebAuthnStatus('Available (no permission API)');
+      }
+    }
+  }, []);
 
   const checkLinkedCirclesAddress = useCallback(async () => {
     if (!token) return;
@@ -51,12 +104,120 @@ export default function CirclesTestsPage() {
     }
   }, [token]);
 
-  // Check for existing linked Circles address when component mounts
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      checkLinkedCirclesAddress();
+  const initializeCirclesSDK = useCallback(async () => {
+    if (!walletClient) {
+      setError('No wallet client available');
+      return;
     }
-  }, [isAuthenticated, token, checkLinkedCirclesAddress]);
+
+    setIsInitializingSdk(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      setMessage('Initializing Circles SDK...');
+      
+      const sdkConfig = circlesConfig[GNOSIS_CHAIN_ID];
+      if (!sdkConfig) {
+        throw new Error(`Circles configuration for Gnosis Chain (ID: ${GNOSIS_CHAIN_ID}) not found.`);
+      }
+
+      // Create Circles adapter and initialize it
+      const adapter = new BrowserProviderContractRunner();
+      await adapter.init();
+      
+      // Verify the adapter has the expected address
+      if (!adapter.address) {
+        throw new Error('Failed to initialize adapter or get address.');
+      }
+      
+      // Create SDK with the adapter
+      const sdk = new Sdk(adapter, sdkConfig);
+      setSdkInstance(sdk);
+      setMessage('Circles SDK initialized successfully!');
+      console.log('[CirclesTestsPage] Circles SDK initialized:', sdk);
+
+    } catch (err: unknown) {
+      console.error('[CirclesTestsPage] Error initializing SDK:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during initialization.';
+      setError(errorMessage);
+      setMessage(null);
+    } finally {
+      setIsInitializingSdk(false);
+    }
+  }, [walletClient]);
+
+  const handleConnectWallet = useCallback(async (type: 'metamask' | 'porto') => {
+    try {
+      setError(null);
+      setMessage(`Connecting to ${type === 'porto' ? 'Porto' : 'MetaMask'} wallet...`);
+      await connectWallet(type);
+    } catch (err: unknown) {
+      console.error('Wallet connection error:', err);
+      let errorMessage = err instanceof Error ? err.message : 'Failed to connect wallet';
+      
+      // Provide specific guidance for different Porto iframe issues
+      if (type === 'porto') {
+        if (errorMessage.includes('Indexed property setter')) {
+          errorMessage = 'Porto wallet creation failed due to iframe restrictions. This may be a limitation in the Common Ground environment. Try using MetaMask/Rabby instead.';
+        } else if (errorMessage.includes('publickey-credentials-create') || errorMessage.includes('Failed to create credential')) {
+          errorMessage = `Porto passkey creation is blocked in this iframe environment. This requires Common Ground to enable WebAuthn permissions. 
+
+Possible solutions:
+• Use MetaMask/Rabby extension wallets (they work perfectly)
+• If you have an existing Porto account, try "Sign In" instead of "Sign Up"
+• Contact Common Ground support to enable passkey permissions for plugins`;
+        } else if (errorMessage.includes('RpcResponse.InternalError')) {
+          errorMessage = 'Porto wallet operation failed. This may be due to iframe security restrictions in the Common Ground environment. Try using MetaMask/Rabby instead.';
+        }
+      }
+      
+      setError(errorMessage);
+      setMessage(null);
+    }
+  }, [connectWallet]);
+
+  const handleGetCirclesSafeAddress = useCallback(async () => {
+    if (!sdkInstance || !connectedAddress) {
+      setError('SDK not initialized or wallet address not available.');
+      return;
+    }
+
+    if (!isAddress(connectedAddress)) {
+      setError('Invalid Ethereum address format for connected wallet.');
+      setIsFetchingSafe(false);
+      return;
+    }
+
+    const checksumAddress = getAddress(connectedAddress);
+
+    setIsFetchingSafe(true);
+    setError(null);
+    setMessage(null);
+    setUserCirclesSafeAddress(null);
+    try {
+      setMessage(`Fetching Circles Safe address for EOA: ${checksumAddress}...`);
+      // Cast the validated and checksummed address to the expected format
+      const typedAddress = checksumAddress as EthereumAddress;
+      const avatar: Avatar | null = await sdkInstance.getAvatar(typedAddress);
+      
+      if (avatar && avatar.address) {
+        setUserCirclesSafeAddress(avatar.address);
+        setMessage(`Circles Safe address found: ${avatar.address}`);
+        console.log('[CirclesTestsPage] Avatar details:', avatar);
+      } else {
+        setError(`No Circles Safe address found for EOA: ${checksumAddress}. This EOA might not be registered with Circles, or the avatar data is incomplete.`);
+        setMessage(null);
+      }
+    } catch (err: unknown) {
+      console.error('[CirclesTestsPage] Error fetching Circles Safe address:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred while fetching the Circles Safe address.';
+      setError(errorMessage);
+      setMessage(null);
+    } finally {
+      setIsFetchingSafe(false);
+    }
+  }, [sdkInstance, connectedAddress]);
 
   const handleLinkCirclesAddress = useCallback(async () => {
     if (!token || !userCirclesSafeAddress) {
@@ -96,96 +257,24 @@ export default function CirclesTestsPage() {
     }
   }, [token, userCirclesSafeAddress]);
 
-  const handleConnectAndInitSdk = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setMessage(null);
-    setSdkInstance(null);
-    setConnectedEoaAddress(null);
-    setUserCirclesSafeAddress(null);
-
-    if (!window.ethereum) {
-      setError('MetaMask (or another Ethereum wallet) is not installed. Please install it to continue.');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setMessage('Connecting to wallet and initializing Circles SDK...');
-      const adapter = new BrowserProviderContractRunner();
-      await adapter.init();
-      
-      if (!adapter.address) {
-        throw new Error('Failed to connect wallet or get address.');
-      }
-      setConnectedEoaAddress(adapter.address);
-      setMessage(`Wallet connected: ${adapter.address}. Initializing SDK...`);
-
-      const sdkConfig = circlesConfig[GNOSIS_CHAIN_ID];
-      if (!sdkConfig) {
-        throw new Error(`Circles configuration for Gnosis Chain (ID: ${GNOSIS_CHAIN_ID}) not found.`);
-      }
-
-      const sdk = new Sdk(adapter, sdkConfig);
-      setSdkInstance(sdk);
-      setMessage('Circles SDK initialized successfully! You can now try to get your Circles Safe address.');
-      console.log('[CirclesTestsPage] Circles SDK initialized:', sdk);
-
-    } catch (err: unknown) {
-      console.error('[CirclesTestsPage] Error connecting wallet or initializing SDK:', err);
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during initialization.';
-      setError(errorMessage);
-      setMessage(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const handleGetCirclesSafeAddress = useCallback(async () => {
-    if (!sdkInstance || !connectedEoaAddress) {
-      setError('SDK not initialized or EOA address not available.');
-      return;
-    }
-
-    if (!isAddress(connectedEoaAddress)) {
-      setError('Invalid Ethereum address format for connected EOA.');
-      setIsFetchingSafe(false);
-      return;
-    }
-
-    const checksumAddress = getAddress(connectedEoaAddress);
-
-    setIsFetchingSafe(true);
-    setError(null);
-    setMessage(null);
-    setUserCirclesSafeAddress(null);
-    try {
-      setMessage(`Fetching Circles Safe address for EOA: ${checksumAddress}...`);
-      // Cast the validated and checksummed address to the expected format
-      const typedAddress = checksumAddress as EthereumAddress;
-      const avatar: Avatar | null = await sdkInstance.getAvatar(typedAddress);
-      
-      if (avatar && avatar.address) {
-        setUserCirclesSafeAddress(avatar.address);
-        setMessage(`Circles Safe address found: ${avatar.address}`);
-        console.log('[CirclesTestsPage] Avatar details:', avatar);
-      } else {
-        setError(`No Circles Safe address found for EOA: ${checksumAddress}. This EOA might not be registered with Circles, or the avatar data is incomplete.`);
-        setMessage(null);
-      }
-    } catch (err: unknown) {
-      console.error('[CirclesTestsPage] Error fetching Circles Safe address:', err);
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred while fetching the Circles Safe address.';
-      setError(errorMessage);
-      setMessage(null);
-    } finally {
-      setIsFetchingSafe(false);
-    }
-  }, [sdkInstance, connectedEoaAddress]);
-
   return (
     <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-semibold">Circles Integration Tests</h1>
+      <h1 className="text-2xl font-semibold">Circles Integration Tests - Porto Edition</h1>
+
+      {/* Debug section for iframe context */}
+      <section className="p-4 border rounded-lg shadow-sm space-y-4">
+        <h2 className="text-xl font-medium">Environment Debug</h2>
+        <div className="text-sm space-y-1">
+          <p><strong>In iframe:</strong> {window.self !== window.top ? 'Yes' : 'No'}</p>
+          <p><strong>Frame depth:</strong> {window.self !== window.top ? (window.parent !== window.top ? 'Nested (2+)' : 'Single (1)') : 'None (0)'}</p>
+          <p><strong>Porto available:</strong> {isPortoAvailable ? 'Yes' : 'No'}</p>
+          <p><strong>Available wallets:</strong> {availableWallets.length}</p>
+          {typeof document !== 'undefined' && (
+            <p><strong>Document domain:</strong> {document.domain}</p>
+          )}
+          <p><strong>WebAuthn status:</strong> {webAuthnStatus}</p>
+        </div>
+      </section>
 
       {/* Authentication Status */}
       <section className="p-4 border rounded-lg shadow-sm space-y-4">
@@ -217,31 +306,94 @@ export default function CirclesTestsPage() {
         )}
       </section>
 
+      {/* Wallet Connection Section */}
       <section className="p-4 border rounded-lg shadow-sm space-y-4">
-        <h2 className="text-xl font-medium">WP1.1: Connect Wallet & Init SDK</h2>
-        <Button onClick={handleConnectAndInitSdk} disabled={isLoading || isFetchingSafe}>
-          {isLoading ? 'Initializing SDK...' : (sdkInstance ? 'SDK Initialized' : 'Connect Wallet & Initialize SDK')}
-        </Button>
-
-        {connectedEoaAddress && (
-          <div className="mt-2 p-3 border rounded bg-slate-100 dark:bg-slate-800">
-            <p className="font-semibold text-slate-700 dark:text-slate-200">Wallet Connected</p>
-            <p className="text-sm text-slate-600 dark:text-slate-300 break-all">Your EOA: {connectedEoaAddress}</p>
+        <h2 className="text-xl font-medium">Wallet Connection</h2>
+        
+        {!isConnected ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">Choose your wallet type:</p>
+            
+            {isPortoAvailable && (
+              <Button 
+                onClick={() => handleConnectWallet('porto')}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                🌐 Connect with Porto (No Extension Required)
+              </Button>
+            )}
+            
+            {isMetaMaskAvailable && (
+              <Button 
+                onClick={() => handleConnectWallet('metamask')}
+                variant="outline"
+                className="w-full"
+              >
+                🦊 Connect with MetaMask/Rabby
+              </Button>
+            )}
+            
+            {availableWallets.length > 0 && (
+              <div className="mt-4 p-3 border rounded bg-gray-50 dark:bg-gray-800">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Available Wallet Options:</p>
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  {availableWallets.map((wallet, index) => (
+                    <li key={index}>• {wallet.name} ({wallet.type})</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {availableWallets.length === 0 && (
+              <div className="p-3 border rounded bg-yellow-100 dark:bg-yellow-900/30">
+                <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                  No wallet options detected. Please ensure MetaMask/Rabby is installed or wait for Porto to initialize.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-3 border rounded bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700">
+              <p className="font-semibold text-green-700 dark:text-green-400">
+                ✓ Connected via {walletType === 'porto' ? 'Porto' : walletType === 'metamask' ? 'MetaMask/Browser Extension' : 'Unknown Wallet'}
+              </p>
+              <p className="text-sm text-green-600 dark:text-green-300 break-all">
+                Address: {connectedAddress}
+              </p>
+            </div>
+            
+            <Button onClick={() => disconnect()} variant="outline" size="sm">
+              Disconnect Wallet
+            </Button>
           </div>
         )}
 
-        {sdkInstance && (
-          <div className="mt-2 p-3 border rounded bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700">
-            <p className="font-semibold text-green-700 dark:text-green-400">SDK Initialized</p>
-            <p className="text-sm text-green-600 dark:text-green-300">Circles SDK instance is ready.</p>
+        {/* SDK Status */}
+        {isConnected && (
+          <div className="mt-4">
+            {isInitializingSdk ? (
+              <div className="p-3 border rounded bg-blue-100 dark:bg-blue-900/30">
+                <p className="text-sm text-blue-600 dark:text-blue-300">Initializing Circles SDK...</p>
+              </div>
+            ) : sdkInstance ? (
+              <div className="p-3 border rounded bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700">
+                <p className="font-semibold text-green-700 dark:text-green-400">✓ Circles SDK Ready</p>
+                <p className="text-sm text-green-600 dark:text-green-300">Ready for Circles operations</p>
+              </div>
+            ) : (
+              <Button onClick={initializeCirclesSDK} className="w-full">
+                Initialize Circles SDK
+              </Button>
+            )}
           </div>
         )}
       </section>
 
-      {sdkInstance && connectedEoaAddress && (
+      {sdkInstance && connectedAddress && (
         <section className="p-4 border rounded-lg shadow-sm space-y-4">
           <h2 className="text-xl font-medium">WP1.2: Get & Link Circles Identity</h2>
-          <Button onClick={handleGetCirclesSafeAddress} disabled={isFetchingSafe || !sdkInstance || !connectedEoaAddress}>
+          <Button onClick={handleGetCirclesSafeAddress} disabled={isFetchingSafe || !sdkInstance || !connectedAddress}>
             {isFetchingSafe ? 'Fetching Safe Address...' : 'Get My Circles Safe Address'}
           </Button>
           
