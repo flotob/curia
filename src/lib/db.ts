@@ -1,24 +1,49 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-  user: process.env.POSTGRES_USER || 'plugin_user',
-  password: process.env.POSTGRES_PASSWORD || 'plugin_password',
-  database: process.env.POSTGRES_DB || 'plugin_db',
-  max: 20, // Max number of clients in the pool
-  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 2000, // How long to wait for a connection from the pool
-});
+// Create database pool configuration
+// Prioritize DATABASE_URL if available, otherwise use individual env vars
+const createPoolConfig = () => {
+  if (process.env.DATABASE_URL) {
+    console.log('[DB] Using DATABASE_URL for connection');
+    return {
+      connectionString: process.env.DATABASE_URL,
+      max: 20, // Max number of clients in the pool
+      idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
+      connectionTimeoutMillis: 2000, // How long to wait for a connection from the pool
+    };
+  } else {
+    console.log('[DB] Using individual PostgreSQL environment variables');
+    return {
+      host: process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
+      user: process.env.POSTGRES_USER || 'plugin_user',
+      password: process.env.POSTGRES_PASSWORD || 'plugin_password',
+      database: process.env.POSTGRES_DB || 'plugin_db',
+      max: 20, // Max number of clients in the pool
+      idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
+      connectionTimeoutMillis: 2000, // How long to wait for a connection from the pool
+    };
+  }
+};
 
-pool.on('error', (err: Error, /* client: PoolClient */) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
+// Lazy pool creation - don't create until first use
+let pool: Pool | null = null;
+const getPool = () => {
+  if (!pool) {
+    console.log('[DB] Creating database pool...');
+    pool = new Pool(createPoolConfig());
+    
+    pool.on('error', (err: Error, /* client: PoolClient */) => {
+      console.error('Unexpected error on idle client', err);
+      process.exit(-1);
+    });
+  }
+  return pool;
+};
 
 export const query = async (text: string, values?: (string | number | boolean | null)[]): Promise<QueryResult> => {
   const start = Date.now();
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     const res = await client.query(text, values);
     const duration = Date.now() - start;
@@ -35,8 +60,7 @@ export const query = async (text: string, values?: (string | number | boolean | 
 // Function to get a client from the pool for manual transaction management
 export async function getClient(): Promise<PoolClient> {
   try {
-    // const client = await pool.connect();
-    return await pool.connect();
+    return await getPool().connect();
   } catch (error) {
     console.error('Error getting database client:', error);
     throw new Error((error as Error).message || 'Failed to connect to database');
@@ -46,12 +70,16 @@ export async function getClient(): Promise<PoolClient> {
 // Optional: A way to gracefully close the pool when the application exits
 process.on('SIGINT', async () => {
   console.log('Closing database pool...');
-  await pool.end();
+  if (pool) {
+    await pool.end();
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('Closing database pool...');
-  await pool.end();
+  if (pool) {
+    await pool.end();
+  }
   process.exit(0);
 }); 
