@@ -54,22 +54,13 @@ export const BoardAccessForm: React.FC<BoardAccessFormProps> = ({
     }
   }, [settings, hasChanges, autoSave, onSave]);
 
-  // Available roles are limited by community-level restrictions
+  // Available roles for board gating (independent of community restrictions)
   const availableRoles = useMemo(() => {
     if (!communityRoles) return [];
     
-    const communityAllowedRoles = communitySettings?.permissions?.allowedRoles;
-    if (!communityAllowedRoles || communityAllowedRoles.length === 0) {
-      // Community allows all roles, but filter out admin roles for board selection
-      return communityRoles.filter(role => !role.title.toLowerCase().includes('admin'));
-    }
-    
-    // Only show non-admin roles that are allowed at community level
-    return communityRoles.filter(role => 
-      communityAllowedRoles.includes(role.id) && 
-      !role.title.toLowerCase().includes('admin')
-    );
-  }, [communityRoles, communitySettings]);
+    // Show ALL non-admin roles for board gating, regardless of community settings
+    return communityRoles.filter(role => !role.title.toLowerCase().includes('admin'));
+  }, [communityRoles]);
 
   const hasCommunityRestrictions = !!(communitySettings?.permissions?.allowedRoles?.length);
 
@@ -182,7 +173,7 @@ export const BoardAccessForm: React.FC<BoardAccessFormProps> = ({
               <p className={cn(
                 theme === 'dark' ? 'text-amber-300' : 'text-amber-700'
               )}>
-                This community restricts plugin access to specific roles. Board permissions can only further restrict access within those roles.
+                This community restricts plugin access to specific roles. Board permissions work independently and can gate to any role.
               </p>
             </div>
           </div>
@@ -298,10 +289,7 @@ export const BoardAccessForm: React.FC<BoardAccessFormProps> = ({
                   )}>
                     <Users size={24} className="mx-auto mb-2 opacity-50" />
                     <p className="text-sm">
-                      {hasCommunityRestrictions 
-                        ? "No additional role restrictions available due to community settings"
-                        : "No roles available to configure"
-                      }
+                      No roles available to configure
                     </p>
                   </div>
                 )}
