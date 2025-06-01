@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
-import { getClient } from '@/lib/db'; // Use getClient for transactions
+import { getClient, query } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
+import { canUserAccessBoard } from '@/lib/boardPermissions';
 
-// POST to upvote a post (protected)
+// POST to upvote a post (protected and permission-checked)
 async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
   const params = await context.params;
   const postId = parseInt(params.postId, 10);
+  const userRoles = user?.roles;
+  const isAdmin = user?.adm || false;
+  const userCommunityId = user?.cid;
   let client: PoolClient | null = null; // Declare client here to be accessible in finally block
 
   if (!user || !user.sub) {
@@ -20,6 +24,34 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
   const userId = user.sub;
 
   try {
+    // SECURITY: First, check if user can access the board where this post belongs
+    const postBoardResult = await query(
+      `SELECT p.board_id, b.settings, b.community_id 
+       FROM posts p 
+       JOIN boards b ON p.board_id = b.id 
+       WHERE p.id = $1`,
+      [postId]
+    );
+
+    if (postBoardResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    
+    // Verify post belongs to user's community
+    if (community_id !== userCommunityId) {
+      console.warn(`[API POST /api/posts/${postId}/votes] User ${userId} from community ${userCommunityId} attempted to vote on post from community ${community_id}`);
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const boardSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    
+    // Check board access permissions
+    if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
+      console.warn(`[API POST /api/posts/${postId}/votes] User ${userId} attempted to vote on restricted board ${board_id}`);
+      return NextResponse.json({ error: 'You do not have permission to vote on this post' }, { status: 403 });
+    }
     client = await getClient();
     await client.query('BEGIN');
 
@@ -72,11 +104,14 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
   }
 }
 
-// DELETE to remove an upvote (protected)
+// DELETE to remove an upvote (protected and permission-checked)
 async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
   const params = await context.params;
   const postId = parseInt(params.postId, 10);
+  const userRoles = user?.roles;
+  const isAdmin = user?.adm || false;
+  const userCommunityId = user?.cid;
   let client: PoolClient | null = null;
 
   if (!user || !user.sub) {
@@ -89,6 +124,34 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
   const userId = user.sub;
 
   try {
+    // SECURITY: First, check if user can access the board where this post belongs
+    const postBoardResult = await query(
+      `SELECT p.board_id, b.settings, b.community_id 
+       FROM posts p 
+       JOIN boards b ON p.board_id = b.id 
+       WHERE p.id = $1`,
+      [postId]
+    );
+
+    if (postBoardResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    
+    // Verify post belongs to user's community
+    if (community_id !== userCommunityId) {
+      console.warn(`[API DELETE /api/posts/${postId}/votes] User ${userId} from community ${userCommunityId} attempted to unvote on post from community ${community_id}`);
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const boardSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    
+    // Check board access permissions
+    if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
+      console.warn(`[API DELETE /api/posts/${postId}/votes] User ${userId} attempted to unvote on restricted board ${board_id}`);
+      return NextResponse.json({ error: 'You do not have permission to vote on this post' }, { status: 403 });
+    }
     client = await getClient();
     await client.query('BEGIN');
 

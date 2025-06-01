@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
+import { getAccessibleBoardIds } from '@/lib/boardPermissions';
 
 // Interface for the structure of a post when returned by the API
 export interface ApiPost {
@@ -88,6 +89,8 @@ function buildCursorWhere(cursor: string | null, baseWhere: string, currentParam
 async function getAllPostsHandler(req: AuthenticatedRequest) {
   const currentUserId = req.user?.sub; 
   const currentCommunityId = req.user?.cid; // Get communityId from JWT
+  const userRoles = req.user?.roles; // Get user roles from JWT
+  const isAdmin = req.user?.adm || false; // Get admin status from JWT
   const { searchParams } = new URL(req.url);
   const cursor = searchParams.get('cursor'); // Replace page param with cursor
   const limit = parseInt(searchParams.get('limit') || '20', 10); // Increase default for infinite scroll
@@ -103,17 +106,58 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
   }
 
   try {
+    // SECURITY: Get accessible boards based on user permissions
+    const boardsResult = await query(
+      'SELECT id, settings FROM boards WHERE community_id = $1',
+      [currentCommunityId]
+    );
+    
+    const allBoards = boardsResult.rows.map(row => ({
+      ...row,
+      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+    }));
+    
+    // Filter boards based on user permissions
+    const accessibleBoardIds = getAccessibleBoardIds(allBoards, userRoles, isAdmin);
+    
+    // If user has no accessible boards, return empty result
+    if (accessibleBoardIds.length === 0) {
+      console.warn(`[API GET /api/posts] User ${currentUserId} has no accessible boards in community ${currentCommunityId}`);
+      return NextResponse.json({ 
+        posts: [], 
+        pagination: { nextCursor: null, hasMore: false, limit } 
+      }, { status: 200 });
+    }
+    
+    // If boardId is specified, verify user can access that specific board
+    if (boardId) {
+      const requestedBoardId = parseInt(boardId, 10);
+      if (!accessibleBoardIds.includes(requestedBoardId)) {
+        console.warn(`[API GET /api/posts] User ${currentUserId} attempted to access restricted board ${requestedBoardId}`);
+        return NextResponse.json({ 
+          posts: [], 
+          pagination: { nextCursor: null, hasMore: false, limit } 
+        }, { status: 200 });
+      }
+    }
     // Build base query parameters
     const baseParams: (string | number)[] = [];
     if (currentUserId) baseParams.push(currentUserId);
     baseParams.push(currentCommunityId);
     
-    // Build base WHERE clause - filter by community, and optionally by board
+    // Build base WHERE clause - filter by community and accessible boards
     let baseWhere = `WHERE b.community_id = $${currentUserId ? '2' : '1'}`;
     
+    // SECURITY: Only include posts from boards user can access
     if (boardId) {
+      // If specific board requested, we already verified access above
       baseWhere += ` AND p.board_id = $${baseParams.length + 1}`;
       baseParams.push(parseInt(boardId, 10));
+    } else {
+      // Filter to only accessible boards
+      const boardIdPlaceholders = accessibleBoardIds.map((_, index) => `$${baseParams.length + index + 1}`).join(', ');
+      baseWhere += ` AND p.board_id IN (${boardIdPlaceholders})`;
+      baseParams.push(...accessibleBoardIds);
     }
 
     // Build cursor-based WHERE clause
@@ -179,6 +223,8 @@ async function createPostHandler(req: AuthenticatedRequest) {
     return NextResponse.json({ error: 'Authentication required, or community ID missing in token' }, { status: 401 });
   }
   const currentCommunityId = user.cid;
+  const userRoles = user.roles;
+  const isAdmin = user.adm || false;
 
   try {
     const body = await req.json();
@@ -202,10 +248,17 @@ async function createPostHandler(req: AuthenticatedRequest) {
       return NextResponse.json({ error: 'Invalid board or board does not belong to your community' }, { status: 400 });
     }
 
-    const validBoardId = boardResult.rows[0].id;
+    const board = boardResult.rows[0];
+    const boardSettings = typeof board.settings === 'string' ? JSON.parse(board.settings) : board.settings;
     
-    // Board settings are available but not used in this basic implementation
-    // In future, we could use them to validate permissions, etc.
+    // SECURITY: Verify user can access this board before allowing post creation
+    const { canUserAccessBoard } = await import('@/lib/boardPermissions');
+    if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
+      console.warn(`[API POST /api/posts] User ${user.sub} attempted to post in restricted board ${boardId}`);
+      return NextResponse.json({ error: 'You do not have permission to post in this board' }, { status: 403 });
+    }
+
+    const validBoardId = board.id;
     
     const result = await query(
       'INSERT INTO posts (author_user_id, title, content, tags, board_id, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, 0, 0) RETURNING *',

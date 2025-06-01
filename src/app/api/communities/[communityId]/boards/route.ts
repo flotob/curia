@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { BoardSettings } from '@/types/settings';
+import { filterAccessibleBoards, canUserAccessBoard } from '@/lib/boardPermissions';
 
 export interface ApiBoard {
   id: number;
@@ -24,6 +25,8 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Rou
   const { communityId } = params;
   const requestingUserId = req.user?.sub; // For logging or future checks
   const requestingUserCommunityId = req.user?.cid; // User's own community from token
+  const userRoles = req.user?.roles; // Get user roles from JWT
+  const isAdmin = req.user?.adm || false; // Get admin status from JWT
 
   if (!communityId) {
     return NextResponse.json({ error: 'Community ID is required' }, { status: 400 });
@@ -32,7 +35,7 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Rou
   // Security check: Ensure the user is requesting boards for their own community
   if (communityId !== requestingUserCommunityId) {
     console.warn(`User ${requestingUserId} from community ${requestingUserCommunityId} attempted to fetch boards for community ${communityId}`);
-    if (!req.user?.adm) { // Only allow if admin or it's their own community
+    if (!isAdmin) { // Only allow if admin or it's their own community
         return NextResponse.json({ error: 'Forbidden: You can only fetch boards for your own community.' }, { status: 403 });
     }
   }
@@ -43,12 +46,24 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Rou
       [communityId]
     );
 
-    const boards: ApiBoard[] = result.rows.map(row => ({
+    const allBoards: ApiBoard[] = result.rows.map(row => ({
       ...row,
       settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
     }));
     
-    return NextResponse.json(boards);
+    // SECURITY: Filter boards based on user permissions
+    const accessibleBoards = filterAccessibleBoards(allBoards, userRoles, isAdmin);
+    
+    // Add access permission flags for each board
+    const boardsWithPermissions = accessibleBoards.map(board => ({
+      ...board,
+      user_can_access: true, // All returned boards are accessible
+      user_can_post: canUserAccessBoard(userRoles, board.settings, isAdmin) // Same logic for now, could be different in future
+    }));
+    
+    console.log(`[API GET /api/communities/${communityId}/boards] User ${requestingUserId} can access ${boardsWithPermissions.length}/${allBoards.length} boards`);
+    
+    return NextResponse.json(boardsWithPermissions);
 
   } catch (error) {
     console.error(`[API] Error fetching boards for community ${communityId}:`, error);

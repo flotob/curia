@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query, getClient } from '@/lib/db';
+import { canUserAccessBoard } from '@/lib/boardPermissions';
 
 // Interface for the structure of a comment when returned by the API
 export interface ApiComment {
@@ -15,15 +16,50 @@ export interface ApiComment {
   author_profile_picture_url: string | null;
 }
 
-// GET comments for a post
-export async function GET(req: NextRequest, context: RouteContext) {
+// GET comments for a post (now protected and permission-checked)
+async function getCommentsHandler(req: AuthenticatedRequest, context: RouteContext) {
   const params = await context.params;
   const postId = parseInt(params.postId, 10);
+  const userRoles = req.user?.roles;
+  const isAdmin = req.user?.adm || false;
+  const userId = req.user?.sub;
+  const userCommunityId = req.user?.cid;
+
   if (isNaN(postId)) {
     return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
   }
 
   try {
+    // SECURITY: First, check if user can access the board where this post belongs
+    const postBoardResult = await query(
+      `SELECT p.board_id, b.settings, b.community_id 
+       FROM posts p 
+       JOIN boards b ON p.board_id = b.id 
+       WHERE p.id = $1`,
+      [postId]
+    );
+
+    if (postBoardResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    
+    // Verify post belongs to user's community
+    if (community_id !== userCommunityId) {
+      console.warn(`[API GET /api/posts/${postId}/comments] User ${userId} from community ${userCommunityId} attempted to access post from community ${community_id}`);
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const boardSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    
+    // Check board access permissions
+    if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
+      console.warn(`[API GET /api/posts/${postId}/comments] User ${userId} attempted to access comments from restricted board ${board_id}`);
+      return NextResponse.json({ error: 'You do not have permission to view this post' }, { status: 403 });
+    }
+
+    // User has permission, fetch comments
     const result = await query(
       `SELECT 
         c.id,
@@ -38,7 +74,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       FROM comments c
       JOIN users u ON c.author_user_id = u.user_id
       WHERE c.post_id = $1
-      ORDER BY c.created_at ASC`, // Oldest first, can be changed to DESC for newest
+      ORDER BY c.created_at ASC`,
       [postId]
     );
 
@@ -51,11 +87,14 @@ export async function GET(req: NextRequest, context: RouteContext) {
   }
 }
 
-// POST a new comment (protected)
+// POST a new comment (protected and permission-checked)
 async function createCommentHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
   const params = await context.params;
   const postId = parseInt(params.postId, 10);
+  const userRoles = user?.roles;
+  const isAdmin = user?.adm || false;
+  const userCommunityId = user?.cid;
 
   if (!user || !user.sub) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -65,6 +104,35 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
   }
 
   try {
+    // SECURITY: First, check if user can access the board where this post belongs
+    const postBoardResult = await query(
+      `SELECT p.board_id, b.settings, b.community_id 
+       FROM posts p 
+       JOIN boards b ON p.board_id = b.id 
+       WHERE p.id = $1`,
+      [postId]
+    );
+
+    if (postBoardResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    
+    // Verify post belongs to user's community
+    if (community_id !== userCommunityId) {
+      console.warn(`[API POST /api/posts/${postId}/comments] User ${user.sub} from community ${userCommunityId} attempted to comment on post from community ${community_id}`);
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const boardSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    
+    // Check board access permissions
+    if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
+      console.warn(`[API POST /api/posts/${postId}/comments] User ${user.sub} attempted to comment on restricted board ${board_id}`);
+      return NextResponse.json({ error: 'You do not have permission to comment on this post' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { content, parent_comment_id } = body;
 
@@ -116,4 +184,5 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
   }
 }
 
+export const GET = withAuth(getCommentsHandler, false);
 export const POST = withAuth(createCommentHandler, false); 
