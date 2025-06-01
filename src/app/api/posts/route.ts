@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { getAccessibleBoardIds } from '@/lib/boardPermissions';
+import { socketEvents } from '@/lib/socket';
 
 // Interface for the structure of a post when returned by the API
 export interface ApiPost {
@@ -271,6 +272,19 @@ async function createPostHandler(req: AuthenticatedRequest) {
       user_has_upvoted: false, // New post, so user cannot have upvoted yet
       board_name: '' // This would require another query or joining in the INSERT, for now empty
     };
+
+    // 🚀 REAL-TIME: Broadcast new post to board room
+    socketEvents.broadcastNewPost(validBoardId, {
+      id: newPost.id,
+      title: newPost.title,
+      author_user_id: newPost.author_user_id,
+      author_name: newPost.author_name,
+      author_profile_picture_url: newPost.author_profile_picture_url,
+      created_at: newPost.created_at,
+      upvote_count: newPost.upvote_count,
+      comment_count: newPost.comment_count,
+      board_id: validBoardId
+    });
         
     console.log('[API] POST /api/posts called by user:', user.sub, 'with body:', body);
     return NextResponse.json(newPost, { status: 201 }); 

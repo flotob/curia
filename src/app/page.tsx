@@ -7,6 +7,7 @@ import { FeedList } from '@/components/voting/FeedList';
 import { NewPostForm } from '@/components/voting/NewPostForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
+import { useSocket } from '@/contexts/SocketContext';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
@@ -20,6 +21,7 @@ import {
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
   const { token, user } = useAuth();
+  const { joinBoard, leaveBoard, isConnected } = useSocket();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -31,6 +33,23 @@ export default function HomePage() {
     const cgTheme = searchParams?.get('cg_theme') || 'light';
     setTheme(cgTheme as 'light' | 'dark');
   }, [searchParams]);
+
+  // 🚀 REAL-TIME: Auto-join/leave board rooms based on current boardId
+  useEffect(() => {
+    if (!isConnected || !boardId) return;
+
+    const boardIdNum = parseInt(boardId, 10);
+    if (isNaN(boardIdNum)) return;
+
+    console.log(`[HomePage] Auto-joining board room: ${boardIdNum}`);
+    joinBoard(boardIdNum);
+
+    // Cleanup: leave board room when component unmounts or boardId changes
+    return () => {
+      console.log(`[HomePage] Auto-leaving board room: ${boardIdNum}`);
+      leaveBoard(boardIdNum);
+    };
+  }, [isConnected, boardId, joinBoard, leaveBoard]);
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {

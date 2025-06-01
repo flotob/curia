@@ -4,6 +4,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CgLibProvider } from '@/contexts/CgLibContext';
+import { SocketProvider } from '@/contexts/SocketContext';
 import { AppInitializer } from '@/components/AppInitializer';
 // import { ReactQueryDevtools } from '@tanstack/react-query-devtools'; // Optional, for development
 
@@ -27,11 +28,13 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <CgLibProvider>
       <AuthProvider>
-        <AppInitializer />
-        <QueryClientProvider client={queryClient}>
-          {children}
-          {/* <ReactQueryDevtools initialIsOpen={false} /> */}
-        </QueryClientProvider>
+        <SocketProvider>
+          <AppInitializer />
+          <QueryClientProvider client={queryClient}>
+            {children}
+            {/* <ReactQueryDevtools initialIsOpen={false} /> */}
+          </QueryClientProvider>
+        </SocketProvider>
       </AuthProvider>
     </CgLibProvider>
   );

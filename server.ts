@@ -1,3 +1,22 @@
+import dotenv from 'dotenv';
+
+// Load environment variables for custom server (development only)
+if (process.env.NODE_ENV === 'development') {
+  // Load .env first
+  const envResult = dotenv.config({ path: '.env' });
+  console.log('[Server] dotenv.config attempt for .env:',
+    envResult.error ? envResult.error.message : 'OK',
+    'Parsed vars:', envResult.parsed ? Object.keys(envResult.parsed) : 'None'
+  );
+
+  // Then load .env.development, allowing it to override .env for development
+  const envDevResult = dotenv.config({ path: '.env.development', override: true });
+  console.log('[Server] dotenv.config attempt for .env.development (with override):',
+    envDevResult.error ? envDevResult.error.message : 'OK',
+    'Parsed vars:', envDevResult.parsed ? Object.keys(envDevResult.parsed) : 'None'
+  );
+}
+
 import next from "next";
 import { createServer } from "node:http";
 import { Server as SocketIOServer, Socket } from "socket.io";
@@ -7,10 +26,23 @@ import { query } from './src/lib/db';
 import { JwtPayload } from './src/lib/withAuth';
 import { setSocketIO } from './src/lib/socket';
 
+// Load environment variables for custom server (development only)
+// if (process.env.NODE_ENV !== 'production' && !process.env.JWT_SECRET) {
+//  require('dotenv').config();
+//  console.log('[Server] Loaded .env file for development');
+// }
+
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
-const JWT_SECRET = process.env.JWT_SECRET;
+
+// Debug environment variables loading
+console.log('[Server] Environment check:', {
+  NODE_ENV: process.env.NODE_ENV,
+  hasJWT_SECRET: !!process.env.JWT_SECRET,
+  hasDATABASE_URL: !!process.env.DATABASE_URL,
+  PORT: process.env.PORT || '3000'
+});
 
 // Global Socket.IO instance that API routes can import
 let io: SocketIOServer;
@@ -47,7 +79,11 @@ async function bootstrap() {
   // JWT Authentication middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
     try {
-      if (!JWT_SECRET) {
+      const currentJwtSecret = process.env.JWT_SECRET;
+      console.log('[Socket.IO Auth] Checking JWT. Secret available:', !!currentJwtSecret, 'Value (first 5 chars):', currentJwtSecret?.substring(0,5));
+
+      if (!currentJwtSecret) {
+        console.error('[Socket.IO Auth] JWT_SECRET is not available at runtime!');
         return next(new Error('Server configuration error'));
       }
 
@@ -59,7 +95,7 @@ async function bootstrap() {
       }
 
       // Verify JWT using same logic as API routes
-      const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+      const decoded = jwt.verify(token, currentJwtSecret) as JwtPayload;
       
       // Attach user data to socket
       socket.data.user = decoded;

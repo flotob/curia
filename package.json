@@ -7,7 +7,7 @@
     "yarn": ">=1.22.0"
   },
   "scripts": {
-    "dev": "tsx watch server.ts",
+    "dev": "NODE_ENV=development tsx watch server.ts",
     "build": "next build && npx tsc -p tsconfig.server.json",
     "start": "node server.js",
     "lint": "next lint",
@@ -58,6 +58,7 @@
     "react-dom": "^19.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "sonner": "^2.0.4",
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
     "tiptap-markdown": "^0.8.10"

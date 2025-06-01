@@ -3,6 +3,7 @@ import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { getClient, query } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { socketEvents } from '@/lib/socket';
 
 // POST to upvote a post (protected and permission-checked)
 async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
@@ -90,7 +91,12 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
         return NextResponse.json({ error: 'Post not found after voting' }, { status: 404 });
     }
 
-    return NextResponse.json({ post: updatedPostResult.rows[0], message: 'Vote added successfully' });
+    const updatedPost = updatedPostResult.rows[0];
+    
+    // 🚀 REAL-TIME: Broadcast vote update to board room
+    socketEvents.broadcastVoteUpdate(board_id, postId, updatedPost.upvote_count, userId);
+
+    return NextResponse.json({ post: updatedPost, message: 'Vote added successfully' });
 
   } catch (error) {
     if (client) await client.query('ROLLBACK');
@@ -177,7 +183,12 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
         return NextResponse.json({ error: 'Post not found after unvoting' }, { status: 404 });
     }
 
-    return NextResponse.json({ post: updatedPostResult.rows[0], message: 'Vote removed successfully' });
+    const updatedPost = updatedPostResult.rows[0];
+    
+    // 🚀 REAL-TIME: Broadcast vote update to board room
+    socketEvents.broadcastVoteUpdate(board_id, postId, updatedPost.upvote_count, userId);
+
+    return NextResponse.json({ post: updatedPost, message: 'Vote removed successfully' });
 
   } catch (error) {
     if (client) await client.query('ROLLBACK');
