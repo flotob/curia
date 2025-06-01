@@ -41,6 +41,12 @@ export const BoardAccessForm: React.FC<BoardAccessFormProps> = ({
 
   const isUnrestricted = !settings.permissions?.allowedRoles?.length;
 
+  // BUGFIX: Sync internal state with currentSettings prop when it changes
+  React.useEffect(() => {
+    setSettings(currentSettings);
+    setHasChanges(false); // Reset changes flag when switching boards
+  }, [currentSettings]);
+
   // Auto-save when settings change in create mode
   React.useEffect(() => {
     if (autoSave && hasChanges) {
