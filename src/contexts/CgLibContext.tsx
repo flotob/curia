@@ -29,7 +29,7 @@ export function CgLibProvider({ children }: { children: React.ReactNode }) {
 
   // Effect to update iframeUid state from searchParams and handle redirect
   useEffect(() => {
-    const uidFromParams = searchParams.get('iframeUid');
+    const uidFromParams = searchParams?.get('iframeUid');
     const pluginInstanceUrl = process.env.NEXT_PUBLIC_PLUGIN_INSTANCE_URL;
 
     if (!uidFromParams) {

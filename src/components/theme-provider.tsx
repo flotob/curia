@@ -49,9 +49,9 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 function CgThemeSynchronizer() {
   const { setTheme, theme } = useTheme();
   const searchParams = useSearchParams();
-  const cgTheme = searchParams.get('cg_theme');
-  const cgBgColor = searchParams.get('cg_bg_color'); // e.g., '%23161820'
-  const cgFgColor = searchParams.get('cg_fg_color'); // Optional, e.g., '%23ffffff'
+  const cgTheme = searchParams?.get('cg_theme');
+  const cgBgColor = searchParams?.get('cg_bg_color'); // e.g., '%23161820'
+  const cgFgColor = searchParams?.get('cg_fg_color'); // Optional, e.g., '%23ffffff'
 
   React.useEffect(() => {
     // Set light/dark mode
