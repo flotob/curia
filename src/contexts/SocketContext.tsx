@@ -111,8 +111,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on('userJoinedBoard', ({ userId, userName, boardId }) => {
       console.log(`[Socket] User ${userName || userId} joined board ${boardId}`);
-      // Optional: Show subtle presence notification
-      // toast.info(`${userName || 'Someone'} joined the discussion`);
+      // Show subtle presence notification (only for other users)
+      if (userId !== user?.userId) {
+        toast.info(`${userName || 'Someone'} joined the discussion`);
+      }
     });
 
     newSocket.on('userLeftBoard', ({ userId, boardId }) => {
