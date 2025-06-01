@@ -9,7 +9,7 @@ import { BoardSettings } from '@/types/settings';
  */
 export function canUserAccessBoard(
   userRoles: string[] | undefined, 
-  boardSettings: BoardSettings | any, 
+  boardSettings: BoardSettings | Record<string, unknown>, 
   isAdmin: boolean = false
 ): boolean {
   // Admins can access everything
@@ -17,10 +17,15 @@ export function canUserAccessBoard(
     return true;
   }
   
+  // Type guard to check if settings has the expected structure
+  const permissions = boardSettings && typeof boardSettings === 'object' && 'permissions' in boardSettings
+    ? (boardSettings as BoardSettings).permissions
+    : undefined;
+  
   // If no permission restrictions exist, board is public to all community members
-  if (!boardSettings?.permissions?.allowedRoles || 
-      !Array.isArray(boardSettings.permissions.allowedRoles) ||
-      boardSettings.permissions.allowedRoles.length === 0) {
+  if (!permissions?.allowedRoles || 
+      !Array.isArray(permissions.allowedRoles) ||
+      permissions.allowedRoles.length === 0) {
     return true;
   }
   
@@ -30,7 +35,7 @@ export function canUserAccessBoard(
   }
   
   // Check if user has any of the required roles for this board
-  const allowedRoles = boardSettings.permissions.allowedRoles;
+  const allowedRoles = permissions.allowedRoles;
   return userRoles.some(userRole => allowedRoles.includes(userRole));
 }
 
@@ -41,7 +46,7 @@ export function canUserAccessBoard(
  * @param isAdmin - Whether the user has admin privileges
  * @returns Filtered array of accessible boards
  */
-export function filterAccessibleBoards<T extends { settings: any }>(
+export function filterAccessibleBoards<T extends { settings: BoardSettings | Record<string, unknown> }>(
   boards: T[], 
   userRoles: string[] | undefined, 
   isAdmin: boolean = false
@@ -59,7 +64,7 @@ export function filterAccessibleBoards<T extends { settings: any }>(
  * @returns Array of board IDs that the user can access
  */
 export function getAccessibleBoardIds(
-  boards: Array<{ id: number; settings: any }>, 
+  boards: Array<{ id: number; settings: BoardSettings | Record<string, unknown> }>, 
   userRoles: string[] | undefined, 
   isAdmin: boolean = false
 ): number[] {

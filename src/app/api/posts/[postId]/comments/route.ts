@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query, getClient } from '@/lib/db';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
