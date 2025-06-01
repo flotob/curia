@@ -7,8 +7,8 @@
     "yarn": ">=1.22.0"
   },
   "scripts": {
-    "dev": "ts-node-dev --exit-child --respawn server.ts",
-    "build": "next build && npx tsc server.ts --outDir . --target es2020 --module commonjs --moduleResolution node --esModuleInterop --allowSyntheticDefaultImports --skipLibCheck --baseUrl . --paths.@/*:[\"./src/*\"]",
+    "dev": "tsx watch server.ts",
+    "build": "next build && npx tsc -p tsconfig.server.json",
     "start": "node server.js",
     "lint": "next lint",
     "migrate:compile": "rimraf dist/migrations && tsc -p tsconfig.migrations.json",
@@ -81,6 +81,8 @@
     "tailwindcss": "^3.4.1",
     "ts-node": "^11.0.0-beta.1",
     "ts-node-dev": "^2.0.0",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.4",
     "typescript": "^5"
   }
 }

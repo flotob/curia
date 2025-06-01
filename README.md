@@ -2,7 +2,13 @@
     <h1>CG Sample Plugin</h1>
 </div>
 
-This sample plugin demonstrates the core capabilities of the [Common Ground Plugin Library](https://github.com/Common-Ground-DAO/CGPluginLib). It provides a practical example of integrating the plugin library, showcasing essential frontend-backend interactions and common use cases.
+This sample plugin demonstrates the core capabilities of the [Common Ground Plugin Library](https://github.com/Common-Ground-DAO/CGPluginLib). It provides a practical example of integrating the plugin library, showcasing essential frontend-backend interactions, real-time features, and common use cases.
+
+**Key Features:**
+- 🔐 **Secure Board-Level Permissions**: Role-based access control for community boards
+- ⚡ **Real-Time Updates**: Live voting, comments, typing indicators, and user presence via Socket.IO
+- 🏗️ **Custom Server Architecture**: Next.js + Socket.IO with JWT authentication
+- 🚀 **Production Ready**: Railway-compatible deployment with proper build pipeline
 
 Use this as a reference implementation to understand how to leverage the full feature set of CG plugins in your own applications.
 
@@ -151,17 +157,450 @@ This boilerplate implements a plugin-specific JWT-based authentication system to
 *   **Input Validation:** Always validate any data received in API route handlers, even for protected routes.
 *   **Admin Logic:** The current admin determination relies on matching role *titles* defined in `NEXT_PUBLIC_ADMIN_ROLE_IDS`. Ensure these titles are accurate and consistently managed in your Common Ground community settings.
 
-## Getting Started
-Install the dependencies:
-```bash
-yarn
-```
-Then run the development server:
-```bash
-yarn dev
+## Real-Time Features with Socket.IO
+
+This plugin implements comprehensive real-time functionality using Socket.IO, providing live updates for voting, comments, typing indicators, and user presence. The implementation maintains the same security model as the REST API, ensuring users can only access real-time updates from boards they have permission to view.
+
+### Architecture Overview
+
+The plugin uses a **custom server architecture** that combines Next.js with Socket.IO:
+
+- **`server.ts`**: Custom HTTP server that serves Next.js app and Socket.IO WebSocket server
+- **JWT Authentication**: WebSocket connections use the same JWT tokens as API routes
+- **Permission-Aware Rooms**: Users join board-specific rooms based on their access permissions
+- **Broadcast Utilities**: API routes can broadcast real-time events to connected clients
+
+### Custom Server Setup
+
+Unlike standard Next.js applications, this plugin runs a custom server to enable Socket.IO:
+
+```typescript
+// server.ts - Custom server with Next.js + Socket.IO
+const app = next({ dev });
+const httpServer = createServer((req, res) => handle(req, res));
+const io = new SocketIOServer(httpServer, { /* CORS config */ });
+
+// Share Socket.IO instance with API routes
+setSocketIO(io);
 ```
 
-The project will start running on [http://localhost:5000](http://localhost:5000). Unfortunately, there's not a lot of use for running this project locally since, as a plugin, it requests all its data from Common Ground when running through an iframe.
+**Development vs Production:**
+- **Development**: `yarn dev` runs `tsx watch server.ts` for auto-reload
+- **Production**: `yarn build` compiles Next.js + TypeScript server, then `yarn start` runs `node server.js`
+
+### WebSocket Authentication
+
+Socket.IO connections use the same JWT authentication as API routes:
+
+```javascript
+// Client-side connection with JWT
+const socket = io({
+  auth: {
+    token: userJwtToken
+  }
+});
+```
+
+The server validates JWTs and automatically joins users to their community room:
+
+```typescript
+// Server-side JWT verification
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  const decoded = jwt.verify(token, JWT_SECRET);
+  socket.data.user = decoded;
+  socket.join(`community:${decoded.cid}`);
+  next();
+});
+```
+
+### Permission-Aware Room System
+
+The plugin implements a hierarchical room system that respects board permissions:
+
+- **`community:{id}`**: All authenticated users auto-join their community room
+- **`board:{id}`**: Users must explicitly join board rooms with permission checks
+
+**Board Room Joining Process:**
+1. Client requests to join a board room: `socket.emit('joinBoard', boardId)`
+2. Server validates board exists and belongs to user's community
+3. Server checks board permissions using existing `canUserAccessBoard()` logic
+4. If authorized, user joins room and receives confirmation
+5. Other users in the room are notified of the new presence
+
+### Real-Time Events
+
+#### Core Socket Events
+
+**Client → Server:**
+- `joinBoard(boardId)`: Request to join a board room with permission validation
+- `leaveBoard(boardId)`: Leave a board room
+- `typing({ boardId, postId?, isTyping })`: Broadcast typing indicators
+
+**Server → Client:**
+- `boardJoined({ boardId })`: Confirmation of successful board room join
+- `userJoinedBoard({ userId, userName, boardId })`: Another user joined the board
+- `userLeftBoard({ userId, boardId })`: User left the board
+- `userTyping({ userId, userName, boardId, postId?, isTyping })`: Typing indicators
+- `error({ message })`: Permission denied or other errors
+
+#### API Route Broadcasts
+
+API routes can broadcast real-time updates using the shared Socket.IO instance:
+
+```typescript
+// Example: Broadcasting a new post from API route
+import { socketEvents } from '@/lib/socket';
+
+export async function POST(req: AuthenticatedRequest) {
+  // ... create post logic ...
+  
+  // Broadcast to all users in the board room
+  socketEvents.broadcastNewPost(boardId, {
+    id: newPost.id,
+    title: newPost.title,
+    author: newPost.author_user_id,
+    // ... other post data
+  });
+  
+  return NextResponse.json(newPost);
+}
+```
+
+**Available Broadcast Functions:**
+- `broadcastNewPost(boardId, postData)`: New post created
+- `broadcastVoteUpdate(boardId, postId, newCount, userId)`: Vote count changed
+- `broadcastNewComment(boardId, postId, commentData)`: New comment added
+- `broadcastPostDeleted(boardId, postId)`: Post deleted (admin action)
+- `broadcastBoardSettingsChanged(boardId, settings)`: Board permissions updated
+
+### Security Model
+
+Real-time features maintain the same security guarantees as REST API:
+
+1. **JWT Authentication**: All WebSocket connections must provide valid JWTs
+2. **Board Permission Checks**: Users can only join rooms for boards they can access
+3. **Community Isolation**: Users can only join boards in their own community
+4. **Admin Controls**: Board settings changes broadcast to affected users
+5. **Automatic Cleanup**: User presence is removed when they disconnect
+
+### Frontend Integration
+
+The frontend can connect to Socket.IO and handle real-time events:
+
+```typescript
+// Connect with authentication
+const socket = io({
+  auth: { token: userJwtToken }
+});
+
+// Join a board room
+socket.emit('joinBoard', boardId);
+
+// Listen for real-time updates
+socket.on('newPost', (postData) => {
+  // Update UI with new post
+});
+
+socket.on('voteUpdate', ({ postId, newCount }) => {
+  // Update vote count in UI
+});
+
+socket.on('userTyping', ({ userId, userName, isTyping }) => {
+  // Show/hide typing indicator
+});
+```
+
+### Development Setup
+
+**Install Dependencies:**
+```bash
+yarn install
+```
+
+**Environment Variables:**
+Ensure `.env` includes Socket.IO configuration:
+```
+# Standard plugin config
+JWT_SECRET=your-secret-key
+DATABASE_URL=postgresql://...
+
+# Optional: CORS configuration for Socket.IO
+ALLOWED_ORIGINS=https://yourdomain.com,https://anotherdomain.com
+```
+
+**Development Server:**
+```bash
+yarn dev  # Runs: tsx watch server.ts
+```
+
+The development server uses `tsx` instead of `ts-node-dev` to handle TypeScript + ESM imports properly.
+
+### Production Deployment
+
+**Build Process:**
+```bash
+yarn build  # Runs: next build && npx tsc -p tsconfig.server.json
+```
+
+This creates:
+- `.next/` - Compiled Next.js application
+- `server.js` - Compiled custom server for production
+
+**Railway Deployment:**
+The custom server architecture works seamlessly with Railway:
+- Railway auto-detects the Node.js project
+- Runs `yarn build` during deployment
+- Starts with `yarn start` (which runs `node server.js`)
+- Socket.IO WebSocket connections work on Railway's infrastructure
+
+**Production Environment Variables:**
+```
+NODE_ENV=production
+PORT=3000  # Usually set automatically by Railway
+ALLOWED_ORIGINS=https://your-production-domain.com
+```
+
+### File Structure for Real-Time Features
+
+```
+server.ts                           # Custom server with Next.js + Socket.IO
+tsconfig.server.json               # TypeScript config for server compilation
+src/
+├── lib/
+│   ├── socket.ts                  # Socket.IO instance sharing & broadcast utilities
+│   ├── boardPermissions.ts       # Permission checking functions
+│   └── withAuth.ts               # JWT authentication (used by both REST & WebSocket)
+├── app/api/
+│   ├── posts/route.ts            # Uses socketEvents.broadcastNewPost()
+│   ├── posts/[postId]/votes/route.ts  # Uses socketEvents.broadcastVoteUpdate()
+│   └── ...                       # Other API routes with real-time broadcasts
+└── ...
+```
+
+### Performance Considerations
+
+- **Room-Based Broadcasting**: Events only sent to users in relevant board rooms
+- **Efficient Reconnection**: JWT tokens allow seamless reconnection without re-authentication
+- **Automatic Cleanup**: User presence automatically cleaned up on disconnect
+- **Selective Events**: Only broadcast events that UI components actually need
+
+### Troubleshooting
+
+**Common Issues:**
+
+1. **"Cannot find module" errors during development:**
+   - Solution: Use `tsx watch server.ts` instead of `ts-node-dev`
+   - Reason: Better ESM + TypeScript support
+
+2. **CORS issues with Socket.IO:**
+   - Solution: Configure `ALLOWED_ORIGINS` environment variable
+   - Development: Set to allow localhost
+
+3. **WebSocket connection fails:**
+   - Check JWT token validity
+   - Ensure `JWT_SECRET` matches between client and server
+   - Verify user has community access
+
+4. **Real-time events not received:**
+   - Confirm user successfully joined board room (`boardJoined` event)
+   - Check board permissions with `canUserAccessBoard()`
+   - Verify API routes are calling broadcast functions
+
+## Board-Level Security & Permissions
+
+This plugin implements a comprehensive security model that goes beyond community-level access to provide fine-grained, board-level permissions. This ensures users can only access content they're authorized to see, both in the REST API and real-time features.
+
+### Security Architecture
+
+The plugin uses a **hierarchical permission system**:
+
+1. **Community Level**: Users must belong to the community (enforced by Common Ground)
+2. **Board Level**: Users must have appropriate roles to access specific boards
+3. **Content Level**: All posts, comments, and votes are tied to boards and inherit board permissions
+
+### Board Permission Model
+
+Each board has configurable access settings stored in the `boards.settings.permissions` JSON field:
+
+```json
+{
+  "permissions": {
+    "allowedRoles": ["member", "moderator", "admin"],
+    "isPublic": false
+  }
+}
+```
+
+**Permission Checking Logic:**
+- **Admin Override**: Community admins can access all boards regardless of settings
+- **Public Boards**: If `isPublic: true`, all community members can access
+- **Private Boards**: Only users with roles in `allowedRoles` array can access
+- **Role Matching**: User's roles are checked against board's `allowedRoles`
+
+### Key Security Functions
+
+**`src/lib/boardPermissions.ts`** provides core permission checking:
+
+```typescript
+// Check if user can access a specific board
+canUserAccessBoard(userRoles: string[], boardSettings: any, isAdmin: boolean): boolean
+
+// Filter list of boards to only those user can access
+filterAccessibleBoards(boards: Board[], userRoles: string[], isAdmin: boolean): Promise<Board[]>
+
+// Get IDs of boards user can access (for SQL queries)
+getAccessibleBoardIds(communityId: string, userRoles: string[], isAdmin: boolean): Promise<number[]>
+```
+
+### API Security Implementation
+
+All API endpoints that serve content implement board-level security:
+
+**Posts API (`/api/posts`):**
+```typescript
+// Get accessible board IDs for the user
+const accessibleBoardIds = await getAccessibleBoardIds(user.cid, user.roles, user.adm);
+
+// Only return posts from boards the user can access
+const query = `
+  SELECT p.*, b.name as board_name 
+  FROM posts p 
+  JOIN boards b ON p.board_id = b.id 
+  WHERE p.board_id = ANY($1)
+  ORDER BY p.created_at DESC
+`;
+const result = await query(query, [accessibleBoardIds]);
+```
+
+**Comments API (`/api/posts/[postId]/comments`):**
+- Verifies post exists and user can access its board before serving comments
+- Prevents unauthorized users from even knowing restricted posts exist
+
+**Votes API (`/api/posts/[postId]/votes`):**
+- Checks board permissions before allowing votes
+- Prevents voting on restricted content
+
+**Boards API (`/api/communities/[communityId]/boards`):**
+- Filters board list to only show accessible boards
+- Prevents enumeration of restricted boards
+
+### Real-Time Security
+
+Socket.IO events maintain the same security model:
+
+**Room Access Control:**
+- Users can only join board rooms they have permission to access
+- `joinBoard` event performs full permission validation
+- Failed permission checks return error events, not silent failures
+
+**Event Broadcasting:**
+- Real-time events are only sent to users in the relevant board room
+- Automatic cleanup ensures no permission leaks on disconnection
+
+### Security Vulnerabilities Fixed
+
+During development, several critical security issues were identified and resolved:
+
+1. **Home Feed Exposure**: The home page was showing posts from ALL boards, regardless of user permissions
+   - **Fix**: Modified posts API to filter by accessible board IDs
+
+2. **Board Enumeration**: Boards API returned all boards without permission filtering
+   - **Fix**: Added `filterAccessibleBoards()` to boards API
+
+3. **Comment Access**: Comments API didn't verify board permissions before serving comments
+   - **Fix**: Added board permission check before returning comments
+
+4. **Vote Manipulation**: Votes API allowed voting on posts from restricted boards
+   - **Fix**: Added board permission validation to votes endpoints
+
+5. **Real-Time Leaks**: Without proper room management, real-time events could leak across board boundaries
+   - **Fix**: Implemented permission-aware room joining and automatic cleanup
+
+### Permission Testing
+
+The plugin includes comprehensive permission checking throughout:
+
+**Development Testing:**
+```typescript
+// Test board access for different user roles
+const canAccess = canUserAccessBoard(['member'], boardSettings, false);
+console.log('Can member access board:', canAccess);
+
+// Test filtered board lists
+const accessibleBoards = await filterAccessibleBoards(allBoards, userRoles, isAdmin);
+console.log('User can access', accessibleBoards.length, 'of', allBoards.length, 'boards');
+```
+
+**UI State Management:**
+- Board settings form properly syncs state when switching between boards
+- Permission changes immediately affect UI visibility
+- Real-time updates respect current user's permissions
+
+### Security Best Practices
+
+**Server-Side Validation:**
+- Never trust client-side permission checks
+- Always validate permissions on the server for every request
+- Use database-level filtering with `WHERE board_id IN (accessible_ids)`
+
+**Principle of Least Privilege:**
+- Users only see content they're explicitly allowed to access
+- Failed permission checks don't reveal information about restricted content
+- Board enumeration only shows accessible boards
+
+**Defense in Depth:**
+- Multiple layers of permission checking (JWT + board-level + content-level)
+- Real-time and REST API use identical permission logic
+- Automatic cleanup prevents permission state inconsistencies
+
+**Audit Trail:**
+- All permission checks are logged for debugging
+- Database queries are logged with performance metrics
+- Real-time events include user context for monitoring
+
+## Getting Started
+
+### Prerequisites
+- Node.js 20+ and Yarn
+- PostgreSQL database
+- Environment variables configured (see `.env.example`)
+
+### Installation
+Install the dependencies:
+```bash
+yarn install
+```
+
+### Database Setup
+Run the database migrations:
+```bash
+yarn migrate:up
+```
+
+### Development Server
+Start the development server:
+```bash
+yarn dev  # Runs custom server with Next.js + Socket.IO
+```
+
+The project will start running on [http://localhost:3000](http://localhost:3000) with both the web interface and WebSocket server ready.
+
+**Development Features:**
+- 🔄 **Auto-reload**: `tsx watch` provides fast TypeScript compilation and restart
+- 🔐 **Full Authentication**: JWT-based auth with board-level permissions
+- ⚡ **Real-Time Events**: Socket.IO WebSocket connections for live updates
+- 🐛 **Debug Logging**: Comprehensive logging for API requests and WebSocket events
+
+### Production Build
+Build for production:
+```bash
+yarn build  # Compiles Next.js + TypeScript server
+yarn start  # Runs production server
+```
+
+### Testing the Plugin
+Unfortunately, there's not a lot of use for running this project locally since, as a plugin, it requests all its data from Common Ground when running through an iframe.
 
 To use this plugin, you have three options:
 
@@ -187,7 +626,43 @@ To use this plugin, you have three options:
 
 ## Architecture
 
+This plugin demonstrates a comprehensive full-stack architecture with real-time capabilities:
+
 ![diagram](https://github.com/user-attachments/assets/37a77777-160f-4e88-bd6b-63038e7285cc)
+
+### Technology Stack
+
+**Frontend:**
+- Next.js 15 with App Router
+- TypeScript with strict type checking
+- Tailwind CSS + shadcn/ui components
+- TanStack Query for data fetching
+- Socket.IO client for real-time events
+
+**Backend:**
+- Custom Node.js server (Next.js + Socket.IO)
+- JWT authentication with role-based permissions
+- PostgreSQL with TypeScript migrations
+- Real-time WebSocket connections
+- RESTful API with comprehensive security
+
+**Infrastructure:**
+- Railway deployment (production)
+- Docker Compose (local development)
+- Environment-based configuration
+- Automated build pipeline
+
+### Key Architectural Decisions
+
+1. **Custom Server Architecture**: Uses a custom Node.js server instead of standard Next.js to enable Socket.IO WebSocket functionality while maintaining all Next.js features.
+
+2. **Permission-First Security**: Implements board-level permissions that are checked consistently across REST API, WebSocket events, and UI components.
+
+3. **Real-Time Integration**: Socket.IO is integrated at the server level with JWT authentication, allowing API routes to broadcast events directly to connected clients.
+
+4. **Type Safety**: Comprehensive TypeScript coverage from database schemas to WebSocket event types, ensuring runtime safety and developer experience.
+
+5. **Scalable Deployment**: Architecture supports both development (auto-reload) and production (compiled) environments with the same codebase.
 
 
 ## Next steps

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
@@ -180,10 +180,8 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
     enabled: searchQuery.trim().length >= 3, 
   });
 
-  const debouncedSetSearchQuery = useCallback(
-    debounce((query: string) => setSearchQuery(query), 500), 
-    [setSearchQuery]
-  );
+  // Create debounced function without useCallback to avoid dependency issues
+  const debouncedSetSearchQuery = debounce((query: string) => setSearchQuery(query), 500);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);
