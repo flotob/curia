@@ -26,7 +26,7 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
   try {
     // SECURITY: First, check if user can access the board where this post belongs
     const postBoardResult = await query(
-      `SELECT p.board_id, b.settings, b.community_id 
+      `SELECT p.board_id, p.title as post_title, b.settings, b.community_id, b.name as board_name
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
        WHERE p.id = $1`,
@@ -37,7 +37,7 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    const { board_id, post_title, settings, community_id, board_name } = postBoardResult.rows[0];
     
     // Verify post belongs to user's community
     if (community_id !== userCommunityId) {
@@ -98,7 +98,7 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
       emitter.emit('broadcastEvent', {
         room: `board:${board_id}`,
         eventName: 'voteUpdate',
-        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId, board_id }
+        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId, board_id, post_title, board_name }
       });
       console.log('[API /api/posts/.../votes POST] Successfully emitted event on process.customEventEmitter for vote add.');
     } else {
@@ -141,7 +141,7 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
   try {
     // SECURITY: First, check if user can access the board where this post belongs
     const postBoardResult = await query(
-      `SELECT p.board_id, b.settings, b.community_id 
+      `SELECT p.board_id, p.title as post_title, b.settings, b.community_id, b.name as board_name
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
        WHERE p.id = $1`,
@@ -152,7 +152,7 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    const { board_id, post_title, settings, community_id, board_name } = postBoardResult.rows[0];
     
     // Verify post belongs to user's community
     if (community_id !== userCommunityId) {
@@ -199,8 +199,8 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
     if (emitter && typeof emitter.emit === 'function') {
       emitter.emit('broadcastEvent', {
         room: `board:${board_id}`,
-        eventName: 'voteUpdate', // Same eventName, client can dedude based on newCount and user_has_upvoted
-        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId, board_id }
+        eventName: 'voteUpdate', // Same eventName, client can deduce based on newCount and user_has_upvoted
+        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId, board_id, post_title, board_name }
       });
       console.log('[API /api/posts/.../votes DELETE] Successfully emitted event on process.customEventEmitter for vote remove.');
     } else {

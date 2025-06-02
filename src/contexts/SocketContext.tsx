@@ -3,8 +3,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCgLib } from '@/contexts/CgLibContext';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { buildPostUrl, buildBoardUrl } from '@/utils/urlBuilder';
 
 // ===== PHASE 1: ENHANCED SOCKET CONTEXT WITH GLOBAL PRESENCE =====
 
@@ -15,6 +17,7 @@ interface OnlineUser {
   avatarUrl?: string;
   communityId: string;
   currentBoardId?: number;
+  currentBoardName?: string;  // Added for meaningful presence display
   isTyping?: boolean;
 }
 
@@ -35,6 +38,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { token, isAuthenticated, user } = useAuth();
+  const { cgInstance } = useCgLib();
   const queryClient = useQueryClient();
   
   // Phase 1: Global presence state
@@ -96,7 +100,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     newSocket.on('newPost', (postData: { id: number; title: string; author_name?: string; author_user_id: string; board_id: number }) => {
       console.log('[Socket] New post received:', postData);
       if (postData.author_user_id !== userId) {
-        toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`);
+        toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`, {
+          action: {
+            label: 'View Post',
+            onClick: () => {
+              if (cgInstance) {
+                const url = buildPostUrl(postData.id, postData.board_id);
+                cgInstance.navigate(url)
+                  .then(() => console.log(`[Socket] Navigation to new post ${postData.id} successful`))
+                  .catch(err => console.error(`[Socket] Navigation to new post ${postData.id} failed:`, err));
+              }
+            }
+          }
+        });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
         queryClient.invalidateQueries({ queryKey: ['posts', postData.board_id?.toString()] });
         // Also invalidate home feed (aggregated view from all boards)
@@ -105,10 +121,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('voteUpdate', (voteData: { postId: number; newCount: number; userIdVoted: string; board_id: number }) => {
-      console.log(`[Socket] Vote update for post ${voteData.postId}: ${voteData.newCount} votes by ${voteData.userIdVoted}`);
+    newSocket.on('voteUpdate', (voteData: { postId: number; newCount: number; userIdVoted: string; board_id: number; post_title: string; board_name: string }) => {
+      console.log(`[Socket] Vote update for post "${voteData.post_title}": ${voteData.newCount} votes by ${voteData.userIdVoted}`);
       if (voteData.userIdVoted !== userId) {
-        toast.info(`Post ${voteData.postId} received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`);
+        toast.info(`"${voteData.post_title}" received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`, {
+          action: {
+            label: 'View Post',
+            onClick: () => {
+              if (cgInstance) {
+                const url = buildPostUrl(voteData.postId, voteData.board_id);
+                cgInstance.navigate(url)
+                  .then(() => console.log(`[Socket] Navigation to post ${voteData.postId} successful`))
+                  .catch(err => console.error(`[Socket] Navigation to post ${voteData.postId} failed:`, err));
+              }
+            }
+          }
+        });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
         queryClient.invalidateQueries({ queryKey: ['posts', voteData.board_id?.toString()] });
         // Also invalidate home feed (vote count changes affect sorting order)
@@ -117,16 +145,28 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('newComment', (commentData: { postId: number; comment: { author_user_id: string; author_name?: string; id: number; post_id: number; board_id: number; /* other comment props */ } }) => {
-      console.log(`[Socket] New comment on post ${commentData.postId}:`, commentData.comment);
+    newSocket.on('newComment', (commentData: { postId: number; post_title: string; board_id: number; board_name: string; comment: { author_user_id: string; author_name?: string; id: number; post_id: number; board_id: number; post_title: string; board_name: string; /* other comment props */ } }) => {
+      console.log(`[Socket] New comment on post "${commentData.post_title}":`, commentData.comment);
       if (commentData.comment.author_user_id !== userId) {
-        toast.info(`New comment by ${commentData.comment.author_name || 'Unknown'}`);
+        toast.info(`${commentData.comment.author_name || 'Unknown'} commented on "${commentData.post_title}"`, {
+          action: {
+            label: 'View Post',
+            onClick: () => {
+              if (cgInstance) {
+                const url = buildPostUrl(commentData.postId, commentData.board_id);
+                cgInstance.navigate(url)
+                  .then(() => console.log(`[Socket] Navigation to post ${commentData.postId} successful`))
+                  .catch(err => console.error(`[Socket] Navigation to post ${commentData.postId} failed:`, err));
+              }
+            }
+          }
+        });
         console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
         queryClient.invalidateQueries({ queryKey: ['comments', commentData.postId] });
         
-        if (commentData.comment.board_id) {
-            console.log(`[RQ Invalidate] Invalidating posts for board: ${commentData.comment.board_id} due to new comment.`);
-            queryClient.invalidateQueries({ queryKey: ['posts', commentData.comment.board_id.toString()] });
+        if (commentData.board_id) {
+            console.log(`[RQ Invalidate] Invalidating posts for board: ${commentData.board_id} due to new comment.`);
+            queryClient.invalidateQueries({ queryKey: ['posts', commentData.board_id.toString()] });
         } else {
             console.warn('[Socket newComment] board_id missing in comment payload, cannot invalidate specific post list for comment count.');
         }
@@ -188,7 +228,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     newSocket.on('newBoard', (boardData: { board: { id: number; name: string; community_id: string }; author_user_id: string; community_id: string }) => {
       console.log('[Socket] New board created:', boardData);
       if (boardData.author_user_id !== userId) {
-        toast.success(`New board created: "${boardData.board.name}"`);
+        toast.success(`New board created: "${boardData.board.name}"`, {
+          action: {
+            label: 'View Board',
+            onClick: () => {
+              if (cgInstance) {
+                const url = buildBoardUrl(boardData.board.id);
+                cgInstance.navigate(url)
+                  .then(() => console.log(`[Socket] Navigation to new board ${boardData.board.id} successful`))
+                  .catch(err => console.error(`[Socket] Navigation to new board ${boardData.board.id} failed:`, err));
+              }
+            }
+          }
+        });
       }
       
       // Invalidate board-related queries
@@ -241,7 +293,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setGlobalOnlineUsers([]);
       setBoardOnlineUsers([]);
     };
-  }, [isAuthenticated, token, userId, queryClient, socket]);
+  }, [isAuthenticated, token, userId, queryClient, socket, cgInstance]);
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {

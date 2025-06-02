@@ -106,7 +106,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
   try {
     // SECURITY: First, check if user can access the board where this post belongs
     const postBoardResult = await query(
-      `SELECT p.board_id, b.settings, b.community_id 
+      `SELECT p.board_id, p.title as post_title, b.settings, b.community_id, b.name as board_name
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
        WHERE p.id = $1`,
@@ -117,7 +117,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    const { board_id, post_title, settings, community_id, board_name } = postBoardResult.rows[0];
     
     // Verify post belongs to user's community
     if (community_id !== userCommunityId) {
@@ -176,6 +176,9 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
           eventName: 'newComment',
           payload: {
             postId: postId,
+            post_title: post_title,
+            board_id: board_id,
+            board_name: board_name,
             comment: {
               id: commentWithAuthor.id,
               post_id: commentWithAuthor.post_id,
@@ -185,7 +188,9 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
               content: commentWithAuthor.content,
               created_at: commentWithAuthor.created_at,
               parent_comment_id: commentWithAuthor.parent_comment_id,
-              board_id: board_id
+              board_id: board_id,
+              post_title: post_title,
+              board_name: board_name
             }
           }
         });

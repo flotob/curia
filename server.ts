@@ -63,6 +63,7 @@ interface UserPresence {
   avatarUrl?: string;
   communityId: string;
   currentBoardId?: number;
+  currentBoardName?: string;  // Added for meaningful presence display
   connectedAt: Date;
   lastSeen: Date;
   socketId: string;
@@ -288,6 +289,7 @@ async function bootstrap() {
       avatarUrl: user.picture || undefined,
       communityId: user.cid || 'unknown',
       currentBoardId: undefined,
+      currentBoardName: undefined,
       connectedAt: new Date(),
       lastSeen: new Date(),
       socketId: socket.id
@@ -327,7 +329,7 @@ async function bootstrap() {
 
         // Fetch board data and verify permissions
         const boardResult = await query(
-          'SELECT id, community_id, settings FROM boards WHERE id = $1',
+          'SELECT id, community_id, settings, name FROM boards WHERE id = $1',
           [boardIdNum]
         );
 
@@ -361,7 +363,7 @@ async function bootstrap() {
         socket.join(roomName);
         
         // Update user presence with current board
-        updateUserPresence(user.sub, { currentBoardId: boardIdNum });
+        updateUserPresence(user.sub, { currentBoardId: boardIdNum, currentBoardName: board.name });
         
         console.log(`[Socket.IO] User ${user.sub} joined board room: ${roomName}`);
         
@@ -389,7 +391,7 @@ async function bootstrap() {
       socket.leave(roomName);
       
       // Update user presence (remove current board)
-      updateUserPresence(user.sub, { currentBoardId: undefined });
+      updateUserPresence(user.sub, { currentBoardId: undefined, currentBoardName: undefined });
       
       console.log(`[Socket.IO] User ${user.sub} left board room: ${roomName}`);
       

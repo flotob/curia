@@ -2,15 +2,28 @@
 
 import React from 'react';
 import { useSocket } from '@/contexts/SocketContext';
+import { useCgLib } from '@/contexts/CgLibContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle } from 'lucide-react';
+import { Users, MessageCircle, ExternalLink } from 'lucide-react';
+import { buildBoardUrl } from '@/utils/urlBuilder';
 
 // ===== PHASE 2: ENHANCED ONLINE USERS SIDEBAR =====
 
 export function OnlineUsersSidebar() {
   const { globalOnlineUsers, boardOnlineUsers, isConnected } = useSocket();
+  const { cgInstance } = useCgLib();
+
+  // Handle navigation to board
+  const handleBoardNavigation = (boardId: number) => {
+    if (cgInstance) {
+      const url = buildBoardUrl(boardId);
+      cgInstance.navigate(url)
+        .then(() => console.log(`[OnlineUsersSidebar] Navigation to board ${boardId} successful`))
+        .catch(err => console.error(`[OnlineUsersSidebar] Navigation to board ${boardId} failed:`, err));
+    }
+  };
 
   if (!isConnected) {
     return (
@@ -70,9 +83,13 @@ export function OnlineUsersSidebar() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{user.userName}</p>
                     {user.currentBoardId && (
-                      <p className="text-xs text-muted-foreground">
-                        📋 Board {user.currentBoardId}
-                      </p>
+                      <button
+                        onClick={() => handleBoardNavigation(user.currentBoardId!)}
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors"
+                      >
+                        📋 {user.currentBoardName || `Board ${user.currentBoardId}`}
+                        <ExternalLink size={10} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
                     )}
                   </div>
                 </div>
