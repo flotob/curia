@@ -92,8 +92,7 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
 
     const updatedPost = updatedPostResult.rows[0];
     
-    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
-    const emitter = (process as any).customEventEmitter;
+    const emitter = process.customEventEmitter;
     console.log('[API /api/posts/.../votes POST] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
     if (emitter && typeof emitter.emit === 'function') {
       emitter.emit('broadcastEvent', {
@@ -195,8 +194,7 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
 
     const updatedPost = updatedPostResult.rows[0];
     
-    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
-    const emitter = (process as any).customEventEmitter;
+    const emitter = process.customEventEmitter;
     console.log('[API /api/posts/.../votes DELETE] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
     if (emitter && typeof emitter.emit === 'function') {
       emitter.emit('broadcastEvent', {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -19,13 +19,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { token, isAuthenticated, user } = useAuth();
+  const currentSocketRef = useRef<Socket | null>(null);
 
-  // Initialize Socket.IO connection
   useEffect(() => {
     if (!isAuthenticated || !token) {
-      // Disconnect if not authenticated
       if (socket) {
-        console.log('[Socket] Disconnecting due to authentication loss');
+        console.log('[Socket] Auth lost or token missing. Disconnecting existing socket:', socket.id);
         socket.disconnect();
         setSocket(null);
         setIsConnected(false);
@@ -33,119 +32,97 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // For development, connect to the same origin (works with ngrok)
-    const socketUrl = process.env.NODE_ENV === 'production' 
-      ? undefined  // Use same origin in production
-      : undefined; // Use same origin in development (works with ngrok)
-    
-    // Create new socket connection with JWT auth
-    console.log('[Socket] Connecting with authentication...', {
-      socketUrl,
-      hasToken: !!token,
-      isAuthenticated,
-      userInfo: user ? { userId: user.userId, name: user.name } : null
-    });
-    
+    const socketUrl = process.env.NODE_ENV === 'production' ? undefined : undefined;
+    console.log('[Socket] (Re-)Establishing connection due to auth state change or initial mount.');
     const newSocket = io(socketUrl, {
-      auth: {
-        token: token
-      },
+      auth: { token },
       transports: ['websocket', 'polling'],
-      // Add connection debugging
-      forceNew: true,
       timeout: 20000,
-      // Additional ngrok-friendly options
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 3,
     });
 
-    // Connection event handlers
     newSocket.on('connect', () => {
-      console.log('[Socket] Connected successfully');
+      console.log('[Socket] Connected successfully:', newSocket.id);
       setIsConnected(true);
     });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
+    newSocket.on('disconnect', (reason: Socket.DisconnectReason) => {
+      console.log('[Socket] Disconnected from:', newSocket.id, 'Reason:', reason);
       setIsConnected(false);
+      setSocket(prevSocket => (prevSocket === newSocket ? null : prevSocket));
     });
 
-    newSocket.on('connect_error', (error) => {
-      console.error('[Socket] Connection error:', error);
+    newSocket.on('connect_error', (error: Error) => {
+      console.error('[Socket] Connection error for:', newSocket.id, error);
       setIsConnected(false);
+      setSocket(prevSocket => (prevSocket === newSocket ? null : prevSocket));
     });
 
-    // Board room event handlers
-    newSocket.on('boardJoined', ({ boardId }) => {
+    newSocket.on('boardJoined', ({ boardId }: { boardId: number }) => {
       console.log(`[Socket] Successfully joined board room: ${boardId}`);
     });
 
-    newSocket.on('error', ({ message }) => {
+    newSocket.on('error', ({ message }: { message: string }) => {
       console.error('[Socket] Server error:', message);
       toast.error(`Connection error: ${message}`);
     });
 
-    // Real-time event handlers
-    newSocket.on('newPost', (postData) => {
+    newSocket.on('newPost', (postData: { title: string; author_name?: string }) => {
       console.log('[Socket] New post received:', postData);
       toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`);
     });
 
-    newSocket.on('voteUpdate', ({ postId, newCount, userId }) => {
-      console.log(`[Socket] Vote update for post ${postId}: ${newCount} votes`);
-      // Don't show toast for own votes
-      if (userId !== user?.userId) {
+    newSocket.on('voteUpdate', ({ postId, newCount, userIdVoted }: { postId: number; newCount: number; userIdVoted: string }) => {
+      console.log(`[Socket] Vote update for post ${postId}: ${newCount} votes by ${userIdVoted}`);
+      if (userIdVoted !== user?.userId) {
         toast.info(`Post received ${newCount} vote${newCount !== 1 ? 's' : ''}`);
       }
     });
 
-    newSocket.on('newComment', ({ postId, comment }) => {
+    newSocket.on('newComment', ({ postId, comment }: { postId: number; comment: { author_user_id: string; author_name?: string } }) => {
       console.log(`[Socket] New comment on post ${postId}:`, comment);
-      // Don't show toast for own comments
       if (comment.author_user_id !== user?.userId) {
         toast.info(`New comment by ${comment.author_name || 'Unknown'}`);
       }
     });
 
-    newSocket.on('userJoinedBoard', ({ userId, userName, boardId }) => {
+    newSocket.on('userJoinedBoard', ({ userId, userName, boardId }: { userId: string; userName?: string; boardId: number }) => {
       console.log(`[Socket] User ${userName || userId} joined board ${boardId}`);
-      // Show subtle presence notification (only for other users)
       if (userId !== user?.userId) {
         toast.info(`${userName || 'Someone'} joined the discussion`);
       }
     });
 
-    newSocket.on('userLeftBoard', ({ userId, boardId }) => {
+    newSocket.on('userLeftBoard', ({ userId, boardId }: { userId: string; boardId: number }) => {
       console.log(`[Socket] User ${userId} left board ${boardId}`);
     });
 
-    newSocket.on('userTyping', ({ userId, userName, boardId, isTyping }) => {
+    newSocket.on('userTyping', ({ userId, userName, boardId, isTyping }: { userId: string; userName?: string; boardId: number; isTyping: boolean}) => {
       console.log(`[Socket] User ${userName || userId} ${isTyping ? 'started' : 'stopped'} typing in board ${boardId}`);
-      // Handle typing indicators in UI components
     });
 
-    newSocket.on('postDeleted', ({ postId }) => {
+    newSocket.on('postDeleted', ({ postId }: { postId: number }) => {
       console.log(`[Socket] Post ${postId} was deleted`);
       toast.warning('A post was removed by moderators');
     });
 
-    newSocket.on('boardSettingsChanged', ({ boardId, settings }) => {
+    newSocket.on('boardSettingsChanged', ({ boardId, settings }: { boardId: number; settings: Record<string, unknown> }) => {
       console.log(`[Socket] Board ${boardId} settings changed:`, settings);
       toast.info('Board settings have been updated');
     });
 
     setSocket(newSocket);
 
-    // Cleanup on unmount or auth change
     return () => {
-      console.log('[Socket] Cleaning up connection');
+      console.log('[Socket] useEffect cleanup: Disconnecting socket', newSocket.id);
       newSocket.disconnect();
+      setIsConnected(false);
     };
-  }, [isAuthenticated, token, user?.userId]);
+  }, [isAuthenticated, token, user]);
 
-  // Join a board room
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {
       console.log(`[Socket] Joining board room: ${boardId}`);
@@ -153,7 +130,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, [socket, isConnected]);
 
-  // Leave a board room
   const leaveBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {
       console.log(`[Socket] Leaving board room: ${boardId}`);
@@ -161,7 +137,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, [socket, isConnected]);
 
-  // Send typing indicator
   const sendTyping = useCallback((boardId: number, postId?: number, isTyping: boolean = true) => {
     if (socket && isConnected) {
       socket.emit('typing', { boardId, postId, isTyping });

@@ -168,8 +168,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
 
       const commentWithAuthor = fullCommentResult.rows[0];
 
-      // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
-      const emitter = (process as any).customEventEmitter;
+      const emitter = process.customEventEmitter;
       console.log('[API /api/posts/.../comments POST] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
       if (emitter && typeof emitter.emit === 'function') {
         emitter.emit('broadcastEvent', {

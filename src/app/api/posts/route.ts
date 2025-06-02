@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { getAccessibleBoardIds } from '@/lib/boardPermissions';
-// import { socketEvents } from '../../../lib/socket';
+// import { socketEvents } from '@/lib/socket'; // Ensure this is commented out or removed if not used
 
 // Interface for the structure of a post when returned by the API
 export interface ApiPost {
@@ -273,8 +273,8 @@ async function createPostHandler(req: AuthenticatedRequest) {
       board_name: '' 
     };
 
-    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
-    const emitter = (process as any).customEventEmitter;
+    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter (now typed)
+    const emitter = process.customEventEmitter; // No longer needs 'as any'
     console.log('[API /api/posts] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
 
     if (emitter && typeof emitter.emit === 'function') {
@@ -295,7 +295,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
       });
       console.log('[API /api/posts] Successfully emitted event on process.customEventEmitter for new post.');
     } else {
-      console.error('[API /api/posts] ERROR: process.customEventEmitter is not available or not an emitter. Emitter:', emitter);
+      console.error('[API /api/posts] ERROR: process.customEventEmitter not available or not an emitter. Emitter:', emitter);
     }
         
     console.log('[API] POST /api/posts db insert successful, user:', user.sub, 'with body:', body);
