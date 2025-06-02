@@ -261,8 +261,8 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   return (
     <CommunityAccessGate theme={theme}>
       <div className="flex min-h-screen relative">
-        {/* Phase 2: Enhanced backdrop overlay for MOBILE OVERLAYS ONLY */}
-        {((isMobile && rightSidebarOpen) || (isMobile && leftSidebarOpen) || (isTablet && leftSidebarOpen)) && (
+        {/* Phase 2: Enhanced backdrop overlay for MOBILE AND TABLET OVERLAYS */}
+        {((isMobile && rightSidebarOpen) || (isMobile && leftSidebarOpen) || (isTablet && leftSidebarOpen) || (isTablet && rightSidebarOpen)) && (
           <div 
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
             onClick={() => {
@@ -410,15 +410,15 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                 // Desktop (lg-xl): Show/hide based on toggle
                 !isMobile && !isTablet && rightSidebarOpen && "lg:block",
                 !isMobile && !isTablet && !rightSidebarOpen && "lg:hidden",
-                // Tablet: Hidden by default, overlay when toggled
+                // Tablet: Hidden by default, overlay when toggled (same as mobile)
                 isTablet && !rightSidebarOpen && "hidden",
-                isTablet && rightSidebarOpen && "block",
+                isTablet && rightSidebarOpen && "fixed right-0 top-0 h-full bg-background z-50 shadow-lg block",
                 // Mobile: Hidden by default, overlay when toggled
                 isMobile && !rightSidebarOpen && "hidden",
                 isMobile && rightSidebarOpen && "fixed right-0 top-0 h-full bg-background z-50 shadow-lg block"
               )} data-right-sidebar>
-                {/* Mobile close button */}
-                {isMobile && rightSidebarOpen && (
+                {/* Mobile and Tablet close button */}
+                {(isMobile || isTablet) && rightSidebarOpen && (
                   <div className={cn(
                     "p-4 border-b flex justify-between items-center",
                     theme === 'dark' ? 'border-slate-700/40' : 'border-slate-200/60'
