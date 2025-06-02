@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { getAccessibleBoardIds } from '@/lib/boardPermissions';
-import { socketEvents } from '@/lib/socket';
+// import { socketEvents } from '../../../lib/socket';
 
 // Interface for the structure of a post when returned by the API
 export interface ApiPost {
@@ -267,26 +267,38 @@ async function createPostHandler(req: AuthenticatedRequest) {
     );
     const newPost: ApiPost = {
       ...result.rows[0],
-      author_name: user.name || null, // Get from JWT
-      author_profile_picture_url: user.picture || null, // Get from JWT
-      user_has_upvoted: false, // New post, so user cannot have upvoted yet
-      board_name: '' // This would require another query or joining in the INSERT, for now empty
+      author_name: user.name || null,
+      author_profile_picture_url: user.picture || null,
+      user_has_upvoted: false,
+      board_name: '' 
     };
 
-    // 🚀 REAL-TIME: Broadcast new post to board room
-    socketEvents.broadcastNewPost(validBoardId, {
-      id: newPost.id,
-      title: newPost.title,
-      author_user_id: newPost.author_user_id,
-      author_name: newPost.author_name,
-      author_profile_picture_url: newPost.author_profile_picture_url,
-      created_at: newPost.created_at,
-      upvote_count: newPost.upvote_count,
-      comment_count: newPost.comment_count,
-      board_id: validBoardId
-    });
+    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
+    const emitter = (process as any).customEventEmitter;
+    console.log('[API /api/posts] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
+
+    if (emitter && typeof emitter.emit === 'function') {
+      emitter.emit('broadcastEvent', {
+        room: `board:${validBoardId}`,
+        eventName: 'newPost',
+        payload: {
+          id: newPost.id,
+          title: newPost.title,
+          author_user_id: newPost.author_user_id,
+          author_name: newPost.author_name,
+          author_profile_picture_url: newPost.author_profile_picture_url,
+          created_at: newPost.created_at,
+          upvote_count: newPost.upvote_count,
+          comment_count: newPost.comment_count,
+          board_id: validBoardId
+        }
+      });
+      console.log('[API /api/posts] Successfully emitted event on process.customEventEmitter for new post.');
+    } else {
+      console.error('[API /api/posts] ERROR: process.customEventEmitter is not available or not an emitter. Emitter:', emitter);
+    }
         
-    console.log('[API] POST /api/posts called by user:', user.sub, 'with body:', body);
+    console.log('[API] POST /api/posts db insert successful, user:', user.sub, 'with body:', body);
     return NextResponse.json(newPost, { status: 201 }); 
 
   } catch (error) {

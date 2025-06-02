@@ -1,89 +1,95 @@
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer } from 'socket.io'; // Keep for type, though not used for instance
 
-// Global Socket.IO instance for API routes to use
-let io: SocketIOServer | null = null;
+console.log('[Socket.IO src/lib/socket.ts] MODULE LOADED (Event Emitter Version). Timestamp:', new Date().toISOString());
 
-/**
- * Set the Socket.IO instance (called from custom server)
- */
-export function setSocketIO(instance: SocketIOServer) {
-  io = instance;
-  console.log('[Socket.IO] Instance set and ready for broadcasting');
+// No longer need getSocketIO or direct io instance management here
+
+// Helper function to access the global event emitter
+function getProcessEventEmitter() {
+  if (!(process as any).customEventEmitter) {
+    // This should ideally not happen if server.ts initializes it first.
+    // But as a fallback, though it won't have server listeners if API routes load first.
+    console.error('[Socket.IO src/lib/socket.ts] customEventEmitter NOT FOUND on process object! API route might have loaded before server.ts initialized it.');
+    // Potentially initialize it here too, but it won't have the server-side listeners.
+    // (process as any).customEventEmitter = new (require('events').EventEmitter)();
+    return null; // Indicate failure or uninitialized state
+  }
+  return (process as any).customEventEmitter;
 }
 
-/**
- * Get the Socket.IO instance for broadcasting events
- */
-export function getSocketIO(): SocketIOServer | null {
-  return io;
-}
-
-/**
- * Utility functions for broadcasting real-time events from API routes
- */
 export const socketEvents = {
-  // Broadcast new post to board room
   broadcastNewPost: (boardId: number, postData: Record<string, unknown>) => {
-    console.log(`[Socket.IO] Attempting to broadcast new post to board:${boardId}. Socket available:`, !!io);
-    if (io) {
-      io.to(`board:${boardId}`).emit('newPost', postData);
-      console.log(`[Socket.IO] ✅ Broadcasted new post to board:${boardId}`, { postTitle: postData.title });
+    const emitter = getProcessEventEmitter();
+    console.log(`[Socket.IO broadcastNewPost via Emitter] Attempting to emit 'broadcastEvent'. Emitter available:`, !!emitter);
+    if (emitter) {
+      emitter.emit('broadcastEvent', {
+        room: `board:${boardId}`,
+        eventName: 'newPost',
+        payload: postData
+      });
+      console.log(`[Socket.IO broadcastNewPost via Emitter] Event emitted to process.customEventEmitter for board:${boardId}`);
     } else {
-      console.error('[Socket.IO] ❌ Cannot broadcast new post - Socket.IO instance not available');
+      console.error('[Socket.IO broadcastNewPost via Emitter] FAILED: customEventEmitter not available on process.');
     }
   },
 
-  // Broadcast post vote update
   broadcastVoteUpdate: (boardId: number, postId: number, newCount: number, userId: string) => {
-    console.log(`[Socket.IO] Attempting to broadcast vote update. Socket available:`, !!io);
-    if (io) {
-      io.to(`board:${boardId}`).emit('voteUpdate', {
-        postId,
-        newCount,
-        userId
+    const emitter = getProcessEventEmitter();
+    console.log(`[Socket.IO broadcastVoteUpdate via Emitter] Attempting to emit. Emitter available:`, !!emitter);
+    if (emitter) {
+      emitter.emit('broadcastEvent', {
+        room: `board:${boardId}`,
+        eventName: 'voteUpdate',
+        payload: { postId, newCount, userId }
       });
-      console.log(`[Socket.IO] ✅ Broadcasted vote update for post ${postId} (${newCount} votes)`);
+      console.log(`[Socket.IO broadcastVoteUpdate via Emitter] Event emitted for post ${postId}`);
     } else {
-      console.error('[Socket.IO] ❌ Cannot broadcast vote update - Socket.IO instance not available');
+      console.error('[Socket.IO broadcastVoteUpdate via Emitter] FAILED: customEventEmitter not available on process.');
     }
   },
 
-  // Broadcast new comment
   broadcastNewComment: (boardId: number, postId: number, commentData: Record<string, unknown>) => {
-    console.log(`[Socket.IO] Attempting to broadcast new comment. Socket available:`, !!io);
-    if (io) {
-      io.to(`board:${boardId}`).emit('newComment', {
-        postId,
-        comment: commentData
+    const emitter = getProcessEventEmitter();
+    console.log(`[Socket.IO broadcastNewComment via Emitter] Attempting to emit. Emitter available:`, !!emitter);
+    if (emitter) {
+      emitter.emit('broadcastEvent', {
+        room: `board:${boardId}`,
+        eventName: 'newComment',
+        payload: { postId, comment: commentData }
       });
-      console.log(`[Socket.IO] ✅ Broadcasted new comment for post ${postId}`);
+      console.log(`[Socket.IO broadcastNewComment via Emitter] Event emitted for post ${postId}`);
     } else {
-      console.error('[Socket.IO] ❌ Cannot broadcast new comment - Socket.IO instance not available');
+      console.error('[Socket.IO broadcastNewComment via Emitter] FAILED: customEventEmitter not available on process.');
     }
   },
 
-  // Broadcast post deletion (admin only)
   broadcastPostDeleted: (boardId: number, postId: number) => {
-    console.log(`[Socket.IO] Attempting to broadcast post deletion. Socket available:`, !!io);
-    if (io) {
-      io.to(`board:${boardId}`).emit('postDeleted', { postId });
-      console.log(`[Socket.IO] ✅ Broadcasted post deletion: ${postId}`);
+    const emitter = getProcessEventEmitter();
+    console.log(`[Socket.IO broadcastPostDeleted via Emitter] Attempting to emit. Emitter available:`, !!emitter);
+    if (emitter) {
+      emitter.emit('broadcastEvent', {
+        room: `board:${boardId}`,
+        eventName: 'postDeleted',
+        payload: { postId }
+      });
+      console.log(`[Socket.IO broadcastPostDeleted via Emitter] Event emitted for post ${postId}`);
     } else {
-      console.error('[Socket.IO] ❌ Cannot broadcast post deletion - Socket.IO instance not available');
+      console.error('[Socket.IO broadcastPostDeleted via Emitter] FAILED: customEventEmitter not available on process.');
     }
   },
 
-  // Broadcast when board settings change (permission updates)
   broadcastBoardSettingsChanged: (boardId: number, settings: Record<string, unknown>) => {
-    console.log(`[Socket.IO] Attempting to broadcast board settings change. Socket available:`, !!io);
-    if (io) {
-      io.to(`board:${boardId}`).emit('boardSettingsChanged', {
-        boardId,
-        settings
+    const emitter = getProcessEventEmitter();
+    console.log(`[Socket.IO broadcastBoardSettingsChanged via Emitter] Attempting to emit. Emitter available:`, !!emitter);
+    if (emitter) {
+      emitter.emit('broadcastEvent', {
+        room: `board:${boardId}`,
+        eventName: 'boardSettingsChanged',
+        payload: { boardId, settings }
       });
-      console.log(`[Socket.IO] ✅ Broadcasted board settings change for board ${boardId}`);
+      console.log(`[Socket.IO broadcastBoardSettingsChanged via Emitter] Event emitted for board ${boardId}`);
     } else {
-      console.error('[Socket.IO] ❌ Cannot broadcast board settings change - Socket.IO instance not available');
+      console.error('[Socket.IO broadcastBoardSettingsChanged via Emitter] FAILED: customEventEmitter not available on process.');
     }
   }
 }; 

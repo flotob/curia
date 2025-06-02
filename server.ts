@@ -24,7 +24,7 @@ import jwt from 'jsonwebtoken';
 import { canUserAccessBoard } from './src/lib/boardPermissions';
 import { query } from './src/lib/db';
 import { JwtPayload } from './src/lib/withAuth';
-import { setSocketIO } from './src/lib/socket';
+import { EventEmitter } from 'events';
 
 // Load environment variables for custom server (development only)
 // if (process.env.NODE_ENV !== 'production' && !process.env.JWT_SECRET) {
@@ -44,8 +44,15 @@ console.log('[Server] Environment check:', {
   PORT: process.env.PORT || '3000'
 });
 
-// Global Socket.IO instance that API routes can import
+// Global Socket.IO instance that API routes can import - NO LONGER THE PRIMARY WAY
 let io: SocketIOServer;
+
+// Create a global event emitter instance
+if (!(process as any).customEventEmitter) {
+  (process as any).customEventEmitter = new EventEmitter();
+  console.log('[Server] CustomEventEmitter initialized on process object');
+}
+const customEventEmitter = (process as any).customEventEmitter;
 
 // Enhanced socket interface with user data
 interface AuthenticatedSocket extends Socket {
@@ -73,8 +80,17 @@ async function bootstrap() {
     }
   });
 
-  // Share the Socket.IO instance with API routes
-  setSocketIO(io);
+  // No longer setting io on globalThis for API routes to pick up directly
+  // (globalThis as any).SocketIO_Instance_For_Curia = io;
+  // console.log('[Socket.IO] Instance set on globalThis.SocketIO_Instance_For_Curia and ready for broadcasting');
+  console.log('[Socket.IO] Server instance created.');
+
+  // Setup listeners for events from API routes
+  customEventEmitter.on('broadcastEvent', (eventDetails: { room: string; eventName: string; payload: any }) => {
+    const { room, eventName, payload } = eventDetails;
+    console.log(`[Socket.IO EventAggregator] Received event '${eventName}' for room '${room}'. Broadcasting...`, payload);
+    io.to(room).emit(eventName, payload);
+  });
 
   // JWT Authentication middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
@@ -231,8 +247,6 @@ async function bootstrap() {
     console.log(`[Socket.IO] WebSocket server ready`);
   });
 }
-
-// Socket.IO instance is now shared via setSocketIO()
 
 // Start the server
 bootstrap().catch((err) => {
