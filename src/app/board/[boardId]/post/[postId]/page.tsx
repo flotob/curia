@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCgLib } from '@/contexts/CgLibContext';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 // import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { ArrowLeft, Home, MessageSquare } from 'lucide-react';
-import { buildHomeUrl, buildBoardUrl } from '@/utils/urlBuilder';
+// URL builder utilities are now handled internally with buildInternalUrl
 
 interface PostDetailPageProps {
   params: Promise<{
@@ -30,7 +30,8 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   
   // All hooks must be called at the top level
   const { token } = useAuth();
-  const { cgInstance } = useCgLib();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   
   useEffect(() => {
@@ -76,13 +77,29 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     enabled: !!token && !isNaN(postIdNum) && !!postId,
   });
   
-  // Handle navigation with CG context
-  const handleNavigation = (url: string) => {
-    if (cgInstance) {
-      cgInstance.navigate(url)
-        .then(() => console.log(`[PostDetailPage] Navigation to ${url} successful`))
-        .catch(err => console.error(`[PostDetailPage] Navigation failed:`, err));
+  // Helper function to build URLs while preserving current parameters
+  const buildInternalUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
     }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  };
+
+  // Handle navigation with internal router
+  const handleNavigation = (url: string) => {
+    console.log(`[PostDetailPage] Internal navigation to: ${url}`);
+    router.push(url);
   };
 
   // Early return for loading params state
@@ -152,14 +169,14 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
               </p>
               <div className="space-x-4">
                 <Button 
-                  onClick={() => handleNavigation(buildBoardUrl(boardIdNum))}
+                  onClick={() => handleNavigation(buildInternalUrl('/', { boardId: boardId }))}
                   variant="outline"
                 >
                   <ArrowLeft size={16} className="mr-2" />
                   Back to Board
                 </Button>
                 <Button 
-                  onClick={() => handleNavigation(buildHomeUrl())}
+                  onClick={() => handleNavigation(buildInternalUrl('/'))}
                 >
                   <Home size={16} className="mr-2" />
                   Go Home

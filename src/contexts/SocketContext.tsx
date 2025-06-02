@@ -3,10 +3,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCgLib } from '@/contexts/CgLibContext';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { buildPostUrl, buildBoardUrl } from '@/utils/urlBuilder';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // ===== PHASE 1: ENHANCED SOCKET CONTEXT WITH GLOBAL PRESENCE =====
 
@@ -38,8 +37,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { token, isAuthenticated, user } = useAuth();
-  const { cgInstance } = useCgLib();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
   // Phase 1: Global presence state
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<OnlineUser[]>([]);
@@ -47,6 +47,39 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   
   // Extract only the stable parts we need from user to avoid unnecessary reconnections
   const userId = user?.userId;
+
+  // Helper function to build URLs while preserving current parameters
+  const buildInternalUrl = useCallback((path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  }, [searchParams]);
+
+  // Internal navigation functions
+  const navigateToPost = useCallback((postId: number, boardId: number) => {
+    const url = `/board/${boardId}/post/${postId}`;
+    const urlWithParams = buildInternalUrl(url);
+    console.log(`[Socket] Internal navigation to post ${postId} in board ${boardId}: ${urlWithParams}`);
+    router.push(urlWithParams);
+  }, [router, buildInternalUrl]);
+
+  const navigateToBoard = useCallback((boardId: number) => {
+    const url = buildInternalUrl('/', { boardId: boardId.toString() });
+    console.log(`[Socket] Internal navigation to board ${boardId}: ${url}`);
+    router.push(url);
+  }, [router, buildInternalUrl]);
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -103,14 +136,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`, {
           action: {
             label: 'View Post',
-            onClick: () => {
-              if (cgInstance) {
-                const url = buildPostUrl(postData.id, postData.board_id);
-                cgInstance.navigate(url)
-                  .then(() => console.log(`[Socket] Navigation to new post ${postData.id} successful`))
-                  .catch(err => console.error(`[Socket] Navigation to new post ${postData.id} failed:`, err));
-              }
-            }
+            onClick: () => navigateToPost(postData.id, postData.board_id)
           }
         });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
@@ -127,14 +153,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.info(`"${voteData.post_title}" received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`, {
           action: {
             label: 'View Post',
-            onClick: () => {
-              if (cgInstance) {
-                const url = buildPostUrl(voteData.postId, voteData.board_id);
-                cgInstance.navigate(url)
-                  .then(() => console.log(`[Socket] Navigation to post ${voteData.postId} successful`))
-                  .catch(err => console.error(`[Socket] Navigation to post ${voteData.postId} failed:`, err));
-              }
-            }
+            onClick: () => navigateToPost(voteData.postId, voteData.board_id)
           }
         });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
@@ -151,14 +170,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.info(`${commentData.comment.author_name || 'Unknown'} commented on "${commentData.post_title}"`, {
           action: {
             label: 'View Post',
-            onClick: () => {
-              if (cgInstance) {
-                const url = buildPostUrl(commentData.postId, commentData.board_id);
-                cgInstance.navigate(url)
-                  .then(() => console.log(`[Socket] Navigation to post ${commentData.postId} successful`))
-                  .catch(err => console.error(`[Socket] Navigation to post ${commentData.postId} failed:`, err));
-              }
-            }
+            onClick: () => navigateToPost(commentData.postId, commentData.board_id)
           }
         });
         console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
@@ -231,14 +243,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.success(`New board created: "${boardData.board.name}"`, {
           action: {
             label: 'View Board',
-            onClick: () => {
-              if (cgInstance) {
-                const url = buildBoardUrl(boardData.board.id);
-                cgInstance.navigate(url)
-                  .then(() => console.log(`[Socket] Navigation to new board ${boardData.board.id} successful`))
-                  .catch(err => console.error(`[Socket] Navigation to new board ${boardData.board.id} failed:`, err));
-              }
-            }
+            onClick: () => navigateToBoard(boardData.board.id)
           }
         });
       }
@@ -293,7 +298,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setGlobalOnlineUsers([]);
       setBoardOnlineUsers([]);
     };
-  }, [isAuthenticated, token, userId, queryClient, socket, cgInstance]);
+  }, [isAuthenticated, token, userId, queryClient, navigateToPost, navigateToBoard]); // Note: 'socket' intentionally excluded to prevent infinite re-renders
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {

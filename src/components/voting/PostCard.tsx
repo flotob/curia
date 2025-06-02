@@ -34,8 +34,8 @@ import { cn } from '@/lib/utils';
 import { CommentList } from './CommentList'; // Import CommentList
 import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
-import { useCgLib } from '@/contexts/CgLibContext'; // Import useCgLib
 import { useTimeSince } from '@/utils/timeUtils';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -67,8 +67,28 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
-  const { cgInstance } = useCgLib(); // Get cgInstance
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(post.created_at);
+
+  // Helper function to build URLs while preserving current parameters
+  const buildInternalUrl = React.useCallback((path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  }, [searchParams]);
 
   // Update content expansion when showFullContent prop changes
   useEffect(() => {
@@ -191,7 +211,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
   // Effect for handling link clicks in rendered Tiptap content
   useEffect(() => {
-    if (!contentDisplayEditor || !cgInstance) return;
+    if (!contentDisplayEditor) return;
 
     const editorElement = contentDisplayEditor.view.dom;
     if (!editorElement) return;
@@ -202,14 +222,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
       if (anchor && anchor.href) {
         const href = anchor.href;
-        // Basic check if it's an external link or could be an internal CG link
-        // More robust checking (e.g. against current window.location.origin) can be added
-        if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/')) {
+        if (href.startsWith('/')) {
+          // Internal link - use router navigation
           event.preventDefault();
-          console.log(`[PostCard] Intercepted link click: ${href}, navigating with cgInstance.`);
-          cgInstance.navigate(href)
-            .then(() => console.log(`[PostCard] cgInstance.navigate called for ${href}`))
-            .catch(err => console.error(`[PostCard] Error calling cgInstance.navigate for ${href}:`, err));
+          console.log(`[PostCard] Intercepted internal link click: ${href}, navigating with router.`);
+          const urlWithParams = buildInternalUrl(href);
+          router.push(urlWithParams);
+        } else if (href.startsWith('http://') || href.startsWith('https://')) {
+          // External link - let browser handle it naturally
+          console.log(`[PostCard] External link click: ${href}, opening in browser.`);
+          // Don't prevent default - let it open normally
         }
       }
     };
@@ -219,7 +241,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     return () => {
       editorElement.removeEventListener('click', handleClick);
     };
-  }, [contentDisplayEditor, cgInstance, post.content]); // Rerun if editor or cgInstance changes, or content changes (rebinding needed)
+  }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
     <Card className="w-full overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">

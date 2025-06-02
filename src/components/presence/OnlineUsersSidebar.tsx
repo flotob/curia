@@ -2,27 +2,43 @@
 
 import React from 'react';
 import { useSocket } from '@/contexts/SocketContext';
-import { useCgLib } from '@/contexts/CgLibContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Users, MessageCircle, ExternalLink } from 'lucide-react';
-import { buildBoardUrl } from '@/utils/urlBuilder';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // ===== PHASE 2: ENHANCED ONLINE USERS SIDEBAR =====
 
 export function OnlineUsersSidebar() {
   const { globalOnlineUsers, boardOnlineUsers, isConnected } = useSocket();
-  const { cgInstance } = useCgLib();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Helper function to build URLs while preserving current parameters
+  const buildInternalUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  };
 
   // Handle navigation to board
   const handleBoardNavigation = (boardId: number) => {
-    if (cgInstance) {
-      const url = buildBoardUrl(boardId);
-      cgInstance.navigate(url)
-        .then(() => console.log(`[OnlineUsersSidebar] Navigation to board ${boardId} successful`))
-        .catch(err => console.error(`[OnlineUsersSidebar] Navigation to board ${boardId} failed:`, err));
-    }
+    const url = buildInternalUrl('/', { boardId: boardId.toString() });
+    console.log(`[OnlineUsersSidebar] Internal navigation to board ${boardId}: ${url}`);
+    router.push(url);
   };
 
   if (!isConnected) {

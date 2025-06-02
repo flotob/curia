@@ -14,8 +14,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
-import { useCgLib } from '@/contexts/CgLibContext'; // Import useCgLib
 import { useTimeSince } from '@/utils/timeUtils';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -42,8 +42,28 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
-  const { cgInstance } = useCgLib(); // Get cgInstance
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(comment.created_at);
+
+  // Helper function to build URLs while preserving current parameters
+  const buildInternalUrl = React.useCallback((path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  }, [searchParams]);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -97,7 +117,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
 
   // Effect for handling link clicks in rendered Tiptap content
   React.useEffect(() => {
-    if (!editor || !cgInstance) return;
+    if (!editor) return;
 
     const editorElement = editor.view.dom;
     if (!editorElement) return;
@@ -108,12 +128,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
 
       if (anchor && anchor.href) {
         const href = anchor.href;
-        if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/')) {
+        if (href.startsWith('/')) {
+          // Internal link - use router navigation
           event.preventDefault();
-          console.log(`[CommentItem] Intercepted link click: ${href}, navigating with cgInstance.`);
-          cgInstance.navigate(href)
-            .then(() => console.log(`[CommentItem] cgInstance.navigate called for ${href}`))
-            .catch(err => console.error(`[CommentItem] Error calling cgInstance.navigate for ${href}:`, err));
+          console.log(`[CommentItem] Intercepted internal link click: ${href}, navigating with router.`);
+          const urlWithParams = buildInternalUrl(href);
+          router.push(urlWithParams);
+        } else if (href.startsWith('http://') || href.startsWith('https://')) {
+          // External link - let browser handle it naturally
+          console.log(`[CommentItem] External link click: ${href}, opening in browser.`);
+          // Don't prevent default - let it open normally
         }
       }
     };
@@ -123,7 +147,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
     return () => {
       editorElement.removeEventListener('click', handleClick);
     };
-  }, [editor, cgInstance, comment.content]); // Rerun if editor or cgInstance changes, or content changes
+  }, [editor, router, comment.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes
 
   if (!editor) {
     return null; // Or a loader/placeholder
