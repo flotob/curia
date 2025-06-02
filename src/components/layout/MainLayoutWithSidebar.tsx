@@ -21,7 +21,7 @@ import {
   // Plus 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSearchParams, usePathname } from 'next/navigation';
+import { useSearchParams, usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
@@ -42,6 +42,7 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const router = useRouter();
 
   // Phase 2: Enhanced screen size detection
   useEffect(() => {
@@ -184,6 +185,45 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     return 'Loading...';
   };
 
+  // Navigation handlers
+  const handleLogoClick = () => {
+    // Always go to homepage, preserving current search params
+    const params = new URLSearchParams();
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        // Preserve all params except boardId (going to home)
+        if (key !== 'boardId') {
+          params.set(key, value);
+        }
+      });
+    }
+    const homeUrl = params.toString() ? `/?${params.toString()}` : '/';
+    console.log(`[Header] Navigating to home: ${homeUrl}`);
+    router.push(homeUrl);
+  };
+
+  const handleBoardNameClick = () => {
+    if (!currentBoard) return;
+    
+    if (isPostDetailRoute) {
+      // On post detail page → navigate back to board
+      const params = new URLSearchParams();
+      if (searchParams) {
+        searchParams.forEach((value, key) => {
+          params.set(key, value);
+        });
+      }
+      params.set('boardId', currentBoard.id.toString());
+      const boardUrl = `/?${params.toString()}`;
+      console.log(`[Header] Navigating back to board: ${boardUrl}`);
+      router.push(boardUrl);
+    } else {
+      // Already in board view → scroll to top
+      console.log(`[Header] Scrolling to top of board feed`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const showSidebar = isAuthenticated && communityInfo && accessibleBoardsList && !isLoadingCommunityInfo && !isLoadingBoards && !isFilteringBoards && !cgLibError && !communityInfoError && !boardsError;
 
   if (isCgLibInitializing || (isAuthenticated && (isLoadingCommunityInfo || (communityIdForBoards && isLoadingBoards && communityInfo) || isFilteringBoards))) {
@@ -269,10 +309,13 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                 <Menu size={20} />
               </Button>
               
-              {/* Center - Community info with dynamic context */}
+              {/* Center - Profile picture with dynamic context */}
               <div className="flex items-center space-x-2">
                 {communityInfo?.smallLogoUrl && (
-                  <div className="relative">
+                  <button 
+                    onClick={handleLogoClick}
+                    className="relative transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded"
+                  >
                     <div className="w-6 h-6 rounded overflow-hidden shadow-sm">
                       <Image 
                         src={communityInfo.smallLogoUrl} 
@@ -282,24 +325,59 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                         className="object-cover"
                       />
                     </div>
-                  </div>
+                  </button>
                 )}
-                <span className={cn(
-                  "font-semibold truncate bg-gradient-to-r bg-clip-text text-transparent",
-                  theme === 'dark' 
-                    ? 'from-slate-100 to-slate-300' 
-                    : 'from-slate-900 to-slate-700'
-                )}>
-                  {currentBoard || currentPost ? (
-                    <>
-                      {communityInfo?.title}
-                      <span className="mx-1 opacity-60">/</span>
-                      {getHeaderTitle()}
-                    </>
-                  ) : (
-                    communityInfo?.title
-                  )}
-                </span>
+                
+                {/* Show slash and context only when we have board or post context */}
+                {(currentBoard || currentPost) && (
+                  <>
+                    <span className={cn(
+                      "text-lg font-light opacity-60",
+                      theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                    )}>
+                      /
+                    </span>
+                    {currentBoard ? (
+                      <button
+                        onClick={handleBoardNameClick}
+                        className={cn(
+                          "font-semibold truncate bg-gradient-to-r bg-clip-text text-transparent transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 py-0.5",
+                          theme === 'dark' 
+                            ? 'from-slate-100 to-slate-300' 
+                            : 'from-slate-900 to-slate-700'
+                        )}
+                        title={isPostDetailRoute ? `Go back to ${currentBoard.name}` : `Scroll to top of ${currentBoard.name}`}
+                      >
+                        {currentBoard.name}
+                      </button>
+                    ) : (
+                      <span className={cn(
+                        "font-semibold truncate bg-gradient-to-r bg-clip-text text-transparent",
+                        theme === 'dark' 
+                          ? 'from-slate-100 to-slate-300' 
+                          : 'from-slate-900 to-slate-700'
+                      )}>
+                        {getHeaderTitle()}
+                      </span>
+                    )}
+                  </>
+                )}
+                
+                {/* Fallback: show community title when no context */}
+                {!currentBoard && !currentPost && (
+                  <button
+                    onClick={handleLogoClick}
+                    className={cn(
+                      "font-semibold truncate bg-gradient-to-r bg-clip-text text-transparent transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded px-1 py-0.5",
+                      theme === 'dark' 
+                        ? 'from-slate-100 to-slate-300' 
+                        : 'from-slate-900 to-slate-700'
+                    )}
+                    title="Go to homepage"
+                  >
+                    {communityInfo?.title}
+                  </button>
+                )}
               </div>
               
               {/* Right sidebar toggle */}
