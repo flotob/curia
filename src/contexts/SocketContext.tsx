@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -35,7 +35,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { token, isAuthenticated, user } = useAuth();
-  const currentSocketRef = useRef<Socket | null>(null);
   const queryClient = useQueryClient();
   
   // Phase 1: Global presence state
@@ -44,7 +43,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   
   // Extract only the stable parts we need from user to avoid unnecessary reconnections
   const userId = user?.userId;
-  const userName = user?.name;
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -243,7 +241,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setGlobalOnlineUsers([]);
       setBoardOnlineUsers([]);
     };
-  }, [isAuthenticated, token, userId]);
+  }, [isAuthenticated, token, userId, queryClient, socket]);
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {

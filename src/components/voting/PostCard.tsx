@@ -50,17 +50,18 @@ const lowlight = createLowlight(common);
 
 interface PostCardProps {
   post: ApiPost;
-  showBoardContext?: boolean; // Whether to show which board this post belongs to
+  showBoardContext?: boolean; // Whether to show "in BoardName" context
+  showFullContent?: boolean;  // Whether to show full content (for detail pages)
 }
 
 
 
-export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
   const [showComments, setShowComments] = useState(false);
-  const [isPostContentExpanded, setIsPostContentExpanded] = useState(false);
+  const [isPostContentExpanded, setIsPostContentExpanded] = useState(showFullContent);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   
@@ -68,6 +69,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const queryClient = useQueryClient();
   const { cgInstance } = useCgLib(); // Get cgInstance
   const timeSinceText = useTimeSince(post.created_at);
+
+  // Update content expansion when showFullContent prop changes
+  useEffect(() => {
+    setIsPostContentExpanded(showFullContent);
+  }, [showFullContent]);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -276,7 +282,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 </div>
 
                 {/* "Show more..." / "Show less..." buttons are now siblings, outside the overflow-hidden div */}
-                {!isPostContentExpanded && (
+                {!isPostContentExpanded && !showFullContent && (
                   <div className="mt-1 text-left"> {/* Changed to text-left, removed text-center */}
                      <Button 
                         variant="link" // Reverted to link for text+icon style
@@ -289,13 +295,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                      </Button>
                   </div>
                 )}
-                 {isPostContentExpanded && (
-                  <div className="mt-2 text-left"> {/* Changed to text-left, removed text-center */}
+
+                {isPostContentExpanded && !showFullContent && (
+                  <div className="mt-1 text-left">
                      <Button 
                         variant="link"
                         size="sm"
                         onClick={() => setIsPostContentExpanded(false)} 
-                        className="text-muted-foreground hover:text-foreground/80 px-2 py-1 h-auto font-medium"
+                        className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
                         aria-label="Show less content"
                      >
                         <ChevronUp size={18} className="mr-1.5" /> Show less

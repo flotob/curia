@@ -1,0 +1,135 @@
+/**
+ * URL Builder Utilities for Enhanced Notifications & Navigation
+ * 
+ * These utilities help build URLs for posts and boards while preserving
+ * Common Ground plugin parameters (cg_theme, cg_bg_color, etc.)
+ */
+
+/**
+ * Builds a URL to a specific post detail page
+ * @param postId - The ID of the post
+ * @param boardId - The ID of the board the post belongs to
+ * @param preserveParams - Whether to preserve current URL parameters (default: true)
+ * @returns Complete URL string for the post detail page
+ */
+export function buildPostUrl(postId: number, boardId: number, preserveParams: boolean = true): string {
+  const baseUrl = `/board/${boardId}/post/${postId}`;
+  
+  if (!preserveParams || typeof window === 'undefined') {
+    return baseUrl;
+  }
+  
+  // Preserve Common Ground params (cg_theme, cg_bg_color, etc.)
+  const searchParams = new URLSearchParams(window.location.search);
+  const cgParams = new URLSearchParams();
+  
+  searchParams.forEach((value, key) => {
+    if (key.startsWith('cg_')) {
+      cgParams.set(key, value);
+    }
+  });
+  
+  return cgParams.toString() ? `${baseUrl}?${cgParams.toString()}` : baseUrl;
+}
+
+/**
+ * Builds a URL to a specific board (home page filtered by board)
+ * @param boardId - The ID of the board
+ * @param preserveParams - Whether to preserve current URL parameters (default: true)
+ * @returns Complete URL string for the board view
+ */
+export function buildBoardUrl(boardId: number, preserveParams: boolean = true): string {
+  const baseUrl = `/?boardId=${boardId}`;
+  
+  if (!preserveParams || typeof window === 'undefined') {
+    return baseUrl;
+  }
+  
+  // Preserve Common Ground params (cg_theme, cg_bg_color, etc.)
+  const searchParams = new URLSearchParams(window.location.search);
+  const cgParams = new URLSearchParams();
+  
+  searchParams.forEach((value, key) => {
+    if (key.startsWith('cg_') || key === 'boardId') {
+      cgParams.set(key, value);
+    }
+  });
+  
+  // Override boardId with the new one
+  cgParams.set('boardId', boardId.toString());
+  
+  return `/?${cgParams.toString()}`;
+}
+
+/**
+ * Builds the home URL while preserving Common Ground parameters
+ * @param preserveParams - Whether to preserve current URL parameters (default: true)
+ * @returns Complete URL string for the home page
+ */
+export function buildHomeUrl(preserveParams: boolean = true): string {
+  if (!preserveParams || typeof window === 'undefined') {
+    return '/';
+  }
+  
+  // Preserve Common Ground params (excluding boardId to go to true home)
+  const searchParams = new URLSearchParams(window.location.search);
+  const cgParams = new URLSearchParams();
+  
+  searchParams.forEach((value, key) => {
+    if (key.startsWith('cg_') && key !== 'boardId') {
+      cgParams.set(key, value);
+    }
+  });
+  
+  return cgParams.toString() ? `/?${cgParams.toString()}` : '/';
+}
+
+/**
+ * Preserves Common Ground parameters when building any URL
+ * @param baseUrl - The base URL to append parameters to
+ * @param additionalParams - Additional parameters to include
+ * @returns Complete URL with preserved CG parameters
+ */
+export function preserveCgParams(baseUrl: string, additionalParams: Record<string, string> = {}): string {
+  if (typeof window === 'undefined') {
+    return baseUrl;
+  }
+  
+  const url = new URL(baseUrl, window.location.origin);
+  const searchParams = new URLSearchParams(window.location.search);
+  
+  // Add Common Ground params
+  searchParams.forEach((value, key) => {
+    if (key.startsWith('cg_')) {
+      url.searchParams.set(key, value);
+    }
+  });
+  
+  // Add additional params
+  Object.entries(additionalParams).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  
+  return url.pathname + (url.search ? url.search : '');
+}
+
+/**
+ * Extracts Common Ground parameters from current URL
+ * @returns Object containing all CG parameters
+ */
+export function getCgParams(): Record<string, string> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+  
+  const searchParams = new URLSearchParams(window.location.search);
+  const cgParams: Record<string, string> = {};
+  
+  searchParams.forEach((value, key) => {
+    if (key.startsWith('cg_')) {
+      cgParams[key] = value;
+    }
+  });
+  
+  return cgParams;
+} 
