@@ -188,10 +188,10 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   return (
     <CommunityAccessGate theme={theme}>
       <div className="flex min-h-screen relative">
-        {/* Phase 2: Enhanced backdrop overlay for both sidebars */}
-        {showSidebar && (isMobile || isTablet) && (leftSidebarOpen || rightSidebarOpen) && (
+        {/* Phase 2: Enhanced backdrop overlay for MOBILE OVERLAYS ONLY */}
+        {((isMobile && rightSidebarOpen) || (isMobile && leftSidebarOpen) || (isTablet && leftSidebarOpen)) && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
             onClick={() => {
               setLeftSidebarOpen(false);
               setRightSidebarOpen(false);
