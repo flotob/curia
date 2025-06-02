@@ -139,14 +139,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Main Container - Clean layout, OnlineUsersSidebar now in MainLayoutWithSidebar */}
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* New Post Form */}
-        <section className="max-w-2xl mx-auto">
-          <NewPostForm boardId={boardId} />
-        </section>
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* New Post Form */}
+          <section className="max-w-2xl mx-auto">
+            <NewPostForm boardId={boardId} />
+          </section>
 
-        {/* Feed Section */}
-        <main className="max-w-2xl mx-auto space-y-6">
+          {/* Feed Section */}
+          <main className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className={cn(
@@ -185,9 +186,10 @@ export default function HomePage() {
               )}
             </div>
           </div>
-          
+                    
           <FeedList boardId={boardId} />
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );

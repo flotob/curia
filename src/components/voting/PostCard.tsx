@@ -71,6 +71,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(post.created_at);
 
+  // Get current page context to determine if elements should be clickable
+  const currentBoardId = searchParams?.get('boardId');
+  const isCurrentlyInThisBoard = currentBoardId === post.board_id?.toString();
+  const isDetailView = showFullContent; // If showing full content, we're in detail view
+
   // Helper function to build URLs while preserving current parameters
   const buildInternalUrl = React.useCallback((path: string, additionalParams: Record<string, string> = {}) => {
     const params = new URLSearchParams();
@@ -89,6 +94,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     
     return `${path}?${params.toString()}`;
   }, [searchParams]);
+
+  // Navigation handlers
+  const handleBoardClick = React.useCallback(() => {
+    if (!isCurrentlyInThisBoard && post.board_id) {
+      const url = buildInternalUrl('/', { boardId: post.board_id.toString() });
+      console.log(`[PostCard] Navigating to board ${post.board_id}: ${url}`);
+      router.push(url);
+    }
+  }, [isCurrentlyInThisBoard, post.board_id, buildInternalUrl, router]);
+
+  const handleTitleClick = React.useCallback(() => {
+    if (!isDetailView && post.board_id) {
+      const url = buildInternalUrl(`/board/${post.board_id}/post/${post.id}`);
+      console.log(`[PostCard] Navigating to post detail ${post.id}: ${url}`);
+      router.push(url);
+    }
+  }, [isDetailView, post.board_id, post.id, buildInternalUrl, router]);
 
   // Update content expansion when showFullContent prop changes
   useEffect(() => {
@@ -180,6 +202,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         HTMLAttributes: {
           // target: '_blank', // Not strictly needed if openOnClick is false and we use cgInstance.navigate
           // rel: 'noopener noreferrer nofollow', // Good to keep for any links that might somehow bypass our handler
+          class: 'break-words max-w-full overflow-wrap-anywhere', // Force URLs to wrap properly
         },
       }),
       TiptapImage, // Use aliased TiptapImage for rendering images
@@ -244,7 +267,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
-    <Card className="w-full overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className="w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
       <div className="flex">
         {/* Vote Section */}
         <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
@@ -259,27 +282,45 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         {/* Main Content Section */}
         <div className="flex-grow relative min-w-0">
           <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1">
-              <div className="flex items-center">
-                <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2">
+            <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
+              <div className="flex items-center min-w-0">
+                <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0">
                   <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
                   <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
                 </Avatar>
-                <span className="font-medium text-foreground truncate">{authorDisplayName}</span>
+                <span className="font-medium text-foreground truncate min-w-0">{authorDisplayName}</span>
               </div>
               {showBoardContext && (
-                <div className="flex items-center">
-                  <span className="mx-1">in</span>
-                  <span className="font-medium text-primary truncate">{post.board_name}</span>
+                <div className="flex items-center min-w-0">
+                  <span className="mx-1 flex-shrink-0">in</span>
+                  {!isCurrentlyInThisBoard ? (
+                    <button 
+                      onClick={handleBoardClick}
+                      className="font-medium text-primary hover:text-primary/80 truncate cursor-pointer underline-offset-2 hover:underline transition-colors min-w-0"
+                    >
+                      {post.board_name}
+                    </button>
+                  ) : (
+                    <span className="font-medium text-primary truncate min-w-0">{post.board_name}</span>
+                  )}
                 </div>
               )}
-              <div className="flex items-center">
-                <span className="mx-1">•</span>
+              <div className="flex items-center min-w-0">
+                <span className="mx-1 flex-shrink-0">•</span>
                 <Clock size={12} className="mr-1 flex-shrink-0" /> 
-                <span className="truncate">{timeSinceText}</span>
+                <span className="truncate min-w-0">{timeSinceText}</span>
               </div>
             </div>
-            <CardTitle className="text-base sm:text-lg md:text-xl leading-tight pr-8">{post.title}</CardTitle>
+            {!isDetailView ? (
+              <CardTitle 
+                className="text-base sm:text-lg md:text-xl leading-tight pr-8 cursor-pointer hover:text-primary transition-colors break-words"
+                onClick={handleTitleClick}
+              >
+                {post.title}
+              </CardTitle>
+            ) : (
+              <CardTitle className="text-base sm:text-lg md:text-xl leading-tight pr-8 break-words">{post.title}</CardTitle>
+            )}
             {post.content && contentDisplayEditor && (
               <div className="mt-1"> {/* Main container for content block + button */}
                 <div // Wrapper for text content and gradient
@@ -290,7 +331,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 >
                   <div // Inner Content area for prose styling and bottom padding for gradient
                     className={cn(
-                      "prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none",
+                      "prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none break-words overflow-hidden",
+                      // Enhanced link handling for mobile
+                      "prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere",
                       !isPostContentExpanded && "pb-8" // Increased padding for taller gradient + spacing
                     )}
                   >

@@ -87,6 +87,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
         HTMLAttributes: {
           // target: '_blank',
           // rel: 'noopener noreferrer nofollow',
+          class: 'break-words max-w-full overflow-wrap-anywhere', // Force URLs to wrap properly
         },
       }),
       TiptapImage, // For rendering images, if they ever appear in comments
@@ -189,7 +190,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
           )}
         </div>
         <div className="mt-1 text-sm">
-            <article className="prose dark:prose-invert prose-sm max-w-none">
+            <article className="prose dark:prose-invert prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere">
                 <EditorContent editor={editor} />
             </article>
         </div>
