@@ -35,6 +35,7 @@ import { CommentList } from './CommentList'; // Import CommentList
 import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 import { useCgLib } from '@/contexts/CgLibContext'; // Import useCgLib
+import { useTimeSince } from '@/utils/timeUtils';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -52,23 +53,7 @@ interface PostCardProps {
   showBoardContext?: boolean; // Whether to show which board this post belongs to
 }
 
-// Helper to format time since posted (simplified)
-function timeSince(dateString: string): string {
-  const date = new Date(dateString);
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  let interval = seconds / 31536000;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " year" : " years") + " ago";
-  interval = seconds / 2592000;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " month" : " months") + " ago";
-  interval = seconds / 86400;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " day" : " days") + " ago";
-  interval = seconds / 3600;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " hour" : " hours") + " ago";
-  interval = seconds / 60;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " minute" : " minutes") + " ago";
-  if (seconds < 10) return "just now";
-  return Math.floor(seconds) + " seconds ago";
-}
+
 
 export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
@@ -82,6 +67,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
   const { cgInstance } = useCgLib(); // Get cgInstance
+  const timeSinceText = useTimeSince(post.created_at);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -262,7 +248,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               <div className="flex items-center">
                 <span className="mx-1">•</span>
                 <Clock size={12} className="mr-1 flex-shrink-0" /> 
-                <span className="truncate">{timeSince(post.created_at)}</span>
+                <span className="truncate">{timeSinceText}</span>
               </div>
             </div>
             <CardTitle className="text-base sm:text-lg md:text-xl leading-tight pr-8">{post.title}</CardTitle>

@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
 import { useCgLib } from '@/contexts/CgLibContext'; // Import useCgLib
+import { useTimeSince } from '@/utils/timeUtils';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -34,23 +35,7 @@ interface CommentItemProps {
   comment: ApiComment;
 }
 
-// Helper to format time (can be moved to a shared util if used elsewhere)
-function timeSince(dateString: string): string {
-  const date = new Date(dateString);
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  let interval = seconds / 31536000;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " year" : " years") + " ago";
-  interval = seconds / 2592000;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " month" : " months") + " ago";
-  interval = seconds / 86400;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " day" : " days") + " ago";
-  interval = seconds / 3600;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " hour" : " hours") + " ago";
-  interval = seconds / 60;
-  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " minute" : " minutes") + " ago";
-  if (seconds < 10) return "just now";
-  return Math.floor(seconds) + " seconds ago";
-}
+
 
 export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const authorDisplayName = comment.author_name || 'Unknown User';
@@ -58,6 +43,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
   const { cgInstance } = useCgLib(); // Get cgInstance
+  const timeSinceText = useTimeSince(comment.created_at);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -155,7 +141,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
             <span className="font-semibold text-foreground">{authorDisplayName}</span>
             <span className="mx-1">•</span>
             <Clock size={12} className="mr-0.5 flex-shrink-0" />
-            <span>{timeSince(comment.created_at)}</span>
+            <span>{timeSinceText}</span>
           </div>
           {user?.isAdmin && (
             <DropdownMenu>

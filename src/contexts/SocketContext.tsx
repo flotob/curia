@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -20,6 +21,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const { token, isAuthenticated, user } = useAuth();
   const currentSocketRef = useRef<Socket | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -70,22 +72,37 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       toast.error(`Connection error: ${message}`);
     });
 
-    newSocket.on('newPost', (postData: { title: string; author_name?: string }) => {
+    newSocket.on('newPost', (postData: { id: number; title: string; author_name?: string; author_user_id: string; board_id: number }) => {
       console.log('[Socket] New post received:', postData);
-      toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`);
-    });
-
-    newSocket.on('voteUpdate', ({ postId, newCount, userIdVoted }: { postId: number; newCount: number; userIdVoted: string }) => {
-      console.log(`[Socket] Vote update for post ${postId}: ${newCount} votes by ${userIdVoted}`);
-      if (userIdVoted !== user?.userId) {
-        toast.info(`Post received ${newCount} vote${newCount !== 1 ? 's' : ''}`);
+      if (postData.author_user_id !== user?.userId) {
+        toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`);
+        console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
+        queryClient.invalidateQueries({ queryKey: ['posts', postData.board_id?.toString()] });
       }
     });
 
-    newSocket.on('newComment', ({ postId, comment }: { postId: number; comment: { author_user_id: string; author_name?: string } }) => {
-      console.log(`[Socket] New comment on post ${postId}:`, comment);
-      if (comment.author_user_id !== user?.userId) {
-        toast.info(`New comment by ${comment.author_name || 'Unknown'}`);
+    newSocket.on('voteUpdate', (voteData: { postId: number; newCount: number; userIdVoted: string; board_id: number }) => {
+      console.log(`[Socket] Vote update for post ${voteData.postId}: ${voteData.newCount} votes by ${voteData.userIdVoted}`);
+      if (voteData.userIdVoted !== user?.userId) {
+        toast.info(`Post ${voteData.postId} received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`);
+        console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
+        queryClient.invalidateQueries({ queryKey: ['posts', voteData.board_id?.toString()] });
+      }
+    });
+
+    newSocket.on('newComment', (commentData: { postId: number; comment: { author_user_id: string; author_name?: string; id: number; post_id: number; board_id: number; /* other comment props */ } }) => {
+      console.log(`[Socket] New comment on post ${commentData.postId}:`, commentData.comment);
+      if (commentData.comment.author_user_id !== user?.userId) {
+        toast.info(`New comment by ${commentData.comment.author_name || 'Unknown'}`);
+        console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
+        queryClient.invalidateQueries({ queryKey: ['comments', commentData.postId] });
+        
+        if (commentData.comment.board_id) {
+            console.log(`[RQ Invalidate] Invalidating posts for board: ${commentData.comment.board_id} due to new comment.`);
+            queryClient.invalidateQueries({ queryKey: ['posts', commentData.comment.board_id.toString()] });
+        } else {
+            console.warn('[Socket newComment] board_id missing in comment payload, cannot invalidate specific post list for comment count.');
+        }
       }
     });
 
@@ -121,7 +138,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       newSocket.disconnect();
       setIsConnected(false);
     };
-  }, [isAuthenticated, token, user]);
+  }, [isAuthenticated, token, user, queryClient]);
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {

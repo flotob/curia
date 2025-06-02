@@ -109,16 +109,15 @@ export function ThemeProvider({ children, ...props }: CustomThemeProviderProps) 
     setMounted(true);
   }, []);
 
-  // While not mounted, we might flicker if the server default is different from client-resolved.
-  // next-themes handles this by setting the theme class ASAP.
-  // The key is to ensure NextThemesProvider gets its props consistently.
-  // Props like `attribute`, `defaultTheme`, `enableSystem` are passed from layout.tsx.
-
-  if (!mounted && (props.forcedTheme || props.defaultTheme === 'system')) {
-    // If not mounted and theme could change based on system, avoid rendering children
-    // to prevent flash, allowing NextThemesProvider to set initial class correctly.
-    // Or if a theme is forced, let it render.
-    // This logic is tricky; for now, let's assume next-themes + suppressHydrationWarning handles class flicker.
+  // Prevent hydration mismatch by not rendering theme-dependent content until mounted
+  if (!mounted) {
+    return (
+      <NextThemesProvider {...props}>
+        <div style={{ visibility: 'hidden' }}>
+          {children}
+        </div>
+      </NextThemesProvider>
+    );
   }
 
   return (

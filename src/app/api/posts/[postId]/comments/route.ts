@@ -184,7 +184,8 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
               author_profile_picture_url: commentWithAuthor.author_profile_picture_url,
               content: commentWithAuthor.content,
               created_at: commentWithAuthor.created_at,
-              parent_comment_id: commentWithAuthor.parent_comment_id
+              parent_comment_id: commentWithAuthor.parent_comment_id,
+              board_id: board_id
             }
           }
         });

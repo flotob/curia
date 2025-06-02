@@ -8,12 +8,18 @@ This document outlines planned real-time features to enhance user interactivity 
 - **Goal:** Ensure the UI reflects real-time data changes (new posts, votes, comments) immediately after a user receives a notification for an event they did not initiate.
 - **Mechanism:**
     - When `SocketContext.tsx` receives events like `'newPost'`, `'voteUpdate'`, `'newComment'`:
-        - Check if the event was triggered by the current user.
-        - If not, use `queryClient.invalidateQueries()` to invalidate the relevant React Query query keys.
-- **Key Queries to Invalidate (Examples):**
-    - `'newPost'`: Invalidate queries for post lists/feeds for the relevant board.
-    - `'voteUpdate'`: Invalidate the specific post query (if cached individually) and potentially the post list if vote counts are displayed there.
-    - `'newComment'`: Invalidate queries for comments on a specific post, and the post itself if comment counts are displayed.
+        - Check if the event was triggered by the current user (using `userId` or similar from the event payload).
+        - If not, use `queryClient.invalidateQueries({ queryKey: [...] })` to invalidate the relevant React Query query keys.
+- **Identified Query Keys & Invalidation Strategy:**
+    - **`newPost` Event (payload includes `board_id` of the new post):**
+        - Invalidate `['posts', eventPayload.board_id]`. (Invalidates the post list for the specific board where the new post was added).
+        - Consider invalidating `['posts', null]` or `['posts', undefined]` if you have a global feed that should also show this new post.
+    - **`voteUpdate` Event (payload includes `postId`, `board_id`, `newCount`, `userIdVoted`):**
+        - Invalidate `['posts', eventPayload.board_id]`. (To refresh vote counts in the list for that board).
+        - *If individual posts are fetched and cached with a key like `['post', eventPayload.postId]`, invalidate that too.*
+    - **`newComment` Event (payload includes `postId`, `comment: { author_user_id, ... }`, and implicitly `board_id` from context or by fetching post details):**
+        - Invalidate `['comments', eventPayload.postId]`. (Refreshes the comment list for the specific post).
+        - Invalidate `['posts', board_id_of_the_post]`. (To refresh comment counts on the post if displayed in a list. `board_id_of_the_post` would need to be available or fetched, or we invalidate all `['posts', boardId]` instances if simpler, though less targeted).
 - **Acceptance Criteria:**
     - User A sees User B's new post appear in their feed without manual refresh.
     - User A sees the vote count on a post update immediately after User B votes.

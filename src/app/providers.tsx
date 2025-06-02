@@ -26,16 +26,17 @@ const queryClient = new QueryClient({
 
 export function Providers({ children }: ProvidersProps) {
   return (
-    <CgLibProvider>
-      <AuthProvider>
-        <SocketProvider>
-          <AppInitializer />
-          <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <CgLibProvider>
+        <AuthProvider>
+          <SocketProvider>
+            <AppInitializer />
+            {/* Children are now effectively inside QueryClientProvider through SocketProvider etc. */}
             {children}
             {/* <ReactQueryDevtools initialIsOpen={false} /> */}
-          </QueryClientProvider>
-        </SocketProvider>
-      </AuthProvider>
-    </CgLibProvider>
+          </SocketProvider>
+        </AuthProvider>
+      </CgLibProvider>
+    </QueryClientProvider>
   );
 } 
