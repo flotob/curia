@@ -14,6 +14,7 @@ import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { Button } from '@/components/ui/button';
+import { OnlineUsersSidebar } from '@/components/presence/OnlineUsersSidebar'; // Phase 1 testing
 import { 
   Settings, 
 } from 'lucide-react';
@@ -138,56 +139,66 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
-      {/* Main Container */}
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* New Post Form */}
-        <section className="max-w-2xl mx-auto">
-          <NewPostForm boardId={boardId} />
-        </section>
+      {/* Main Container with Right Sidebar for Phase 1 Testing */}
+      <div className="flex">
+        {/* Main Content */}
+        <div className="flex-1">
+          <div className="container mx-auto px-4 py-8 space-y-8">
+            {/* New Post Form */}
+            <section className="max-w-2xl mx-auto">
+              <NewPostForm boardId={boardId} />
+            </section>
 
-        {/* Feed Section */}
-        <main className="max-w-2xl mx-auto space-y-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className={cn(
-                'text-xl font-semibold',
-                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-              )}>
-                {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
-              </h2>
-              {boardId && boardInfo && boardInfo.description && (
-                <p className={cn(
-                  'text-sm mt-1',
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                )}>
-                  {boardInfo.description}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className={cn(
-                'px-3 py-1.5 rounded-full text-sm font-medium',
-                theme === 'dark' 
-                  ? 'bg-slate-800/50 text-slate-400 border border-slate-700/40'
-                  : 'bg-slate-100/70 text-slate-600 border border-slate-200/60'
-              )}>
-                {boardId ? 'Board Posts' : 'Latest Posts'}
+            {/* Feed Section */}
+            <main className="max-w-2xl mx-auto space-y-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className={cn(
+                    'text-xl font-semibold',
+                    theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+                  )}>
+                    {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
+                  </h2>
+                  {boardId && boardInfo && boardInfo.description && (
+                    <p className={cn(
+                      'text-sm mt-1',
+                      theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                    )}>
+                      {boardInfo.description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className={cn(
+                    'px-3 py-1.5 rounded-full text-sm font-medium',
+                    theme === 'dark' 
+                      ? 'bg-slate-800/50 text-slate-400 border border-slate-700/40'
+                      : 'bg-slate-100/70 text-slate-600 border border-slate-200/60'
+                  )}>
+                    {boardId ? 'Board Posts' : 'Latest Posts'}
+                  </div>
+                  
+                  {/* Board Settings Button - Admin Only */}
+                  {user?.isAdmin && boardId && boardInfo && (
+                    <Link href={buildUrl('/board-settings', { boardId })}>
+                      <Button variant="outline" size="sm" className="flex items-center">
+                        <Settings size={14} className="mr-2" />
+                        Settings
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </div>
               
-              {/* Board Settings Button - Admin Only */}
-              {user?.isAdmin && boardId && boardInfo && (
-                <Link href={buildUrl('/board-settings', { boardId })}>
-                  <Button variant="outline" size="sm" className="flex items-center">
-                    <Settings size={14} className="mr-2" />
-                    Settings
-                  </Button>
-                </Link>
-              )}
-            </div>
+              <FeedList boardId={boardId} />
+            </main>
           </div>
-          
-          <FeedList boardId={boardId} />
-        </main>
+        </div>
+
+        {/* Phase 1 Testing: Online Users Sidebar */}
+        <div className="hidden lg:block border-l">
+          <OnlineUsersSidebar />
+        </div>
       </div>
     </div>
   );

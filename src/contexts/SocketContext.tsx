@@ -6,12 +6,27 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
+// ===== PHASE 1: ENHANCED SOCKET CONTEXT WITH GLOBAL PRESENCE =====
+
+// User presence interface (matches server-side)
+interface OnlineUser {
+  userId: string;
+  userName: string;
+  avatarUrl?: string;
+  communityId: string;
+  currentBoardId?: number;
+  isTyping?: boolean;
+}
+
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   joinBoard: (boardId: number) => void;
   leaveBoard: (boardId: number) => void;
   sendTyping: (boardId: number, postId?: number, isTyping?: boolean) => void;
+  // Phase 1: Global presence state
+  globalOnlineUsers: OnlineUser[];
+  boardOnlineUsers: OnlineUser[];
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -22,6 +37,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { token, isAuthenticated, user } = useAuth();
   const currentSocketRef = useRef<Socket | null>(null);
   const queryClient = useQueryClient();
+  
+  // Phase 1: Global presence state
+  const [globalOnlineUsers, setGlobalOnlineUsers] = useState<OnlineUser[]>([]);
+  const [boardOnlineUsers, setBoardOnlineUsers] = useState<OnlineUser[]>([]);
   
   // Extract only the stable parts we need from user to avoid unnecessary reconnections
   const userId = user?.userId;
@@ -82,6 +101,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`);
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
         queryClient.invalidateQueries({ queryKey: ['posts', postData.board_id?.toString()] });
+        // Also invalidate home feed (aggregated view from all boards)
+        console.log(`[RQ Invalidate] Invalidating home feed for new post`);
+        queryClient.invalidateQueries({ queryKey: ['posts', null] });
       }
     });
 
@@ -91,6 +113,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.info(`Post ${voteData.postId} received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`);
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
         queryClient.invalidateQueries({ queryKey: ['posts', voteData.board_id?.toString()] });
+        // Also invalidate home feed (vote count changes affect sorting order)
+        console.log(`[RQ Invalidate] Invalidating home feed for vote update`);
+        queryClient.invalidateQueries({ queryKey: ['posts', null] });
       }
     });
 
@@ -107,6 +132,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         } else {
             console.warn('[Socket newComment] board_id missing in comment payload, cannot invalidate specific post list for comment count.');
         }
+        
+        // Always invalidate home feed for new comments (comment count changes are visible there)
+        console.log(`[RQ Invalidate] Invalidating home feed for new comment`);
+        queryClient.invalidateQueries({ queryKey: ['posts', null] });
       }
     });
 
@@ -115,14 +144,37 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       if (joinedUserId !== userId) {
         toast.info(`${joinedUserName || 'Someone'} joined the discussion`);
       }
+      
+      // Update board presence
+      setBoardOnlineUsers(prev => {
+        const filtered = prev.filter(u => u.userId !== joinedUserId);
+        return [...filtered, {
+          userId: joinedUserId,
+          userName: joinedUserName || 'Unknown',
+          communityId: 'unknown', // We don't have this in the payload, could be enhanced
+          currentBoardId: boardId
+        }];
+      });
     });
 
-    newSocket.on('userLeftBoard', ({ userId, boardId }: { userId: string; boardId: number }) => {
-      console.log(`[Socket] User ${userId} left board ${boardId}`);
+    newSocket.on('userLeftBoard', ({ userId: leftUserId, boardId }: { userId: string; boardId: number }) => {
+      console.log(`[Socket] User ${leftUserId} left board ${boardId}`);
+      
+      // Remove from board presence
+      setBoardOnlineUsers(prev => prev.filter(u => u.userId !== leftUserId));
     });
 
     newSocket.on('userTyping', ({ userId, userName, boardId, isTyping }: { userId: string; userName?: string; boardId: number; isTyping: boolean}) => {
       console.log(`[Socket] User ${userName || userId} ${isTyping ? 'started' : 'stopped'} typing in board ${boardId}`);
+      
+      // Update typing status in board presence
+      setBoardOnlineUsers(prev => 
+        prev.map(user => 
+          user.userId === userId 
+            ? { ...user, isTyping: isTyping }
+            : user
+        )
+      );
     });
 
     newSocket.on('postDeleted', ({ postId }: { postId: number }) => {
@@ -150,12 +202,46 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['accessibleBoardsMove'] });
     });
 
+    // ===== PHASE 1: GLOBAL PRESENCE EVENT HANDLERS =====
+    
+    newSocket.on('userOnline', (user: OnlineUser) => {
+      console.log('[Socket] User came online:', user);
+      setGlobalOnlineUsers(prev => {
+        // Remove existing user and add updated one
+        const filtered = prev.filter(u => u.userId !== user.userId);
+        return [...filtered, user];
+      });
+    });
+
+    newSocket.on('userOffline', ({ userId: offlineUserId }: { userId: string }) => {
+      console.log('[Socket] User went offline:', offlineUserId);
+      setGlobalOnlineUsers(prev => prev.filter(u => u.userId !== offlineUserId));
+      setBoardOnlineUsers(prev => prev.filter(u => u.userId !== offlineUserId));
+    });
+
+    newSocket.on('userPresenceUpdate', ({ userId: updateUserId, updates }: { userId: string; updates: Partial<OnlineUser> }) => {
+      console.log('[Socket] User presence update:', updateUserId, updates);
+      setGlobalOnlineUsers(prev => 
+        prev.map(user => 
+          user.userId === updateUserId ? { ...user, ...updates } : user
+        )
+      );
+    });
+
+    newSocket.on('globalPresenceSync', (users: OnlineUser[]) => {
+      console.log('[Socket] Global presence sync received:', users.length, 'users online');
+      setGlobalOnlineUsers(users);
+    });
+
     setSocket(newSocket);
 
     return () => {
       console.log('[Socket] useEffect cleanup: Disconnecting socket', newSocket.id);
       newSocket.disconnect();
       setIsConnected(false);
+      // Reset presence state on disconnect
+      setGlobalOnlineUsers([]);
+      setBoardOnlineUsers([]);
     };
   }, [isAuthenticated, token, userId]);
 
@@ -184,7 +270,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     isConnected,
     joinBoard,
     leaveBoard,
-    sendTyping
+    sendTyping,
+    globalOnlineUsers,
+    boardOnlineUsers
   };
 
   return (
