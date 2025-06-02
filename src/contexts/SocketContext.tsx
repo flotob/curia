@@ -22,6 +22,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { token, isAuthenticated, user } = useAuth();
   const currentSocketRef = useRef<Socket | null>(null);
   const queryClient = useQueryClient();
+  
+  // Extract only the stable parts we need from user to avoid unnecessary reconnections
+  const userId = user?.userId;
+  const userName = user?.name;
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -74,7 +78,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on('newPost', (postData: { id: number; title: string; author_name?: string; author_user_id: string; board_id: number }) => {
       console.log('[Socket] New post received:', postData);
-      if (postData.author_user_id !== user?.userId) {
+      if (postData.author_user_id !== userId) {
         toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`);
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
         queryClient.invalidateQueries({ queryKey: ['posts', postData.board_id?.toString()] });
@@ -83,7 +87,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on('voteUpdate', (voteData: { postId: number; newCount: number; userIdVoted: string; board_id: number }) => {
       console.log(`[Socket] Vote update for post ${voteData.postId}: ${voteData.newCount} votes by ${voteData.userIdVoted}`);
-      if (voteData.userIdVoted !== user?.userId) {
+      if (voteData.userIdVoted !== userId) {
         toast.info(`Post ${voteData.postId} received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`);
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
         queryClient.invalidateQueries({ queryKey: ['posts', voteData.board_id?.toString()] });
@@ -92,7 +96,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on('newComment', (commentData: { postId: number; comment: { author_user_id: string; author_name?: string; id: number; post_id: number; board_id: number; /* other comment props */ } }) => {
       console.log(`[Socket] New comment on post ${commentData.postId}:`, commentData.comment);
-      if (commentData.comment.author_user_id !== user?.userId) {
+      if (commentData.comment.author_user_id !== userId) {
         toast.info(`New comment by ${commentData.comment.author_name || 'Unknown'}`);
         console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
         queryClient.invalidateQueries({ queryKey: ['comments', commentData.postId] });
@@ -106,10 +110,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('userJoinedBoard', ({ userId, userName, boardId }: { userId: string; userName?: string; boardId: number }) => {
-      console.log(`[Socket] User ${userName || userId} joined board ${boardId}`);
-      if (userId !== user?.userId) {
-        toast.info(`${userName || 'Someone'} joined the discussion`);
+    newSocket.on('userJoinedBoard', ({ userId: joinedUserId, userName: joinedUserName, boardId }: { userId: string; userName?: string; boardId: number }) => {
+      console.log(`[Socket] User ${joinedUserName || joinedUserId} joined board ${boardId}`);
+      if (joinedUserId !== userId) {
+        toast.info(`${joinedUserName || 'Someone'} joined the discussion`);
       }
     });
 
@@ -131,6 +135,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       toast.info('Board settings have been updated');
     });
 
+    newSocket.on('newBoard', (boardData: { board: { id: number; name: string; community_id: string }; author_user_id: string; community_id: string }) => {
+      console.log('[Socket] New board created:', boardData);
+      if (boardData.author_user_id !== userId) {
+        toast.success(`New board created: "${boardData.board.name}"`);
+      }
+      
+      // Invalidate board-related queries
+      console.log(`[RQ Invalidate] Invalidating board queries for community: ${boardData.community_id}`);
+      queryClient.invalidateQueries({ queryKey: ['boards', boardData.community_id] });
+      queryClient.invalidateQueries({ queryKey: ['boards'] }); // For queries without community ID
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoards'] });
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoardsNewPost'] });
+      queryClient.invalidateQueries({ queryKey: ['accessibleBoardsMove'] });
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -138,7 +157,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       newSocket.disconnect();
       setIsConnected(false);
     };
-  }, [isAuthenticated, token, user, queryClient]);
+  }, [isAuthenticated, token, userId]);
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {

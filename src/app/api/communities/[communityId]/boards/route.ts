@@ -128,6 +128,24 @@ async function createBoardHandler(req: AuthenticatedRequest, context: RouteConte
       settings: typeof newBoard.settings === 'string' ? JSON.parse(newBoard.settings) : newBoard.settings
     };
 
+    // Emit socket event for new board creation
+    const emitter = process.customEventEmitter;
+    console.log('[API POST /api/communities/.../boards] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
+    if (emitter && typeof emitter.emit === 'function') {
+      emitter.emit('broadcastEvent', {
+        room: `community:${communityId}`,
+        eventName: 'newBoard',
+        payload: { 
+          board: boardResponse, 
+          author_user_id: requestingUserId,
+          community_id: communityId 
+        }
+      });
+      console.log('[API POST /api/communities/.../boards] Successfully emitted newBoard event.');
+    } else {
+      console.error('[API POST /api/communities/.../boards] ERROR: process.customEventEmitter not available.');
+    }
+
     return NextResponse.json(boardResponse, { status: 201 });
 
   } catch (error) {

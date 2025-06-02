@@ -55,15 +55,9 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
       });
     },
     onMutate: async ({ isUpvoting }) => {
-      // Optimistic update
+      // Optimistic update - only update local component state to avoid cache contamination
       setCurrentUserHasUpvoted(isUpvoting);
       setCurrentUpvoteCount((prevCount) => isUpvoting ? prevCount + 1 : Math.max(0, prevCount - 1));
-      
-      // Optionally, can update the query cache optimistically too
-      // await queryClient.cancelQueries({ queryKey: ['posts'] });
-      // const previousPosts = queryClient.getQueryData(['posts']);
-      // queryClient.setQueryData(['posts'], oldData => ... update specific post ...);
-      // return { previousPosts };
     },
     onSuccess: (data) => {
       // On success, the server returns the updated post. Update our local state from it.
@@ -71,33 +65,14 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
       setCurrentUserHasUpvoted(data.post.user_has_upvoted);
       
       // Invalidate infinite scroll queries - this will refetch and update the feed
+      // We removed setQueriesData to avoid cache contamination with user-specific vote states
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      
-      // Also do optimistic update for infinite queries to make it feel instant
-      queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: { pages?: { posts: { id: number; upvote_count: number; user_has_upvoted: boolean }[] }[] } | undefined) => {
-        if (!oldData?.pages) return oldData;
-        
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page: { posts: { id: number; upvote_count: number; user_has_upvoted: boolean }[] }) => ({
-            ...page,
-            posts: page.posts.map((post: { id: number; upvote_count: number; user_has_upvoted: boolean }) => 
-              post.id === postId 
-                ? { ...post, upvote_count: data.post.upvote_count, user_has_upvoted: data.post.user_has_upvoted }
-                : post
-            )
-          }))
-        };
-      });
     },
-    onError: (error, variables, /* context */) => {
+    onError: (error, variables) => {
       console.error('Vote mutation failed:', error);
-      // Revert optimistic update
+      // Revert optimistic update to local component state
       setCurrentUserHasUpvoted(!variables.isUpvoting); // Revert to previous state
       setCurrentUpvoteCount((prevCount) => variables.isUpvoting ? prevCount -1 : prevCount + 1);
-      // if (context?.previousPosts) {
-      //   queryClient.setQueryData(['posts'], context.previousPosts);
-      // }
       // TODO: Show error toast to user
     },
   });
