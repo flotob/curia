@@ -5,13 +5,13 @@ import { useSocket } from '@/contexts/SocketContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, ExternalLink } from 'lucide-react';
+import { Users, ExternalLink } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // ===== PHASE 2: ENHANCED ONLINE USERS SIDEBAR =====
 
 export function OnlineUsersSidebar() {
-  const { globalOnlineUsers, boardOnlineUsers, isConnected } = useSocket();
+  const { globalOnlineUsers, isConnected } = useSocket();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -115,52 +115,7 @@ export function OnlineUsersSidebar() {
         </CardContent>
       </Card>
 
-      {/* Current Board Users */}
-      {boardOnlineUsers.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <div className="flex items-center">
-                <MessageCircle className="h-4 w-4 mr-2 text-blue-500" />
-                <span>In This Room</span>
-              </div>
-              <Badge variant="default" className="text-xs font-mono bg-blue-500">
-                {boardOnlineUsers.length}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {boardOnlineUsers.map((user) => (
-                <div key={user.userId} className="flex items-center space-x-3 p-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50">
-                  <div className="relative">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatarUrl} alt={user.userName} />
-                      <AvatarFallback className="text-xs font-medium bg-blue-100 dark:bg-blue-900">
-                        {user.userName.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-blue-500 rounded-full border-2 border-background" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{user.userName}</p>
-                    {user.isTyping && (
-                      <div className="flex items-center space-x-1">
-                        <div className="flex space-x-1">
-                          <div className="h-1 w-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <div className="h-1 w-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <div className="h-1 w-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </div>
-                        <p className="text-xs text-blue-600 dark:text-blue-400">typing</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
     </div>
   );
 } 
