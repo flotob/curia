@@ -87,7 +87,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
         HTMLAttributes: {
           // target: '_blank',
           // rel: 'noopener noreferrer nofollow',
-          class: 'break-words max-w-full overflow-wrap-anywhere', // Force URLs to wrap properly
+          class: 'break-words max-w-full overflow-wrap-anywhere word-break-break-all hyphens-auto', // Aggressive URL wrapping
+          style: 'word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; white-space: normal;',
         },
       }),
       TiptapImage, // For rendering images, if they ever appear in comments
@@ -190,7 +191,10 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
           )}
         </div>
         <div className="mt-1 text-sm">
-            <article className="prose dark:prose-invert prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere">
+            <article 
+              className="prose dark:prose-invert prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere"
+              style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+            >
                 <EditorContent editor={editor} />
             </article>
         </div>

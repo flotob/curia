@@ -202,7 +202,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         HTMLAttributes: {
           // target: '_blank', // Not strictly needed if openOnClick is false and we use cgInstance.navigate
           // rel: 'noopener noreferrer nofollow', // Good to keep for any links that might somehow bypass our handler
-          class: 'break-words max-w-full overflow-wrap-anywhere', // Force URLs to wrap properly
+          class: 'break-words max-w-full overflow-wrap-anywhere word-break-break-all hyphens-auto', // Aggressive URL wrapping
+          style: 'word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; white-space: normal;',
         },
       }),
       TiptapImage, // Use aliased TiptapImage for rendering images
@@ -267,7 +268,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
-    <Card className="w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className="w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200" style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}>
       <div className="flex">
         {/* Vote Section */}
         <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
@@ -280,7 +281,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         </div>
 
         {/* Main Content Section */}
-        <div className="flex-grow relative min-w-0">
+        <div className="flex-grow relative min-w-0 overflow-hidden">
           <CardHeader className="pb-2 px-3 sm:px-6">
             <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
               <div className="flex items-center min-w-0">
@@ -332,10 +333,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   <div // Inner Content area for prose styling and bottom padding for gradient
                     className={cn(
                       "prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none break-words overflow-hidden",
-                      // Enhanced link handling for mobile
-                      "prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere",
+                      // Aggressive link handling for mobile
+                      "prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto",
+                      // Additional word wrapping for all elements
+                      "prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere",
                       !isPostContentExpanded && "pb-8" // Increased padding for taller gradient + spacing
                     )}
+                    style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                   >
                     <EditorContent editor={contentDisplayEditor} />
                   </div>
