@@ -176,19 +176,20 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
           room: `board:${board_id}`,
           eventName: 'newComment',
           payload: {
-            // Ensure this payload matches what the client expects for a 'newComment' event
-            id: commentWithAuthor.id,
-            post_id: commentWithAuthor.post_id,
-            author_user_id: commentWithAuthor.author_user_id,
-            author_name: commentWithAuthor.author_name,
-            author_profile_picture_url: commentWithAuthor.author_profile_picture_url,
-            content: commentWithAuthor.content,
-            created_at: commentWithAuthor.created_at,
-            parent_comment_id: commentWithAuthor.parent_comment_id
-            // Potentially add board_id to the payload if clients need it directly with the comment event
+            postId: postId,
+            comment: {
+              id: commentWithAuthor.id,
+              post_id: commentWithAuthor.post_id,
+              author_user_id: commentWithAuthor.author_user_id,
+              author_name: commentWithAuthor.author_name,
+              author_profile_picture_url: commentWithAuthor.author_profile_picture_url,
+              content: commentWithAuthor.content,
+              created_at: commentWithAuthor.created_at,
+              parent_comment_id: commentWithAuthor.parent_comment_id
+            }
           }
         });
-        console.log('[API /api/posts/.../comments POST] Successfully emitted event on process.customEventEmitter for new comment.');
+        console.log('[API /api/posts/.../comments POST] Successfully emitted event on process.customEventEmitter for new comment with correct structure.');
       } else {
         console.error('[API /api/posts/.../comments POST] ERROR: process.customEventEmitter not available.');
       }
