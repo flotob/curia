@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
+import { OnlineUsersSidebar } from '@/components/presence/OnlineUsersSidebar'; // Phase 2: Right sidebar
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
@@ -10,7 +11,9 @@ import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { Button } from '@/components/ui/button';
 import { 
-  Menu, 
+  Menu,
+  Users, // Phase 2: For right sidebar toggle
+  X,     // Phase 2: For close button
   // PlusCircle, 
   // Settings, 
   // MoreHorizontal, 
@@ -29,17 +32,25 @@ interface MainLayoutWithSidebarProps {
 export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ children }) => {
   const { user, isAuthenticated, token } = useAuth();
   const { cgInstance, isInitializing: isCgLibInitializing, initError: cgLibError } = useCgLib();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Phase 2: Enhanced sidebar state management
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);  // Renamed for clarity
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false); // New: Right sidebar state
   const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false); // New: Tablet detection
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const searchParams = useSearchParams();
 
-  // Detect mobile screen size
+  // Phase 2: Enhanced screen size detection
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(false); // Close mobile sidebar when screen becomes large
+      const width = window.innerWidth;
+      setIsMobile(width < 768);        // md breakpoint  
+      setIsTablet(width >= 768 && width < 1024); // md to lg
+      
+      if (width >= 1024) {
+        setLeftSidebarOpen(false);  // Close mobile sidebar when screen becomes large
+        setRightSidebarOpen(false); // Close mobile right sidebar too
       }
     };
 
@@ -54,24 +65,28 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     setTheme(cgTheme as 'light' | 'dark');
   }, [searchParams]);
 
-  // Close sidebar when clicking outside on mobile
+  // Phase 2: Enhanced outside click handling for both sidebars
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
-      if (isMobile && sidebarOpen) {
+      if ((isMobile || isTablet) && (leftSidebarOpen || rightSidebarOpen)) {
         const target = event.target as Element;
-        if (!target.closest('[data-sidebar]') && !target.closest('[data-sidebar-trigger]')) {
-          setSidebarOpen(false);
+        if (!target.closest('[data-sidebar]') && 
+            !target.closest('[data-sidebar-trigger]') && 
+            !target.closest('[data-right-sidebar]') && 
+            !target.closest('[data-right-sidebar-trigger]')) {
+          setLeftSidebarOpen(false);
+          setRightSidebarOpen(false);
         }
       }
     };
 
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [isMobile, sidebarOpen]);
+  }, [isMobile, isTablet, leftSidebarOpen, rightSidebarOpen]);
 
-  // Prevent body scroll when mobile sidebar is open
+  // Phase 2: Prevent body scroll when any mobile sidebar is open
   useEffect(() => {
-    if (isMobile && sidebarOpen) {
+    if ((isMobile || isTablet) && (leftSidebarOpen || rightSidebarOpen)) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -80,7 +95,7 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isMobile, sidebarOpen]);
+  }, [isMobile, isTablet, leftSidebarOpen, rightSidebarOpen]);
 
   const { data: communityInfo, isLoading: isLoadingCommunityInfo, error: communityInfoError } = useQuery<CommunityInfoResponsePayload | null>({
     queryKey: ['communityInfo', cgInstance?.getCommunityInfo !== undefined],
@@ -173,49 +188,55 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   return (
     <CommunityAccessGate theme={theme}>
       <div className="flex min-h-screen relative">
-        {/* Mobile backdrop overlay */}
-        {isMobile && sidebarOpen && (
+        {/* Phase 2: Enhanced backdrop overlay for both sidebars */}
+        {showSidebar && (isMobile || isTablet) && (leftSidebarOpen || rightSidebarOpen) && (
           <div 
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => {
+              setLeftSidebarOpen(false);
+              setRightSidebarOpen(false);
+            }}
           />
         )}
 
-        {/* Sidebar */}
+        {/* Left Sidebar */}
         {showSidebar && communityInfo && accessibleBoardsList && (
           <div data-sidebar>
             <Sidebar 
               communityInfo={communityInfo} 
               boardsList={accessibleBoardsList}
-              isOpen={sidebarOpen}
-              isMobile={isMobile}
-              onClose={() => setSidebarOpen(false)}
+              isOpen={leftSidebarOpen}
+              isMobile={isMobile || isTablet}
+              onClose={() => setLeftSidebarOpen(false)}
             />
           </div>
         )}
 
-        {/* Main content area */}
+        {/* Main content area - Phase 2: Three-column layout */}
         <main className={cn(
           "flex-1 flex flex-col min-h-screen transition-all duration-300",
-          showSidebar && !isMobile ? "lg:ml-0" : "ml-0"
+          showSidebar && !isMobile && !isTablet ? "lg:ml-0" : "ml-0"
         )}>
-          {/* Mobile header with menu button */}
-          {showSidebar && isMobile && (
+          {/* Phase 2: Enhanced mobile header with both sidebar toggles */}
+          {showSidebar && (isMobile || isTablet) && (
             <header className={cn(
-              "lg:hidden border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30 backdrop-blur-xl",
+              "border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30 backdrop-blur-xl lg:hidden",
               theme === 'dark' 
                 ? 'bg-gradient-to-r from-slate-900/95 via-slate-900 to-slate-800/95 border-slate-700/40' 
                 : 'bg-gradient-to-r from-white/95 via-white to-slate-50/95 border-slate-200/60'
             )}>
+              {/* Left sidebar toggle */}
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSidebarOpen(true)}
+                onClick={() => setLeftSidebarOpen(true)}
                 data-sidebar-trigger
                 className="lg:hidden"
               >
                 <Menu size={20} />
               </Button>
+              
+              {/* Center - Community info */}
               <div className="flex items-center space-x-2">
                 {communityInfo?.smallLogoUrl && (
                   <div className="relative">
@@ -239,13 +260,87 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                   {communityInfo?.title}
                 </span>
               </div>
-              <div className="w-8" /> {/* Spacer for centering */}
+              
+              {/* Right sidebar toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                data-right-sidebar-trigger
+                className="lg:hidden"
+              >
+                {rightSidebarOpen ? <X size={20} /> : <Users size={20} />}
+              </Button>
             </header>
           )}
 
-          {/* Page content */}
-          <div className="flex-1 p-4 md:p-6 lg:p-8">
-            {children}
+          {/* Phase 2: Main content with right sidebar */}
+          <div className="flex flex-1">
+            {/* Page content */}
+            <div className="flex-1 p-4 md:p-6 lg:p-8">
+              {children}
+            </div>
+
+            {/* Phase 2: Right Sidebar - Online Users */}
+            {showSidebar && (
+              <aside className={cn(
+                "transition-all duration-300 border-l w-64 xl:w-72",
+                theme === 'dark' ? 'border-slate-700/40' : 'border-slate-200/60',
+                // Base visibility rules
+                "xl:block", // Always visible on xl+
+                // Desktop (lg-xl): Show/hide based on toggle
+                !isMobile && !isTablet && rightSidebarOpen && "lg:block",
+                !isMobile && !isTablet && !rightSidebarOpen && "lg:hidden",
+                // Tablet: Hidden by default, overlay when toggled
+                isTablet && !rightSidebarOpen && "hidden",
+                isTablet && rightSidebarOpen && "block",
+                // Mobile: Hidden by default, overlay when toggled
+                isMobile && !rightSidebarOpen && "hidden",
+                isMobile && rightSidebarOpen && "fixed right-0 top-0 h-full bg-background z-50 shadow-lg block"
+              )} data-right-sidebar>
+                {/* Mobile close button */}
+                {isMobile && rightSidebarOpen && (
+                  <div className={cn(
+                    "p-4 border-b flex justify-between items-center",
+                    theme === 'dark' ? 'border-slate-700/40' : 'border-slate-200/60'
+                  )}>
+                    <span className={cn(
+                      "font-medium",
+                      theme === 'dark' ? 'text-slate-200' : 'text-slate-800'
+                    )}>
+                      Online Users
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRightSidebarOpen(false)}
+                    >
+                      <X size={20} />
+                    </Button>
+                  </div>
+                )}
+                <OnlineUsersSidebar />
+              </aside>
+            )}
+
+            {/* Phase 2: Desktop toggle button for right sidebar */}
+            {showSidebar && !isMobile && !isTablet && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                className={cn(
+                  "fixed top-4 right-4 z-40 xl:hidden transition-all duration-300",
+                  theme === 'dark' 
+                    ? 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-600/40' 
+                    : 'bg-white/80 hover:bg-slate-50/80 border-slate-200/60',
+                  "backdrop-blur-sm border shadow-lg"
+                )}
+                data-right-sidebar-trigger
+              >
+                <Users size={16} />
+              </Button>
+            )}
           </div>
         </main>
       </div>
