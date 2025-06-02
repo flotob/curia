@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
+import { ApiPost } from '@/app/api/posts/route';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ import {
   // Plus 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
@@ -40,6 +41,7 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   const [isTablet, setIsTablet] = useState(false); // New: Tablet detection
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   // Phase 2: Enhanced screen size detection
   useEffect(() => {
@@ -151,6 +153,37 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     enabled: !!boardsList && !!user && !!communityIdForBoards,
   });
 
+  // Detect current context for header display
+  const isPostDetailRoute = pathname?.includes('/board/') && pathname?.includes('/post/');
+  const currentBoardId = searchParams?.get('boardId') || (isPostDetailRoute ? pathname?.split('/')[2] : null);
+  const currentPostId = isPostDetailRoute ? pathname?.split('/')[4] : null;
+
+  // Get current board info for header display
+  const currentBoard = accessibleBoardsList?.find(board => board.id.toString() === currentBoardId);
+
+  // Fetch current post info if in post detail route
+  const { data: currentPost } = useQuery<ApiPost>({
+    queryKey: ['post', currentPostId],
+    queryFn: async () => {
+      if (!token || !currentPostId) throw new Error('No auth token or post ID');
+      return authFetchJson<ApiPost>(`/api/posts/${currentPostId}`, { token });
+    },
+    enabled: !!token && !!currentPostId && isPostDetailRoute,
+  });
+
+  // Function to get header title based on context
+  const getHeaderTitle = () => {
+    if (currentBoard) {
+      return currentBoard.name;
+    } else if (currentPost?.title) {
+      // Eclipsed version of post title (max 25 characters for mobile)
+      return currentPost.title.length > 25 
+        ? `${currentPost.title.substring(0, 25)}...`
+        : currentPost.title;
+    }
+    return 'Loading...';
+  };
+
   const showSidebar = isAuthenticated && communityInfo && accessibleBoardsList && !isLoadingCommunityInfo && !isLoadingBoards && !isFilteringBoards && !cgLibError && !communityInfoError && !boardsError;
 
   if (isCgLibInitializing || (isAuthenticated && (isLoadingCommunityInfo || (communityIdForBoards && isLoadingBoards && communityInfo) || isFilteringBoards))) {
@@ -236,7 +269,7 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                 <Menu size={20} />
               </Button>
               
-              {/* Center - Community info */}
+              {/* Center - Community info with dynamic context */}
               <div className="flex items-center space-x-2">
                 {communityInfo?.smallLogoUrl && (
                   <div className="relative">
@@ -257,7 +290,15 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     ? 'from-slate-100 to-slate-300' 
                     : 'from-slate-900 to-slate-700'
                 )}>
-                  {communityInfo?.title}
+                  {currentBoard || currentPost ? (
+                    <>
+                      {communityInfo?.title}
+                      <span className="mx-1 opacity-60">/</span>
+                      {getHeaderTitle()}
+                    </>
+                  ) : (
+                    communityInfo?.title
+                  )}
                 </span>
               </div>
               
