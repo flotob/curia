@@ -3,7 +3,6 @@ import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { getClient, query } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
-import { socketEvents } from '@/lib/socket';
 
 // POST to upvote a post (protected and permission-checked)
 async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
@@ -93,8 +92,19 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
 
     const updatedPost = updatedPostResult.rows[0];
     
-    // 🚀 REAL-TIME: Broadcast vote update to board room
-    socketEvents.broadcastVoteUpdate(board_id, postId, updatedPost.upvote_count, userId);
+    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
+    const emitter = (process as any).customEventEmitter;
+    console.log('[API /api/posts/.../votes POST] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
+    if (emitter && typeof emitter.emit === 'function') {
+      emitter.emit('broadcastEvent', {
+        room: `board:${board_id}`,
+        eventName: 'voteUpdate',
+        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId }
+      });
+      console.log('[API /api/posts/.../votes POST] Successfully emitted event on process.customEventEmitter for vote add.');
+    } else {
+      console.error('[API /api/posts/.../votes POST] ERROR: process.customEventEmitter not available.');
+    }
 
     return NextResponse.json({ post: updatedPost, message: 'Vote added successfully' });
 
@@ -185,8 +195,19 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
 
     const updatedPost = updatedPostResult.rows[0];
     
-    // 🚀 REAL-TIME: Broadcast vote update to board room
-    socketEvents.broadcastVoteUpdate(board_id, postId, updatedPost.upvote_count, userId);
+    // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
+    const emitter = (process as any).customEventEmitter;
+    console.log('[API /api/posts/.../votes DELETE] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
+    if (emitter && typeof emitter.emit === 'function') {
+      emitter.emit('broadcastEvent', {
+        room: `board:${board_id}`,
+        eventName: 'voteUpdate', // Same eventName, client can deduce based on newCount and user_has_upvoted
+        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId }
+      });
+      console.log('[API /api/posts/.../votes DELETE] Successfully emitted event on process.customEventEmitter for vote remove.');
+    } else {
+      console.error('[API /api/posts/.../votes DELETE] ERROR: process.customEventEmitter not available.');
+    }
 
     return NextResponse.json({ post: updatedPost, message: 'Vote removed successfully' });
 

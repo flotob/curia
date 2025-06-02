@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query, getClient } from '@/lib/db';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
-import { socketEvents } from '@/lib/socket';
 
 // Interface for the structure of a comment when returned by the API
 export interface ApiComment {
@@ -169,17 +168,30 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
 
       const commentWithAuthor = fullCommentResult.rows[0];
 
-      // 🚀 REAL-TIME: Broadcast new comment to board room
-      socketEvents.broadcastNewComment(board_id, postId, {
-        id: commentWithAuthor.id,
-        post_id: commentWithAuthor.post_id,
-        author_user_id: commentWithAuthor.author_user_id,
-        author_name: commentWithAuthor.author_name,
-        author_profile_picture_url: commentWithAuthor.author_profile_picture_url,
-        content: commentWithAuthor.content,
-        created_at: commentWithAuthor.created_at,
-        parent_comment_id: commentWithAuthor.parent_comment_id
-      });
+      // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter
+      const emitter = (process as any).customEventEmitter;
+      console.log('[API /api/posts/.../comments POST] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
+      if (emitter && typeof emitter.emit === 'function') {
+        emitter.emit('broadcastEvent', {
+          room: `board:${board_id}`,
+          eventName: 'newComment',
+          payload: {
+            // Ensure this payload matches what the client expects for a 'newComment' event
+            id: commentWithAuthor.id,
+            post_id: commentWithAuthor.post_id,
+            author_user_id: commentWithAuthor.author_user_id,
+            author_name: commentWithAuthor.author_name,
+            author_profile_picture_url: commentWithAuthor.author_profile_picture_url,
+            content: commentWithAuthor.content,
+            created_at: commentWithAuthor.created_at,
+            parent_comment_id: commentWithAuthor.parent_comment_id
+            // Potentially add board_id to the payload if clients need it directly with the comment event
+          }
+        });
+        console.log('[API /api/posts/.../comments POST] Successfully emitted event on process.customEventEmitter for new comment.');
+      } else {
+        console.error('[API /api/posts/.../comments POST] ERROR: process.customEventEmitter not available.');
+      }
 
       return NextResponse.json(commentWithAuthor, { status: 201 });
 
