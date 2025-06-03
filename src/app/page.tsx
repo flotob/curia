@@ -166,6 +166,7 @@ export default function HomePage() {
             ) : (
               <SearchFirstPostInput 
                 boardId={boardId}
+                enableGlobalSearch={true}
                 onCreatePostClick={(title) => {
                   setInitialPostTitle(title || '');
                   setShowExpandedForm(true);

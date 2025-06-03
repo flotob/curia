@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MainLayoutWithSidebar } from "@/components/layout/MainLayoutWithSidebar";
 import { ResponsiveToaster } from "@/components/ui/responsive-toaster";
+import { GlobalSearchModal } from "@/components/search/GlobalSearchModal";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -43,6 +44,7 @@ export default function RootLayout({
             <Providers>
               <Suspense fallback={<div>Loading application...</div>}>
                 <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
+                <GlobalSearchModal />
               </Suspense>
             </Providers>
             <ResponsiveToaster />

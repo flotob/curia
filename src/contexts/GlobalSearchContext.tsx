@@ -1,0 +1,80 @@
+'use client';
+
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+
+interface GlobalSearchContextType {
+  isSearchOpen: boolean;
+  openSearch: (initialQuery?: string) => void;
+  closeSearch: () => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+}
+
+const GlobalSearchContext = createContext<GlobalSearchContextType | undefined>(undefined);
+
+export function GlobalSearchProvider({ children }: { children: React.ReactNode }) {
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const openSearch = useCallback((initialQuery: string = '') => {
+    setSearchQuery(initialQuery);
+    setIsSearchOpen(true);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    // Don't clear query immediately - let modal handle cleanup
+  }, []);
+
+  // Global keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K on Mac, Ctrl+K on Windows/Linux
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        // Don't trigger if user is typing in an input/textarea
+        const activeElement = document.activeElement;
+        const isInputActive = activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.getAttribute('contenteditable') === 'true'
+        );
+
+        if (!isInputActive) {
+          e.preventDefault();
+          openSearch();
+        }
+      }
+
+      // ESC key to close search
+      if (e.key === 'Escape' && isSearchOpen) {
+        e.preventDefault();
+        closeSearch();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSearchOpen, openSearch, closeSearch]);
+
+  const value: GlobalSearchContextType = {
+    isSearchOpen,
+    openSearch,
+    closeSearch,
+    searchQuery,
+    setSearchQuery,
+  };
+
+  return (
+    <GlobalSearchContext.Provider value={value}>
+      {children}
+    </GlobalSearchContext.Provider>
+  );
+}
+
+export function useGlobalSearch() {
+  const context = useContext(GlobalSearchContext);
+  if (context === undefined) {
+    throw new Error('useGlobalSearch must be used within a GlobalSearchProvider');
+  }
+  return context;
+} 

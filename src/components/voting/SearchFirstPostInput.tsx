@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
 import { Input } from '@/components/ui/input';
@@ -15,19 +16,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTimeSince } from '@/utils/timeUtils';
 import { ExpandedNewPostForm } from './ExpandedNewPostForm';
 
-// Simple debounce utility
-function debounce<T extends (...args: string[]) => void>(func: T, waitFor: number) {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), waitFor);
-  };
-}
+
 
 interface SearchFirstPostInputProps {
   boardId?: string | null;
   onCreatePostClick: (initialTitle?: string) => void;
   onPostCreated?: (newPost: ApiPost) => void;
+  enableGlobalSearch?: boolean; // Whether to use global search modal or local search
 }
 
 interface SearchResult extends ApiPost {
@@ -38,9 +33,11 @@ interface SearchResult extends ApiPost {
 export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({ 
   boardId, 
   onCreatePostClick,
-  onPostCreated
+  onPostCreated,
+  enableGlobalSearch = true // Default to global search
 }) => {
   const { token, isAuthenticated } = useAuth();
+  const { openSearch } = useGlobalSearch();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,22 +80,23 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   });
 
   // Debounced search query update
-  const debouncedSetSearchQuery = useCallback(
-    debounce((query: string) => setSearchQuery(query), 300),
-    []
-  );
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setSearchQuery(currentInput);
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [currentInput]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCurrentInput(value); // Update immediately for UI
-    debouncedSetSearchQuery(value); // Debounced for API calls
   };
 
   // Handler for modal search input
   const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCurrentInput(value); // Update immediately for UI
-    debouncedSetSearchQuery(value); // Debounced for API calls
   };
 
   // Helper function to build URLs while preserving current parameters
@@ -127,14 +125,23 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
     }
   }, [buildInternalUrl, router]);
 
+  // Handle global search click
+  const handleSearchClick = useCallback(() => {
+    if (enableGlobalSearch) {
+      openSearch(currentInput);
+    } else {
+      setIsFocused(true);
+    }
+  }, [enableGlobalSearch, openSearch, currentInput]);
+
   const hasResults = searchResults && searchResults.length > 0;
   const hasSearched = searchResults !== undefined; // We've completed at least one search
   
-  // Open modal when user types enough characters or focuses
-  const shouldOpenModal = (isFocused || currentInput.length >= 3 || searchQuery.length >= 3) && (isSearching || hasResults || searchError || (hasSearched && searchQuery.length >= 3));
+  // Open modal when user types enough characters or focuses (only for local search)
+  const shouldOpenModal = !enableGlobalSearch && (isFocused || currentInput.length >= 3 || searchQuery.length >= 3) && (isSearching || hasResults || searchError || (hasSearched && searchQuery.length >= 3));
   
   // Once modal is open, keep it open until explicitly closed
-  const showResults = modalOpen || shouldOpenModal;
+  const showResults = !enableGlobalSearch && (modalOpen || shouldOpenModal);
   
   const showCreateButton = (currentInput.length >= 3 || searchQuery.length >= 3) && !isSearching && (!hasResults || searchResults?.length === 0);
 
@@ -203,7 +210,10 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
             />
             
             <Input
-              placeholder="What's on your mind? Start typing to search or create a post..."
+              placeholder={enableGlobalSearch 
+                ? "What's on your mind? Click to search globally or create a post..." 
+                : "What's on your mind? Start typing to search or create a post..."
+              }
               value={currentInput}
               className={cn(
                 "pl-14 pr-6 py-8 text-lg transition-all duration-200 font-medium",
@@ -211,11 +221,21 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                 isFocused 
                   ? "border-primary shadow-xl shadow-primary/10" 
                   : "border-muted hover:border-primary/50 hover:shadow-xl",
-                "focus:outline-none focus:ring-2 focus:ring-primary/20"
+                "focus:outline-none focus:ring-2 focus:ring-primary/20",
+                enableGlobalSearch && "cursor-pointer"
               )}
-              onChange={handleInputChange}
-              onFocus={() => setIsFocused(true)}
+              onChange={enableGlobalSearch ? undefined : handleInputChange}
+              onFocus={enableGlobalSearch ? undefined : () => setIsFocused(true)}
+              onClick={enableGlobalSearch ? handleSearchClick : undefined}
+              readOnly={enableGlobalSearch}
             />
+            
+            {/* Keyboard shortcut hint for global search */}
+            {enableGlobalSearch && (
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 text-muted-foreground pointer-events-none">
+                <kbd className="px-1.5 py-1 text-xs bg-muted rounded border font-mono">⌘K</kbd>
+              </div>
+            )}
           </div>
         </div>
       )}
