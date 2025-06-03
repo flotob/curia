@@ -2,7 +2,8 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
-import { EnhancedOnlineUsersSidebar } from '@/components/presence/EnhancedOnlineUsersSidebar'; // Enhanced multi-device presence
+import { EnhancedOnlineUsersSidebar } from '@/components/presence/EnhancedOnlineUsersSidebar';
+import { MiniPresenceWidget } from '@/components/presence/MiniPresenceWidget'; // Enhanced multi-device presence
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
@@ -34,33 +35,51 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   const { user, isAuthenticated, token } = useAuth();
   const { cgInstance, isInitializing: isCgLibInitializing, initError: cgLibError } = useCgLib();
   
-  // Phase 2: Enhanced sidebar state management
+  // Enhanced sidebar state management with mini mode
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);  // Renamed for clarity
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false); // New: Right sidebar state
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false); // New: Tablet detection
+  const [isMiniMode, setIsMiniMode] = useState(false); // New: Mini widget mode (200x200px)
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
-  // Phase 2: Enhanced screen size detection
+  // Enhanced screen size detection with mini mode
   useEffect(() => {
     const checkScreenSize = () => {
       const width = window.innerWidth;
-      setIsMobile(width < 768);        // md breakpoint  
-      setIsTablet(width >= 768 && width < 1024); // md to lg
+      const height = window.innerHeight;
       
-      if (width >= 1024) {
+      // Mini mode detection (Common Ground 200x200px minimized state)
+      setIsMiniMode(width <= 250 && height <= 250);
+      
+      // Standard responsive breakpoints
+      setIsMobile(width < 768 && !isMiniMode);        // md breakpoint  
+      setIsTablet(width >= 768 && width < 1024 && !isMiniMode); // md to lg
+      
+      if (width >= 1024 && !isMiniMode) {
         setLeftSidebarOpen(false);  // Close mobile sidebar when screen becomes large
         setRightSidebarOpen(false); // Close mobile right sidebar too
       }
     };
 
+    // Use ResizeObserver for more accurate detection
+    const resizeObserver = new ResizeObserver(checkScreenSize);
+    resizeObserver.observe(document.body);
+    
+    // Initial check
     checkScreenSize();
+    
+    // Fallback for older browsers
     window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
-  }, []);
+    
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', checkScreenSize);
+    };
+  }, [isMiniMode]);
 
   // Get theme from URL params
   useEffect(() => {
@@ -225,6 +244,19 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   };
 
   const showSidebar = isAuthenticated && communityInfo && accessibleBoardsList && !isLoadingCommunityInfo && !isLoadingBoards && !isFilteringBoards && !cgLibError && !communityInfoError && !boardsError;
+
+  // Handle mini mode (200x200px Common Ground minimized state)
+  if (isMiniMode) {
+    return (
+      <div className="w-full h-full p-1">
+        <MiniPresenceWidget onExpand={() => {
+          // Force trigger resize detection to potentially exit mini mode
+          // when Common Ground expands the iframe
+          window.dispatchEvent(new Event('resize'));
+        }} />
+      </div>
+    );
+  }
 
   if (isCgLibInitializing || (isAuthenticated && (isLoadingCommunityInfo || (communityIdForBoards && isLoadingBoards && communityInfo) || isFilteringBoards))) {
     return (
