@@ -150,8 +150,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Image
                   src={communityInfo.smallLogoUrl}
                   alt={`${communityInfo.title} logo`}
-                  fill
-                  className="object-cover"
+                  width={48}
+                  height={48}
+                  className="object-cover w-full h-full"
                 />
                 {/* Subtle shine overlay on hover */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
