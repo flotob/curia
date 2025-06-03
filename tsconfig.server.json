@@ -18,6 +18,7 @@
     "src/lib/boardPermissions.ts",
     "src/lib/db.ts",
     "src/lib/socket.ts",
+    "src/types/settings.ts",
     "src/types/process.d.ts"
   ],
   "exclude": [

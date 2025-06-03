@@ -477,8 +477,9 @@ async function bootstrap() {
 
   // Start the HTTP server
   const port = parseInt(process.env.PORT || '3000', 10);
-  httpServer.listen(port, () => {
-    console.log(`[Server] Ready on http://localhost:${port}`);
+  const hostname = '0.0.0.0'; // Recommended for containerized environments
+  httpServer.listen(port, hostname, () => {
+    console.log(`[Server] Ready on http://${hostname}:${port}`);
     console.log(`[Socket.IO] WebSocket server ready with global presence system`);
   });
 }

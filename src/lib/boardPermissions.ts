@@ -1,4 +1,4 @@
-import { BoardSettings } from '@/types/settings';
+import { BoardSettings } from '../types/settings';
 
 /**
  * Determines if a user can access a specific board based on their roles and admin status
