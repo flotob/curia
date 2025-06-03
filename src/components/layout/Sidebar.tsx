@@ -284,8 +284,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       )}
                     </Link>
                     
-                    {/* Board Settings Button - Admin Only */}
-                    {user?.isAdmin && (
+                    {/* Board Settings Button - Admin Only - Desktop Only */}
+                    {user?.isAdmin && !isMobile && (
                       <Link
                         href={buildUrl('/board-settings', { boardId: board.id.toString() })}
                         className={cn(
