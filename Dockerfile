@@ -4,6 +4,10 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Declare build arguments that Railway will inject from service variables
+ARG NEXT_PRIVATE_PRIVKEY
+ARG NEXT_PUBLIC_PUBKEY
+
 # Copy package.json and yarn.lock first to leverage Docker cache
 COPY package.json yarn.lock ./
 
@@ -14,6 +18,7 @@ RUN yarn install --frozen-lockfile
 COPY . .
 
 # Run the build script (next build && tsc)
+# The ARGs declared above will be available as environment variables to this command
 RUN yarn build
 
 # ---- Production Stage ----
