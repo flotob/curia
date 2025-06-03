@@ -44,6 +44,18 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showInlineForm, setShowInlineForm] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
 
   // Search for similar posts
   const { 
@@ -69,7 +81,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   // Debounced search query update
   const debouncedSetSearchQuery = useCallback(
     debounce((query: string) => setSearchQuery(query), 300),
-    [setSearchQuery]
+    []
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,6 +126,18 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
     setShowInlineForm(false);
     setSearchQuery('');
   }, []);
+
+  // Mobile-responsive create post handler
+  const handleCreatePostClick = useCallback((initialTitle?: string) => {
+    if (isMobile) {
+      // Mobile: Close modal and show main form
+      closeResults();
+      onCreatePostClick(initialTitle);
+    } else {
+      // Desktop: Show inline form in modal
+      setShowInlineForm(true);
+    }
+  }, [isMobile, closeResults, onCreatePostClick]);
 
   // Escape key handler
   useEffect(() => {
@@ -206,7 +230,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                       <h3 className="text-lg font-medium text-red-500 mb-2">Search temporarily unavailable</h3>
                       <p className="text-sm text-muted-foreground mb-4">Don&apos;t worry, you can still create a new post.</p>
                       <Button 
-                        onClick={() => onCreatePostClick()}
+                        onClick={() => handleCreatePostClick()}
                         className="mx-auto"
                       >
                         <Plus size={16} className="mr-2" />
@@ -216,7 +240,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                   )}
 
                   {/* Search Results */}
-                  {hasResults && (
+                  {hasResults && !showInlineForm && (
                     <div className="overflow-y-auto max-h-[calc(100vh-8rem)]">
                       {/* Header */}
                       <div className="sticky top-0 p-6 border-b bg-background/90 backdrop-blur-sm z-10">
@@ -251,7 +275,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                         <div className="animate-in slide-in-from-bottom-2 duration-300">
                           <CreateNewPostItem 
                             searchQuery={searchQuery.trim()} 
-                            onClick={() => onCreatePostClick(searchQuery.trim())} 
+                            onClick={() => handleCreatePostClick(searchQuery.trim())} 
                           />
                         </div>
                         
@@ -268,6 +292,39 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             />
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Inline Form for Desktop when there are results */}
+                  {hasResults && showInlineForm && (
+                    <div className="relative">
+                      {/* Close Button for Inline Form State */}
+                      <div className="absolute top-4 right-4 z-10">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={closeResults}
+                          className="rounded-full h-8 w-8 p-0 hover:bg-muted"
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                      
+                      <div className="p-6">
+                        <div className="mb-4 text-center">
+                          <h3 className="text-lg font-semibold text-muted-foreground">
+                            Creating new post for: &quot;{searchQuery}&quot;
+                          </h3>
+                        </div>
+                        <ExpandedNewPostForm 
+                          boardId={boardId}
+                          initialTitle={searchQuery.trim()}
+                          onCancel={() => setShowInlineForm(false)}
+                          onPostCreated={() => {
+                            closeResults();
+                          }}
+                        />
                       </div>
                     </div>
                   )}
@@ -301,8 +358,6 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             onCancel={() => setShowInlineForm(false)}
                             onPostCreated={() => {
                               closeResults();
-                              // Also call the parent callback if needed
-                              onCreatePostClick(searchQuery.trim());
                             }}
                           />
                         </div>
@@ -322,7 +377,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                           
                           <div className="space-y-3">
                             <Button 
-                              onClick={() => setShowInlineForm(true)}
+                              onClick={() => handleCreatePostClick(searchQuery.trim())}
                               size="lg"
                               className="px-8 py-3 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200"
                             >
