@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
-import { NewPostForm } from '@/components/voting/NewPostForm';
+import { SearchFirstPostInput } from '@/components/voting/SearchFirstPostInput';
+import { ExpandedNewPostForm } from '@/components/voting/ExpandedNewPostForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSocket } from '@/contexts/SocketContext';
@@ -24,6 +25,8 @@ export default function HomePage() {
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [showExpandedForm, setShowExpandedForm] = useState(false);
+  const [initialPostTitle, setInitialPostTitle] = useState('');
 
   // Get boardId from URL params for board-specific filtering
   const boardId = searchParams?.get('boardId');
@@ -141,9 +144,30 @@ export default function HomePage() {
       {/* Main Container - Clean layout, OnlineUsersSidebar now in MainLayoutWithSidebar */}
       <div className="container mx-auto py-8 px-4">
         <div className="max-w-4xl mx-auto space-y-8">
-          {/* New Post Form */}
+          {/* Search-First Post Creation */}
           <section className="max-w-2xl mx-auto">
-            <NewPostForm boardId={boardId} />
+            {showExpandedForm ? (
+              <ExpandedNewPostForm 
+                boardId={boardId} 
+                initialTitle={initialPostTitle}
+                onCancel={() => {
+                  setShowExpandedForm(false);
+                  setInitialPostTitle('');
+                }}
+                onPostCreated={() => {
+                  setShowExpandedForm(false);
+                  setInitialPostTitle('');
+                }}
+              />
+            ) : (
+              <SearchFirstPostInput 
+                boardId={boardId}
+                onCreatePostClick={(title) => {
+                  setInitialPostTitle(title || '');
+                  setShowExpandedForm(true);
+                }}
+              />
+            )}
           </section>
 
           {/* Feed Section */}
