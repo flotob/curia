@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSearchParams, usePathname, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 
@@ -317,12 +316,10 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     className="relative transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded"
                   >
                     <div className="w-6 h-6 rounded overflow-hidden shadow-sm">
-                      <Image 
+                      <img 
                         src={communityInfo.smallLogoUrl} 
                         alt={communityInfo.title || 'Community Logo'}
-                        width={24}
-                        height={24}
-                        className="object-cover"
+                        className="object-cover w-full h-full"
                       />
                     </div>
                   </button>

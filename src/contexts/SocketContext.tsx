@@ -161,6 +161,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // Also invalidate home feed (vote count changes affect sorting order)
         console.log(`[RQ Invalidate] Invalidating home feed for vote update`);
         queryClient.invalidateQueries({ queryKey: ['posts', null] });
+        // ALSO invalidate individual post query for detail views
+        console.log(`[RQ Invalidate] Invalidating individual post query for post: ${voteData.postId}`);
+        queryClient.invalidateQueries({ queryKey: ['post', voteData.postId] });
       }
     });
 
@@ -186,6 +189,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // Always invalidate home feed for new comments (comment count changes are visible there)
         console.log(`[RQ Invalidate] Invalidating home feed for new comment`);
         queryClient.invalidateQueries({ queryKey: ['posts', null] });
+        // ALSO invalidate individual post query for detail views (comment count changes)
+        console.log(`[RQ Invalidate] Invalidating individual post query for post: ${commentData.postId} due to new comment`);
+        queryClient.invalidateQueries({ queryKey: ['post', commentData.postId] });
       }
     });
 

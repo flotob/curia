@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
@@ -147,11 +146,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="relative group">
               {/* Logo with beautiful shadow and hover effect */}
               <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-lg shadow-slate-900/20 dark:shadow-slate-900/40 ring-1 ring-slate-200/60 dark:ring-slate-700/60 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-slate-900/30 group-hover:scale-105">
-                <Image
+                <img
                   src={communityInfo.smallLogoUrl}
                   alt={`${communityInfo.title} logo`}
-                  width={48}
-                  height={48}
                   className="object-cover w-full h-full"
                 />
                 {/* Subtle shine overlay on hover */}
