@@ -9,11 +9,12 @@ import { ExpandedNewPostForm } from '@/components/voting/ExpandedNewPostForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSocket } from '@/contexts/SocketContext';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
+import { ApiPost } from '@/app/api/posts/route';
 import { Button } from '@/components/ui/button';
 import { 
   Settings, 
@@ -24,6 +25,7 @@ export default function HomePage() {
   const { token, user } = useAuth();
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showExpandedForm, setShowExpandedForm] = useState(false);
   const [initialPostTitle, setInitialPostTitle] = useState('');
@@ -154,9 +156,11 @@ export default function HomePage() {
                   setShowExpandedForm(false);
                   setInitialPostTitle('');
                 }}
-                onPostCreated={() => {
-                  setShowExpandedForm(false);
-                  setInitialPostTitle('');
+                onPostCreated={(newPost: ApiPost) => {
+                  // Navigate to the newly created post detail page
+                  const postUrl = buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
+                  console.log(`[HomePage] Navigating to new post: ${postUrl}`);
+                  router.push(postUrl);
                 }}
               />
             ) : (
@@ -165,6 +169,12 @@ export default function HomePage() {
                 onCreatePostClick={(title) => {
                   setInitialPostTitle(title || '');
                   setShowExpandedForm(true);
+                }}
+                onPostCreated={(newPost: ApiPost) => {
+                  // Navigate to the newly created post detail page
+                  const postUrl = buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
+                  console.log(`[HomePage] Navigating to new post from search: ${postUrl}`);
+                  router.push(postUrl);
                 }}
               />
             )}

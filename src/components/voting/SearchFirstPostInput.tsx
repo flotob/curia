@@ -27,6 +27,7 @@ function debounce<T extends (...args: string[]) => void>(func: T, waitFor: numbe
 interface SearchFirstPostInputProps {
   boardId?: string | null;
   onCreatePostClick: (initialTitle?: string) => void;
+  onPostCreated?: (newPost: ApiPost) => void;
 }
 
 interface SearchResult extends ApiPost {
@@ -36,7 +37,8 @@ interface SearchResult extends ApiPost {
 
 export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({ 
   boardId, 
-  onCreatePostClick 
+  onCreatePostClick,
+  onPostCreated
 }) => {
   const { token, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -418,8 +420,11 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             boardId={boardId}
                             initialTitle={(currentInput || searchQuery).trim()}
                             onCancel={() => setShowInlineForm(false)}
-                            onPostCreated={() => {
+                            onPostCreated={(newPost) => {
                               closeResults();
+                              if (onPostCreated) {
+                                onPostCreated(newPost);
+                              }
                             }}
                           />
                         </div>
@@ -459,8 +464,11 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                               boardId={boardId}
                               initialTitle={(currentInput || searchQuery).trim()}
                               onCancel={() => setShowInlineForm(false)}
-                              onPostCreated={() => {
+                              onPostCreated={(newPost) => {
                                 closeResults();
+                                if (onPostCreated) {
+                                  onPostCreated(newPost);
+                                }
                               }}
                             />
                           </div>
