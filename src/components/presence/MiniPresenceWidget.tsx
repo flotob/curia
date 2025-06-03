@@ -87,9 +87,14 @@ const ActivityIndicator = ({ device }: { device: DevicePresence }) => {
 };
 
 // Ultra-compact user card for mini mode
-const MiniUserCard = ({ user, onUserClick }: { 
+const MiniUserCard = ({ 
+  user, 
+  onUserClick, 
+  isCurrentCommunity 
+}: { 
   user: EnhancedUserPresence; 
-  onUserClick: (boardId?: number) => void;
+  onUserClick: (user: EnhancedUserPresence, boardId?: number) => void;
+  isCurrentCommunity: boolean;
 }) => {
   const hasMultipleDevices = user.totalDevices > 1;
   const primaryBoard = user.primaryDevice.currentBoardId;
@@ -97,7 +102,7 @@ const MiniUserCard = ({ user, onUserClick }: {
   return (
     <div 
       className="flex items-center space-x-2 p-1.5 hover:bg-accent/50 rounded cursor-pointer transition-colors group"
-      onClick={() => onUserClick(primaryBoard)}
+      onClick={() => onUserClick(user, primaryBoard)}
     >
       {/* Avatar with status */}
       <div className="relative flex-shrink-0">
@@ -111,6 +116,12 @@ const MiniUserCard = ({ user, onUserClick }: {
           "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-background",
           user.isOnline ? "bg-green-500" : "bg-gray-400"
         )} />
+        {/* Community indicator for foreign users */}
+        {!isCurrentCommunity && (
+          <div className="absolute -top-0.5 -left-0.5 h-2 w-2 bg-blue-500 rounded-full border border-background">
+            <span className="sr-only">From other community</span>
+          </div>
+        )}
       </div>
       
       {/* User info */}
@@ -143,9 +154,14 @@ const MiniUserCard = ({ user, onUserClick }: {
         <ActivityIndicator device={user.primaryDevice} />
       </div>
       
-      {/* External link hint on hover */}
+      {/* External link hint on hover or foreign community indicator */}
       {primaryBoard && (
-        <ExternalLink size={8} className="opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0" />
+        <>
+          {!isCurrentCommunity && (
+            <span className="text-[8px] opacity-60">🔗</span>
+          )}
+          <ExternalLink size={8} className="opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0" />
+        </>
       )}
     </div>
   );
@@ -153,16 +169,29 @@ const MiniUserCard = ({ user, onUserClick }: {
 
 // Main mini presence widget component
 export function MiniPresenceWidget({ onExpand }: { onExpand?: () => void }) {
-  const { enhancedUserPresence, isConnected } = useSocket();
+  const { 
+    enhancedUserPresence, 
+    isConnected, 
+    currentCommunityUsers, 
+    otherCommunityGroups 
+  } = useSocket();
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const handleUserClick = (boardId?: number) => {
+  const handleUserClick = (user: EnhancedUserPresence, boardId?: number) => {
     if (boardId) {
-      // Navigate to the user's board and expand
-      const params = new URLSearchParams(searchParams?.toString() || '');
-      params.set('boardId', boardId.toString());
-      router.push(`/?${params.toString()}`);
+      // Only navigate if user is from current community
+      const isCurrentCommunity = currentCommunityUsers.some(u => u.userId === user.userId);
+      
+      if (isCurrentCommunity) {
+        // Navigate to the user's board and expand
+        const params = new URLSearchParams(searchParams?.toString() || '');
+        params.set('boardId', boardId.toString());
+        router.push(`/?${params.toString()}`);
+      } else {
+        // Foreign community - just expand for now
+        console.log(`Would navigate to board ${boardId} in community ${user.communityId} (not implemented)`);
+      }
     }
     
     // Trigger expand callback if provided
@@ -176,6 +205,15 @@ export function MiniPresenceWidget({ onExpand }: { onExpand?: () => void }) {
   
   const totalUsers = enhancedUserPresence.length;
   const totalDevices = enhancedUserPresence.reduce((sum, user) => sum + user.totalDevices, 0);
+  const localUsers = currentCommunityUsers.length;
+  const globalUsers = otherCommunityGroups.reduce((sum, group) => sum + group.totalUsers, 0);
+  
+  // Prioritize current community users in mini mode display
+  const prioritizedUsers = [
+    ...currentCommunityUsers,
+    // Add top users from other communities (max 2-3 to fit in mini mode)
+    ...otherCommunityGroups.flatMap(group => group.users).slice(0, 3)
+  ];
   
   if (!isConnected) {
     return (
@@ -216,9 +254,16 @@ export function MiniPresenceWidget({ onExpand }: { onExpand?: () => void }) {
               "h-2 w-2 rounded-full flex-shrink-0",
               isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
             )} />
-            <span className="text-xs font-medium">
-              {totalUsers} Online
-            </span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-medium">
+                {localUsers} Local
+              </span>
+              {globalUsers > 0 && (
+                <span className="text-[8px] text-muted-foreground">
+                  +{globalUsers} 🌐
+                </span>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center space-x-1">
@@ -243,13 +288,17 @@ export function MiniPresenceWidget({ onExpand }: { onExpand?: () => void }) {
           </div>
         ) : (
           <div className="p-1 space-y-0.5">
-            {enhancedUserPresence.map((user) => (
-              <MiniUserCard 
-                key={user.userId} 
-                user={user} 
-                onUserClick={handleUserClick}
-              />
-            ))}
+            {prioritizedUsers.map((user) => {
+              const isCurrentCommunity = currentCommunityUsers.some(u => u.userId === user.userId);
+              return (
+                <MiniUserCard 
+                  key={user.userId} 
+                  user={user} 
+                  onUserClick={handleUserClick}
+                  isCurrentCommunity={isCurrentCommunity}
+                />
+              );
+            })}
           </div>
         )}
       </div>

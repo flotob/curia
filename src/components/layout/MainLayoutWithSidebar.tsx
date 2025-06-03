@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
-import { EnhancedOnlineUsersSidebar } from '@/components/presence/EnhancedOnlineUsersSidebar';
+import { MultiCommunityPresenceSidebar } from '@/components/presence/MultiCommunityPresenceSidebar';
 import { MiniPresenceWidget } from '@/components/presence/MiniPresenceWidget'; // Enhanced multi-device presence
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -468,7 +468,7 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     </Button>
                   </div>
                 )}
-                <EnhancedOnlineUsersSidebar />
+                <MultiCommunityPresenceSidebar />
               </aside>
             )}
 

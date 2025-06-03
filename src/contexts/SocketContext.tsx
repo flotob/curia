@@ -1,11 +1,13 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { authFetchJson } from '@/utils/authFetch';
+import { ApiCommunity } from '@/app/api/communities/route';
 
 // ===== ENHANCED SOCKET CONTEXT WITH MULTI-DEVICE PRESENCE =====
 
@@ -49,6 +51,16 @@ interface OnlineUser {
   isTyping?: boolean;
 }
 
+// Community grouping interfaces
+interface CommunityPresenceGroup {
+  communityId: string;
+  communityName: string;
+  users: EnhancedUserPresence[];
+  totalUsers: number;
+  totalDevices: number;
+  isCurrentCommunity: boolean;
+}
+
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
@@ -60,6 +72,10 @@ interface SocketContextType {
   boardOnlineUsers: OnlineUser[];
   // Enhanced multi-device presence
   enhancedUserPresence: EnhancedUserPresence[];
+  // Community-grouped presence
+  communityGroups: CommunityPresenceGroup[];
+  currentCommunityUsers: EnhancedUserPresence[];
+  otherCommunityGroups: CommunityPresenceGroup[];
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -81,6 +97,64 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   
   // Extract only the stable parts we need from user to avoid unnecessary reconnections
   const userId = user?.userId;
+  const currentCommunityId = user?.cid;
+
+  // Fetch all communities for name resolution
+  const { data: allCommunities = [] } = useQuery<ApiCommunity[]>({
+    queryKey: ['communities'],
+    queryFn: async () => {
+      if (!token) throw new Error('No auth token available');
+      return authFetchJson<ApiCommunity[]>('/api/communities', { token });
+    },
+    enabled: !!isAuthenticated && !!token,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false
+  });
+
+  // Compute community-grouped presence data
+  const communityPresenceData = useMemo(() => {
+    if (!allCommunities.length || !enhancedUserPresence.length) {
+      return {
+        communityGroups: [],
+        currentCommunityUsers: [],
+        otherCommunityGroups: []
+      };
+    }
+
+    // Create a map for fast community name lookup
+    const communityNameMap = new Map(
+      allCommunities.map(community => [community.id, community.name])
+    );
+
+    // Group users by community
+    const groupedByCommunity = enhancedUserPresence.reduce((acc, user) => {
+      if (!acc[user.communityId]) {
+        acc[user.communityId] = [];
+      }
+      acc[user.communityId].push(user);
+      return acc;
+    }, {} as Record<string, EnhancedUserPresence[]>);
+
+    // Create community groups
+    const communityGroups: CommunityPresenceGroup[] = Object.entries(groupedByCommunity).map(([communityId, users]) => ({
+      communityId,
+      communityName: communityNameMap.get(communityId) || `Community ${communityId}`,
+      users,
+      totalUsers: users.length,
+      totalDevices: users.reduce((sum, user) => sum + user.totalDevices, 0),
+      isCurrentCommunity: communityId === currentCommunityId
+    }));
+
+    // Separate current and other community groups
+    const currentCommunityUsers = groupedByCommunity[currentCommunityId || ''] || [];
+    const otherCommunityGroups = communityGroups.filter(group => !group.isCurrentCommunity);
+
+    return {
+      communityGroups,
+      currentCommunityUsers,
+      otherCommunityGroups
+    };
+  }, [allCommunities, enhancedUserPresence, currentCommunityId]);
 
   // Helper function to build URLs while preserving current parameters
   const buildInternalUrl = useCallback((path: string, additionalParams: Record<string, string> = {}) => {
@@ -423,7 +497,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     sendTyping,
     globalOnlineUsers,
     boardOnlineUsers,
-    enhancedUserPresence
+    enhancedUserPresence,
+    communityGroups: communityPresenceData.communityGroups,
+    currentCommunityUsers: communityPresenceData.currentCommunityUsers,
+    otherCommunityGroups: communityPresenceData.otherCommunityGroups
   };
 
   return (
