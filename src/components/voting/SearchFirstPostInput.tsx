@@ -16,7 +16,7 @@ import { useTimeSince } from '@/utils/timeUtils';
 import { ExpandedNewPostForm } from './ExpandedNewPostForm';
 
 // Simple debounce utility
-function debounce<T extends (...args: any[]) => any>(func: T, waitFor: number) {
+function debounce<T extends (...args: string[]) => void>(func: T, waitFor: number) {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<T>) => {
     clearTimeout(timeout);
@@ -30,7 +30,8 @@ interface SearchFirstPostInputProps {
 }
 
 interface SearchResult extends ApiPost {
-  // Extended with search-specific fields if needed
+  // No additional properties needed for now
+  [key: string]: unknown;
 }
 
 export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({ 
@@ -68,7 +69,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   // Debounced search query update
   const debouncedSetSearchQuery = useCallback(
     debounce((query: string) => setSearchQuery(query), 300),
-    []
+    [setSearchQuery]
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,7 +204,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                         <Search size={48} className="mx-auto opacity-50" />
                       </div>
                       <h3 className="text-lg font-medium text-red-500 mb-2">Search temporarily unavailable</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Don't worry, you can still create a new post.</p>
+                      <p className="text-sm text-muted-foreground mb-4">Don&apos;t worry, you can still create a new post.</p>
                       <Button 
                         onClick={() => onCreatePostClick()}
                         className="mx-auto"
@@ -227,7 +228,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             <div>
                               <h3 className="text-lg font-semibold">Similar discussions found</h3>
                               <p className="text-sm text-muted-foreground">
-                                {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                                {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &quot;{searchQuery}&quot;
                               </p>
                             </div>
                           </div>
@@ -291,7 +292,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                         <div className="p-6">
                           <div className="mb-4 text-center">
                             <h3 className="text-lg font-semibold text-muted-foreground">
-                              Creating new post for: "{searchQuery}"
+                              Creating new post for: &quot;{searchQuery}&quot;
                             </h3>
                           </div>
                           <ExpandedNewPostForm 
@@ -314,8 +315,8 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             </div>
                             <h3 className="text-xl font-semibold mb-2">No similar posts found</h3>
                             <p className="text-muted-foreground">
-                              We couldn't find any existing discussions about <br />
-                              <span className="font-medium text-foreground">"{searchQuery}"</span>
+                              We couldn&apos;t find any existing discussions about <br />
+                              <span className="font-medium text-foreground">&quot;{searchQuery}&quot;</span>
                             </p>
                           </div>
                           
@@ -374,7 +375,7 @@ const CreateNewPostItem: React.FC<CreateNewPostItemProps> = ({ searchQuery, onCl
               </div>
               <div>
                 <h3 className="font-semibold text-primary text-base">
-                  Create: "{searchQuery}"
+                  Create: &quot;{searchQuery}&quot;
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   Start a new discussion about this topic

@@ -304,6 +304,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setGlobalOnlineUsers([]);
       setBoardOnlineUsers([]);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token, userId, queryClient, navigateToPost, navigateToBoard]); // Note: 'socket' intentionally excluded to prevent infinite re-renders
 
   const joinBoard = useCallback((boardId: number) => {

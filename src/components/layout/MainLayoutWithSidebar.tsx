@@ -11,6 +11,7 @@ import { ApiPost } from '@/app/api/posts/route';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 import { 
   Menu,
   Users, // Phase 2: For right sidebar toggle
@@ -316,9 +317,11 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     className="relative transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded"
                   >
                     <div className="w-6 h-6 rounded overflow-hidden shadow-sm">
-                      <img 
+                      <Image 
                         src={communityInfo.smallLogoUrl} 
                         alt={communityInfo.title || 'Community Logo'}
+                        width={24}
+                        height={24}
                         className="object-cover w-full h-full"
                       />
                     </div>
