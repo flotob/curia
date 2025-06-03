@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server.ts",
-    "build": "next build && rimraf dist && npx tsc -p tsconfig.server.json --verbose",
+    "build": "next build && rimraf dist && npx tsc -p tsconfig.server.json --extendedDiagnostics",
     "start": "NODE_ENV=production node dist/server.js",
     "lint": "next lint",
     "migrate:compile": "rimraf dist/migrations && tsc -p tsconfig.migrations.json",
