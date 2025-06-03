@@ -115,7 +115,7 @@ const DeviceCard = ({ device, isPrimary = false }: { device: DevicePresence; isP
         {device.currentBoardId && (
           <button
             onClick={() => navigateToBoard(device.currentBoardId!)}
-            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors"
+            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors hover:underline"
           >
             📋 {device.currentBoardName || `Board ${device.currentBoardId}`}
             <ExternalLink size={8} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -135,6 +135,14 @@ const DeviceCard = ({ device, isPrimary = false }: { device: DevicePresence; isP
 const UserPresenceCard = ({ user }: { user: EnhancedUserPresence }) => {
   const [expanded, setExpanded] = useState(false);
   const hasMultipleDevices = user.totalDevices > 1;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const navigateToBoard = (boardId: number) => {
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('boardId', boardId.toString());
+    router.push(`/?${params.toString()}`);
+  };
   
   return (
     <Card className="transition-all duration-200 hover:shadow-sm">
@@ -191,9 +199,12 @@ const UserPresenceCard = ({ user }: { user: EnhancedUserPresence }) => {
             {!expanded && (
               <>
                 {user.primaryDevice.currentBoardId && (
-                  <div className="text-xs text-muted-foreground">
+                  <button
+                    onClick={() => navigateToBoard(user.primaryDevice.currentBoardId!)}
+                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer hover:underline transition-colors"
+                  >
                     📋 {user.primaryDevice.currentBoardName || `Board ${user.primaryDevice.currentBoardId}`}
-                  </div>
+                  </button>
                 )}
                 <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                   <Activity size={10} />
