@@ -130,13 +130,13 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       CodeBlockLowlight.configure({ lowlight }),
       Markdown.configure({ html: false, tightLists: true, transformPastedText: true }),
       Placeholder.configure({
-        placeholder: 'Describe your post in detail (Markdown supported!)...',
+        placeholder: 'Describe your post in detail... Use the toolbar below to format your content!',
       }),
     ],
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose prose-sm dark:prose-invert leading-snug focus:outline-none min-h-[150px] border border-input rounded-md px-3 py-2 w-full',
+        class: 'prose prose-sm dark:prose-invert leading-relaxed focus:outline-none min-h-[200px] px-4 py-3 w-full',
       },
     },
   });
@@ -218,11 +218,11 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   }
 
   return (
-    <Card className="w-full mx-auto mt-4 sm:mt-6 mb-6 sm:mb-8">
-      <CardHeader className="px-4 sm:px-6">
+    <Card className="w-full mx-auto mt-4 sm:mt-6 mb-6 sm:mb-8 border-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
+      <CardHeader className="px-4 sm:px-6 bg-gradient-to-br from-background to-muted/20">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg sm:text-xl">Create a New Post</CardTitle>
+            <CardTitle className="text-lg sm:text-xl bg-gradient-to-br from-foreground to-foreground/80 bg-clip-text">Create a New Post</CardTitle>
             <CardDescription className="text-sm">Share an issue, need, or idea with the community.</CardDescription>
           </div>
           <Button 
@@ -242,12 +242,12 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
             <Label htmlFor="title" className="text-sm font-medium">Title</Label>
             <Input 
               id="title" 
-              placeholder="Enter a clear and concise title"
+              placeholder="Enter a clear and compelling title..."
               value={title} 
               onChange={(e) => setTitle(e.target.value)} 
               required 
               disabled={createPostMutation.isPending}
-              className="text-sm sm:text-base"
+              className="text-sm sm:text-base border-2 rounded-xl px-4 py-3 transition-all duration-200 focus:border-primary focus:shadow-lg focus:shadow-primary/10"
             />
           </div>
 
@@ -290,9 +290,19 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
           
           <div className="space-y-1.5">
             <Label htmlFor="content-editor-post" className="text-sm font-medium">Content/Description</Label> 
-            <div className="border rounded-md overflow-hidden">
-              <EditorContent editor={contentEditor} id="content-editor-post" />
-              <EditorToolbar editor={contentEditor} />
+            <div className="relative group">
+              <div className="border-2 border-input rounded-xl overflow-hidden transition-all duration-200 group-focus-within:border-primary group-focus-within:shadow-lg group-focus-within:shadow-primary/10 bg-background">
+                <EditorContent 
+                  editor={contentEditor} 
+                  id="content-editor-post" 
+                  className="prose-headings:font-semibold prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground"
+                />
+                <div className="border-t border-border/50 bg-muted/30">
+                  <EditorToolbar editor={contentEditor} />
+                </div>
+              </div>
+              {/* Focus ring for better accessibility */}
+              <div className="absolute inset-0 rounded-xl ring-2 ring-transparent group-focus-within:ring-primary/20 transition-all duration-200 pointer-events-none" />
             </div>
           </div>
 
@@ -304,7 +314,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
               value={tags} 
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTags(e.target.value)} 
               disabled={createPostMutation.isPending}
-              className="text-sm sm:text-base"
+              className="text-sm sm:text-base border-2 rounded-xl px-4 py-3 transition-all duration-200 focus:border-primary focus:shadow-lg focus:shadow-primary/10"
             />
           </div>
           

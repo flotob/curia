@@ -225,6 +225,8 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
           <div 
             className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 animate-in fade-in duration-200"
             onClick={closeResults}
+            onTouchMove={(e) => e.preventDefault()}
+            onWheel={(e) => e.preventDefault()}
           />
           
           {/* Results Container */}
@@ -232,7 +234,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
             <div className="w-full max-w-4xl">
               <Card className={cn(
                 "shadow-2xl border-2 border-primary/20 rounded-2xl overflow-hidden backdrop-blur-md",
-                "bg-background/95 max-h-[calc(100vh-2rem)]"
+                "bg-background/95 max-h-[calc(100vh-2rem)] overscroll-contain"
               )}>
                 <CardContent className="p-0">
                   {/* Modal Search Input - Sticky at top */}
@@ -326,7 +328,11 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
 
                   {/* Search Results */}
                   {hasResults && !showInlineForm && (
-                    <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
+                    <div 
+                      className="overflow-y-auto max-h-[calc(100vh-12rem)] overscroll-contain"
+                      onTouchMove={(e) => e.stopPropagation()}
+                      onWheel={(e) => e.stopPropagation()}
+                    >
                       {/* Header */}
                       <div className="p-6 border-b bg-background/90 backdrop-blur-sm">
                         <div className="flex items-center justify-between">
@@ -396,20 +402,27 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                         </Button>
                       </div>
                       
-                      <div className="p-6">
-                        <div className="mb-4 text-center">
-                          <h3 className="text-lg font-semibold text-muted-foreground">
-                            Creating new post for: &quot;{currentInput || searchQuery}&quot;
-                          </h3>
+                      {/* Scrollable container for the form */}
+                      <div 
+                        className="overflow-y-auto max-h-[calc(100vh-12rem)] overscroll-contain"
+                        onTouchMove={(e) => e.stopPropagation()}
+                        onWheel={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-6">
+                          <div className="mb-4 text-center">
+                            <h3 className="text-lg font-semibold text-muted-foreground">
+                              Creating new post for: &quot;{currentInput || searchQuery}&quot;
+                            </h3>
+                          </div>
+                          <ExpandedNewPostForm 
+                            boardId={boardId}
+                            initialTitle={(currentInput || searchQuery).trim()}
+                            onCancel={() => setShowInlineForm(false)}
+                            onPostCreated={() => {
+                              closeResults();
+                            }}
+                          />
                         </div>
-                        <ExpandedNewPostForm 
-                          boardId={boardId}
-                          initialTitle={(currentInput || searchQuery).trim()}
-                          onCancel={() => setShowInlineForm(false)}
-                          onPostCreated={() => {
-                            closeResults();
-                          }}
-                        />
                       </div>
                     </div>
                   )}
@@ -430,21 +443,27 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                       </div>
                       
                       {showInlineForm ? (
-                        // Show the actual form inline
-                        <div className="p-6">
-                          <div className="mb-4 text-center">
-                            <h3 className="text-lg font-semibold text-muted-foreground">
-                              Creating new post for: &quot;{currentInput || searchQuery}&quot;
-                            </h3>
+                        // Show the actual form inline with proper scrolling
+                        <div 
+                          className="overflow-y-auto max-h-[calc(100vh-12rem)] overscroll-contain"
+                          onTouchMove={(e) => e.stopPropagation()}
+                          onWheel={(e) => e.stopPropagation()}
+                        >
+                          <div className="p-6">
+                            <div className="mb-4 text-center">
+                              <h3 className="text-lg font-semibold text-muted-foreground">
+                                Creating new post for: &quot;{currentInput || searchQuery}&quot;
+                              </h3>
+                            </div>
+                            <ExpandedNewPostForm 
+                              boardId={boardId}
+                              initialTitle={(currentInput || searchQuery).trim()}
+                              onCancel={() => setShowInlineForm(false)}
+                              onPostCreated={() => {
+                                closeResults();
+                              }}
+                            />
                           </div>
-                          <ExpandedNewPostForm 
-                            boardId={boardId}
-                            initialTitle={(currentInput || searchQuery).trim()}
-                            onCancel={() => setShowInlineForm(false)}
-                            onPostCreated={() => {
-                              closeResults();
-                            }}
-                          />
                         </div>
                       ) : (
                         // Show the button to reveal the form

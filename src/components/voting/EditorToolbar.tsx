@@ -69,11 +69,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
       aria-label={ariaLabel}
       title={title || ariaLabel}
       disabled={disabled || !editor.isEditable}
-      className={`p-2 rounded-md hover:bg-muted/70 disabled:opacity-50 ${
-        isActive ? 'bg-muted text-primary' : 'text-muted-foreground'
+      className={`p-2.5 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+        isActive 
+          ? 'bg-primary/10 text-primary shadow-sm border border-primary/20' 
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 hover:shadow-sm'
       }`}
     >
-      <Icon size={18} />
+      <Icon size={16} />
     </button>
   );
 
@@ -116,7 +118,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border rounded-md p-1 bg-background relative">
+    <div className="flex flex-wrap items-center gap-1 p-3 relative">
       <ToolbarButton 
         onClick={() => editor.chain().focus().toggleBold().run()}
         isActive={editor.isActive('bold')}
