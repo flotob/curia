@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,6 +33,11 @@ export function GlobalSearchModal() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showInlineForm, setShowInlineForm] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0); // For keyboard navigation
+  
+  // Refs for auto-scrolling
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
 
   // Get current board context from URL
   const boardId = searchParams?.get('boardId') || null;
@@ -122,6 +127,25 @@ export function GlobalSearchModal() {
 
   const hasResults = searchResults && searchResults.length > 0;
   const showCreateButton = (currentInput.length >= 3 || searchQuery.length >= 3) && !isSearching && (!hasResults || searchResults?.length === 0);
+  
+  // Calculate total navigable items (Create post + actual results)
+  const totalNavigableItems = hasResults ? 1 + searchResults.length : (showCreateButton ? 1 : 0);
+  
+  // Reset selection when search results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchResults, showCreateButton]);
+
+  // Auto-scroll to keep selected item visible
+  useEffect(() => {
+    if (selectedItemRef.current && scrollContainerRef.current) {
+      selectedItemRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    }
+  }, [selectedIndex]);
 
   // Enhanced close function
   const handleClose = useCallback(() => {
@@ -145,6 +169,45 @@ export function GlobalSearchModal() {
       setShowInlineForm(true);
     }
   }, [isMobile, handleClose, boardId, buildInternalUrl, router]);
+
+  // Handle selection of current item
+  const handleSelection = useCallback(() => {
+    if (totalNavigableItems === 0) return;
+    
+    if (selectedIndex === 0) {
+      // First item is always "Create post"
+      handleCreatePostClick();
+    } else if (hasResults && searchResults) {
+      // Selected a search result
+      const resultIndex = selectedIndex - 1;
+      const selectedPost = searchResults[resultIndex];
+      if (selectedPost) {
+        handlePostClick(selectedPost);
+      }
+    }
+  }, [selectedIndex, totalNavigableItems, hasResults, searchResults, handleCreatePostClick, handlePostClick]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      handleClose();
+      return;
+    }
+    
+    // Only handle navigation if we have navigable items
+    if (totalNavigableItems === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev + 1) % totalNavigableItems);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => prev === 0 ? totalNavigableItems - 1 : prev - 1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSelection();
+    }
+  }, [totalNavigableItems, handleClose, handleSelection]);
 
   // Don't render if not authenticated or modal not open
   if (!isAuthenticated || !isSearchOpen) {
@@ -187,11 +250,7 @@ export function GlobalSearchModal() {
                       "focus:outline-none focus:ring-2 focus:ring-primary/20"
                     )}
                     onChange={handleModalInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        handleClose();
-                      }
-                    }}
+                    onKeyDown={handleKeyDown}
                     autoFocus
                   />
                   {/* Clear button */}
@@ -211,13 +270,28 @@ export function GlobalSearchModal() {
                   )}
                 </div>
                 
-                {/* Keyboard shortcut hint */}
+                {/* Keyboard shortcut hints */}
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                   <span>Search across all posts and boards</span>
-                  <span className="flex items-center space-x-1">
-                    <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">ESC</kbd>
-                    <span>to close</span>
-                  </span>
+                  <div className="flex items-center space-x-3">
+                    {totalNavigableItems > 0 && (
+                      <span className="flex items-center space-x-1">
+                        <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">↑</kbd>
+                        <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">↓</kbd>
+                        <span>navigate</span>
+                      </span>
+                    )}
+                    {totalNavigableItems > 0 && (
+                      <span className="flex items-center space-x-1">
+                        <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Enter</kbd>
+                        <span>select</span>
+                      </span>
+                    )}
+                    <span className="flex items-center space-x-1">
+                      <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">ESC</kbd>
+                      <span>close</span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -271,6 +345,12 @@ export function GlobalSearchModal() {
                     </div>
                     <span>•</span>
                     <div className="flex items-center space-x-1">
+                      <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">↑</kbd>
+                      <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">↓</kbd>
+                      <span>navigate</span>
+                    </div>
+                    <span>•</span>
+                    <div className="flex items-center space-x-1">
                       <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">ESC</kbd>
                       <span>to close</span>
                     </div>
@@ -281,6 +361,7 @@ export function GlobalSearchModal() {
               {/* Search Results */}
               {hasResults && !showInlineForm && (
                 <div 
+                  ref={scrollContainerRef}
                   className="overflow-y-auto max-h-[calc(100vh-12rem)] overscroll-contain"
                   onTouchMove={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}
@@ -315,10 +396,14 @@ export function GlobalSearchModal() {
                   {/* Results Grid */}
                   <div className="p-6 grid gap-4">
                     {/* Create New Post Option - Always First */}
-                    <div className="animate-in slide-in-from-bottom-2 duration-300">
+                    <div 
+                      className="animate-in slide-in-from-bottom-2 duration-300"
+                      ref={selectedIndex === 0 ? selectedItemRef : null}
+                    >
                       <CreateNewPostItem 
                         searchQuery={(currentInput || searchQuery).trim()} 
-                        onClick={() => handleCreatePostClick()} 
+                        onClick={() => handleCreatePostClick()}
+                        isSelected={selectedIndex === 0}
                       />
                     </div>
                     
@@ -328,10 +413,12 @@ export function GlobalSearchModal() {
                         key={post.id}
                         className="animate-in slide-in-from-bottom-2 duration-300"
                         style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                        ref={selectedIndex === index + 1 ? selectedItemRef : null}
                       >
                         <SearchResultItem 
                           post={post} 
                           onClick={() => handlePostClick(post)}
+                          isSelected={selectedIndex === index + 1}
                         />
                       </div>
                     ))}
@@ -399,6 +486,7 @@ export function GlobalSearchModal() {
                   {showInlineForm ? (
                     // Show the actual form inline with proper scrolling
                     <div 
+                      ref={scrollContainerRef}
                       className="overflow-y-auto max-h-[calc(100vh-12rem)] overscroll-contain"
                       onTouchMove={(e) => e.stopPropagation()}
                       onWheel={(e) => e.stopPropagation()}
@@ -421,34 +509,40 @@ export function GlobalSearchModal() {
                         />
                       </div>
                     </div>
-                  ) : (
-                    // Show the button to reveal the form
-                    <div className="p-8 text-center min-h-[300px] flex flex-col justify-center">
-                      <div className="mb-6">
-                        <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4">
-                          <Search size={32} className="text-primary/60" />
-                        </div>
-                        <h3 className="text-xl font-semibold mb-2">No similar posts found</h3>
-                        <p className="text-muted-foreground">
-                          We couldn&apos;t find any existing discussions about <br />
-                          <span className="font-medium text-foreground">&quot;{currentInput || searchQuery}&quot;</span>
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        <Button 
-                          onClick={() => handleCreatePostClick()}
-                          size="lg"
-                          className="px-8 py-3 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+                                        ) : (
+                        // Show the button to reveal the form
+                        <div 
+                          className="p-8 text-center min-h-[300px] flex flex-col justify-center"
+                          ref={selectedIndex === 0 ? selectedItemRef : null}
                         >
-                          <Plus size={20} className="mr-3" />
-                          Create new post
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Be the first to start this conversation
-                        </p>
-                      </div>
-                    </div>
+                          <div className="mb-6">
+                            <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4">
+                              <Search size={32} className="text-primary/60" />
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2">No similar posts found</h3>
+                            <p className="text-muted-foreground">
+                              We couldn&apos;t find any existing discussions about <br />
+                              <span className="font-medium text-foreground">&quot;{currentInput || searchQuery}&quot;</span>
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <Button 
+                              onClick={() => handleCreatePostClick()}
+                              size="lg"
+                              className={cn(
+                                "px-8 py-3 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200",
+                                selectedIndex === 0 && "ring-2 ring-primary/20 ring-offset-2"
+                              )}
+                            >
+                              <Plus size={20} className="mr-3" />
+                              Create new post
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Be the first to start this conversation
+                            </p>
+                          </div>
+                        </div>
                   )}
                 </div>
               )}
@@ -465,15 +559,18 @@ export function GlobalSearchModal() {
 interface CreateNewPostItemProps {
   searchQuery: string;
   onClick: () => void;
+  isSelected?: boolean;
 }
 
-const CreateNewPostItem: React.FC<CreateNewPostItemProps> = ({ searchQuery, onClick }) => {
+const CreateNewPostItem: React.FC<CreateNewPostItemProps> = ({ searchQuery, onClick, isSelected }) => {
   return (
     <Card 
       className={cn(
-        "group cursor-pointer transition-all duration-300 hover:shadow-lg border-2",
-        "border-primary/30 hover:border-primary/60 hover:scale-[1.01] hover:-translate-y-0.5",
-        "bg-gradient-to-br from-primary/5 to-primary/10 relative overflow-hidden"
+        "group cursor-pointer transition-all duration-300 hover:shadow-lg border-2 relative overflow-hidden",
+        "bg-gradient-to-br from-primary/5 to-primary/10",
+        isSelected 
+          ? "border-primary/80 shadow-lg scale-[1.02] -translate-y-1 ring-2 ring-primary/20" 
+          : "border-primary/30 hover:border-primary/60 hover:scale-[1.01] hover:-translate-y-0.5"
       )}
       onClick={onClick}
     >
@@ -522,17 +619,20 @@ const CreateNewPostItem: React.FC<CreateNewPostItemProps> = ({ searchQuery, onCl
 interface SearchResultItemProps {
   post: SearchResult;
   onClick: () => void;
+  isSelected?: boolean;
 }
 
-const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick }) => {
+const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick, isSelected }) => {
   const timeSinceText = useTimeSince(post.created_at);
   
   return (
     <Card 
       className={cn(
-        "group cursor-pointer transition-all duration-300 hover:shadow-lg border border-border/50",
-        "hover:border-primary/30 hover:scale-[1.01] hover:-translate-y-0.5",
-        "bg-gradient-to-br from-background to-background/80"
+        "group cursor-pointer transition-all duration-300 hover:shadow-lg",
+        "bg-gradient-to-br from-background to-background/80",
+        isSelected 
+          ? "border-2 border-primary/80 shadow-lg scale-[1.02] -translate-y-1 ring-2 ring-primary/20" 
+          : "border border-border/50 hover:border-primary/30 hover:scale-[1.01] hover:-translate-y-0.5"
       )}
       onClick={onClick}
     >

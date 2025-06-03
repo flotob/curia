@@ -79,7 +79,13 @@ Implemented a comprehensive global search system that provides instant access to
 1. **Modal Opens**: Centered, full-screen overlay with backdrop blur
 2. **Auto-focus**: Search input immediately focused for typing
 3. **Real-time Search**: Results appear as user types (3+ characters)
-4. **Smart Results**: 
+4. **Keyboard Navigation**: 
+   - **↑/↓ arrows** to navigate through results
+   - **Enter** to select highlighted item
+   - **ESC** to close modal
+   - Visual highlighting of selected item
+   - **Auto-scroll** to keep selected item visible
+5. **Smart Results**: 
    - "Create new post" option always appears first when results exist
    - Actual search results below with engagement metrics
    - Board context badges showing post origins
@@ -144,11 +150,60 @@ return createPortal(
 >
 ```
 
+### Keyboard Navigation System
+```typescript
+const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    setSelectedIndex(prev => (prev + 1) % totalNavigableItems);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    setSelectedIndex(prev => prev === 0 ? totalNavigableItems - 1 : prev - 1);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    handleSelection();
+  }
+}, [totalNavigableItems]);
+
+// Visual selection state
+const isSelected = selectedIndex === itemIndex;
+<Card className={cn(
+  "transition-all duration-300",
+  isSelected 
+    ? "border-primary/80 shadow-lg scale-[1.02] ring-2 ring-primary/20" 
+    : "border-border/50 hover:border-primary/30"
+)} />
+```
+
+### Auto-Scroll to Selection
+```typescript
+// Refs for auto-scrolling
+const scrollContainerRef = useRef<HTMLDivElement>(null);
+const selectedItemRef = useRef<HTMLDivElement>(null);
+
+// Auto-scroll to keep selected item visible
+useEffect(() => {
+  if (selectedItemRef.current && scrollContainerRef.current) {
+    selectedItemRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'nearest'
+    });
+  }
+}, [selectedIndex]);
+
+// Apply refs to selected items
+<div ref={selectedIndex === itemIndex ? selectedItemRef : null}>
+  <ResultItem isSelected={isSelected} />
+</div>
+```
+
 ## Benefits
 
 ### 1. **Universal Access**
 - Available from any page, any component
 - Consistent keyboard shortcut experience
+- Full keyboard navigation with auto-scroll (no mouse required)
 - No need to navigate to search page
 
 ### 2. **Context Awareness**
@@ -210,7 +265,10 @@ return createPortal(
 ✅ **Completed**:
 - Global search context and provider
 - Portal-based modal with full UI
-- Keyboard shortcut handling
+- Global keyboard shortcuts (Cmd+K/Ctrl+K)
+- Full keyboard navigation (↑/↓/Enter/ESC)
+- Visual selection highlighting
+- Auto-scroll to keep selection visible
 - Mobile-responsive design
 - Integration with existing components
 - Search API integration
