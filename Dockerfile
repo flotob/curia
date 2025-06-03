@@ -21,6 +21,9 @@ COPY . .
 # The ARGs declared above will be available as environment variables to this command
 RUN yarn build
 
+# DEBUG: List the contents of /app/dist in the builder stage
+RUN echo "Contents of /app/dist in builder stage:" && ls -R /app/dist
+
 # ---- Production Stage ----
 FROM node:20-alpine
 WORKDIR /app
@@ -38,6 +41,9 @@ RUN yarn install --production --frozen-lockfile
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
+
+# DEBUG: List the contents of /app/dist in the production stage
+RUN echo "Contents of /app/dist in production stage:" && ls -R /app/dist
 
 # Expose the port the app runs on (Railway will map this to $PORT)
 EXPOSE 3000
