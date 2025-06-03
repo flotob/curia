@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
-import { OnlineUsersSidebar } from '@/components/presence/OnlineUsersSidebar'; // Phase 2: Right sidebar
+import { EnhancedOnlineUsersSidebar } from '@/components/presence/EnhancedOnlineUsersSidebar'; // Enhanced multi-device presence
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
@@ -436,7 +436,7 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     </Button>
                   </div>
                 )}
-                <OnlineUsersSidebar />
+                <EnhancedOnlineUsersSidebar />
               </aside>
             )}
 

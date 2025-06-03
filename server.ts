@@ -54,23 +54,44 @@ if (!(process as any).customEventEmitter) {
 }
 const customEventEmitter = (process as any).customEventEmitter;
 
-// ===== PHASE 1: GLOBAL PRESENCE SYSTEM =====
+// ===== ENHANCED MULTI-DEVICE PRESENCE SYSTEM =====
 
-// User presence tracking interface
-interface UserPresence {
+// Device-specific presence tracking
+interface DevicePresence {
+  frameUID: string;              // Unique device identifier from Common Ground
   userId: string;
   userName: string;
   avatarUrl?: string;
   communityId: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet';
   currentBoardId?: number;
-  currentBoardName?: string;  // Added for meaningful presence display
+  currentBoardName?: string;
   connectedAt: Date;
   lastSeen: Date;
   socketId: string;
+  isActive: boolean;             // Active in last 30 seconds
 }
 
-// Global presence tracking (in-memory for Phase 1)
-const globalPresence = new Map<string, UserPresence>();
+// User-aggregated presence for client consumption
+interface EnhancedUserPresence {
+  userId: string;
+  userName: string;
+  avatarUrl?: string;
+  communityId: string;
+  devices: DevicePresence[];
+  totalDevices: number;
+  isOnline: boolean;             // Any device active
+  primaryDevice: DevicePresence; // Most recently active device
+  lastSeen: Date;                // Most recent across all devices
+}
+
+// Multi-device presence tracking (in-memory for Phase 1)
+const devicePresence = new Map<string, DevicePresence>();  // frameUID -> DevicePresence
+const userPresence = new Map<string, EnhancedUserPresence>(); // userId -> EnhancedUserPresence
+
+// Rate limiting for presence updates
+const userEventLimits = new Map<string, { count: number; resetTime: number }>();
+const userPresenceUpdates = new Map<string, NodeJS.Timeout>();
 
 // Event broadcasting configuration
 interface BroadcastConfig {
@@ -123,31 +144,135 @@ function broadcastEvent(event: BroadcastEvent) {
 }
 
 /**
- * Get current online users for presence sync
+ * Device type detection based on user agent
  */
-function getOnlineUsers(): UserPresence[] {
-  return Array.from(globalPresence.values());
+function detectDeviceType(userAgent?: string): 'desktop' | 'mobile' | 'tablet' {
+  if (!userAgent) return 'desktop';
+  
+  const ua = userAgent.toLowerCase();
+  if (/tablet|ipad|playbook|silk/.test(ua)) return 'tablet';
+  if (/mobile|iphone|ipod|android|blackberry|opera mini|opera mobi|skyfire|maemo|windows phone|palm|iemobile|symbian|symbianos|fennec/.test(ua)) return 'mobile';
+  return 'desktop';
 }
 
 /**
- * Update user presence and broadcast changes
+ * Rate limiting check for user presence events
  */
-function updateUserPresence(userId: string, updates: Partial<UserPresence>) {
-  const existing = globalPresence.get(userId);
+function checkUserRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const limit = userEventLimits.get(userId);
+  
+  if (!limit || now > limit.resetTime) {
+    // Reset counter every minute
+    userEventLimits.set(userId, { count: 1, resetTime: now + 60000 });
+    return true;
+  }
+  
+  if (limit.count >= 30) { // Max 30 presence events per minute per user
+    console.warn(`[Rate Limit] User ${userId} exceeded presence event limit`);
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
+
+/**
+ * Aggregate device presence into user presence
+ */
+function aggregateUserPresence(userId: string): EnhancedUserPresence | null {
+  const userDevices = Array.from(devicePresence.values())
+    .filter(device => device.userId === userId);
+  
+  if (userDevices.length === 0) return null;
+  
+  // Sort devices by last activity (most recent first)
+  userDevices.sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+  
+  // Find primary device (most recently active)
+  const primaryDevice = userDevices[0];
+  
+  return {
+    userId,
+    userName: primaryDevice.userName,
+    avatarUrl: primaryDevice.avatarUrl,
+    communityId: primaryDevice.communityId,
+    devices: userDevices,
+    totalDevices: userDevices.length,
+    isOnline: userDevices.some(d => d.isActive),
+    primaryDevice,
+    lastSeen: new Date(Math.max(...userDevices.map(d => d.lastSeen.getTime())))
+  };
+}
+
+/**
+ * Get current online users for presence sync (enhanced)
+ */
+function getOnlineUsers(): EnhancedUserPresence[] {
+  return Array.from(userPresence.values());
+}
+
+/**
+ * Debounced user presence update to prevent event spam
+ */
+function debouncedPresenceUpdate(userId: string) {
+  // Check rate limit
+  if (!checkUserRateLimit(userId)) return;
+  
+  // Clear existing timeout
+  if (userPresenceUpdates.has(userId)) {
+    clearTimeout(userPresenceUpdates.get(userId));
+  }
+  
+  // Set new timeout to batch updates
+  const timeout = setTimeout(() => {
+    const aggregatedUser = aggregateUserPresence(userId);
+    if (aggregatedUser) {
+      userPresence.set(userId, aggregatedUser);
+      
+      // Broadcast presence change to global room
+      broadcastEvent({
+        eventName: 'userPresenceUpdate',
+        payload: { userPresence: aggregatedUser },
+        config: {
+          globalRoom: true,
+          specificRooms: [],
+          invalidateForAllUsers: false
+        }
+      });
+    } else {
+      // User has no devices, remove from user presence
+      userPresence.delete(userId);
+      
+      // Broadcast user offline
+      broadcastEvent({
+        eventName: 'userOffline',
+        payload: { userId },
+        config: {
+          globalRoom: true,
+          specificRooms: [],
+          invalidateForAllUsers: false
+        }
+      });
+    }
+    
+    userPresenceUpdates.delete(userId);
+  }, 500); // 500ms debounce window
+  
+  userPresenceUpdates.set(userId, timeout);
+}
+
+/**
+ * Update device presence and trigger user aggregation
+ */
+function updateDevicePresence(frameUID: string, updates: Partial<DevicePresence>) {
+  const existing = devicePresence.get(frameUID);
   if (existing) {
     const updated = { ...existing, ...updates, lastSeen: new Date() };
-    globalPresence.set(userId, updated);
+    devicePresence.set(frameUID, updated);
     
-    // Broadcast presence change to global room
-    broadcastEvent({
-      eventName: 'userPresenceUpdate',
-      payload: { userId, updates },
-      config: {
-        globalRoom: true,
-        specificRooms: [],
-        invalidateForAllUsers: false
-      }
-    });
+    // Trigger debounced user presence update
+    debouncedPresenceUpdate(existing.userId);
   }
 }
 
@@ -282,41 +407,49 @@ async function bootstrap() {
     socket.join('global');
     socket.join(`community:${user.cid}`);
     
-    // Add user to global presence tracking
-    const userPresence: UserPresence = {
+    // Extract frameUID from JWT for device identification
+    const frameUID = user.uid || `fallback-${socket.id}`;
+    const deviceType = detectDeviceType(socket.handshake.headers['user-agent']);
+    
+    // Add device to presence tracking
+    const devicePresenceData: DevicePresence = {
+      frameUID,
       userId: user.sub,
       userName: user.name || 'Unknown',
       avatarUrl: user.picture || undefined,
       communityId: user.cid || 'unknown',
+      deviceType,
       currentBoardId: undefined,
       currentBoardName: undefined,
       connectedAt: new Date(),
       lastSeen: new Date(),
-      socketId: socket.id
+      socketId: socket.id,
+      isActive: true
     };
     
-    globalPresence.set(user.sub, userPresence);
+    devicePresence.set(frameUID, devicePresenceData);
     
-    // Broadcast user online to global room
-    broadcastEvent({
-      eventName: 'userOnline',
-      payload: {
-        userId: user.sub,
-        userName: user.name || 'Unknown',
-        avatarUrl: user.picture || undefined,
-        communityId: user.cid || 'unknown'
-      },
-      config: {
-        globalRoom: true,
-        specificRooms: [],
-        invalidateForAllUsers: false
-      }
-    });
+    // Aggregate and update user presence
+    const aggregatedUser = aggregateUserPresence(user.sub);
+    if (aggregatedUser) {
+      userPresence.set(user.sub, aggregatedUser);
+      
+      // Broadcast user online to global room
+      broadcastEvent({
+        eventName: 'userOnline',
+        payload: { userPresence: aggregatedUser },
+        config: {
+          globalRoom: true,
+          specificRooms: [],
+          invalidateForAllUsers: false
+        }
+      });
+    }
     
     // Send initial presence sync to new user
     socket.emit('globalPresenceSync', getOnlineUsers());
     
-    console.log(`[Socket.IO Global Presence] User ${user.sub} joined global room. Total online: ${globalPresence.size}`);
+    console.log(`[Socket.IO Multi-Device Presence] User ${user.sub} connected with device ${frameUID} (${deviceType}). Total devices: ${devicePresence.size}`);
 
     // Handle board room joining with permission checks
     socket.on('joinBoard', async (boardId: string | number) => {
@@ -362,8 +495,13 @@ async function bootstrap() {
         const roomName = `board:${boardIdNum}`;
         socket.join(roomName);
         
-        // Update user presence with current board
-        updateUserPresence(user.sub, { currentBoardId: boardIdNum, currentBoardName: board.name });
+        // Update device presence with current board
+        const frameUID = user.uid || `fallback-${socket.id}`;
+        updateDevicePresence(frameUID, { 
+          currentBoardId: boardIdNum, 
+          currentBoardName: board.name,
+          isActive: true 
+        });
         
         console.log(`[Socket.IO] User ${user.sub} joined board room: ${roomName}`);
         
@@ -390,8 +528,13 @@ async function bootstrap() {
       
       socket.leave(roomName);
       
-      // Update user presence (remove current board)
-      updateUserPresence(user.sub, { currentBoardId: undefined, currentBoardName: undefined });
+      // Update device presence (remove current board)
+      const frameUID = user.uid || `fallback-${socket.id}`;
+      updateDevicePresence(frameUID, { 
+        currentBoardId: undefined, 
+        currentBoardName: undefined,
+        isActive: true 
+      });
       
       console.log(`[Socket.IO] User ${user.sub} left board room: ${roomName}`);
       
@@ -415,23 +558,16 @@ async function bootstrap() {
       });
     });
 
-    // Handle disconnection with global presence cleanup
+    // Handle disconnection with multi-device presence cleanup
     socket.on('disconnect', (reason) => {
       console.log(`[Socket.IO] User disconnected: ${user.sub} (reason: ${reason})`);
       
-      // Remove from global presence
-      globalPresence.delete(user.sub);
+      // Remove device from presence
+      const frameUID = user.uid || `fallback-${socket.id}`;
+      devicePresence.delete(frameUID);
       
-      // Broadcast user offline to global room
-      broadcastEvent({
-        eventName: 'userOffline',
-        payload: { userId: user.sub },
-        config: {
-          globalRoom: true,
-          specificRooms: [],
-          invalidateForAllUsers: false
-        }
-      });
+      // Update user presence (may remove user if no devices left)
+      debouncedPresenceUpdate(user.sub);
       
       // Broadcast leave presence to all board rooms user was in
       for (const room of socket.rooms) {
@@ -444,36 +580,43 @@ async function bootstrap() {
         }
       }
       
-      console.log(`[Socket.IO Global Presence] User ${user.sub} disconnected. Total online: ${globalPresence.size}`);
+      console.log(`[Socket.IO Multi-Device Presence] Device ${frameUID} disconnected. Total devices: ${devicePresence.size}, Users: ${userPresence.size}`);
     });
   });
 
-  // Periodic cleanup of stale connections (every 5 minutes)
+  // Enhanced periodic cleanup of stale devices (every minute for better responsiveness)
   setInterval(() => {
-    const staleThreshold = Date.now() - (5 * 60 * 1000); // 5 minutes
-    let cleaned = 0;
+    const staleThreshold = Date.now() - (2 * 60 * 1000); // 2 minutes (shorter for better UX)
+    const staleFrameUIDs: string[] = [];
+    let cleanedDevices = 0;
     
-    for (const [userId, presence] of globalPresence.entries()) {
-      if (presence.lastSeen.getTime() < staleThreshold) {
-        globalPresence.delete(userId);
-        // Broadcast user offline
-        broadcastEvent({
-          eventName: 'userOffline',
-          payload: { userId },
-          config: {
-            globalRoom: true,
-            specificRooms: [],
-            invalidateForAllUsers: false
-          }
-        });
-        cleaned++;
+    // Find stale devices
+    for (const [frameUID, device] of devicePresence.entries()) {
+      if (device.lastSeen.getTime() < staleThreshold) {
+        staleFrameUIDs.push(frameUID);
+        cleanedDevices++;
       }
     }
     
-    if (cleaned > 0) {
-      console.log(`[Socket.IO Cleanup] Removed ${cleaned} stale connections. Total online: ${globalPresence.size}`);
+    // Batch cleanup and user presence updates
+    const affectedUsers = new Set<string>();
+    staleFrameUIDs.forEach(frameUID => {
+      const device = devicePresence.get(frameUID);
+      if (device) {
+        devicePresence.delete(frameUID);
+        affectedUsers.add(device.userId);
+      }
+    });
+    
+    // Update affected users
+    affectedUsers.forEach(userId => {
+      debouncedPresenceUpdate(userId);
+    });
+    
+    if (cleanedDevices > 0) {
+      console.log(`[Socket.IO Cleanup] Removed ${cleanedDevices} stale devices affecting ${affectedUsers.size} users. Total devices: ${devicePresence.size}, Users: ${userPresence.size}`);
     }
-  }, 5 * 60 * 1000); // Run every 5 minutes
+  }, 60 * 1000); // Run every minute
 
   // Start the HTTP server
   const port = parseInt(process.env.PORT || '3000', 10);

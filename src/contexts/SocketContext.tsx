@@ -7,16 +7,45 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-// ===== PHASE 1: ENHANCED SOCKET CONTEXT WITH GLOBAL PRESENCE =====
+// ===== ENHANCED SOCKET CONTEXT WITH MULTI-DEVICE PRESENCE =====
 
-// User presence interface (matches server-side)
+// Device-specific presence (Socket.IO serializes dates as strings)
+interface DevicePresence {
+  frameUID: string;
+  userId: string;
+  userName: string;
+  avatarUrl?: string;
+  communityId: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet';
+  currentBoardId?: number;
+  currentBoardName?: string;
+  connectedAt: Date | string;
+  lastSeen: Date | string;
+  socketId: string;
+  isActive: boolean;
+}
+
+// Enhanced user presence (Socket.IO serializes dates as strings)
+interface EnhancedUserPresence {
+  userId: string;
+  userName: string;
+  avatarUrl?: string;
+  communityId: string;
+  devices: DevicePresence[];
+  totalDevices: number;
+  isOnline: boolean;
+  primaryDevice: DevicePresence;
+  lastSeen: Date | string;
+}
+
+// Legacy interface for backward compatibility
 interface OnlineUser {
   userId: string;
   userName: string;
   avatarUrl?: string;
   communityId: string;
   currentBoardId?: number;
-  currentBoardName?: string;  // Added for meaningful presence display
+  currentBoardName?: string;
   isTyping?: boolean;
 }
 
@@ -26,9 +55,11 @@ interface SocketContextType {
   joinBoard: (boardId: number) => void;
   leaveBoard: (boardId: number) => void;
   sendTyping: (boardId: number, postId?: number, isTyping?: boolean) => void;
-  // Phase 1: Global presence state
+  // Legacy presence state (for backward compatibility)
   globalOnlineUsers: OnlineUser[];
   boardOnlineUsers: OnlineUser[];
+  // Enhanced multi-device presence
+  enhancedUserPresence: EnhancedUserPresence[];
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -41,9 +72,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Phase 1: Global presence state
+  // Legacy presence state (for backward compatibility)
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<OnlineUser[]>([]);
   const [boardOnlineUsers, setBoardOnlineUsers] = useState<OnlineUser[]>([]);
+  
+  // Enhanced multi-device presence state
+  const [enhancedUserPresence, setEnhancedUserPresence] = useState<EnhancedUserPresence[]>([]);
   
   // Extract only the stable parts we need from user to avoid unnecessary reconnections
   const userId = user?.userId;
@@ -263,35 +297,88 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['accessibleBoardsMove'] });
     });
 
-    // ===== PHASE 1: GLOBAL PRESENCE EVENT HANDLERS =====
+    // ===== ENHANCED MULTI-DEVICE PRESENCE EVENT HANDLERS =====
     
-    newSocket.on('userOnline', (user: OnlineUser) => {
-      console.log('[Socket] User came online:', user);
+    newSocket.on('userOnline', ({ userPresence }: { userPresence: EnhancedUserPresence }) => {
+      console.log('[Socket] User came online (enhanced):', userPresence);
+      
+      // Update enhanced presence
+      setEnhancedUserPresence(prev => {
+        const filtered = prev.filter(u => u.userId !== userPresence.userId);
+        return [...filtered, userPresence];
+      });
+      
+      // Legacy support: Convert to OnlineUser format
+      const legacyUser: OnlineUser = {
+        userId: userPresence.userId,
+        userName: userPresence.userName,
+        avatarUrl: userPresence.avatarUrl,
+        communityId: userPresence.communityId,
+        currentBoardId: userPresence.primaryDevice.currentBoardId,
+        currentBoardName: userPresence.primaryDevice.currentBoardName
+      };
+      
       setGlobalOnlineUsers(prev => {
-        // Remove existing user and add updated one
-        const filtered = prev.filter(u => u.userId !== user.userId);
-        return [...filtered, user];
+        const filtered = prev.filter(u => u.userId !== userPresence.userId);
+        return [...filtered, legacyUser];
       });
     });
 
     newSocket.on('userOffline', ({ userId: offlineUserId }: { userId: string }) => {
       console.log('[Socket] User went offline:', offlineUserId);
+      
+      // Remove from enhanced presence
+      setEnhancedUserPresence(prev => prev.filter(u => u.userId !== offlineUserId));
+      
+      // Remove from legacy presence
       setGlobalOnlineUsers(prev => prev.filter(u => u.userId !== offlineUserId));
       setBoardOnlineUsers(prev => prev.filter(u => u.userId !== offlineUserId));
     });
 
-    newSocket.on('userPresenceUpdate', ({ userId: updateUserId, updates }: { userId: string; updates: Partial<OnlineUser> }) => {
-      console.log('[Socket] User presence update:', updateUserId, updates);
+    newSocket.on('userPresenceUpdate', ({ userPresence }: { userPresence: EnhancedUserPresence }) => {
+      console.log('[Socket] User presence update (enhanced):', userPresence);
+      
+      // Update enhanced presence
+      setEnhancedUserPresence(prev => 
+        prev.map(user => 
+          user.userId === userPresence.userId ? userPresence : user
+        )
+      );
+      
+      // Legacy support: Update OnlineUser format
+      const legacyUser: OnlineUser = {
+        userId: userPresence.userId,
+        userName: userPresence.userName,
+        avatarUrl: userPresence.avatarUrl,
+        communityId: userPresence.communityId,
+        currentBoardId: userPresence.primaryDevice.currentBoardId,
+        currentBoardName: userPresence.primaryDevice.currentBoardName
+      };
+      
       setGlobalOnlineUsers(prev => 
         prev.map(user => 
-          user.userId === updateUserId ? { ...user, ...updates } : user
+          user.userId === userPresence.userId ? legacyUser : user
         )
       );
     });
 
-    newSocket.on('globalPresenceSync', (users: OnlineUser[]) => {
-      console.log('[Socket] Global presence sync received:', users.length, 'users online');
-      setGlobalOnlineUsers(users);
+    newSocket.on('globalPresenceSync', (users: EnhancedUserPresence[]) => {
+      console.log('[Socket] Global presence sync received (enhanced):', users.length, 'users online');
+      
+      // Update enhanced presence
+      setEnhancedUserPresence(users);
+      
+      // Legacy support: Convert to OnlineUser format
+      const legacyUsers: OnlineUser[] = users.map(user => ({
+        userId: user.userId,
+        userName: user.userName,
+        avatarUrl: user.avatarUrl,
+        communityId: user.communityId,
+        currentBoardId: user.primaryDevice.currentBoardId,
+        currentBoardName: user.primaryDevice.currentBoardName
+      }));
+      
+      setGlobalOnlineUsers(legacyUsers);
     });
 
     setSocket(newSocket);
@@ -303,6 +390,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       // Reset presence state on disconnect
       setGlobalOnlineUsers([]);
       setBoardOnlineUsers([]);
+      setEnhancedUserPresence([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token, userId, queryClient, navigateToPost, navigateToBoard]); // Note: 'socket' intentionally excluded to prevent infinite re-renders
@@ -334,7 +422,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     leaveBoard,
     sendTyping,
     globalOnlineUsers,
-    boardOnlineUsers
+    boardOnlineUsers,
+    enhancedUserPresence
   };
 
   return (
