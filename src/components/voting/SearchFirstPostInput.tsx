@@ -42,9 +42,11 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentInput, setCurrentInput] = useState(''); // Track current input value (not debounced)
   const [isFocused, setIsFocused] = useState(false);
   const [showInlineForm, setShowInlineForm] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false); // Track if modal should stay open
 
   // Mobile detection
   useEffect(() => {
@@ -86,7 +88,15 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    debouncedSetSearchQuery(value);
+    setCurrentInput(value); // Update immediately for UI
+    debouncedSetSearchQuery(value); // Debounced for API calls
+  };
+
+  // Handler for modal search input
+  const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCurrentInput(value); // Update immediately for UI
+    debouncedSetSearchQuery(value); // Debounced for API calls
   };
 
   // Helper function to build URLs while preserving current parameters
@@ -117,14 +127,22 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
 
   const hasResults = searchResults && searchResults.length > 0;
   const hasSearched = searchResults !== undefined; // We've completed at least one search
-  const showResults = (isFocused || searchQuery.length >= 3) && (isSearching || hasResults || searchError || (hasSearched && searchQuery.length >= 3));
-  const showCreateButton = searchQuery.length >= 3 && !isSearching && (!hasResults || searchResults?.length === 0);
+  
+  // Open modal when user types enough characters or focuses
+  const shouldOpenModal = (isFocused || currentInput.length >= 3 || searchQuery.length >= 3) && (isSearching || hasResults || searchError || (hasSearched && searchQuery.length >= 3));
+  
+  // Once modal is open, keep it open until explicitly closed
+  const showResults = modalOpen || shouldOpenModal;
+  
+  const showCreateButton = (currentInput.length >= 3 || searchQuery.length >= 3) && !isSearching && (!hasResults || searchResults?.length === 0);
 
   // Close modal functionality
   const closeResults = useCallback(() => {
     setIsFocused(false);
     setShowInlineForm(false);
+    setModalOpen(false);
     setSearchQuery('');
+    setCurrentInput('');
   }, []);
 
   // Mobile-responsive create post handler
@@ -138,6 +156,13 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
       setShowInlineForm(true);
     }
   }, [isMobile, closeResults, onCreatePostClick]);
+
+  // Set modal open when it should open
+  useEffect(() => {
+    if (shouldOpenModal && !modalOpen) {
+      setModalOpen(true);
+    }
+  }, [shouldOpenModal, modalOpen]);
 
   // Escape key handler
   useEffect(() => {
@@ -163,32 +188,35 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
 
   return (
     <div className="relative w-full mx-auto mt-4 sm:mt-6 mb-6 sm:mb-8">
-      {/* Main Search Input Container */}
-      <div className="relative z-10">
-        <div className="relative">
-          <Search 
-            size={22} 
-            className={cn(
-              "absolute left-5 top-1/2 transform -translate-y-1/2 transition-colors duration-200 pointer-events-none",
-              isFocused ? "text-primary" : "text-muted-foreground"
-            )} 
-          />
-          
-          <Input
-            placeholder="What's on your mind? Start typing to search or create a post..."
-            className={cn(
-              "pl-14 pr-6 py-8 text-lg transition-all duration-200 font-medium",
-              "bg-background border-2 rounded-2xl shadow-lg",
-              isFocused 
-                ? "border-primary shadow-xl shadow-primary/10" 
-                : "border-muted hover:border-primary/50 hover:shadow-xl",
-              "focus:outline-none focus:ring-2 focus:ring-primary/20"
-            )}
-            onChange={handleInputChange}
-            onFocus={() => setIsFocused(true)}
-          />
+      {/* Main Search Input Container - Hide when modal is open */}
+      {!showResults && (
+        <div className="relative z-10">
+          <div className="relative">
+            <Search 
+              size={22} 
+              className={cn(
+                "absolute left-5 top-1/2 transform -translate-y-1/2 transition-colors duration-200 pointer-events-none",
+                isFocused ? "text-primary" : "text-muted-foreground"
+              )} 
+            />
+            
+            <Input
+              placeholder="What's on your mind? Start typing to search or create a post..."
+              value={currentInput}
+              className={cn(
+                "pl-14 pr-6 py-8 text-lg transition-all duration-200 font-medium",
+                "bg-background border-2 rounded-2xl shadow-lg",
+                isFocused 
+                  ? "border-primary shadow-xl shadow-primary/10" 
+                  : "border-muted hover:border-primary/50 hover:shadow-xl",
+                "focus:outline-none focus:ring-2 focus:ring-primary/20"
+              )}
+              onChange={handleInputChange}
+              onFocus={() => setIsFocused(true)}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Full-Screen Search Results Overlay */}
       {showResults && (
@@ -200,13 +228,54 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
           />
           
           {/* Results Container */}
-          <div className="fixed left-0 right-0 top-20 bottom-0 z-50 flex justify-center px-4 animate-in slide-in-from-top-4 duration-300">
+          <div className="fixed left-0 right-0 top-4 bottom-0 z-50 flex justify-center px-4 animate-in slide-in-from-top-4 duration-300">
             <div className="w-full max-w-4xl">
               <Card className={cn(
                 "shadow-2xl border-2 border-primary/20 rounded-2xl overflow-hidden backdrop-blur-md",
-                "bg-background/95 max-h-[calc(100vh-6rem)]"
+                "bg-background/95 max-h-[calc(100vh-2rem)]"
               )}>
                 <CardContent className="p-0">
+                  {/* Modal Search Input - Sticky at top */}
+                  <div className="sticky top-0 z-20 p-4 bg-background/95 backdrop-blur-md border-b border-primary/10">
+                    <div className="relative">
+                      <Search 
+                        size={20} 
+                        className="absolute left-4 top-1/2 transform -translate-y-1/2 text-primary pointer-events-none"
+                      />
+                                             <Input
+                         placeholder={currentInput ? "Continue typing to refine your search..." : "Start typing to search for posts..."}
+                         value={currentInput}
+                         className={cn(
+                           "pl-12 pr-12 py-4 text-lg transition-all duration-200 font-medium",
+                           "bg-background border-2 border-primary/40 rounded-xl shadow-md",
+                           "focus:border-primary focus:shadow-lg",
+                           "focus:outline-none focus:ring-2 focus:ring-primary/20"
+                         )}
+                         onChange={handleModalInputChange}
+                         onKeyDown={(e) => {
+                           if (e.key === 'Escape') {
+                             closeResults();
+                           }
+                         }}
+                         autoFocus
+                       />
+                      {/* Clear button */}
+                      {currentInput && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentInput('');
+                            setSearchQuery('');
+                            // Keep modal open when clearing
+                          }}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-muted rounded-full"
+                        >
+                          <X size={14} />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   {/* Loading State */}
                   {isSearching && (
                     <div className="p-8 flex flex-col items-center justify-center text-muted-foreground min-h-[200px]">
@@ -239,11 +308,27 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                     </div>
                   )}
 
+                  {/* Empty Input State - Modal open but no input */}
+                  {!isSearching && !searchError && !currentInput && !searchQuery && (
+                    <div className="p-8 text-center min-h-[200px] flex flex-col justify-center">
+                      <div className="text-primary/40 mb-4">
+                        <Search size={48} className="mx-auto" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">Ready to search</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Start typing above to find existing discussions or create a new post.
+                      </p>
+                      <p className="text-sm text-muted-foreground/70">
+                        Search across all posts and boards in this community
+                      </p>
+                    </div>
+                  )}
+
                   {/* Search Results */}
                   {hasResults && !showInlineForm && (
-                    <div className="overflow-y-auto max-h-[calc(100vh-8rem)]">
+                    <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
                       {/* Header */}
-                      <div className="sticky top-0 p-6 border-b bg-background/90 backdrop-blur-sm z-10">
+                      <div className="p-6 border-b bg-background/90 backdrop-blur-sm">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             <div className="p-2 rounded-xl bg-primary/10">
@@ -252,7 +337,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             <div>
                               <h3 className="text-lg font-semibold">Similar discussions found</h3>
                               <p className="text-sm text-muted-foreground">
-                                {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &quot;{searchQuery}&quot;
+                                {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &quot;{currentInput || searchQuery}&quot;
                               </p>
                             </div>
                           </div>
@@ -274,8 +359,8 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                         {/* Create New Post Option - Always First */}
                         <div className="animate-in slide-in-from-bottom-2 duration-300">
                           <CreateNewPostItem 
-                            searchQuery={searchQuery.trim()} 
-                            onClick={() => handleCreatePostClick(searchQuery.trim())} 
+                            searchQuery={(currentInput || searchQuery).trim()} 
+                            onClick={() => handleCreatePostClick((currentInput || searchQuery).trim())} 
                           />
                         </div>
                         
@@ -314,12 +399,12 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                       <div className="p-6">
                         <div className="mb-4 text-center">
                           <h3 className="text-lg font-semibold text-muted-foreground">
-                            Creating new post for: &quot;{searchQuery}&quot;
+                            Creating new post for: &quot;{currentInput || searchQuery}&quot;
                           </h3>
                         </div>
                         <ExpandedNewPostForm 
                           boardId={boardId}
-                          initialTitle={searchQuery.trim()}
+                          initialTitle={(currentInput || searchQuery).trim()}
                           onCancel={() => setShowInlineForm(false)}
                           onPostCreated={() => {
                             closeResults();
@@ -349,12 +434,12 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                         <div className="p-6">
                           <div className="mb-4 text-center">
                             <h3 className="text-lg font-semibold text-muted-foreground">
-                              Creating new post for: &quot;{searchQuery}&quot;
+                              Creating new post for: &quot;{currentInput || searchQuery}&quot;
                             </h3>
                           </div>
                           <ExpandedNewPostForm 
                             boardId={boardId}
-                            initialTitle={searchQuery.trim()}
+                            initialTitle={(currentInput || searchQuery).trim()}
                             onCancel={() => setShowInlineForm(false)}
                             onPostCreated={() => {
                               closeResults();
@@ -371,13 +456,13 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                             <h3 className="text-xl font-semibold mb-2">No similar posts found</h3>
                             <p className="text-muted-foreground">
                               We couldn&apos;t find any existing discussions about <br />
-                              <span className="font-medium text-foreground">&quot;{searchQuery}&quot;</span>
+                              <span className="font-medium text-foreground">&quot;{currentInput || searchQuery}&quot;</span>
                             </p>
                           </div>
                           
                           <div className="space-y-3">
                             <Button 
-                              onClick={() => handleCreatePostClick(searchQuery.trim())}
+                              onClick={() => handleCreatePostClick((currentInput || searchQuery).trim())}
                               size="lg"
                               className="px-8 py-3 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200"
                             >
