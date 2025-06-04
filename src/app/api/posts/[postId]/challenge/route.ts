@@ -56,8 +56,7 @@ async function generateChallengeHandler(req: AuthenticatedRequest, context: Rout
     const { 
       post_settings, 
       board_settings, 
-      community_id, 
-      board_id 
+      community_id 
     } = postResult.rows[0];
 
     // Verify post belongs to user's community

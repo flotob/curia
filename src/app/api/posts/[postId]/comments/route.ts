@@ -9,8 +9,7 @@ import {
   ChallengeUtils, 
   NonceStore, 
   VerificationChallenge,
-  ERC1271_MAGIC_VALUE,
-  LUKSO_MAINNET_CHAIN_ID 
+  ERC1271_MAGIC_VALUE
 } from '@/lib/verification';
 import { SettingsUtils, PostSettings } from '@/types/settings';
 
@@ -130,8 +129,7 @@ async function verifyLyxBalance(
  */
 async function verifyPostGatingRequirements(
   upAddress: string,
-  postSettings: PostSettings,
-  challenge: VerificationChallenge
+  postSettings: PostSettings
 ): Promise<{ valid: boolean; error?: string }> {
   try {
     // Check if gating is enabled
@@ -355,12 +353,11 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         }, { status: 401 });
       }
 
-      // Verify post requirements (LYX balance, tokens, etc.)
-      const requirementValidation = await verifyPostGatingRequirements(
-        challenge.upAddress, 
-        postSettings, 
-        challenge
-      );
+             // Verify post requirements (LYX balance, tokens, etc.)
+       const requirementValidation = await verifyPostGatingRequirements(
+         challenge.upAddress, 
+         postSettings
+       );
 
       if (!requirementValidation.valid) {
         return NextResponse.json({ 
