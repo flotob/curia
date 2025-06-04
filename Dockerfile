@@ -4,6 +4,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Install git (required for git-based dependencies like ethereumjs-abi)
+RUN apk add --no-cache git
+
 # Declare build arguments that Railway will inject from service variables
 ARG NEXT_PRIVATE_PRIVKEY
 ARG NEXT_PUBLIC_PUBKEY
@@ -17,6 +20,9 @@ RUN yarn install --frozen-lockfile
 # Copy the rest of the application code
 COPY . .
 
+# Set Node.js memory limit to handle build process (Railway memory limit optimization)
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
 # Run the build script (next build && tsc)
 # The ARGs declared above will be available as environment variables to this command
 RUN yarn build
@@ -27,6 +33,9 @@ RUN echo "Contents of /app/dist in builder stage:" && ls -R /app/dist
 # ---- Production Stage ----
 FROM node:20-alpine
 WORKDIR /app
+
+# Install git (required for git-based dependencies like ethereumjs-abi)
+RUN apk add --no-cache git
 
 # Set NODE_ENV to production
 ENV NODE_ENV=production
