@@ -7,6 +7,10 @@ WORKDIR /app
 # Install git (required for git-based dependencies like ethereumjs-abi)
 RUN apk add --no-cache git
 
+# Configure git to use HTTPS instead of SSH for GitHub (CI/CD friendly)
+RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+RUN git config --global url."https://github.com/".insteadOf git@github.com:
+
 # Declare build arguments that Railway will inject from service variables
 ARG NEXT_PRIVATE_PRIVKEY
 ARG NEXT_PUBLIC_PUBKEY
@@ -15,7 +19,7 @@ ARG NEXT_PUBLIC_PUBKEY
 COPY package.json yarn.lock ./
 
 # Install all dependencies (including devDependencies for build)
-RUN yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile && yarn cache clean
 
 # Copy the rest of the application code
 COPY . .
@@ -37,6 +41,10 @@ WORKDIR /app
 # Install git (required for git-based dependencies like ethereumjs-abi)
 RUN apk add --no-cache git
 
+# Configure git to use HTTPS instead of SSH for GitHub (CI/CD friendly)
+RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+RUN git config --global url."https://github.com/".insteadOf git@github.com:
+
 # Set NODE_ENV to production
 ENV NODE_ENV=production
 
@@ -44,7 +52,7 @@ ENV NODE_ENV=production
 COPY package.json yarn.lock ./
 
 # Install only production dependencies
-RUN yarn install --production --frozen-lockfile
+RUN yarn install --production --frozen-lockfile && yarn cache clean
 
 # Copy built artifacts from the builder stage
 COPY --from=builder /app/.next ./.next
