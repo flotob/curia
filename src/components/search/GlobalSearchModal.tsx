@@ -7,10 +7,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
+import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Search, ArrowUp, MessageSquare, Plus, TrendingUp, X, Edit3 } from 'lucide-react';
+import { Loader2, Search, ArrowUp, MessageSquare, Plus, TrendingUp, X, Edit3, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VoteButton } from '@/components/voting/VoteButton';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -25,7 +26,7 @@ interface SearchResult extends ApiPost {
 
 export function GlobalSearchModal() {
   const { isSearchOpen, closeSearch, searchQuery: globalSearchQuery, setSearchQuery: setGlobalSearchQuery } = useGlobalSearch();
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -40,7 +41,36 @@ export function GlobalSearchModal() {
   const selectedItemRef = useRef<HTMLDivElement>(null);
 
   // Get current board context from URL
-  const boardId = searchParams?.get('boardId') || null;
+  const urlBoardId = searchParams?.get('boardId') || null;
+  
+  // State for managing current search scope (independent of URL)
+  const [currentSearchScope, setCurrentSearchScope] = useState<string | null>(urlBoardId);
+
+  // Sync search scope with URL when modal opens
+  useEffect(() => {
+    if (isSearchOpen) {
+      setCurrentSearchScope(urlBoardId);
+    }
+  }, [isSearchOpen, urlBoardId]);
+
+  // Fetch board information when we have a current search scope
+  const { data: currentBoard } = useQuery<ApiBoard | null>({
+    queryKey: ['board', currentSearchScope, user?.cid],
+    queryFn: async () => {
+      if (!currentSearchScope || !user?.cid || !token) return null;
+      
+      // Get all boards and find the current one
+      const boards = await authFetchJson<ApiBoard[]>(`/api/communities/${user.cid}/boards`, { token });
+      return boards.find(board => board.id.toString() === currentSearchScope) || null;
+    },
+    enabled: !!currentSearchScope && !!user?.cid && !!token && isSearchOpen,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Handle scope toggle
+  const handleScopeToggle = useCallback((newScope: string | null) => {
+    setCurrentSearchScope(newScope);
+  }, []);
 
   // Mobile detection
   useEffect(() => {
@@ -76,13 +106,13 @@ export function GlobalSearchModal() {
     isLoading: isSearching,
     error: searchError
   } = useQuery<SearchResult[]>({
-    queryKey: ['globalSearchPosts', searchQuery, boardId],
+    queryKey: ['globalSearchPosts', searchQuery, currentSearchScope],
     queryFn: async () => {
       if (searchQuery.trim().length < 3) return [];
       
       const queryParams = new URLSearchParams({
         q: searchQuery.trim(),
-        ...(boardId && { boardId })
+        ...(currentSearchScope && { boardId: currentSearchScope })
       });
       
       return authFetchJson<SearchResult[]>(`/api/search/posts?${queryParams.toString()}`, { token });
@@ -161,14 +191,14 @@ export function GlobalSearchModal() {
     if (isMobile) {
       // Mobile: Close modal and navigate to home to show main form
       handleClose();
-      const homeUrl = buildInternalUrl('/', boardId ? { boardId } : {});
+      const homeUrl = buildInternalUrl('/', currentSearchScope ? { boardId: currentSearchScope } : {});
       router.push(homeUrl);
       // Note: Would need additional logic to trigger expanded form on home page
     } else {
       // Desktop: Show inline form in modal
       setShowInlineForm(true);
     }
-  }, [isMobile, handleClose, boardId, buildInternalUrl, router]);
+  }, [isMobile, handleClose, currentSearchScope, buildInternalUrl, router]);
 
   // Handle selection of current item
   const handleSelection = useCallback(() => {
@@ -270,9 +300,48 @@ export function GlobalSearchModal() {
                   )}
                 </div>
                 
+                {/* Search Scope Indicator */}
+                {(currentSearchScope || searchQuery.length >= 1) && (
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className="text-xs text-muted-foreground">Searching in:</span>
+                    <div className="flex items-center gap-2">
+                      {currentSearchScope && currentBoard ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleScopeToggle(null)}
+                          className="h-6 px-2 py-1 text-xs hover:bg-muted/80 transition-colors"
+                        >
+                          <span className="mr-1">📋</span>
+                          <span>{currentBoard.name}</span>
+                          <X size={12} className="ml-1 opacity-60" />
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-1 px-2 py-1 text-xs bg-primary/10 text-primary rounded border border-primary/20">
+                          <Globe size={12} />
+                          <span>All Boards</span>
+                        </div>
+                      )}
+                      
+                      {/* Toggle to board scope if currently global and we have a URL board context */}
+                      {!currentSearchScope && urlBoardId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleScopeToggle(urlBoardId)}
+                          className="h-6 px-2 py-1 text-xs hover:bg-muted/50 transition-colors"
+                        >
+                          <span className="mr-1">📋</span>
+                          <span>Search this board only</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
                 {/* Keyboard shortcut hints */}
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                  <span>Search across all posts and boards</span>
+                  <span>{currentSearchScope ? `Searching in ${currentBoard?.name || 'current board'}` : 'Search across all posts and boards'}</span>
                   <div className="flex items-center space-x-3">
                     {totalNavigableItems > 0 && (
                       <span className="flex items-center space-x-1">
@@ -377,6 +446,9 @@ export function GlobalSearchModal() {
                           <h3 className="text-lg font-semibold">Similar discussions found</h3>
                           <p className="text-sm text-muted-foreground">
                             {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &quot;{currentInput || searchQuery}&quot;
+                            {currentSearchScope && currentBoard && (
+                              <span className="ml-1 text-primary/70">in {currentBoard.name}</span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -451,10 +523,15 @@ export function GlobalSearchModal() {
                       <div className="mb-4 text-center">
                         <h3 className="text-lg font-semibold text-muted-foreground">
                           Creating new post for: &quot;{currentInput || searchQuery}&quot;
+                          {currentSearchScope && currentBoard && (
+                            <span className="block text-sm font-normal text-muted-foreground/70 mt-1">
+                              in {currentBoard.name}
+                            </span>
+                          )}
                         </h3>
                       </div>
                       <ExpandedNewPostForm 
-                        boardId={boardId}
+                        boardId={currentSearchScope}
                         initialTitle={(currentInput || searchQuery).trim()}
                         onCancel={() => setShowInlineForm(false)}
                         onPostCreated={(newPost) => {
@@ -495,10 +572,15 @@ export function GlobalSearchModal() {
                         <div className="mb-4 text-center">
                           <h3 className="text-lg font-semibold text-muted-foreground">
                             Creating new post for: &quot;{currentInput || searchQuery}&quot;
+                            {currentSearchScope && currentBoard && (
+                              <span className="block text-sm font-normal text-muted-foreground/70 mt-1">
+                                in {currentBoard.name}
+                              </span>
+                            )}
                           </h3>
                         </div>
                         <ExpandedNewPostForm 
-                          boardId={boardId}
+                          boardId={currentSearchScope}
                           initialTitle={(currentInput || searchQuery).trim()}
                           onCancel={() => setShowInlineForm(false)}
                           onPostCreated={(newPost) => {
