@@ -206,40 +206,72 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
       let decimals: number | undefined;
 
       if (tokenType === 'LSP7') {
-        // LSP7 uses standard ERC20-like functions
+        // LSP7 might use ERC725Y data keys for name/symbol but standard decimals()
         try {
-          [name, symbol] = await Promise.all([
-            contract.name(),
-            contract.symbol()
-          ]);
-          decimals = await contract.decimals();
+          // First try ERC725Y data keys (like LSP8)
+          const lsp7Contract = new ethers.Contract(contractAddress, [
+            'function getData(bytes32) view returns (bytes)',
+            'function getDataBatch(bytes32[]) view returns (bytes[])',
+            'function decimals() view returns (uint8)'
+          ], provider);
+
+          const dataKeys = [
+            ERC725YDataKeys.LSP4.LSP4TokenName,
+            ERC725YDataKeys.LSP4.LSP4TokenSymbol
+          ];
+
+          const [nameBytes, symbolBytes] = await lsp7Contract.getDataBatch(dataKeys);
           
-          console.log(`[LUKSO Token Detection] ✅ LSP7 metadata: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-        } catch (metadataError) {
-          console.log(`[LUKSO Token Detection] LSP7 metadata failed, trying implementation:`, metadataError);
+          // Decode the bytes data
+          if (nameBytes && nameBytes !== '0x') {
+            name = ethers.utils.toUtf8String(nameBytes);
+          }
+          if (symbolBytes && symbolBytes !== '0x') {
+            symbol = ethers.utils.toUtf8String(symbolBytes);
+          }
           
-          if (implementationAddress) {
-            try {
-              const implContract = new ethers.Contract(implementationAddress, [
-                'function name() view returns (string)',
-                'function symbol() view returns (string)',
-                'function decimals() view returns (uint8)'
-              ], provider);
-              
-              [name, symbol] = await Promise.all([
-                implContract.name().catch(() => 'Unknown Token'),
-                implContract.symbol().catch(() => 'UNK')
-              ]);
-              decimals = await implContract.decimals().catch(() => 18);
-              
-              console.log(`[LUKSO Token Detection] ✅ LSP7 implementation metadata: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-            } catch (implError) {
-              console.log(`[LUKSO Token Detection] ❌ LSP7 implementation metadata failed:`, implError);
+          // Get decimals using standard function (this works)
+          decimals = await lsp7Contract.decimals();
+          
+          console.log(`[LUKSO Token Detection] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+        } catch (erc725yError) {
+          console.log(`[LUKSO Token Detection] ❌ LSP7 ERC725Y metadata failed, trying standard functions:`, erc725yError);
+          
+          // Fallback: try standard ERC20-like functions
+          try {
+            [name, symbol] = await Promise.all([
+              contract.name(),
+              contract.symbol()
+            ]);
+            decimals = await contract.decimals();
+            
+            console.log(`[LUKSO Token Detection] ⚠️ LSP7 fallback to standard functions: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+          } catch (metadataError) {
+            console.log(`[LUKSO Token Detection] LSP7 standard functions also failed, trying implementation:`, metadataError);
+            
+            if (implementationAddress) {
+              try {
+                const implContract = new ethers.Contract(implementationAddress, [
+                  'function name() view returns (string)',
+                  'function symbol() view returns (string)',
+                  'function decimals() view returns (uint8)'
+                ], provider);
+                
+                [name, symbol] = await Promise.all([
+                  implContract.name().catch(() => 'Unknown Token'),
+                  implContract.symbol().catch(() => 'UNK')
+                ]);
+                decimals = await implContract.decimals().catch(() => 18);
+                
+                console.log(`[LUKSO Token Detection] ⚠️ LSP7 implementation fallback: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+              } catch (implError) {
+                console.log(`[LUKSO Token Detection] ❌ LSP7 implementation metadata failed:`, implError);
+                decimals = 18;
+              }
+            } else {
+              console.log(`[LUKSO Token Detection] No implementation found, using defaults`);
               decimals = 18;
             }
-          } else {
-            console.log(`[LUKSO Token Detection] No implementation found, using defaults`);
-            decimals = 18;
           }
         }
       } else {
