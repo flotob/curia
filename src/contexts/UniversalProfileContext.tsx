@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { init, useConnectWallet, useSetChain } from '@web3-onboard/react';
 import injectedModule from '@web3-onboard/injected-wallets';
 import { ethers } from 'ethers';
@@ -49,7 +49,7 @@ export interface TokenBalance {
 }
 
 // Context interface
-interface UniversalProfileContextType {
+export interface UniversalProfileContextType {
   // Connection state
   isConnected: boolean;
   upAddress: string | null;
@@ -92,6 +92,50 @@ interface UniversalProfileProviderProps {
 }
 
 export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> = ({ children }) => {
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Initialize Web3-Onboard before using hooks
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isInitialized) {
+      try {
+        initOnboard();
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize Web3-Onboard:', error);
+      }
+    }
+  }, [isInitialized]);
+  
+  // Always provide a context - use loading state during initialization
+  if (!isInitialized) {
+    const loadingContext: UniversalProfileContextType = {
+      isConnected: false,
+      upAddress: null,
+      isConnecting: false,
+      connectionError: null,
+      isCorrectChain: false,
+      connect: async () => { throw new Error('Still initializing...'); },
+      disconnect: () => {},
+      switchToLukso: async () => {},
+      verifyLyxBalance: async () => false,
+      verifyTokenRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['Still initializing'] }),
+      verifyPostRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['Still initializing'] }),
+      getLyxBalance: async () => { throw new Error('Still initializing...'); },
+      getTokenBalances: async () => [],
+      signMessage: async () => { throw new Error('Still initializing...'); }
+    };
+    
+    return (
+      <UniversalProfileContext.Provider value={loadingContext}>
+        {children}
+      </UniversalProfileContext.Provider>
+    );
+  }
+  
+  return <InitializedUniversalProfileProvider>{children}</InitializedUniversalProfileProvider>;
+};
+
+const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [{ wallet, connecting }, connect, disconnect] = useConnectWallet();
   const [{ connectedChain }, setChain] = useSetChain();
   
@@ -340,11 +384,4 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
       {children}
     </UniversalProfileContext.Provider>
   );
-};
-
-// Initialize Web3-Onboard
-let onboardInitialized = false;
-if (typeof window !== 'undefined' && !onboardInitialized) {
-  initOnboard();
-  onboardInitialized = true;
-} 
+}; 

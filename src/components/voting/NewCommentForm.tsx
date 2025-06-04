@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { ApiPost } from '@/app/api/posts/route';
 import { Button } from "@/components/ui/button";
-import { Loader2, Shield } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Label } from "@/components/ui/label";
+import { Loader2 } from 'lucide-react';
 import { EditorToolbar } from './EditorToolbar';
 
 // Import our verification types
 import { VerificationChallenge } from '@/lib/verification';
 import { SettingsUtils } from '@/types/settings';
+import { InlineUPConnection } from '@/components/comment/InlineUPConnection';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -55,14 +58,22 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   post, // New optional prop
 }) => {
   const { token, isAuthenticated } = useAuth();
-  const { upAddress, signMessage, isConnected: isUPConnected } = useUniversalProfile();
+  const { activateUP } = useUPActivation();
+  const { upAddress, signMessage, isConnected: isUPConnected } = useConditionalUniversalProfile();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingChallenge, setIsGeneratingChallenge] = useState(false);
 
   // Check if this post has gating enabled
   const hasGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
-  const gatingRequirements = hasGating && post ? SettingsUtils.getUPGatingRequirements(post.settings) : null;
+
+  // Activate UP functionality when gating is detected
+  useEffect(() => {
+    if (hasGating) {
+      console.log('[NewCommentForm] Gating detected, activating Universal Profile');
+      activateUP();
+    }
+  }, [hasGating, activateUP]);
 
   const editor = useEditor({
     extensions: [
@@ -90,13 +101,13 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       }),
       // Utility extensions
       Placeholder.configure({
-        placeholder: 'Write your comment here …',
+        placeholder: 'Share your thoughts, questions, or feedback... Use the toolbar below to format your comment!',
       }),
     ],
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose prose-sm dark:prose-invert leading-snug focus:outline-none min-h-[80px] border border-input rounded-md px-3 py-2 w-full',
+        class: 'prose prose-sm dark:prose-invert leading-relaxed focus:outline-none min-h-[100px] px-4 py-3 w-full',
       },
     },
   });
@@ -208,74 +219,96 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     }
   };
 
-  // Show UP connection requirement for gated posts
+  // Show UP connection widget for gated posts
   if (hasGating && (!isUPConnected || !upAddress)) {
     return (
-      <div className="mt-4 p-4 border rounded-md bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
-        <div className="flex items-center mb-2">
-          <Shield className="mr-2 h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <h4 className="font-medium text-amber-800 dark:text-amber-200">
-            Gated Post
-          </h4>
-        </div>
-        <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
-          This post requires Universal Profile verification to comment. 
-          {gatingRequirements?.minLyxBalance && (
-            <> You need at least {gatingRequirements.minLyxBalance} LYX to participate.</>
-          )}
-        </p>
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          Please connect your Universal Profile above to continue.
-        </p>
+      <div className="mt-6">
+        <InlineUPConnection postSettings={post?.settings} />
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="mt-4 p-4 border rounded-md bg-slate-50 dark:bg-slate-800">
-        <p className="text-sm text-muted-foreground">
-          Please log in to post a comment.
-        </p>
-      </div>
+      <Card className="mt-6 border-2 shadow-md">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Please log in to post a comment.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-      {/* Show gating info if applicable */}
+    <div className="mt-6 space-y-4">
+      {/* Show inline UP connection widget for gated posts when connected */}
       {hasGating && isUPConnected && (
-        <div className="p-3 border rounded-md bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-          <div className="flex items-center">
-            <Shield className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              This post requires verification with your Universal Profile before commenting.
-            </p>
-          </div>
-        </div>
+        <InlineUPConnection postSettings={post?.settings} />
       )}
       
-      <div className="border rounded-md overflow-hidden">
-        <EditorContent editor={editor} />
-        <EditorToolbar editor={editor} /> 
-      </div>
-      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-      <div className="flex justify-end">
-        <Button 
-          type="submit" 
-          disabled={
-            addCommentMutation.isPending || 
-            editor?.isEmpty || 
-            isGeneratingChallenge ||
-            (hasGating && (!isUPConnected || !upAddress))
-          }
-        >
-          {(addCommentMutation.isPending || isGeneratingChallenge) && (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          )} 
-          {isGeneratingChallenge ? 'Verifying...' : 'Post Comment'}
-        </Button>
-      </div>
-    </form>
+      <Card className="border-2 shadow-md hover:shadow-lg transition-shadow duration-300">
+        <CardHeader className="pb-3 bg-gradient-to-br from-background to-muted/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base bg-gradient-to-br from-foreground to-foreground/80 bg-clip-text">
+                Add a Comment
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Share your thoughts on this post
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-3 px-4 sm:px-6">
+            <div className="space-y-1.5">
+              <Label htmlFor="comment-content" className="text-sm font-medium">Your Comment</Label>
+              <div className="relative group">
+                <div className="border-2 border-input rounded-xl overflow-hidden transition-all duration-200 group-focus-within:border-primary group-focus-within:shadow-lg group-focus-within:shadow-primary/10 bg-background">
+                  <EditorContent 
+                    editor={editor} 
+                    id="comment-content"
+                    className="prose-headings:font-semibold prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground"
+                  />
+                  <div className="border-t border-border/50 bg-muted/30">
+                    <EditorToolbar editor={editor} />
+                  </div>
+                </div>
+                {/* Focus ring for better accessibility */}
+                <div className="absolute inset-0 rounded-xl ring-2 ring-transparent group-focus-within:ring-primary/20 transition-all duration-200 pointer-events-none" />
+              </div>
+            </div>
+            
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+            
+            <div className="flex justify-end pt-2">
+              <Button 
+                type="submit" 
+                disabled={
+                  addCommentMutation.isPending || 
+                  editor?.isEmpty || 
+                  isGeneratingChallenge ||
+                  (hasGating && (!isUPConnected || !upAddress))
+                }
+                className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                {(addCommentMutation.isPending || isGeneratingChallenge) && (
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                )} 
+                {isGeneratingChallenge ? 'Verifying...' : 'Post Comment'}
+              </Button>
+            </div>
+          </CardContent>
+        </form>
+      </Card>
+    </div>
   );
 }; 
