@@ -14,10 +14,9 @@ ARG NEXT_PUBLIC_PUBKEY
 # Copy package.json and yarn.lock first to leverage Docker cache
 COPY package.json yarn.lock ./
 
-# Configure git and install dependencies in same RUN to ensure config takes effect
-RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
-    git config --global url."https://github.com/".insteadOf git@github.com: && \
-    git config --global url."https://github.com/".insteadOf git+ssh://git@github.com/ && \
+# Fix yarn.lock SSH URLs and install dependencies
+RUN sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock && \
+    sed -i 's|ssh://git@github.com/|https://github.com/|g' yarn.lock && \
     yarn install --frozen-lockfile && \
     yarn cache clean
 
@@ -47,10 +46,9 @@ ENV NODE_ENV=production
 # Copy package.json and yarn.lock
 COPY package.json yarn.lock ./
 
-# Configure git and install production dependencies in same RUN to ensure config takes effect
-RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
-    git config --global url."https://github.com/".insteadOf git@github.com: && \
-    git config --global url."https://github.com/".insteadOf git+ssh://git@github.com/ && \
+# Fix yarn.lock SSH URLs and install production dependencies
+RUN sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock && \
+    sed -i 's|ssh://git@github.com/|https://github.com/|g' yarn.lock && \
     yarn install --production --frozen-lockfile && \
     yarn cache clean
 
