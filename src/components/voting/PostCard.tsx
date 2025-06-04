@@ -503,7 +503,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       {showComments && (
         <div className="border-t border-border p-3 sm:p-4">
           <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
-          <NewCommentForm postId={post.id} />
+          <NewCommentForm postId={post.id} post={post} />
           <div className="mt-4">
             <CommentList postId={post.id} />
           </div>

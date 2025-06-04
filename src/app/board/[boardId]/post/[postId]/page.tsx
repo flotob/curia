@@ -243,7 +243,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* New Comment Form */}
-            <NewCommentForm postId={postIdNum} />
+            <NewCommentForm postId={postIdNum} post={post} />
             
             {/* Comments List */}
             {isLoadingComments ? (

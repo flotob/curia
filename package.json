@@ -22,6 +22,7 @@
     "@common-ground-dao/cg-plugin-lib": "^0.9.13",
     "@common-ground-dao/cg-plugin-lib-host": "^0.9.6",
     "@erc725/erc725.js": "^0.28.1",
+    "@lukso/lsp-smart-contracts": "^0.16.3",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.3.2",
     "@radix-ui/react-dialog": "^1.1.14",

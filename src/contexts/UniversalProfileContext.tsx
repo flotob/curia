@@ -72,6 +72,9 @@ interface UniversalProfileContextType {
   // Balance queries
   getLyxBalance: () => Promise<string>;
   getTokenBalances: (contractAddresses: string[]) => Promise<TokenBalance[]>;
+  
+  // Signing methods
+  signMessage: (message: string) => Promise<string>;
 }
 
 const UniversalProfileContext = createContext<UniversalProfileContextType | undefined>(undefined);
@@ -293,6 +296,17 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
     return result;
   }, [verifyLyxBalance, verifyTokenRequirements]);
 
+  // Sign message with Universal Profile
+  const signMessage = useCallback(async (message: string): Promise<string> => {
+    const provider = getProvider();
+    if (!provider || !upAddress) {
+      throw new Error('No provider or address available for signing');
+    }
+    
+    const signer = provider.getSigner();
+    return await signer.signMessage(message);
+  }, [getProvider, upAddress]);
+
   const contextValue: UniversalProfileContextType = {
     // Connection state
     isConnected,
@@ -315,7 +329,10 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
     
     // Balance queries
     getLyxBalance,
-    getTokenBalances
+    getTokenBalances,
+    
+    // Signing methods
+    signMessage
   };
 
   return (
