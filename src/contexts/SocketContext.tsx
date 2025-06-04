@@ -204,15 +204,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const socketUrl = process.env.NODE_ENV === 'production' ? undefined : undefined;
     
-    // Check environment variable to control WebSocket vs Polling behavior
-    const forcePollingOnUP = process.env.NEXT_PUBLIC_FORCE_SOCKET_POLLING_ON_UP === 'true';
-    
-    // Use polling when Web3-Onboard is active IF the env var is enabled
-    const transports = (hasUserTriggeredConnection && forcePollingOnUP)
+    // Always use polling when Web3-Onboard is active to avoid WebSocket conflicts
+    const transports = hasUserTriggeredConnection
       ? ['polling']
       : ['websocket', 'polling'];
     
-    console.log(`[Socket] Transport strategy: ${transports.join(', ')} (UP active: ${hasUserTriggeredConnection}, force polling: ${forcePollingOnUP})`);
+    console.log(`[Socket] Transport strategy: ${transports.join(', ')} (UP active: ${hasUserTriggeredConnection}, force polling: ${hasUserTriggeredConnection})`);
     
     const newSocket = io(socketUrl || '', {
       auth: { token },
