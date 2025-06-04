@@ -4,9 +4,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install git and openssh (required for git-based dependencies like ethereumjs-abi)
-RUN apk add --no-cache git openssh-client
-
 # Declare build arguments that Railway will inject from service variables
 ARG NEXT_PRIVATE_PRIVKEY
 ARG NEXT_PUBLIC_PUBKEY
@@ -14,11 +11,8 @@ ARG NEXT_PUBLIC_PUBKEY
 # Copy package.json and yarn.lock first to leverage Docker cache
 COPY package.json yarn.lock ./
 
-# Fix yarn.lock SSH URLs and install dependencies
-RUN sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock && \
-    sed -i 's|ssh://git@github.com/|https://github.com/|g' yarn.lock && \
-    yarn install --frozen-lockfile && \
-    yarn cache clean
+# Install dependencies (yarn resolutions will force npm version of ethereumjs-abi)
+RUN yarn install --frozen-lockfile && yarn cache clean
 
 # Copy the rest of the application code
 COPY . .
@@ -37,20 +31,14 @@ RUN echo "Contents of /app/dist in builder stage:" && ls -R /app/dist
 FROM node:20-alpine
 WORKDIR /app
 
-# Install git and openssh (required for git-based dependencies like ethereumjs-abi)
-RUN apk add --no-cache git openssh-client
-
 # Set NODE_ENV to production
 ENV NODE_ENV=production
 
 # Copy package.json and yarn.lock
 COPY package.json yarn.lock ./
 
-# Fix yarn.lock SSH URLs and install production dependencies
-RUN sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock && \
-    sed -i 's|ssh://git@github.com/|https://github.com/|g' yarn.lock && \
-    yarn install --production --frozen-lockfile && \
-    yarn cache clean
+# Install production dependencies (yarn resolutions will force npm version of ethereumjs-abi)
+RUN yarn install --production --frozen-lockfile && yarn cache clean
 
 # Copy built artifacts from the builder stage
 COPY --from=builder /app/.next ./.next

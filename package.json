@@ -70,6 +70,9 @@
     "tailwindcss-animate": "^1.0.7",
     "tiptap-markdown": "^0.8.10"
   },
+  "resolutions": {
+    "ethereumjs-abi": "^0.6.8"
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/typography": "^0.5.16",
