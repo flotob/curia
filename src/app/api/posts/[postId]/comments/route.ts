@@ -12,9 +12,11 @@ import {
   ChallengeUtils, 
   NonceStore, 
   VerificationChallenge,
-  ERC1271_MAGIC_VALUE
+  ERC1271_MAGIC_VALUE,
+  TOKEN_FUNCTION_SELECTORS,
+  TokenVerificationResult
 } from '@/lib/verification';
-import { SettingsUtils, PostSettings } from '@/types/settings';
+import { SettingsUtils, PostSettings, TokenRequirement } from '@/types/settings';
 
 // Initialize nonce store
 NonceStore.initialize();
@@ -231,6 +233,162 @@ async function verifyLyxBalance(
 }
 
 /**
+ * Verify LSP7 token balance requirement using raw RPC calls
+ * 
+ * LSP7 tokens are fungible tokens (like ERC20) with balanceOf(address) function
+ */
+async function verifyLSP7Balance(
+  upAddress: string,
+  requirement: TokenRequirement
+): Promise<TokenVerificationResult> {
+  try {
+    console.log(`[verifyLSP7Balance] Checking LSP7 token ${requirement.contractAddress} for ${upAddress}`);
+
+    // Manual ABI encoding for balanceOf(address) call
+    const balanceOfSelector = TOKEN_FUNCTION_SELECTORS.LSP7_BALANCE_OF;
+    const addressParam = upAddress.slice(2).padStart(64, '0'); // Remove 0x and pad to 32 bytes
+    const callData = balanceOfSelector + addressParam;
+
+    // Call balanceOf on the LSP7 token contract
+    const balanceHex = await rawLuksoCall('eth_call', [
+      {
+        to: requirement.contractAddress,
+        data: callData
+      },
+      'latest'
+    ]);
+
+    // Convert hex balance to BigNumber for comparison
+    const balance = ethers.BigNumber.from(balanceHex);
+    const minBalance = ethers.BigNumber.from(requirement.minAmount);
+
+    if (balance.lt(minBalance)) {
+      // Format balance for user-friendly error message
+      const balanceFormatted = ethers.utils.formatUnits(balance, 18); // LSP7 typically uses 18 decimals
+      const minBalanceFormatted = ethers.utils.formatUnits(minBalance, 18);
+      
+      return {
+        valid: false,
+        error: `Insufficient ${requirement.symbol || requirement.name} balance. Required: ${minBalanceFormatted}, Current: ${balanceFormatted}`,
+        balance: balance.toString()
+      };
+    }
+
+    console.log(`[verifyLSP7Balance] Token balance check passed: ${ethers.utils.formatUnits(balance, 18)} >= ${ethers.utils.formatUnits(minBalance, 18)}`);
+    return { 
+      valid: true,
+      balance: balance.toString()
+    };
+
+  } catch (error) {
+    console.error(`[verifyLSP7Balance] Failed to verify LSP7 token ${requirement.contractAddress}:`, error);
+    return {
+      valid: false,
+      error: `Unable to verify ${requirement.symbol || requirement.name} balance. Please check your connection and try again.`,
+    };
+  }
+}
+
+/**
+ * Verify LSP8 NFT ownership requirement using raw RPC calls
+ * 
+ * LSP8 tokens are NFTs (like ERC721) with balanceOf(address) function
+ * For now, we check if user owns ANY NFT from the collection (balanceOf > 0)
+ */
+async function verifyLSP8Ownership(
+  upAddress: string,
+  requirement: TokenRequirement
+): Promise<TokenVerificationResult> {
+  try {
+    console.log(`[verifyLSP8Ownership] Checking LSP8 NFT collection ${requirement.contractAddress} for ${upAddress}`);
+
+    // Manual ABI encoding for balanceOf(address) call (same as LSP7)
+    const balanceOfSelector = TOKEN_FUNCTION_SELECTORS.LSP8_BALANCE_OF;
+    const addressParam = upAddress.slice(2).padStart(64, '0'); // Remove 0x and pad to 32 bytes
+    const callData = balanceOfSelector + addressParam;
+
+    // Call balanceOf on the LSP8 NFT contract
+    const balanceHex = await rawLuksoCall('eth_call', [
+      {
+        to: requirement.contractAddress,
+        data: callData
+      },
+      'latest'
+    ]);
+
+    // Convert hex balance to number (for NFTs, this is the count of tokens owned)
+    const nftCount = ethers.BigNumber.from(balanceHex);
+    const minRequired = ethers.BigNumber.from(requirement.minAmount || '1'); // Default to 1 NFT if not specified
+
+    if (nftCount.lt(minRequired)) {
+      return {
+        valid: false,
+        error: `Insufficient ${requirement.symbol || requirement.name} NFTs. Required: ${minRequired.toString()}, Current: ${nftCount.toString()}`,
+        balance: nftCount.toString()
+      };
+    }
+
+    console.log(`[verifyLSP8Ownership] NFT ownership check passed: owns ${nftCount.toString()} NFTs >= ${minRequired.toString()} required`);
+    return {
+      valid: true,
+      balance: nftCount.toString()
+    };
+
+  } catch (error) {
+    console.error(`[verifyLSP8Ownership] Failed to verify LSP8 NFT ${requirement.contractAddress}:`, error);
+    return {
+      valid: false,
+      error: `Unable to verify ${requirement.symbol || requirement.name} NFT ownership. Please check your connection and try again.`,
+    };
+  }
+}
+
+/**
+ * Verify token requirements for both LSP7 and LSP8 tokens
+ */
+async function verifyTokenRequirements(
+  upAddress: string,
+  requirements: TokenRequirement[]
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    console.log(`[verifyTokenRequirements] Checking ${requirements.length} token requirements for ${upAddress}`);
+
+    // Process all token requirements in parallel for better performance
+    const verificationPromises = requirements.map(async (requirement) => {
+      if (requirement.tokenType === 'LSP7') {
+        return await verifyLSP7Balance(upAddress, requirement);
+      } else if (requirement.tokenType === 'LSP8') {
+        return await verifyLSP8Ownership(upAddress, requirement);
+      } else {
+        return {
+          valid: false,
+          error: `Unsupported token type: ${requirement.tokenType}. Only LSP7 and LSP8 are supported.`
+        };
+      }
+    });
+
+    const results = await Promise.all(verificationPromises);
+
+    // Check if all requirements are met
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (!result.valid) {
+        const requirement = requirements[i];
+        console.log(`[verifyTokenRequirements] Token requirement failed: ${requirement.symbol || requirement.name} - ${result.error}`);
+        return { valid: false, error: result.error };
+      }
+    }
+
+    console.log(`[verifyTokenRequirements] All ${requirements.length} token requirements met`);
+    return { valid: true };
+
+  } catch (error) {
+    console.error('[verifyTokenRequirements] Error verifying token requirements:', error);
+    return { valid: false, error: 'Failed to verify token requirements' };
+  }
+}
+
+/**
  * Verify all post gating requirements
  */
 async function verifyPostGatingRequirements(
@@ -256,12 +414,12 @@ async function verifyPostGatingRequirements(
       }
     }
 
-    // TODO: Add LSP7/LSP8 token verification in Phase 2
+    // Verify token requirements (LSP7/LSP8)
     if (requirements.requiredTokens && requirements.requiredTokens.length > 0) {
-      return { 
-        valid: false, 
-        error: 'Token verification not yet implemented. Only LYX gating is currently supported.' 
-      };
+      const tokenResult = await verifyTokenRequirements(upAddress, requirements.requiredTokens);
+      if (!tokenResult.valid) {
+        return tokenResult;
+      }
     }
 
     return { valid: true };

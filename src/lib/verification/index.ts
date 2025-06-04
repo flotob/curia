@@ -8,4 +8,7 @@ export * from './types';
 export { ChallengeUtils } from './challengeUtils';
 
 // Nonce store (backend-only)
-export { NonceStore } from './nonceStore'; 
+export { NonceStore } from './nonceStore';
+
+// Token ABIs and utilities (shared)
+export * from './tokenABIs'; 
