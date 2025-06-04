@@ -204,22 +204,25 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const socketUrl = process.env.NODE_ENV === 'production' ? undefined : undefined;
     
-    // Use polling when Web3-Onboard is active to prevent WebSocket conflicts
-    const transports = hasUserTriggeredConnection 
+    // Check environment variable to control WebSocket vs Polling behavior
+    const forcePollingOnUP = process.env.NEXT_PUBLIC_FORCE_SOCKET_POLLING_ON_UP === 'true';
+    
+    // Use polling when Web3-Onboard is active IF the env var is enabled
+    const transports = (hasUserTriggeredConnection && forcePollingOnUP)
       ? ['polling']
       : ['websocket', 'polling'];
     
-    console.log(`[Socket] Establishing connection with transport strategy: ${transports.join(', ')} (UP active: ${hasUserTriggeredConnection})`);
+    console.log(`[Socket] Transport strategy: ${transports.join(', ')} (UP active: ${hasUserTriggeredConnection}, force polling: ${forcePollingOnUP})`);
     
-    const newSocket = io(socketUrl, {
+    const newSocket = io(socketUrl || '', {
       auth: { token },
-      transports,
-      timeout: 20000,
-      autoConnect: true,
+      transports: transports,
+      // Enhanced reconnection settings to handle any temporary disconnections
       reconnection: true,
+      reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 10, // Increased from 3 to allow better recovery
-      reconnectionDelayMax: 5000, // Max delay between attempts
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     newSocket.on('connect', () => {
