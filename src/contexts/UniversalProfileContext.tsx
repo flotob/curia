@@ -5,6 +5,7 @@ import { init, useConnectWallet, useSetChain } from '@web3-onboard/react';
 import injectedModule from '@web3-onboard/injected-wallets';
 import { ethers } from 'ethers';
 import { PostSettings, TokenRequirement, SettingsUtils } from '@/types/settings';
+import { ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
 
 // LUKSO network configuration
 const luksoMainnet = {
@@ -73,6 +74,20 @@ export interface UniversalProfileContextType {
   getLyxBalance: () => Promise<string>;
   getTokenBalances: (contractAddresses: string[]) => Promise<TokenBalance[]>;
   
+  // Token verification methods
+  checkTokenBalance: (contractAddress: string, tokenType: 'LSP7' | 'LSP8') => Promise<{
+    balance: string;
+    decimals?: number;
+    name?: string;
+    symbol?: string;
+    formattedBalance?: string;
+  }>;
+  getTokenMetadata: (contractAddress: string, tokenType: 'LSP7' | 'LSP8') => Promise<{
+    name: string;
+    symbol: string;
+    decimals?: number;
+  }>;
+  
   // Signing methods
   signMessage: (message: string) => Promise<string>;
 }
@@ -122,6 +137,8 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
       verifyPostRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['Still initializing'] }),
       getLyxBalance: async () => { throw new Error('Still initializing...'); },
       getTokenBalances: async () => [],
+      checkTokenBalance: async () => { throw new Error('Still initializing...'); },
+      getTokenMetadata: async () => { throw new Error('Still initializing...'); },
       signMessage: async () => { throw new Error('Still initializing...'); }
     };
     
@@ -275,15 +292,39 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
           continue;
         }
         
-        if (requirement.minAmount) {
-          const balanceBN = ethers.BigNumber.from(tokenBalance.balance);
-          const minAmountBN = ethers.BigNumber.from(requirement.minAmount);
-          
-          if (balanceBN.lt(minAmountBN)) {
+        // Handle minAmount check (with special LSP8 logic)
+        let requiredAmount = requirement.minAmount;
+        
+        // For LSP8 tokens without specified minAmount, default to "1" (must own at least 1 NFT)
+        if (requirement.tokenType === 'LSP8' && !requiredAmount) {
+          requiredAmount = '1';
+        }
+        
+        if (requiredAmount) {
+          try {
+            const balanceBN = ethers.BigNumber.from(tokenBalance.balance);
+            const minAmountBN = ethers.BigNumber.from(requiredAmount);
+            
+            if (balanceBN.lt(minAmountBN)) {
+              result.isValid = false;
+              const tokenName = requirement.name || requirement.symbol || 'tokens';
+              
+              if (requirement.tokenType === 'LSP8') {
+                const nftCount = balanceBN.toString();
+                const requiredCount = minAmountBN.toString();
+                result.missingRequirements.push(
+                  `Insufficient ${tokenName} NFTs: need ${requiredCount}, have ${nftCount}`
+                );
+              } else {
+                result.missingRequirements.push(
+                  `Insufficient ${tokenName}: need ${requiredAmount}, have ${tokenBalance.balance}`
+                );
+              }
+            }
+          } catch (bnError) {
+            console.error(`BigNumber error for token ${requirement.contractAddress}:`, bnError);
             result.isValid = false;
-            result.missingRequirements.push(
-              `Insufficient ${requirement.name || requirement.symbol || 'tokens'}: need ${requirement.minAmount}, have ${tokenBalance.balance}`
-            );
+            result.errors.push(`Invalid token amount for ${requirement.name || requirement.contractAddress}`);
           }
         }
       }
@@ -351,6 +392,264 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     return await signer.signMessage(message);
   }, [getProvider, upAddress]);
 
+  // Robust LUKSO token balance checking with proxy pattern support
+  const checkTokenBalance = useCallback(async (
+    contractAddress: string, 
+    tokenType: 'LSP7' | 'LSP8'
+  ): Promise<{
+    balance: string;
+    decimals?: number;
+    name?: string;
+    symbol?: string;
+    formattedBalance?: string;
+  }> => {
+    const provider = getProvider();
+    if (!provider || !upAddress) {
+      throw new Error('No provider or address available');
+    }
+
+    console.log(`[UP Context] Checking token balance for ${contractAddress} (${tokenType})`);
+
+    try {
+      // Step 1: Try direct contract calls first
+      const directContract = new ethers.Contract(contractAddress, [
+        'function balanceOf(address) view returns (uint256)',
+        'function decimals() view returns (uint8)',
+        'function name() view returns (string)',
+        'function symbol() view returns (string)'
+      ], provider);
+
+      let workingContract = directContract;
+
+      // Step 2: If direct calls fail, check for proxy pattern
+      try {
+        const testBalance = await directContract.balanceOf(upAddress);
+        console.log(`[UP Context] Direct contract call successful, balance: ${testBalance.toString()}`);
+      } catch (directError) {
+        console.log(`[UP Context] Direct contract call failed, checking for proxy:`, directError);
+        
+        // Check EIP-1967 implementation slot
+        try {
+          const implSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+          const slotValue = await provider.getStorageAt(contractAddress, implSlot);
+          
+          if (slotValue && slotValue !== ethers.constants.HashZero) {
+            const implementationAddress = ethers.utils.getAddress('0x' + slotValue.slice(-40));
+            console.log(`[UP Context] Found EIP-1967 proxy, implementation: ${implementationAddress}`);
+            
+            // For balance calls, still use the proxy address (it should delegate properly)
+            // But for metadata that might fail, we can try the implementation
+            workingContract = new ethers.Contract(implementationAddress, [
+              'function balanceOf(address) view returns (uint256)',
+              'function decimals() view returns (uint8)',
+              'function name() view returns (string)',
+              'function symbol() view returns (string)'
+            ], provider);
+          }
+        } catch (proxyError) {
+          console.log(`[UP Context] Proxy detection failed:`, proxyError);
+          // Continue with direct contract
+        }
+      }
+
+      // Step 3: Get balance (always use the original proxy address for balance calls)
+      let balance;
+      try {
+        balance = await directContract.balanceOf(upAddress);
+        console.log(`[UP Context] Balance from proxy: ${balance.toString()}`);
+      } catch (balanceError) {
+        // If proxy balance fails, try implementation
+        if (workingContract !== directContract) {
+          balance = await workingContract.balanceOf(upAddress);
+          console.log(`[UP Context] Balance from implementation: ${balance.toString()}`);
+        } else {
+          throw balanceError;
+        }
+      }
+
+      // Step 4: Get metadata (LSP7 vs LSP8 handling)
+      let name = 'Unknown';
+      let symbol = 'UNK';
+      let decimals: number | undefined;
+
+      if (tokenType === 'LSP7') {
+        // LSP7 uses standard ERC20-like functions
+        try {
+          [name, symbol] = await Promise.all([
+            directContract.name(),
+            directContract.symbol()
+          ]);
+          decimals = await directContract.decimals();
+        } catch (metadataError) {
+          console.log(`[UP Context] LSP7 metadata failed, trying implementation:`, metadataError);
+          
+          if (workingContract !== directContract) {
+            try {
+              [name, symbol] = await Promise.all([
+                workingContract.name().catch(() => 'Unknown'),
+                workingContract.symbol().catch(() => 'UNK')
+              ]);
+              decimals = await workingContract.decimals().catch(() => 18);
+            } catch (implError) {
+              console.log(`[UP Context] LSP7 implementation metadata failed:`, implError);
+              decimals = 18;
+            }
+          } else {
+            decimals = 18;
+          }
+        }
+      } else {
+        // LSP8 uses ERC725Y data keys for metadata
+        try {
+          const lsp8Contract = new ethers.Contract(contractAddress, [
+            'function getData(bytes32) view returns (bytes)',
+            'function getDataBatch(bytes32[]) view returns (bytes[])'
+          ], provider);
+
+          // Use ERC725Y data keys for LSP4 metadata
+          const dataKeys = [
+            ERC725YDataKeys.LSP4.LSP4TokenName,
+            ERC725YDataKeys.LSP4.LSP4TokenSymbol
+          ];
+
+          const [nameBytes, symbolBytes] = await lsp8Contract.getDataBatch(dataKeys);
+          
+          // Decode the bytes data
+          if (nameBytes && nameBytes !== '0x') {
+            name = ethers.utils.toUtf8String(nameBytes);
+          }
+          if (symbolBytes && symbolBytes !== '0x') {
+            symbol = ethers.utils.toUtf8String(symbolBytes);
+          }
+          
+          console.log(`[UP Context] ✅ LSP8 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
+        } catch (lsp8Error) {
+          console.log(`[UP Context] ❌ LSP8 ERC725Y metadata failed:`, lsp8Error);
+          
+          // Fallback: try standard name()/symbol() functions in case it's a hybrid
+          try {
+            [name, symbol] = await Promise.all([
+              directContract.name().catch(() => 'Unknown'),
+              directContract.symbol().catch(() => 'UNK')
+            ]);
+            console.log(`[UP Context] ⚠️ LSP8 fallback to standard functions: name=${name}, symbol=${symbol}`);
+          } catch (fallbackError) {
+            console.log(`[UP Context] ❌ LSP8 fallback also failed:`, fallbackError);
+          }
+        }
+      }
+
+      // Step 5: Format balance with proper decimals
+      const formattedBalance = tokenType === 'LSP7' ? 
+        ethers.utils.formatUnits(balance, decimals || 18) :
+        balance.toString(); // For NFTs, just show count
+
+      const result = {
+        balance: balance.toString(),
+        decimals: tokenType === 'LSP7' ? decimals : undefined,
+        name,
+        symbol,
+        formattedBalance
+      };
+
+      console.log(`[UP Context] ✅ Successfully fetched token data:`, result);
+      return result;
+      
+    } catch (error) {
+      console.error(`[UP Context] Failed to check ${tokenType} token balance for ${contractAddress}:`, error);
+      throw error;
+    }
+  }, [getProvider, upAddress]);
+
+  // Get token metadata
+  const getTokenMetadata = useCallback(async (
+    contractAddress: string, 
+    tokenType: 'LSP7' | 'LSP8'
+  ): Promise<{
+    name: string;
+    symbol: string;
+    decimals?: number;
+  }> => {
+    const provider = getProvider();
+    if (!provider) {
+      throw new Error('No provider available');
+    }
+
+    try {
+      if (tokenType === 'LSP7') {
+        // LSP7 uses standard ERC20-like functions
+        const contract = new ethers.Contract(contractAddress, [
+          'function decimals() view returns (uint8)', 
+          'function name() view returns (string)', 
+          'function symbol() view returns (string)'
+        ], provider);
+        
+        const namePromise = contract.name().catch(() => 'Unknown Token');
+        const symbolPromise = contract.symbol().catch(() => 'UNK');
+        const decimalsPromise = contract.decimals().catch(() => 18);
+        
+        const [name, symbol, decimals] = await Promise.all([
+          namePromise,
+          symbolPromise,
+          decimalsPromise
+        ]);
+        
+        return { name, symbol, decimals };
+        
+      } else {
+        // LSP8 uses ERC725Y data keys for metadata
+        const contract = new ethers.Contract(contractAddress, [
+          'function getData(bytes32) view returns (bytes)',
+          'function getDataBatch(bytes32[]) view returns (bytes[])'
+        ], provider);
+
+        // Use ERC725Y data keys for LSP4 metadata
+        const dataKeys = [
+          ERC725YDataKeys.LSP4.LSP4TokenName,
+          ERC725YDataKeys.LSP4.LSP4TokenSymbol
+        ];
+
+        let name = 'Unknown Token';
+        let symbol = 'UNK';
+
+        try {
+          const [nameBytes, symbolBytes] = await contract.getDataBatch(dataKeys);
+          
+          // Decode the bytes data
+          if (nameBytes && nameBytes !== '0x') {
+            name = ethers.utils.toUtf8String(nameBytes);
+          }
+          if (symbolBytes && symbolBytes !== '0x') {
+            symbol = ethers.utils.toUtf8String(symbolBytes);
+          }
+        } catch (erc725yError) {
+          console.log(`LSP8 ERC725Y metadata failed, trying fallback:`, erc725yError);
+          
+          // Fallback: try standard name()/symbol() functions
+          try {
+            const fallbackContract = new ethers.Contract(contractAddress, [
+              'function name() view returns (string)', 
+              'function symbol() view returns (string)'
+            ], provider);
+            
+            const namePromise = fallbackContract.name().catch(() => 'Unknown Token');
+            const symbolPromise = fallbackContract.symbol().catch(() => 'UNK');
+            
+            [name, symbol] = await Promise.all([namePromise, symbolPromise]);
+          } catch (fallbackError) {
+            console.log(`LSP8 fallback metadata also failed:`, fallbackError);
+          }
+        }
+        
+        return { name, symbol, decimals: undefined };
+      }
+      
+    } catch (error) {
+      console.error(`Failed to get ${tokenType} token metadata:`, error);
+      throw error;
+    }
+  }, [getProvider]);
+
   const contextValue: UniversalProfileContextType = {
     // Connection state
     isConnected,
@@ -374,6 +673,10 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     // Balance queries
     getLyxBalance,
     getTokenBalances,
+    
+    // Token verification methods
+    checkTokenBalance,
+    getTokenMetadata,
     
     // Signing methods
     signMessage
