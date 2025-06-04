@@ -4,12 +4,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install git (required for git-based dependencies like ethereumjs-abi)
-RUN apk add --no-cache git
-
-# Configure git to use HTTPS instead of SSH for GitHub (CI/CD friendly)
-RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/
-RUN git config --global url."https://github.com/".insteadOf git@github.com:
+# Install git and openssh (required for git-based dependencies like ethereumjs-abi)
+RUN apk add --no-cache git openssh-client
 
 # Declare build arguments that Railway will inject from service variables
 ARG NEXT_PRIVATE_PRIVKEY
@@ -18,8 +14,12 @@ ARG NEXT_PUBLIC_PUBKEY
 # Copy package.json and yarn.lock first to leverage Docker cache
 COPY package.json yarn.lock ./
 
-# Install all dependencies (including devDependencies for build)
-RUN yarn install --frozen-lockfile && yarn cache clean
+# Configure git and install dependencies in same RUN to ensure config takes effect
+RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
+    git config --global url."https://github.com/".insteadOf git@github.com: && \
+    git config --global url."https://github.com/".insteadOf git+ssh://git@github.com/ && \
+    yarn install --frozen-lockfile && \
+    yarn cache clean
 
 # Copy the rest of the application code
 COPY . .
@@ -38,12 +38,8 @@ RUN echo "Contents of /app/dist in builder stage:" && ls -R /app/dist
 FROM node:20-alpine
 WORKDIR /app
 
-# Install git (required for git-based dependencies like ethereumjs-abi)
-RUN apk add --no-cache git
-
-# Configure git to use HTTPS instead of SSH for GitHub (CI/CD friendly)
-RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/
-RUN git config --global url."https://github.com/".insteadOf git@github.com:
+# Install git and openssh (required for git-based dependencies like ethereumjs-abi)
+RUN apk add --no-cache git openssh-client
 
 # Set NODE_ENV to production
 ENV NODE_ENV=production
@@ -51,8 +47,12 @@ ENV NODE_ENV=production
 # Copy package.json and yarn.lock
 COPY package.json yarn.lock ./
 
-# Install only production dependencies
-RUN yarn install --production --frozen-lockfile && yarn cache clean
+# Configure git and install production dependencies in same RUN to ensure config takes effect
+RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
+    git config --global url."https://github.com/".insteadOf git@github.com: && \
+    git config --global url."https://github.com/".insteadOf git+ssh://git@github.com/ && \
+    yarn install --production --frozen-lockfile && \
+    yarn cache clean
 
 # Copy built artifacts from the builder stage
 COPY --from=builder /app/.next ./.next
