@@ -27,17 +27,20 @@ const LUKSO_RPC_URLS = [
   // Removed: 'https://lukso-mainnet.rpc.thirdweb.com' - fails consistently ❌
 ].filter(Boolean) as string[];
 
-const LUKSO_RPC_URL = LUKSO_RPC_URLS[0] || 'https://rpc.mainnet.lukso.network';
+// LUKSO RPC URLs are used in the rawLuksoCall function
 
-// Configure LUKSO network explicitly (static configuration)
-const luksoNetwork = {
-  name: 'lukso',
-  chainId: 42,
-  ensAddress: undefined
-};
+/**
+ * LUKSO RPC Integration
+ * 
+ * Note: We use raw fetch() calls instead of ethers.js providers due to 
+ * Next.js runtime compatibility issues. Ethers v5 sets HTTP headers that
+ * cause "Referrer 'client' is not a valid URL" errors in serverless environments.
+ * 
+ * This approach maintains full functionality while being runtime-agnostic.
+ */
 
-// Raw RPC call helper (bypasses ethers HTTP issues)
-async function rawLuksoCall(method: string, params: any[] = []): Promise<any> {
+// Raw RPC call helper - bypasses ethers.js HTTP compatibility issues
+async function rawLuksoCall(method: string, params: unknown[] = []): Promise<unknown> {
   const body = {
     jsonrpc: "2.0",
     id: 1,
@@ -73,54 +76,8 @@ async function rawLuksoCall(method: string, params: any[] = []): Promise<any> {
   throw new Error(`All RPC endpoints failed for ${method}`);
 }
 
-// Create provider with fallback logic
-let luksoProvider: ethers.providers.StaticJsonRpcProvider;
-
-async function createLuksoProvider(): Promise<ethers.providers.StaticJsonRpcProvider> {
-  for (const rpcUrl of LUKSO_RPC_URLS) {
-    try {
-      console.log(`[createLuksoProvider] Trying RPC: ${rpcUrl}`);
-      const provider = new ethers.providers.StaticJsonRpcProvider({
-        url: rpcUrl,
-        timeout: 5000, // 5 second timeout for testing
-      }, luksoNetwork);
-      
-      // Test the connection with a lightweight RPC call (avoid getNetwork())
-      await provider.getBlockNumber();
-      console.log(`[createLuksoProvider] Successfully connected to: ${rpcUrl}`);
-      return provider;
-    } catch (error) {
-      console.warn(`[createLuksoProvider] Failed to connect to ${rpcUrl}:`, error);
-    }
-  }
-  
-  // If all fail, throw an error
-  throw new Error('Unable to connect to any LUKSO RPC endpoint');
-}
-
-// Log which RPC we're using for debugging
-console.log(`[LUKSO RPC] Using primary RPC: ${LUKSO_RPC_URL}`);
-console.log(`[LUKSO RPC] Available fallbacks: ${LUKSO_RPC_URLS.join(', ')}`);
-
-// Initialize provider (will be created on first use)
-luksoProvider = new ethers.providers.StaticJsonRpcProvider({
-  url: LUKSO_RPC_URL,
-  timeout: 10000,
-}, luksoNetwork);
-
-// LSP0 ERC725Account ABI for signature verification
-const LSP0_ABI = [
-  {
-    "inputs": [
-      { "name": "hash", "type": "bytes32" },
-      { "name": "signature", "type": "bytes" }
-    ],
-    "name": "isValidSignature",
-    "outputs": [{ "name": "magicValue", "type": "bytes4" }],
-    "stateMutability": "view",
-    "type": "function"
-  }
-];
+// Log available RPC endpoints for debugging
+console.log(`[LUKSO RPC] Available endpoints: ${LUKSO_RPC_URLS.join(', ')}`);
 
 // Interface for the structure of a comment when returned by the API
 export interface ApiComment {
@@ -164,26 +121,37 @@ async function verifyUPSignature(
       return { valid: false, error: 'No signature provided' };
     }
 
-    // Use raw RPC calls to bypass ethers HTTP issues
+    // Use raw RPC calls to bypass ethers.js HTTP compatibility issues
     console.log(`[verifyUPSignature] Using raw RPC for verification`);
 
-    // Create the message that was signed
+    // Create the message that was signed (using ethers utils which work fine)
     const message = ChallengeUtils.createSigningMessage(challenge);
     const messageHash = ethers.utils.hashMessage(message);
 
     console.log(`[verifyUPSignature] Verifying signature for UP: ${upAddress}`);
     console.log(`[verifyUPSignature] Message hash: ${messageHash}`);
 
-    // Manually encode isValidSignature(bytes32,bytes) call
+    /**
+     * Manual ABI encoding for isValidSignature(bytes32,bytes) call
+     * 
+     * We encode the function call manually because ethers.Contract fails in Next.js.
+     * The function signature is: isValidSignature(bytes32 hash, bytes signature)
+     * 
+     * Call data structure:
+     * - Function selector: 0x1626ba7e (first 4 bytes of keccak256("isValidSignature(bytes32,bytes)"))
+     * - Parameter 1: bytes32 hash (32 bytes, padded)
+     * - Parameter 2: bytes signature (dynamic length, with offset and length encoding)
+     */
     const functionSelector = '0x1626ba7e'; // isValidSignature(bytes32,bytes)
     const hashParam = messageHash.slice(2).padStart(64, '0'); // Remove 0x and pad to 32 bytes
-    const signatureOffset = '0000000000000000000000000000000000000000000000000000000000000040'; // Offset to signature data
+    const signatureOffset = '0000000000000000000000000000000000000000000000000000000000000040'; // Offset to signature data (64 bytes)
     const signatureLength = (challenge.signature.slice(2).length / 2).toString(16).padStart(64, '0'); // Length in bytes
     const signatureData = challenge.signature.slice(2).padEnd(Math.ceil(challenge.signature.slice(2).length / 64) * 64, '0'); // Signature data padded
     
     const callData = functionSelector + hashParam + signatureOffset + signatureLength + signatureData;
 
     try {
+      // Call isValidSignature on the Universal Profile contract
       const result = await rawLuksoCall('eth_call', [
         {
           to: upAddress,
@@ -194,19 +162,23 @@ async function verifyUPSignature(
 
       console.log(`[verifyUPSignature] Raw isValidSignature result: ${result}`);
 
-      // Check if result matches ERC1271 magic value (0x1626ba7e)
+      // Check if result matches ERC-1271 magic value (0x1626ba7e)
+      // A valid signature returns the magic value, invalid signatures return 0x00000000
       const expectedMagic = ERC1271_MAGIC_VALUE.toLowerCase();
-      const actualResult = result?.toLowerCase().slice(0, 10); // First 4 bytes (8 hex chars + 0x)
+      const actualResult = (result as string)?.toLowerCase().slice(0, 10); // First 4 bytes (8 hex chars + 0x)
 
       if (actualResult !== expectedMagic) {
-        return { valid: false, error: 'Invalid signature' };
+        return { valid: false, error: 'Signature verification failed - invalid signature for this Universal Profile' };
       }
 
       return { valid: true };
 
     } catch (error) {
       console.error('[verifyUPSignature] Raw RPC call failed:', error);
-      return { valid: false, error: 'Unable to verify signature - network connection failed' };
+      return { 
+        valid: false, 
+        error: 'Network verification failed. Please check your connection and try again.' 
+      };
     }
 
   } catch (error) {
@@ -220,17 +192,20 @@ async function verifyUPSignature(
 }
 
 /**
- * Verify LYX balance requirement
+ * Verify LYX balance requirement using raw RPC calls
+ * 
+ * Uses eth_getBalance to check the Universal Profile's native LYX balance
+ * against the minimum requirement set in the post's gating settings.
  */
 async function verifyLyxBalance(
   upAddress: string, 
   minBalance: string
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    // Use raw RPC call for balance check
+    // Get the Universal Profile's LYX balance using raw RPC call
     const balanceHex = await rawLuksoCall('eth_getBalance', [upAddress, 'latest']);
     
-    // Convert hex balance to BigNumber for comparison
+    // Convert hex balance to BigNumber for precise comparison (avoids floating point issues)
     const balance = ethers.BigNumber.from(balanceHex);
     const minBalanceBN = ethers.BigNumber.from(minBalance);
     
@@ -239,15 +214,19 @@ async function verifyLyxBalance(
       const minBalanceEth = ethers.utils.formatEther(minBalance);
       return { 
         valid: false, 
-        error: `Insufficient LYX balance: ${balanceEth} < ${minBalanceEth}` 
+        error: `Insufficient LYX balance. Required: ${minBalanceEth} LYX, Current: ${balanceEth} LYX` 
       };
     }
 
+    console.log(`[verifyLyxBalance] Balance check passed: ${ethers.utils.formatEther(balance)} LYX >= ${ethers.utils.formatEther(minBalance)} LYX`);
     return { valid: true };
 
   } catch (error) {
     console.error('[verifyLyxBalance] Raw RPC balance check failed:', error);
-    return { valid: false, error: 'Unable to verify LYX balance - network connection failed' };
+    return { 
+      valid: false, 
+      error: 'Unable to verify LYX balance. Please check your connection and try again.' 
+    };
   }
 }
 
