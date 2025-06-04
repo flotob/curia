@@ -2,6 +2,38 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query, getClient } from '@/lib/db';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { ethers } from 'ethers';
+
+// Import our verification library
+import { 
+  ChallengeUtils, 
+  NonceStore, 
+  VerificationChallenge,
+  ERC1271_MAGIC_VALUE,
+  LUKSO_MAINNET_CHAIN_ID 
+} from '@/lib/verification';
+import { SettingsUtils, PostSettings } from '@/types/settings';
+
+// Initialize nonce store
+NonceStore.initialize();
+
+// LUKSO mainnet RPC configuration
+const LUKSO_RPC_URL = process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+const luksoProvider = new ethers.providers.JsonRpcProvider(LUKSO_RPC_URL);
+
+// LSP0 ERC725Account ABI for signature verification
+const LSP0_ABI = [
+  {
+    "inputs": [
+      { "name": "hash", "type": "bytes32" },
+      { "name": "signature", "type": "bytes" }
+    ],
+    "name": "isValidSignature",
+    "outputs": [{ "name": "magicValue", "type": "bytes4" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
 
 // Interface for the structure of a comment when returned by the API
 export interface ApiComment {
@@ -14,6 +46,126 @@ export interface ApiComment {
   updated_at: string; // ISO string format
   author_name: string | null;
   author_profile_picture_url: string | null;
+}
+
+/**
+ * Verify Universal Profile signature using ERC-1271
+ */
+async function verifyUPSignature(
+  upAddress: string, 
+  challenge: VerificationChallenge
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    // Validate challenge format first
+    const formatValidation = ChallengeUtils.validateChallengeFormat(challenge);
+    if (!formatValidation.valid) {
+      return { valid: false, error: formatValidation.error };
+    }
+
+    // Check if challenge is expired
+    if (ChallengeUtils.isExpired(challenge)) {
+      return { valid: false, error: 'Challenge has expired' };
+    }
+
+    // Verify the UP address matches
+    if (upAddress.toLowerCase() !== challenge.upAddress.toLowerCase()) {
+      return { valid: false, error: 'UP address mismatch' };
+    }
+
+    // Verify signature exists
+    if (!challenge.signature) {
+      return { valid: false, error: 'No signature provided' };
+    }
+
+    // Create the message that was signed
+    const message = ChallengeUtils.createSigningMessage(challenge);
+    const messageHash = ethers.utils.hashMessage(message);
+
+    // Verify signature using ERC-1271 on the UP contract
+    const upContract = new ethers.Contract(upAddress, LSP0_ABI, luksoProvider);
+    const result = await upContract.isValidSignature(messageHash, challenge.signature);
+
+    if (result !== ERC1271_MAGIC_VALUE) {
+      return { valid: false, error: 'Invalid signature' };
+    }
+
+    return { valid: true };
+
+  } catch (error) {
+    console.error('[verifyUPSignature] Error verifying signature:', error);
+    return { valid: false, error: 'Signature verification failed' };
+  }
+}
+
+/**
+ * Verify LYX balance requirement
+ */
+async function verifyLyxBalance(
+  upAddress: string, 
+  minBalance: string
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const balance = await luksoProvider.getBalance(upAddress);
+    const minBalanceBN = ethers.BigNumber.from(minBalance);
+    
+    if (balance.lt(minBalanceBN)) {
+      const balanceEth = ethers.utils.formatEther(balance);
+      const minBalanceEth = ethers.utils.formatEther(minBalance);
+      return { 
+        valid: false, 
+        error: `Insufficient LYX balance: ${balanceEth} < ${minBalanceEth}` 
+      };
+    }
+
+    return { valid: true };
+
+  } catch (error) {
+    console.error('[verifyLyxBalance] Error checking balance:', error);
+    return { valid: false, error: 'Failed to verify LYX balance' };
+  }
+}
+
+/**
+ * Verify all post gating requirements
+ */
+async function verifyPostGatingRequirements(
+  upAddress: string,
+  postSettings: PostSettings,
+  challenge: VerificationChallenge
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    // Check if gating is enabled
+    if (!SettingsUtils.hasUPGating(postSettings)) {
+      return { valid: true }; // No gating requirements
+    }
+
+    const requirements = SettingsUtils.getUPGatingRequirements(postSettings);
+    if (!requirements) {
+      return { valid: true }; // No specific requirements
+    }
+
+    // Verify LYX balance requirement
+    if (requirements.minLyxBalance) {
+      const lyxResult = await verifyLyxBalance(upAddress, requirements.minLyxBalance);
+      if (!lyxResult.valid) {
+        return lyxResult;
+      }
+    }
+
+    // TODO: Add LSP7/LSP8 token verification in Phase 2
+    if (requirements.requiredTokens && requirements.requiredTokens.length > 0) {
+      return { 
+        valid: false, 
+        error: 'Token verification not yet implemented. Only LYX gating is currently supported.' 
+      };
+    }
+
+    return { valid: true };
+
+  } catch (error) {
+    console.error('[verifyPostGatingRequirements] Error verifying requirements:', error);
+    return { valid: false, error: 'Failed to verify post requirements' };
+  }
 }
 
 // GET comments for a post (now protected and permission-checked)
@@ -87,7 +239,7 @@ async function getCommentsHandler(req: AuthenticatedRequest, context: RouteConte
   }
 }
 
-// POST a new comment (protected and permission-checked)
+// POST a new comment (protected and permission-checked + UP gating verification)
 async function createCommentHandler(req: AuthenticatedRequest, context: RouteContext) {
   const user = req.user;
   const params = await context.params;
@@ -104,9 +256,10 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
   }
 
   try {
-    // SECURITY: First, check if user can access the board where this post belongs
+    // SECURITY: First, check if user can access the board where this post belongs and get post settings
     const postBoardResult = await query(
-      `SELECT p.board_id, p.title as post_title, b.settings, b.community_id, b.name as board_name
+      `SELECT p.board_id, p.title as post_title, p.settings as post_settings, 
+              b.settings as board_settings, b.community_id, b.name as board_name
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
        WHERE p.id = $1`,
@@ -117,7 +270,14 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, post_title, settings, community_id, board_name } = postBoardResult.rows[0];
+    const { 
+      board_id, 
+      post_title, 
+      post_settings, 
+      board_settings, 
+      community_id, 
+      board_name 
+    } = postBoardResult.rows[0];
     
     // Verify post belongs to user's community
     if (community_id !== userCommunityId) {
@@ -125,7 +285,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const boardSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    const boardSettings = typeof board_settings === 'string' ? JSON.parse(board_settings) : board_settings;
     
     // Check board access permissions
     if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
@@ -134,14 +294,85 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
     }
 
     const body = await req.json();
-    const { content, parent_comment_id } = body;
+    const { content, parent_comment_id, challenge }: { 
+      content: string;
+      parent_comment_id?: number;
+      challenge?: VerificationChallenge;
+    } = body;
 
     if (!content || String(content).trim() === '') {
       return NextResponse.json({ error: 'Comment content cannot be empty' }, { status: 400 });
     }
 
-    // Start transaction
-    const dbClient = await getClient(); // Assumes getClient is exported from @/lib/db for transactions
+    // Parse post settings and check for UP gating
+    const postSettings: PostSettings = typeof post_settings === 'string' 
+      ? JSON.parse(post_settings) 
+      : (post_settings || {});
+
+    // ⭐ UNIVERSAL PROFILE GATING VERIFICATION ⭐
+    if (SettingsUtils.hasUPGating(postSettings)) {
+      console.log(`[API POST /api/posts/${postId}/comments] Post has UP gating enabled, verifying challenge...`);
+      
+      if (!challenge) {
+        return NextResponse.json({ 
+          error: 'This post requires Universal Profile verification to comment. Please connect your UP and try again.' 
+        }, { status: 403 });
+      }
+
+      // Verify challenge format and basic validation
+      const formatValidation = ChallengeUtils.validateChallengeFormat(challenge);
+      if (!formatValidation.valid) {
+        return NextResponse.json({ 
+          error: `Invalid challenge: ${formatValidation.error}` 
+        }, { status: 400 });
+      }
+
+      // Verify challenge is for this post
+      if (challenge.postId !== postId) {
+        return NextResponse.json({ 
+          error: 'Challenge post ID mismatch' 
+        }, { status: 400 });
+      }
+
+      // Verify and consume nonce (prevents replay attacks)
+      const nonceValidation = NonceStore.validateAndConsume(
+        challenge.nonce, 
+        challenge.upAddress, 
+        postId
+      );
+
+      if (!nonceValidation.valid) {
+        return NextResponse.json({ 
+          error: `Challenge validation failed: ${nonceValidation.error}` 
+        }, { status: 400 });
+      }
+
+      // Verify UP signature using ERC-1271
+      const signatureValidation = await verifyUPSignature(challenge.upAddress, challenge);
+      if (!signatureValidation.valid) {
+        return NextResponse.json({ 
+          error: `Signature verification failed: ${signatureValidation.error}` 
+        }, { status: 401 });
+      }
+
+      // Verify post requirements (LYX balance, tokens, etc.)
+      const requirementValidation = await verifyPostGatingRequirements(
+        challenge.upAddress, 
+        postSettings, 
+        challenge
+      );
+
+      if (!requirementValidation.valid) {
+        return NextResponse.json({ 
+          error: `Requirements not met: ${requirementValidation.error}` 
+        }, { status: 403 });
+      }
+
+      console.log(`[API POST /api/posts/${postId}/comments] UP gating verification successful for ${challenge.upAddress}`);
+    }
+
+    // Start transaction for comment creation
+    const dbClient = await getClient();
     try {
       await dbClient.query('BEGIN');
       

@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Shield } from 'lucide-react';
 import { EditorToolbar } from './EditorToolbar';
 
-// Import our new verification library
-import { ChallengeUtils, VerificationChallenge } from '@/lib/verification';
+// Import our verification types
+import { VerificationChallenge } from '@/lib/verification';
 import { SettingsUtils } from '@/types/settings';
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -103,18 +103,24 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   // Generate and sign challenge for gated posts
   const generateSignedChallenge = async (): Promise<VerificationChallenge> => {
-    if (!upAddress) {
-      throw new Error('Universal Profile not connected');
+    if (!upAddress || !token) {
+      throw new Error('Universal Profile not connected or no auth token');
     }
 
     setIsGeneratingChallenge(true);
     
     try {
-      // Generate challenge
-      const challenge = ChallengeUtils.generateChallenge(postId, upAddress);
-      
-      // Create signing message
-      const message = ChallengeUtils.createSigningMessage(challenge);
+      // Request challenge from backend
+      const challengeResponse = await authFetchJson<{
+        challenge: VerificationChallenge;
+        message: string;
+      }>(`/api/posts/${postId}/challenge`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ upAddress }),
+      });
+
+      const { challenge, message } = challengeResponse;
       
       // Request signature from user
       const signature = await signMessage(message);
