@@ -26,14 +26,13 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   postSettings,
   className = '' 
 }) => {
-  const { activateUP } = useUPActivation();
+  const { activateUP, initializeConnection, hasUserTriggeredConnection } = useUPActivation();
   const {
     isConnected,
     upAddress,
     isConnecting,
     connectionError,
     isCorrectChain,
-    connect,
     disconnect,
     switchToLukso,
     getLyxBalance,
@@ -61,10 +60,10 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   const hasGating = postSettings ? SettingsUtils.hasUPGating(postSettings) : false;
   const requirements = hasGating && postSettings ? SettingsUtils.getUPGatingRequirements(postSettings) : null;
 
-  // Activate UP functionality when gating is detected
+  // Activate UP functionality when gating is detected (but don't initialize yet)
   React.useEffect(() => {
     if (hasGating) {
-      console.log('[InlineUPConnection] Gating detected, activating Universal Profile');
+      console.log('[InlineUPConnection] Gating detected, marking UP as needed');
       activateUP();
     }
   }, [hasGating, activateUP]);
@@ -162,13 +161,11 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     }
   }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens]);
 
-  const handleConnect = async () => {
-    try {
-      await connect();
-    } catch (error) {
-      console.error('Connection failed:', error);
-    }
-  };
+  // Handle explicit connection request
+  const handleConnectWallet = React.useCallback(() => {
+    console.log('[InlineUPConnection] User requested wallet connection');
+    initializeConnection();
+  }, [initializeConnection]);
 
   const formatAddress = (address: string): string => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -192,10 +189,57 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     }
   }, [lyxBalance, requirements?.minLyxBalance]);
 
-  if (!hasGating) {
-    return null; // Don't show anything if post isn't gated
+  // Don't render anything if no gating
+  if (!hasGating || !requirements) {
+    return null;
   }
 
+  // Show requirements and connect button if UP hasn't been initialized yet
+  if (!hasUserTriggeredConnection) {
+    return (
+      <div className={`border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 rounded-lg p-4 ${className}`}>
+        <div className="flex items-center gap-2 mb-3">
+          <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            Universal Profile Required
+          </span>
+        </div>
+        
+        <div className="space-y-2 mb-3">
+          {requirements.minLyxBalance && (
+            <div className="text-xs text-blue-700 dark:text-blue-300">
+              • Minimum {ethers.utils.formatEther(requirements.minLyxBalance)} LYX required
+            </div>
+          )}
+          
+          {requirements.requiredTokens?.map((token, index) => (
+            <div key={index} className="text-xs text-blue-700 dark:text-blue-300">
+              • {token.name || token.symbol || 'Token'}: {
+                token.tokenType === 'LSP8' 
+                  ? `${token.minAmount || '1'} NFT(s)` 
+                  : `${token.minAmount || '0'} tokens`
+              }
+            </div>
+          ))}
+        </div>
+        
+        <Button
+          onClick={handleConnectWallet}
+          className="w-full"
+          size="sm"
+        >
+          <Wallet className="h-4 w-4 mr-2" />
+          Connect Universal Profile
+        </Button>
+        
+        <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+          Connect your Universal Profile to verify token requirements and participate in this discussion.
+        </div>
+      </div>
+    );
+  }
+
+  // Once initialization is triggered, show the full UP interface
   return (
     <Card className={`border-2 ${className}`}>
       <CardHeader className="pb-3">
@@ -294,7 +338,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
               Connect your Universal Profile to verify ownership and comment.
             </div>
             <Button
-              onClick={handleConnect}
+              onClick={handleConnectWallet}
               disabled={isConnecting}
               className="w-full"
               size="sm"

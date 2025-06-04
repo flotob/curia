@@ -1,20 +1,30 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { UniversalProfileProvider, useUniversalProfile, type UniversalProfileContextType } from './UniversalProfileContext';
 
 // Context to track if Universal Profile functionality is needed
 interface UPActivationContextType {
   isUPNeeded: boolean;
+  hasUserTriggeredConnection: boolean;
   activateUP: () => void;
   deactivateUP: () => void;
+  initializeConnection: () => void;
 }
 
-const UPActivationContext = createContext<UPActivationContextType | undefined>(undefined);
+// Create the activation context
+const UPActivationContext = createContext<UPActivationContextType>({
+  isUPNeeded: false,
+  hasUserTriggeredConnection: false,
+  activateUP: () => {},
+  deactivateUP: () => {},
+  initializeConnection: () => {}
+});
 
-export const useUPActivation = () => {
+// Hook to access activation controls
+export const useUPActivation = (): UPActivationContextType => {
   const context = useContext(UPActivationContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useUPActivation must be used within a ConditionalUniversalProfileProvider');
   }
   return context;
@@ -31,14 +41,14 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
   const { isActive, context } = useContext(ConditionalUPContext);
   
   // Default/mock functionality when UP is not activated
-  const defaultContext: UniversalProfileContextType = {
+  const defaultContext: UniversalProfileContextType = useMemo(() => ({
     isConnected: false,
     upAddress: null,
     isConnecting: false,
     connectionError: null,
     isCorrectChain: false,
     connect: async () => {
-      throw new Error('Universal Profile not activated. Call activateUP() first.');
+      throw new Error('Universal Profile not activated. Call initializeConnection() first.');
     },
     disconnect: () => {},
     switchToLukso: async () => {},
@@ -50,7 +60,7 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
     checkTokenBalance: async () => { throw new Error('Universal Profile not activated'); },
     getTokenMetadata: async () => { throw new Error('Universal Profile not activated'); },
     signMessage: async () => { throw new Error('Universal Profile not activated'); }
-  };
+  }), []);
   
   return (isActive && context) ? context : defaultContext;
 };
@@ -59,10 +69,10 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
 const ActiveUPContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const realContext = useUniversalProfile();
   
-  const value = {
+  const value = useMemo(() => ({
     isActive: true,
     context: realContext
-  };
+  }), [realContext]);
   
   return (
     <ConditionalUPContext.Provider value={value}>
@@ -73,10 +83,10 @@ const ActiveUPContextProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 // Component that provides inactive UP context (no hook calls)
 const InactiveUPContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const value = {
+  const value = useMemo(() => ({
     isActive: false,
     context: null
-  };
+  }), []);
   
   return (
     <ConditionalUPContext.Provider value={value}>
@@ -91,26 +101,40 @@ interface ConditionalUniversalProfileProviderProps {
 
 export const ConditionalUniversalProfileProvider: React.FC<ConditionalUniversalProfileProviderProps> = ({ children }) => {
   const [isUPNeeded, setIsUPNeeded] = useState(false);
+  const [hasUserTriggeredConnection, setHasUserTriggeredConnection] = useState(false);
   
-  const activateUP = () => {
-    console.log('[ConditionalUP] Activating Universal Profile functionality');
+  const activateUP = useCallback(() => {
+    console.log('[ConditionalUP] UP gating detected, marking as needed (but not initializing yet)');
     setIsUPNeeded(true);
-  };
+  }, []);
   
-  const deactivateUP = () => {
+  const deactivateUP = useCallback(() => {
     console.log('[ConditionalUP] Deactivating Universal Profile functionality');
     setIsUPNeeded(false);
-  };
+    setHasUserTriggeredConnection(false);
+  }, []);
   
-  const activationContextValue: UPActivationContextType = {
+  const initializeConnection = useCallback(() => {
+    console.log('[ConditionalUP] User triggered connection, initializing Web3-Onboard');
+    setHasUserTriggeredConnection(true);
+  }, []);
+  
+  const activationContextValue: UPActivationContextType = useMemo(() => ({
     isUPNeeded,
+    hasUserTriggeredConnection,
     activateUP,
-    deactivateUP
-  };
+    deactivateUP,
+    initializeConnection
+  }), [isUPNeeded, hasUserTriggeredConnection, activateUP, deactivateUP, initializeConnection]);
+  
+  // Only initialize Web3-Onboard when both conditions are met:
+  // 1. UP functionality is needed (gating detected)
+  // 2. User has explicitly triggered connection
+  const shouldInitializeUP = isUPNeeded && hasUserTriggeredConnection;
   
   return (
     <UPActivationContext.Provider value={activationContextValue}>
-      {isUPNeeded ? (
+      {shouldInitializeUP ? (
         <UniversalProfileProvider>
           <ActiveUPContextProvider>
             {children}

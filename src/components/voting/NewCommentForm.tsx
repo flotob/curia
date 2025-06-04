@@ -58,7 +58,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   post, // New optional prop
 }) => {
   const { token, isAuthenticated } = useAuth();
-  const { activateUP } = useUPActivation();
+  const { activateUP, hasUserTriggeredConnection } = useUPActivation();
   const { upAddress, signMessage, isConnected: isUPConnected } = useConditionalUniversalProfile();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -67,10 +67,10 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   // Check if this post has gating enabled
   const hasGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
 
-  // Activate UP functionality when gating is detected
+  // Activate UP functionality when gating is detected (but don't initialize yet)
   useEffect(() => {
     if (hasGating) {
-      console.log('[NewCommentForm] Gating detected, activating Universal Profile');
+      console.log('[NewCommentForm] Gating detected, marking UP as needed');
       activateUP();
     }
   }, [hasGating, activateUP]);
@@ -199,6 +199,11 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
       // Check if this post requires gating verification
       if (hasGating) {
+        if (!hasUserTriggeredConnection) {
+          setError('Please connect your Universal Profile to comment on this gated post.');
+          return;
+        }
+        
         if (!isUPConnected || !upAddress) {
           setError('Please connect your Universal Profile to comment on this gated post.');
           return;
@@ -220,7 +225,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   };
 
   // Show UP connection widget for gated posts
-  if (hasGating && (!isUPConnected || !upAddress)) {
+  if (hasGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) {
     return (
       <div className="mt-6">
         <InlineUPConnection postSettings={post?.settings} />
@@ -245,7 +250,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   return (
     <div className="mt-6 space-y-4">
       {/* Show inline UP connection widget for gated posts when connected */}
-      {hasGating && isUPConnected && (
+      {hasGating && hasUserTriggeredConnection && isUPConnected && (
         <InlineUPConnection postSettings={post?.settings} />
       )}
       
@@ -296,7 +301,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
                   addCommentMutation.isPending || 
                   editor?.isEmpty || 
                   isGeneratingChallenge ||
-                  (hasGating && (!isUPConnected || !upAddress))
+                  (hasGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress))
                 }
                 className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
               >
