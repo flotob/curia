@@ -179,6 +179,14 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     }
   }, [connect]);
 
+  // Auto-trigger connection once Web3-Onboard is initialized (seamless UX)
+  React.useEffect(() => {
+    if (hasUserTriggeredConnection && isInitialized && !isConnected && !isConnecting) {
+      console.log('[InlineUPConnection] Web3-Onboard initialized, auto-triggering connection');
+      handleConnect();
+    }
+  }, [hasUserTriggeredConnection, isInitialized, isConnected, isConnecting, handleConnect]);
+
   const formatAddress = (address: string): string => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
@@ -251,19 +259,21 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     );
   }
 
-  // Show initializing state if triggered but Web3-Onboard not ready yet
-  if (hasUserTriggeredConnection && !isInitialized) {
+  // Show initializing/connecting state if triggered but not connected yet
+  if (hasUserTriggeredConnection && (!isInitialized || (!isConnected && !connectionError))) {
     return (
       <div className={`border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 rounded-lg p-4 ${className}`}>
         <div className="flex items-center gap-2 mb-3">
           <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-spin" />
           <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
-            Initializing Universal Profile
+            {!isInitialized ? 'Initializing Universal Profile' : 'Connecting to Wallet'}
           </span>
         </div>
         
         <div className="text-xs text-amber-700 dark:text-amber-300">
-          Setting up Web3-Onboard connection interface...
+          {!isInitialized 
+            ? 'Setting up Web3-Onboard connection interface...' 
+            : 'Opening wallet connection dialog...'}
         </div>
       </div>
     );
