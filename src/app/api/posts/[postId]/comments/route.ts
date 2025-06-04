@@ -16,15 +16,15 @@ import { SettingsUtils, PostSettings } from '@/types/settings';
 // Initialize nonce store
 NonceStore.initialize();
 
-// LUKSO mainnet RPC configuration with fallbacks
+// LUKSO mainnet RPC configuration with working fallbacks only
 const LUKSO_RPC_URLS = [
   process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL,
-  'https://rpc.mainnet.lukso.network',
-  'https://lukso-mainnet.rpc.thirdweb.com',
-  'https://42.rpc.thirdweb.com'
+  'https://rpc.mainnet.lukso.network', // Official LUKSO - works ✅
+  'https://42.rpc.thirdweb.com'         // Thirdweb by Chain ID - works ✅
+  // Removed: 'https://lukso-mainnet.rpc.thirdweb.com' - fails consistently ❌
 ].filter(Boolean) as string[];
 
-const LUKSO_RPC_URL = LUKSO_RPC_URLS[0];
+const LUKSO_RPC_URL = LUKSO_RPC_URLS[0] || 'https://rpc.mainnet.lukso.network';
 
 // Configure LUKSO network explicitly
 const luksoNetwork = {
@@ -57,6 +57,10 @@ async function createLuksoProvider(): Promise<ethers.providers.JsonRpcProvider> 
   // If all fail, throw an error
   throw new Error('Unable to connect to any LUKSO RPC endpoint');
 }
+
+// Log which RPC we're using for debugging
+console.log(`[LUKSO RPC] Using primary RPC: ${LUKSO_RPC_URL}`);
+console.log(`[LUKSO RPC] Available fallbacks: ${LUKSO_RPC_URLS.join(', ')}`);
 
 // Initialize provider (will be created on first use)
 luksoProvider = new ethers.providers.JsonRpcProvider({
