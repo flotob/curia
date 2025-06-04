@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { CgLibProvider } from '@/contexts/CgLibContext';
 import { SocketProvider } from '@/contexts/SocketContext';
 import { GlobalSearchProvider } from '@/contexts/GlobalSearchContext';
+import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 import { AppInitializer } from '@/components/AppInitializer';
 // import { ReactQueryDevtools } from '@tanstack/react-query-devtools'; // Optional, for development
 
@@ -31,12 +32,14 @@ export function Providers({ children }: ProvidersProps) {
       <CgLibProvider>
         <AuthProvider>
           <GlobalSearchProvider>
-            <SocketProvider>
-              <AppInitializer />
-              {/* Children are now effectively inside QueryClientProvider through SocketProvider etc. */}
-              {children}
-              {/* <ReactQueryDevtools initialIsOpen={false} /> */}
-            </SocketProvider>
+            <UniversalProfileProvider>
+              <SocketProvider>
+                <AppInitializer />
+                {/* Children are now effectively inside QueryClientProvider through SocketProvider etc. */}
+                {children}
+                {/* <ReactQueryDevtools initialIsOpen={false} /> */}
+              </SocketProvider>
+            </UniversalProfileProvider>
           </GlobalSearchProvider>
         </AuthProvider>
       </CgLibProvider>

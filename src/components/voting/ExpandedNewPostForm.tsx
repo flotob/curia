@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Loader2, X } from 'lucide-react';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
+import { PostSettings } from '@/types/settings';
+import { PostGatingControls } from '@/components/posting/PostGatingControls';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -39,6 +41,7 @@ interface CreatePostMutationPayload {
   content: object; // Tiptap JSON object
   tags?: string[]; 
   boardId: string;
+  settings?: PostSettings;
 }
 
 interface CreatePostApiPayload {
@@ -46,6 +49,7 @@ interface CreatePostApiPayload {
   content: string; // Stringified Tiptap JSON
   tags?: string[];
   boardId: string;
+  settings?: PostSettings;
 }
 
 export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({ 
@@ -61,6 +65,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   const [tags, setTags] = useState(''); 
   const [selectedBoardId, setSelectedBoardId] = useState<string>(boardId || '');
   const [error, setError] = useState<string | null>(null);
+  const [postSettings, setPostSettings] = useState<PostSettings['responsePermissions']>();
 
   // Update title when initialTitle prop changes
   useEffect(() => {
@@ -149,6 +154,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         content: JSON.stringify(postData.content), 
         tags: postData.tags,
         boardId: postData.boardId,
+        settings: postData.settings,
       };
       return authFetchJson<ApiPost>(`/api/posts`, {
         method: 'POST',
@@ -168,6 +174,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       setTitle('');
       contentEditor?.commands.clearContent();
       setTags('');
+      setPostSettings(undefined);
       setError(null);
       
       if (onPostCreated) {
@@ -201,7 +208,8 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         return;
     }
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-    createPostMutation.mutate({ title, content: currentContentJson, tags: tagsArray, boardId: selectedBoardId });
+    const settings = postSettings ? { responsePermissions: postSettings } : undefined;
+    createPostMutation.mutate({ title, content: currentContentJson, tags: tagsArray, boardId: selectedBoardId, settings });
   };
 
   if (!isAuthenticated) {
@@ -317,6 +325,13 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
               className="text-sm sm:text-base border-2 rounded-xl px-4 py-3 transition-all duration-200 focus:border-primary focus:shadow-lg focus:shadow-primary/10"
             />
           </div>
+
+          {/* Post Gating Controls */}
+          <PostGatingControls
+            value={postSettings}
+            onChange={setPostSettings}
+            disabled={createPostMutation.isPending}
+          />
           
           {error && <p className="text-xs sm:text-sm text-red-500">{error}</p>}
         </CardContent>

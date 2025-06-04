@@ -12,6 +12,7 @@ import { ApiPost } from '@/app/api/posts/route';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { Button } from '@/components/ui/button';
+import { UPConnectionButton } from '@/components/universal-profile/UPConnectionButton';
 
 import { 
   Menu,
@@ -410,16 +411,21 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                 )}
               </div>
               
-              {/* Right sidebar toggle */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-                data-right-sidebar-trigger
-                className="lg:hidden"
-              >
-                {rightSidebarOpen ? <X size={20} /> : <Users size={20} />}
-              </Button>
+              {/* Universal Profile Connection */}
+              <div className="flex items-center space-x-2">
+                <UPConnectionButton variant="compact" />
+                
+                {/* Right sidebar toggle */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                  data-right-sidebar-trigger
+                  className="lg:hidden"
+                >
+                  {rightSidebarOpen ? <X size={20} /> : <Users size={20} />}
+                </Button>
+              </div>
             </header>
           )}
 
@@ -470,6 +476,13 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                 )}
                 <MultiCommunityPresenceSidebar />
               </aside>
+            )}
+
+            {/* Universal Profile Connection - Desktop */}
+            {showSidebar && !isMobile && !isTablet && (
+              <div className="fixed top-4 right-16 z-40 xl:right-4">
+                <UPConnectionButton variant="compact" />
+              </div>
             )}
 
             {/* Phase 2: Desktop toggle button for right sidebar */}

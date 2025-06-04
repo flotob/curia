@@ -4,6 +4,8 @@ import { query } from '@/lib/db';
 import { getAccessibleBoardIds } from '@/lib/boardPermissions';
 // import { socketEvents } from '@/lib/socket'; // Ensure this is commented out or removed if not used
 
+import { PostSettings } from '@/types/settings';
+
 // Interface for the structure of a post when returned by the API
 export interface ApiPost {
   id: number;
@@ -20,6 +22,7 @@ export interface ApiPost {
   user_has_upvoted: boolean; // Calculated based on current user
   board_id: number; // Board ID
   board_name: string; // Board name from boards table
+  settings: PostSettings; // Post-level settings including UP gating
 }
 
 // Cursor data interface for parsing
@@ -173,7 +176,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
 
     const postsQueryText = `
       SELECT
-        p.id, p.author_user_id, p.title, p.content, p.tags,
+        p.id, p.author_user_id, p.title, p.content, p.tags, p.settings,
         p.upvote_count, p.comment_count, p.created_at, p.updated_at,
         u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
         b.id AS board_id, b.name AS board_name
@@ -193,6 +196,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
     const posts: ApiPost[] = result.rows.map(row => ({
       ...row,
       user_has_upvoted: row.user_has_upvoted === undefined ? false : row.user_has_upvoted,
+      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : (row.settings || {}),
     }));
 
     // Generate next cursor from last post (if we have a full page)
@@ -229,7 +233,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
   try {
     const body = await req.json();
-    const { title, content, tags, boardId } = body;
+    const { title, content, tags, boardId, settings } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
@@ -237,6 +241,18 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
     if (!boardId) {
       return NextResponse.json({ error: 'Board selection is required' }, { status: 400 });
+    }
+
+    // Validate settings if provided
+    if (settings) {
+      const { SettingsUtils } = await import('@/types/settings');
+      const validation = SettingsUtils.validatePostSettings(settings);
+      if (!validation.isValid) {
+        return NextResponse.json({ 
+          error: 'Invalid post settings', 
+          details: validation.errors 
+        }, { status: 400 });
+      }
     }
 
     // Verify the board exists and belongs to the user's community
@@ -260,17 +276,19 @@ async function createPostHandler(req: AuthenticatedRequest) {
     }
 
     const validBoardId = board.id;
+    const postSettings = settings || {};
     
     const result = await query(
-      'INSERT INTO posts (author_user_id, title, content, tags, board_id, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, 0, 0) RETURNING *',
-      [user.sub, title, content, tags || [], validBoardId]
+      'INSERT INTO posts (author_user_id, title, content, tags, board_id, settings, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, $6, 0, 0) RETURNING *',
+      [user.sub, title, content, tags || [], validBoardId, JSON.stringify(postSettings)]
     );
     const newPost: ApiPost = {
       ...result.rows[0],
       author_name: user.name || null,
       author_profile_picture_url: user.picture || null,
       user_has_upvoted: false,
-      board_name: '' 
+      board_name: '',
+      settings: postSettings
     };
 
     // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter (now typed)
