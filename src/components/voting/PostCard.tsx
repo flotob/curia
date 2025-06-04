@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 // import Link from 'next/link';
 // import NextImage from 'next/image';
-import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield, Coins } from 'lucide-react';
+import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield, Coins, Users, UserCheck, UserX } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, /* CardDescription */ } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +39,7 @@ import { useTimeSince } from '@/utils/timeUtils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
 import { ethers } from 'ethers';
+import { getUPDisplayName } from '@/lib/upProfile';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -69,6 +70,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [showGatingDetails, setShowGatingDetails] = useState(false);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
+  
+  // UP profile names for follower requirements (address -> display name)
+  const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
   
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
@@ -247,6 +251,43 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     if (!selectedBoardId) return;
     movePostMutation.mutate(selectedBoardId);
   };
+
+  // Load UP profile names for follower requirements
+  const fetchUPNames = React.useCallback(async (addresses: string[]) => {
+    if (addresses.length === 0) return;
+    
+    console.log(`[PostCard] Fetching UP names for ${addresses.length} addresses`);
+    
+    const namePromises = addresses.map(async (address) => {
+      try {
+        const displayName = await getUPDisplayName(address);
+        return { address, displayName };
+      } catch (error) {
+        console.error(`Failed to fetch UP name for ${address}:`, error);
+        return { address, displayName: `${address.slice(0, 6)}...${address.slice(-4)}` };
+      }
+    });
+
+    const nameResults = await Promise.all(namePromises);
+    const newNames: Record<string, string> = {};
+    
+    nameResults.forEach(({ address, displayName }) => {
+      newNames[address] = displayName;
+    });
+
+    setUpProfileNames(prev => ({ ...prev, ...newNames }));
+  }, []);
+
+  React.useEffect(() => {
+    if (requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
+      const addressesToFetch = requirements.followerRequirements
+        .filter(req => req.type !== 'minimum_followers') // Only fetch for address-based requirements
+        .map(req => req.value)
+        .filter(address => !upProfileNames[address]); // Don't refetch already loaded names
+
+      fetchUPNames(addressesToFetch);
+    }
+  }, [requirements?.followerRequirements, fetchUPNames, upProfileNames]);
 
   const contentDisplayEditor = useEditor({
     extensions: [
@@ -471,6 +512,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                       {token.minAmount && ` (${formatTokenAmount(token.minAmount)})`}
                     </Badge>
                   ))}
+                  {requirements.followerRequirements?.map((follower, idx) => {
+                    const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
+                    return (
+                      <Badge key={`follower-${idx}`} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700">
+                        {follower.type === 'minimum_followers' ? (
+                          <>
+                            <Users size={10} className="mr-1" />
+                            {follower.value} followers
+                          </>
+                        ) : follower.type === 'followed_by' ? (
+                          <>
+                            <UserCheck size={10} className="mr-1" />
+                            Followed by {upName}
+                          </>
+                        ) : (
+                          <>
+                            <UserX size={10} className="mr-1" />
+                            Follow {upName}
+                          </>
+                        )}
+                      </Badge>
+                    );
+                  })}
                 </div>
                 
                 {/* Expandable requirements details */}
@@ -518,6 +582,37 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                         </span>
                       </div>
                     ))}
+                    {requirements.followerRequirements?.map((follower, idx) => {
+                      const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
+                      return (
+                        <div key={`follower-detail-${idx}`} className="flex items-center justify-between">
+                          <span className="flex items-center">
+                            {follower.type === 'minimum_followers' ? (
+                              <>
+                                <Users size={12} className="mr-1.5 text-purple-500" />
+                                Minimum Followers
+                              </>
+                            ) : follower.type === 'followed_by' ? (
+                              <>
+                                <UserCheck size={12} className="mr-1.5 text-green-500" />
+                                Followed by Profile
+                              </>
+                            ) : (
+                              <>
+                                <UserX size={12} className="mr-1.5 text-blue-500" />
+                                Must Follow Profile
+                              </>
+                            )}
+                          </span>
+                          <span className="font-medium">
+                            {follower.type === 'minimum_followers' 
+                              ? `${follower.value} followers`
+                              : upName
+                            }
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
