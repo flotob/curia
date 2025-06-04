@@ -33,6 +33,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { joinBoard, leaveBoard, isConnected } = useSocket();
+  const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   
   useEffect(() => {
     params.then(({ boardId, postId }) => {
@@ -100,6 +101,17 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const handleNavigation = (url: string) => {
     console.log(`[PostDetailPage] Internal navigation to: ${url}`);
     router.push(url);
+  };
+
+  // Handle when a new comment is posted in detail view
+  const handleCommentPosted = (newComment: ApiComment) => {
+    console.log(`[PostDetailPage] New comment posted: ${newComment.id}`);
+    setHighlightedCommentId(newComment.id);
+    
+    // Clear highlight after animation
+    setTimeout(() => {
+      setHighlightedCommentId(null);
+    }, 4000);
   };
 
   // Early return for loading params state
@@ -243,7 +255,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* New Comment Form */}
-            <NewCommentForm postId={postIdNum} post={post} />
+            <NewCommentForm postId={postIdNum} post={post} onCommentPosted={handleCommentPosted} />
             
             {/* Comments List */}
             {isLoadingComments ? (
@@ -257,7 +269,11 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 ))}
               </div>
             ) : comments && comments.length > 0 ? (
-              <CommentList postId={postIdNum} />
+              <CommentList 
+                postId={postIdNum} 
+                highlightCommentId={highlightedCommentId}
+                onCommentHighlighted={() => setHighlightedCommentId(null)}
+              />
             ) : (
               <div className="text-center py-8">
                 <MessageSquare size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />

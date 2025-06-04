@@ -9,13 +9,19 @@ import { Loader2, MessageCircleWarning, MessagesSquare } from 'lucide-react';
 
 interface CommentListProps {
   postId: number;
+  highlightCommentId?: number | null; // New prop to highlight a specific comment
+  onCommentHighlighted?: () => void; // Callback when highlight animation completes
 }
 
 const fetchComments = async (postId: number): Promise<ApiComment[]> => {
   return authFetchJson<ApiComment[]>(`/api/posts/${postId}/comments`);
 };
 
-export const CommentList: React.FC<CommentListProps> = ({ postId }) => {
+export const CommentList: React.FC<CommentListProps> = ({ 
+  postId, 
+  highlightCommentId,
+  onCommentHighlighted 
+}) => {
   const { 
     data: comments, 
     isLoading, 
@@ -27,6 +33,25 @@ export const CommentList: React.FC<CommentListProps> = ({ postId }) => {
     staleTime: 1 * 60 * 1000, // comments are stale after 1 minute
     refetchInterval: 45 * 1000, // refetch every 45 seconds
   });
+
+  // Scroll to highlighted comment when it becomes available
+  React.useEffect(() => {
+    if (highlightCommentId && comments && comments.length > 0) {
+      const timer = setTimeout(() => {
+        const commentElement = document.getElementById(`comment-${highlightCommentId}`);
+        if (commentElement) {
+          commentElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          });
+          console.log(`[CommentList] Scrolled to comment ${highlightCommentId}`);
+        }
+      }, 100); // Small delay to ensure DOM is updated
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightCommentId, comments]);
 
   if (isLoading) {
     return (
@@ -65,7 +90,12 @@ export const CommentList: React.FC<CommentListProps> = ({ postId }) => {
         </div>
       )}
       {comments.map((comment) => (
-        <CommentItem key={comment.id} comment={comment} />
+        <CommentItem 
+          key={comment.id} 
+          comment={comment} 
+          isHighlighted={highlightCommentId === comment.id}
+          onHighlightComplete={onCommentHighlighted}
+        />
       ))}
     </div>
   );

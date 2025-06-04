@@ -33,11 +33,15 @@ const lowlight = createLowlight(common);
 
 interface CommentItemProps {
   comment: ApiComment;
+  isHighlighted?: boolean; // Whether this comment should be highlighted
+  onHighlightComplete?: () => void; // Callback when highlight animation completes
 }
 
-
-
-export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
+export const CommentItem: React.FC<CommentItemProps> = ({ 
+  comment, 
+  isHighlighted = false,
+  onHighlightComplete 
+}) => {
   const authorDisplayName = comment.author_name || 'Unknown User';
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
   const { user, token } = useAuth();
@@ -45,6 +49,27 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(comment.created_at);
+
+  // Highlight animation state
+  const [showHighlight, setShowHighlight] = React.useState(false);
+
+  // Trigger highlight animation when isHighlighted becomes true
+  React.useEffect(() => {
+    if (isHighlighted) {
+      // Start the highlight animation
+      setShowHighlight(true);
+      
+      // Remove highlight after animation completes
+      const timer = setTimeout(() => {
+        setShowHighlight(false);
+        if (onHighlightComplete) {
+          onHighlightComplete();
+        }
+      }, 3000); // 3 seconds highlight duration
+
+      return () => clearTimeout(timer);
+    }
+  }, [isHighlighted, onHighlightComplete]);
 
   // Helper function to build URLs while preserving current parameters
   const buildInternalUrl = React.useCallback((path: string, additionalParams: Record<string, string> = {}) => {
@@ -156,7 +181,18 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   }
 
   return (
-    <div className="flex items-start space-x-3 py-3">
+    <div 
+      id={`comment-${comment.id}`}
+      className={`flex items-start space-x-3 py-3 transition-all duration-500 ease-out rounded-lg ${
+        showHighlight 
+          ? 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 shadow-sm ring-1 ring-blue-200/50 dark:ring-blue-800/50' 
+          : ''
+      }`}
+      style={{
+        transform: showHighlight ? 'scale(1.01)' : 'scale(1)',
+        transition: 'all 0.5s ease-out'
+      }}
+    >
       <Avatar className="h-8 w-8 flex-shrink-0">
         <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
         <AvatarFallback>{avatarFallback}</AvatarFallback>

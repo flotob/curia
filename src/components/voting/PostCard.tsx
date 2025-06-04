@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { VoteButton } from './VoteButton';
 import { ApiPost } from '@/app/api/posts/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
+import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
@@ -67,6 +68,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [showGatingDetails, setShowGatingDetails] = useState(false);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
@@ -88,6 +90,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       // Toggle inline comments for non-gated posts
       setShowComments(!showComments);
     }
+  };
+
+  // Handle when a new comment is posted (for inline comments)
+  const handleCommentPosted = (newComment: ApiComment) => {
+    console.log(`[PostCard] New comment posted: ${newComment.id}`);
+    setHighlightedCommentId(newComment.id);
+    
+    // Clear highlight after animation
+    setTimeout(() => {
+      setHighlightedCommentId(null);
+    }, 4000);
   };
   
 
@@ -640,9 +653,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       {showComments && !hasGating && (
         <div className="border-t border-border p-3 sm:p-4">
           <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
-          <NewCommentForm postId={post.id} post={post} />
+          <NewCommentForm postId={post.id} post={post} onCommentPosted={handleCommentPosted} />
           <div className="mt-4">
-            <CommentList postId={post.id} />
+            <CommentList 
+              postId={post.id} 
+              highlightCommentId={highlightedCommentId}
+              onCommentHighlighted={() => setHighlightedCommentId(null)}
+            />
           </div>
         </div>
       )}
