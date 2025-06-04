@@ -60,7 +60,12 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
     getTokenBalances: async () => [],
     checkTokenBalance: async () => { throw new Error('Universal Profile not activated'); },
     getTokenMetadata: async () => { throw new Error('Universal Profile not activated'); },
-    signMessage: async () => { throw new Error('Universal Profile not activated'); }
+    signMessage: async () => { throw new Error('Universal Profile not activated'); },
+    // LSP26 Follower methods
+    getFollowerCount: async () => { throw new Error('Universal Profile not activated'); },
+    isFollowedBy: async () => { throw new Error('Universal Profile not activated'); },
+    isFollowing: async () => { throw new Error('Universal Profile not activated'); },
+    verifyFollowerRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['UP not activated'] })
   }), []);
   
   return (isActive && context) ? context : defaultContext;

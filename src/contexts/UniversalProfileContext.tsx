@@ -4,8 +4,9 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { init, useConnectWallet, useSetChain } from '@web3-onboard/react';
 import injectedModule from '@web3-onboard/injected-wallets';
 import { ethers } from 'ethers';
-import { PostSettings, TokenRequirement, SettingsUtils } from '@/types/settings';
+import { PostSettings, TokenRequirement, SettingsUtils, FollowerRequirement } from '@/types/settings';
 import { ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
+import { lsp26Registry } from '@/lib/lsp26';
 
 // LUKSO network configuration
 const luksoMainnet = {
@@ -102,6 +103,12 @@ export interface UniversalProfileContextType {
   
   // Signing methods
   signMessage: (message: string) => Promise<string>;
+  
+  // LSP26 Follower verification methods
+  getFollowerCount: (address?: string) => Promise<number>;
+  isFollowedBy: (followerAddress: string, targetAddress?: string) => Promise<boolean>;
+  isFollowing: (targetAddress: string, followerAddress?: string) => Promise<boolean>;
+  verifyFollowerRequirements: (requirements: FollowerRequirement[]) => Promise<VerificationResult>;
 }
 
 const UniversalProfileContext = createContext<UniversalProfileContextType | undefined>(undefined);
@@ -152,7 +159,12 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
       getTokenBalances: async () => [],
       checkTokenBalance: async () => { throw new Error('Still initializing...'); },
       getTokenMetadata: async () => { throw new Error('Still initializing...'); },
-      signMessage: async () => { throw new Error('Still initializing...'); }
+      signMessage: async () => { throw new Error('Still initializing...'); },
+      // LSP26 Follower methods
+      getFollowerCount: async () => { throw new Error('Still initializing...'); },
+      isFollowedBy: async () => { throw new Error('Still initializing...'); },
+      isFollowing: async () => { throw new Error('Still initializing...'); },
+      verifyFollowerRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['Still initializing'] })
     };
     
     return (
@@ -349,6 +361,63 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     return result;
   }, [upAddress, getTokenBalances]);
 
+  // LSP26 Follower verification methods
+  const getFollowerCount = useCallback(async (address?: string): Promise<number> => {
+    const targetAddress = address || upAddress;
+    if (!targetAddress) {
+      throw new Error('No address provided and no UP connected');
+    }
+    
+    return await lsp26Registry.getFollowerCount(targetAddress);
+  }, [upAddress]);
+
+  const isFollowedBy = useCallback(async (followerAddress: string, targetAddress?: string): Promise<boolean> => {
+    const target = targetAddress || upAddress;
+    if (!target) {
+      throw new Error('No target address provided and no UP connected');
+    }
+    
+    return await lsp26Registry.isFollowing(followerAddress, target);
+  }, [upAddress]);
+
+  const isFollowing = useCallback(async (targetAddress: string, followerAddress?: string): Promise<boolean> => {
+    const follower = followerAddress || upAddress;
+    if (!follower) {
+      throw new Error('No follower address provided and no UP connected');
+    }
+    
+    return await lsp26Registry.isFollowing(follower, targetAddress);
+  }, [upAddress]);
+
+  const verifyFollowerRequirements = useCallback(async (requirements: FollowerRequirement[]): Promise<VerificationResult> => {
+    if (!upAddress) {
+      return {
+        isValid: false,
+        missingRequirements: [],
+        errors: ['No Universal Profile connected']
+      };
+    }
+
+    try {
+      console.log(`[UP Context] Verifying ${requirements.length} follower requirements`);
+      const lsp26Result = await lsp26Registry.verifyFollowerRequirements(upAddress, requirements);
+      
+      // Fix the error message mapping
+      return {
+        isValid: lsp26Result.success,
+        missingRequirements: lsp26Result.success ? [] : lsp26Result.errors, // Only show missing requirements if failed
+        errors: lsp26Result.success ? [] : lsp26Result.errors
+      };
+    } catch (error) {
+      console.error('[UP Context] Follower verification failed:', error);
+      return {
+        isValid: false,
+        missingRequirements: [],
+        errors: [error instanceof Error ? error.message : 'Unknown follower verification error']
+      };
+    }
+  }, [upAddress]);
+
   // Verify all post requirements
   const verifyPostRequirements = useCallback(async (settings: PostSettings): Promise<VerificationResult> => {
     const result: VerificationResult = {
@@ -391,8 +460,18 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       }
     }
 
+    // Check follower requirements (NEW: LSP26 integration)
+    if (requirements.followerRequirements && requirements.followerRequirements.length > 0) {
+      const followerResult = await verifyFollowerRequirements(requirements.followerRequirements);
+      if (!followerResult.isValid) {
+        result.isValid = false;
+        result.missingRequirements.push(...followerResult.missingRequirements);
+        result.errors.push(...followerResult.errors);
+      }
+    }
+
     return result;
-  }, [verifyLyxBalance, verifyTokenRequirements]);
+  }, [verifyLyxBalance, verifyTokenRequirements, verifyFollowerRequirements]);
 
   // Sign message with Universal Profile
   const signMessage = useCallback(async (message: string): Promise<string> => {
@@ -769,7 +848,13 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     getTokenMetadata,
     
     // Signing methods
-    signMessage
+    signMessage,
+    
+    // LSP26 Follower verification methods
+    getFollowerCount,
+    isFollowedBy,
+    isFollowing,
+    verifyFollowerRequirements
   };
 
   return (

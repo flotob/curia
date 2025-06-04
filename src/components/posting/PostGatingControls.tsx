@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-import { PostSettings, TokenRequirement, UPGatingRequirements } from '@/types/settings';
-import { Shield, Plus, X, Coins, HelpCircle, Search, CheckCircle, AlertTriangle } from 'lucide-react';
+import { PostSettings, TokenRequirement, UPGatingRequirements, FollowerRequirement } from '@/types/settings';
+import { Shield, Plus, X, Coins, HelpCircle, Search, CheckCircle, AlertTriangle, Users, UserCheck, UserX } from 'lucide-react';
+import { getUPDisplayName } from '@/lib/upProfile';
 import { ethers } from 'ethers';
 import { INTERFACE_IDS, SupportedStandards, ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
 
@@ -44,6 +45,18 @@ const defaultTokenRequirement: TokenRequirementFormData = {
   symbol: ''
 };
 
+interface FollowerRequirementFormData {
+  type: 'minimum_followers' | 'followed_by' | 'following';
+  value: string;
+  description: string;
+}
+
+const defaultFollowerRequirement: FollowerRequirementFormData = {
+  type: 'minimum_followers',
+  value: '',
+  description: ''
+};
+
 export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
   value,
   onChange,
@@ -57,6 +70,7 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
   const requirements = upGating?.requirements || {};
   const currentLyxBalance = requirements.minLyxBalance || '';
   const currentTokens = requirements.requiredTokens || [];
+  const currentFollowerRequirements = requirements.followerRequirements || [];
 
   // Local state for adding new token requirements
   const [newTokenRequirement, setNewTokenRequirement] = useState<TokenRequirementFormData>(defaultTokenRequirement);
@@ -66,6 +80,13 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
   const [fetchedMetadata, setFetchedMetadata] = useState<FetchedTokenMetadata | null>(null);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Local state for adding new follower requirements
+  const [newFollowerRequirement, setNewFollowerRequirement] = useState<FollowerRequirementFormData>(defaultFollowerRequirement);
+  const [showFollowerForm, setShowFollowerForm] = useState(false);
+
+  // UP profile names for follower requirements (address -> display name)
+  const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
 
   // Validate contract address format
   const isValidContractAddress = (address: string): boolean => {
@@ -434,6 +455,70 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
     updateGatingSettings({ requiredTokens: updatedTokens });
   };
 
+  // Add new follower requirement
+  const handleAddFollowerRequirement = () => {
+    if (!newFollowerRequirement.value.trim()) return;
+
+    const followerReq: FollowerRequirement = {
+      type: newFollowerRequirement.type,
+      value: newFollowerRequirement.value.trim(),
+      description: newFollowerRequirement.description.trim() || undefined
+    };
+
+    const updatedFollowerRequirements = [...currentFollowerRequirements, followerReq];
+    updateGatingSettings({ followerRequirements: updatedFollowerRequirements });
+    setNewFollowerRequirement(defaultFollowerRequirement);
+    setShowFollowerForm(false);
+  };
+
+  // Remove follower requirement
+  const handleRemoveFollowerRequirement = (index: number) => {
+    const updatedFollowerRequirements = currentFollowerRequirements.filter((_, i) => i !== index);
+    updateGatingSettings({ followerRequirements: updatedFollowerRequirements });
+  };
+
+  // Validate address format for follower requirements
+  const isValidAddress = (address: string): boolean => {
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  };
+
+  // Load UP profile names for follower requirements
+  const fetchUPNames = React.useCallback(async (addresses: string[]) => {
+    if (addresses.length === 0) return;
+    
+    console.log(`[PostGatingControls] Fetching UP names for ${addresses.length} addresses`);
+    
+    const namePromises = addresses.map(async (address) => {
+      try {
+        const displayName = await getUPDisplayName(address);
+        return { address, displayName };
+      } catch (error) {
+        console.error(`Failed to fetch UP name for ${address}:`, error);
+        return { address, displayName: `${address.slice(0, 6)}...${address.slice(-4)}` };
+      }
+    });
+
+    const nameResults = await Promise.all(namePromises);
+    const newNames: Record<string, string> = {};
+    
+    nameResults.forEach(({ address, displayName }) => {
+      newNames[address] = displayName;
+    });
+
+    setUpProfileNames(prev => ({ ...prev, ...newNames }));
+  }, []);
+
+  React.useEffect(() => {
+    if (currentFollowerRequirements.length > 0) {
+      const addressesToFetch = currentFollowerRequirements
+        .filter(req => req.type !== 'minimum_followers') // Only fetch for address-based requirements
+        .map(req => req.value)
+        .filter(address => !upProfileNames[address]); // Don't refetch already loaded names
+
+      fetchUPNames(addressesToFetch);
+    }
+  }, [currentFollowerRequirements, fetchUPNames, upProfileNames]);
+
   // Get human-readable LYX amount
   const getLyxDisplayAmount = (weiAmount: string): string => {
     try {
@@ -738,6 +823,215 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
                       >
                         <Plus className="h-3 w-3 mr-1" />
                         Add Token Requirement
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Follower Requirements Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <Label className="text-sm font-medium">Follower Requirements</Label>
+                  </div>
+
+                  {/* Current Follower Requirements */}
+                  {currentFollowerRequirements.length > 0 && (
+                    <div className="space-y-2">
+                      {currentFollowerRequirements.map((followerReq, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <div className="flex items-center space-x-1">
+                                {followerReq.type === 'minimum_followers' ? (
+                                  <Users className="h-3 w-3 text-purple-500" />
+                                ) : followerReq.type === 'followed_by' ? (
+                                  <UserCheck className="h-3 w-3 text-green-500" />
+                                ) : (
+                                  <UserX className="h-3 w-3 text-blue-500" />
+                                )}
+                                <Badge variant="outline" className="text-xs">
+                                  {followerReq.type.replace('_', ' ').toUpperCase()}
+                                </Badge>
+                              </div>
+                              <span className="text-sm font-medium">
+                                {followerReq.description || (() => {
+                                  const upName = upProfileNames[followerReq.value] || `${followerReq.value.slice(0, 6)}...${followerReq.value.slice(-4)}`;
+                                  return followerReq.type === 'minimum_followers' 
+                                    ? `Minimum ${followerReq.value} followers`
+                                    : followerReq.type === 'followed_by'
+                                    ? `Must be followed by ${upName}`
+                                    : `Must follow ${upName}`;
+                                })()}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {followerReq.type !== 'minimum_followers' && (
+                                <span>{followerReq.value}</span>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveFollowerRequirement(index)}
+                            disabled={disabled}
+                            className="p-1 h-auto"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add New Follower Requirement */}
+                  {!showFollowerForm ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFollowerForm(true)}
+                      disabled={disabled}
+                      className="w-full text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Follower Requirement
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 p-3 border border-dashed border-muted rounded-md">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Plus className="h-4 w-4 text-primary" />
+                          <Label className="text-sm font-medium">New Follower Requirement</Label>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowFollowerForm(false);
+                            setNewFollowerRequirement(defaultFollowerRequirement);
+                          }}
+                          disabled={disabled}
+                          className="p-1 h-auto"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      {/* Requirement Type Selector */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Requirement Type</Label>
+                        <div className="grid grid-cols-1 gap-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="min-followers"
+                              name="follower-type"
+                              checked={newFollowerRequirement.type === 'minimum_followers'}
+                              onChange={() => setNewFollowerRequirement(prev => ({ ...prev, type: 'minimum_followers', value: '' }))}
+                              disabled={disabled}
+                              className="h-3 w-3"
+                            />
+                            <div className="flex items-center space-x-1">
+                              <Users className="h-3 w-3 text-purple-500" />
+                              <Label htmlFor="min-followers" className="text-xs cursor-pointer">
+                                Minimum follower count
+                              </Label>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="followed-by"
+                              name="follower-type"
+                              checked={newFollowerRequirement.type === 'followed_by'}
+                              onChange={() => setNewFollowerRequirement(prev => ({ ...prev, type: 'followed_by', value: '' }))}
+                              disabled={disabled}
+                              className="h-3 w-3"
+                            />
+                            <div className="flex items-center space-x-1">
+                              <UserCheck className="h-3 w-3 text-green-500" />
+                              <Label htmlFor="followed-by" className="text-xs cursor-pointer">
+                                Must be followed by specific profile
+                              </Label>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="following"
+                              name="follower-type"
+                              checked={newFollowerRequirement.type === 'following'}
+                              onChange={() => setNewFollowerRequirement(prev => ({ ...prev, type: 'following', value: '' }))}
+                              disabled={disabled}
+                              className="h-3 w-3"
+                            />
+                            <div className="flex items-center space-x-1">
+                              <UserX className="h-3 w-3 text-blue-500" />
+                              <Label htmlFor="following" className="text-xs cursor-pointer">
+                                Must follow specific profile
+                              </Label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Value Input */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">
+                          {newFollowerRequirement.type === 'minimum_followers' 
+                            ? 'Minimum Follower Count' 
+                            : 'Universal Profile Address'}
+                        </Label>
+                        <Input
+                          type={newFollowerRequirement.type === 'minimum_followers' ? 'number' : 'text'}
+                          placeholder={
+                            newFollowerRequirement.type === 'minimum_followers' 
+                              ? 'e.g., 100' 
+                              : '0x... (Universal Profile address)'
+                          }
+                          value={newFollowerRequirement.value}
+                          onChange={(e) => setNewFollowerRequirement(prev => ({ ...prev, value: e.target.value }))}
+                          disabled={disabled}
+                          className="text-sm"
+                          min={newFollowerRequirement.type === 'minimum_followers' ? "1" : undefined}
+                        />
+                        {newFollowerRequirement.type !== 'minimum_followers' && newFollowerRequirement.value && !isValidAddress(newFollowerRequirement.value) && (
+                          <div className="flex items-center space-x-1 text-xs text-red-600">
+                            <AlertTriangle className="h-3 w-3" />
+                            <span>Please enter a valid address (0x...)</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Optional Description */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Custom Description (Optional)</Label>
+                        <Input
+                          type="text"
+                          placeholder="e.g., Only followers of @InfluencerAccount can comment"
+                          value={newFollowerRequirement.description}
+                          onChange={(e) => setNewFollowerRequirement(prev => ({ ...prev, description: e.target.value }))}
+                          disabled={disabled}
+                          className="text-sm"
+                        />
+                      </div>
+
+                      {/* Add Button */}
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleAddFollowerRequirement}
+                        disabled={
+                          disabled || 
+                          !newFollowerRequirement.value.trim() ||
+                          (newFollowerRequirement.type === 'minimum_followers' && (isNaN(Number(newFollowerRequirement.value)) || Number(newFollowerRequirement.value) < 1)) ||
+                          (newFollowerRequirement.type !== 'minimum_followers' && !isValidAddress(newFollowerRequirement.value))
+                        }
+                        className="w-full text-xs"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Follower Requirement
                       </Button>
                     </div>
                   )}

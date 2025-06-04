@@ -39,11 +39,21 @@ export interface TokenRequirement {
 }
 
 /**
+ * Universal Profile follower requirement for post gating (LSP26)
+ */
+export interface FollowerRequirement {
+  type: 'minimum_followers' | 'followed_by' | 'following';
+  value: string; // For minimum_followers: count, for others: UP address
+  description?: string; // Human-readable description
+}
+
+/**
  * Universal Profile gating requirements
  */
 export interface UPGatingRequirements {
   minLyxBalance?: string; // Minimum LYX balance in wei
   requiredTokens?: TokenRequirement[]; // Required token holdings
+  followerRequirements?: FollowerRequirement[]; // LSP26 follower requirements
 }
 
 /**

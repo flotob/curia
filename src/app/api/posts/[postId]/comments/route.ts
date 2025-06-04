@@ -16,7 +16,7 @@ import {
   TOKEN_FUNCTION_SELECTORS,
   TokenVerificationResult
 } from '@/lib/verification';
-import { SettingsUtils, PostSettings, TokenRequirement } from '@/types/settings';
+import { SettingsUtils, PostSettings, TokenRequirement, FollowerRequirement } from '@/types/settings';
 
 // Initialize nonce store
 NonceStore.initialize();
@@ -344,6 +344,132 @@ async function verifyLSP8Ownership(
 }
 
 /**
+ * Verify LSP26 follower requirements using raw RPC calls to the follower registry
+ */
+async function verifyFollowerRequirements(
+  upAddress: string,
+  requirements: FollowerRequirement[]
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    console.log(`[verifyFollowerRequirements] Checking ${requirements.length} follower requirements for ${upAddress}`);
+
+    const LSP26_REGISTRY_ADDRESS = '0xf01103E5a9909Fc0DBe8166dA7085e0285daDDcA';
+    
+    // ABI function selectors for LSP26 registry
+    const FOLLOWER_COUNT_SELECTOR = '0x4dc2d2cb'; // followerCount(address)
+    const IS_FOLLOWING_SELECTOR = '0xf1e72e16'; // isFollowing(address,address)
+
+    for (const requirement of requirements) {
+      let callData: string;
+      let isValid = false;
+
+      switch (requirement.type) {
+        case 'minimum_followers': {
+          // Call followerCount(address) on LSP26 registry
+          const addressParam = upAddress.slice(2).padStart(64, '0');
+          callData = FOLLOWER_COUNT_SELECTOR + addressParam;
+          
+          const followerCountHex = await rawLuksoCall('eth_call', [
+            {
+              to: LSP26_REGISTRY_ADDRESS,
+              data: callData
+            },
+            'latest'
+          ]);
+
+          const followerCount = ethers.BigNumber.from(followerCountHex).toNumber();
+          const requiredCount = parseInt(requirement.value, 10);
+          
+          isValid = followerCount >= requiredCount;
+          
+          if (!isValid) {
+            return {
+              valid: false,
+              error: `Insufficient followers. Required: ${requiredCount}, Current: ${followerCount}`
+            };
+          }
+          
+          console.log(`[verifyFollowerRequirements] Follower count check passed: ${followerCount} >= ${requiredCount}`);
+          break;
+        }
+
+        case 'followed_by': {
+          // Call isFollowing(followerAddress, targetAddress) - check if requirement.value follows upAddress
+          const followerParam = requirement.value.slice(2).padStart(64, '0');
+          const targetParam = upAddress.slice(2).padStart(64, '0');
+          callData = IS_FOLLOWING_SELECTOR + followerParam + targetParam;
+          
+          const isFollowedByHex = await rawLuksoCall('eth_call', [
+            {
+              to: LSP26_REGISTRY_ADDRESS,
+              data: callData
+            },
+            'latest'
+          ]);
+
+          // Result is bool, check if it's true (non-zero)
+          isValid = ethers.BigNumber.from(isFollowedByHex).gt(0);
+          
+          if (!isValid) {
+            return {
+              valid: false,
+              error: `Not followed by required profile: ${requirement.value.slice(0, 6)}...${requirement.value.slice(-4)}`
+            };
+          }
+          
+          console.log(`[verifyFollowerRequirements] Followed-by check passed: ${requirement.value} follows ${upAddress}`);
+          break;
+        }
+
+        case 'following': {
+          // Call isFollowing(followerAddress, targetAddress) - check if upAddress follows requirement.value
+          const followerParam = upAddress.slice(2).padStart(64, '0');
+          const targetParam = requirement.value.slice(2).padStart(64, '0');
+          callData = IS_FOLLOWING_SELECTOR + followerParam + targetParam;
+          
+          const isFollowingHex = await rawLuksoCall('eth_call', [
+            {
+              to: LSP26_REGISTRY_ADDRESS,
+              data: callData
+            },
+            'latest'
+          ]);
+
+          // Result is bool, check if it's true (non-zero)
+          isValid = ethers.BigNumber.from(isFollowingHex).gt(0);
+          
+          if (!isValid) {
+            return {
+              valid: false,
+              error: `Not following required profile: ${requirement.value.slice(0, 6)}...${requirement.value.slice(-4)}`
+            };
+          }
+          
+          console.log(`[verifyFollowerRequirements] Following check passed: ${upAddress} follows ${requirement.value}`);
+          break;
+        }
+
+        default:
+          return {
+            valid: false,
+            error: `Unknown follower requirement type: ${requirement.type}`
+          };
+      }
+    }
+
+    console.log(`[verifyFollowerRequirements] All ${requirements.length} follower requirements met`);
+    return { valid: true };
+
+  } catch (error) {
+    console.error('[verifyFollowerRequirements] Error verifying follower requirements:', error);
+    return { 
+      valid: false, 
+      error: 'Failed to verify follower requirements. Please check your connection and try again.' 
+    };
+  }
+}
+
+/**
  * Verify token requirements for both LSP7 and LSP8 tokens
  */
 async function verifyTokenRequirements(
@@ -419,6 +545,14 @@ async function verifyPostGatingRequirements(
       const tokenResult = await verifyTokenRequirements(upAddress, requirements.requiredTokens);
       if (!tokenResult.valid) {
         return tokenResult;
+      }
+    }
+
+    // Verify follower requirements (LSP26)
+    if (requirements.followerRequirements && requirements.followerRequirements.length > 0) {
+      const followerResult = await verifyFollowerRequirements(upAddress, requirements.followerRequirements);
+      if (!followerResult.valid) {
+        return followerResult;
       }
     }
 

@@ -12,10 +12,14 @@ import {
   AlertTriangle, 
   Loader2, 
   Shield,
-  Coins
+  Coins,
+  Users,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { ethers } from 'ethers';
 import { PostSettings, SettingsUtils } from '@/types/settings';
+import { getUPDisplayName } from '@/lib/upProfile';
 
 interface InlineUPConnectionProps {
   postSettings?: PostSettings;
@@ -38,7 +42,10 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     switchToLukso,
     getLyxBalance,
     checkTokenBalance,
-    connect
+    connect,
+    getFollowerCount,
+    isFollowedBy,
+    isFollowing
   } = useConditionalUniversalProfile();
 
   const [lyxBalance, setLyxBalance] = React.useState<string | null>(null);
@@ -57,6 +64,26 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     meetsRequirement?: boolean;
   }>>({});
   const [isLoadingTokens, setIsLoadingTokens] = React.useState(false);
+
+  // Follower verification states
+  const [followerData, setFollowerData] = React.useState<{
+    userFollowerCount?: number;
+    followerRequirements: Record<string, {
+      type: 'minimum_followers' | 'followed_by' | 'following';
+      value: string;
+      description?: string;
+      isLoading: boolean;
+      status?: boolean;
+      error?: string;
+    }>;
+    isLoadingFollowers: boolean;
+  }>({
+    followerRequirements: {},
+    isLoadingFollowers: false
+  });
+
+  // UP profile names for follower requirements (address -> display name)
+  const [upProfileNames, setUpProfileNames] = React.useState<Record<string, string>>({});
 
   // Get gating requirements
   const hasGating = postSettings ? SettingsUtils.hasUPGating(postSettings) : false;
@@ -162,6 +189,132 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       setIsLoadingTokens(false);
     }
   }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens]);
+
+  // Load follower data when connected and on correct chain
+  React.useEffect(() => {
+    if (isConnected && isCorrectChain && requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
+      setFollowerData(prev => ({ ...prev, isLoadingFollowers: true }));
+      
+      const loadFollowerData = async () => {
+        const newFollowerRequirements: typeof followerData.followerRequirements = {};
+        let userFollowerCount: number | undefined;
+        
+        try {
+          // Load user's own follower count for display
+          userFollowerCount = await getFollowerCount();
+        } catch (error) {
+          console.error('Failed to load user follower count:', error);
+        }
+        
+        // Check each follower requirement
+        for (const followerReq of requirements.followerRequirements || []) {
+          const reqKey = `${followerReq.type}-${followerReq.value}`;
+          
+          try {
+            // Set loading state for this requirement
+            newFollowerRequirements[reqKey] = {
+              type: followerReq.type,
+              value: followerReq.value,
+              description: followerReq.description,
+              isLoading: true
+            };
+            setFollowerData(prev => ({ 
+              ...prev, 
+              followerRequirements: { ...prev.followerRequirements, ...newFollowerRequirements }
+            }));
+            
+            let status = false;
+            
+            switch (followerReq.type) {
+              case 'minimum_followers':
+                const requiredCount = parseInt(followerReq.value);
+                status = (userFollowerCount || 0) >= requiredCount;
+                break;
+                
+              case 'followed_by':
+                status = await isFollowedBy(followerReq.value);
+                break;
+                
+              case 'following':
+                status = await isFollowing(followerReq.value);
+                break;
+            }
+            
+            newFollowerRequirements[reqKey] = {
+              type: followerReq.type,
+              value: followerReq.value,
+              description: followerReq.description,
+              isLoading: false,
+              status
+            };
+            
+          } catch (error) {
+            console.error(`Failed to verify follower requirement ${reqKey}:`, error);
+            newFollowerRequirements[reqKey] = {
+              type: followerReq.type,
+              value: followerReq.value,
+              description: followerReq.description,
+              isLoading: false,
+              error: 'Verification failed'
+            };
+          }
+          
+          // Update state for this requirement
+          setFollowerData(prev => ({ 
+            ...prev, 
+            userFollowerCount,
+            followerRequirements: { ...prev.followerRequirements, ...newFollowerRequirements }
+          }));
+        }
+        
+        setFollowerData(prev => ({ ...prev, isLoadingFollowers: false }));
+      };
+      
+      loadFollowerData();
+    } else {
+      setFollowerData({
+        followerRequirements: {},
+        isLoadingFollowers: false
+             });
+     }
+   }, [isConnected, isCorrectChain, getFollowerCount, isFollowedBy, isFollowing, requirements?.followerRequirements]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load UP profile names for follower requirements
+  const fetchUPNames = React.useCallback(async (addresses: string[]) => {
+    if (addresses.length === 0) return;
+    
+    console.log(`[InlineUPConnection] Fetching UP names for ${addresses.length} addresses`);
+    
+    const namePromises = addresses.map(async (address) => {
+      try {
+        const displayName = await getUPDisplayName(address);
+        return { address, displayName };
+      } catch (error) {
+        console.error(`Failed to fetch UP name for ${address}:`, error);
+        return { address, displayName: `${address.slice(0, 6)}...${address.slice(-4)}` };
+      }
+    });
+
+    const nameResults = await Promise.all(namePromises);
+    const newNames: Record<string, string> = {};
+    
+    nameResults.forEach(({ address, displayName }) => {
+      newNames[address] = displayName;
+    });
+
+    setUpProfileNames(prev => ({ ...prev, ...newNames }));
+  }, []);
+
+  React.useEffect(() => {
+    if (requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
+      const addressesToFetch = requirements.followerRequirements
+        .filter(req => req.type !== 'minimum_followers') // Only fetch for address-based requirements
+        .map(req => req.value)
+        .filter(address => !upProfileNames[address]); // Don't refetch already loaded names
+
+      fetchUPNames(addressesToFetch);
+    }
+  }, [requirements?.followerRequirements, fetchUPNames, upProfileNames]);
 
   // Handle explicit connection request (triggers Web3-Onboard initialization)
   const handleConnectWallet = React.useCallback((event?: React.MouseEvent) => {
@@ -276,6 +429,19 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
               }
             </div>
           ))}
+
+          {requirements.followerRequirements?.map((follower, index) => {
+            const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
+            return (
+              <div key={index} className="text-xs text-blue-700 dark:text-blue-300">
+                • {follower.description || (
+                  follower.type === 'minimum_followers' ? `Minimum ${follower.value} followers` :
+                  follower.type === 'followed_by' ? `Must be followed by ${upName}` :
+                  `Must follow ${upName}`
+                )}
+              </div>
+            );
+          })}
         </div>
         
         {isMobile ? (
@@ -402,6 +568,73 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                           <XCircle className="h-3 w-3 text-red-500" />
                         ) : tokenData?.meetsRequirement !== undefined ? (
                           tokenData.meetsRequirement ? (
+                            <CheckCircle className="h-3 w-3 text-emerald-500" />
+                          ) : (
+                            <XCircle className="h-3 w-3 text-red-500" />
+                          )
+                        ) : (
+                          <AlertTriangle className="h-3 w-3 text-amber-500" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Follower Requirements Display */}
+            {requirements.followerRequirements && requirements.followerRequirements.length > 0 && (
+              <div className="space-y-2">
+                {requirements.followerRequirements.map((followerReq, index) => {
+                  const reqKey = `${followerReq.type}-${followerReq.value}`;
+                  const reqData = followerData.followerRequirements[reqKey];
+                  
+                  const getDisplayText = () => {
+                    if (followerReq.description) return followerReq.description;
+                    
+                    const upName = upProfileNames[followerReq.value] || `${followerReq.value.slice(0, 6)}...${followerReq.value.slice(-4)}`;
+                    
+                    switch (followerReq.type) {
+                      case 'minimum_followers':
+                        return `${followerReq.value} Followers`;
+                      case 'followed_by':
+                        return `Followed by ${upName}`;
+                      case 'following':
+                        return `Following ${upName}`;
+                      default:
+                        return 'Follower Requirement';
+                    }
+                  };
+
+                  const getIcon = () => {
+                    switch (followerReq.type) {
+                      case 'minimum_followers':
+                        return <Users className="h-3 w-3 mr-1 text-purple-500" />;
+                      case 'followed_by':
+                        return <UserCheck className="h-3 w-3 mr-1 text-green-500" />;
+                      case 'following':
+                        return <UserX className="h-3 w-3 mr-1 text-blue-500" />;
+                    }
+                  };
+                  
+                  return (
+                    <div key={index} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center">
+                        {getIcon()}
+                        <span>{getDisplayText()}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        {followerReq.type === 'minimum_followers' && followerData.userFollowerCount !== undefined && (
+                          <span className="text-muted-foreground text-xs">
+                            ({followerData.userFollowerCount} followers)
+                          </span>
+                        )}
+                        {reqData?.isLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : reqData?.error ? (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        ) : reqData?.status !== undefined ? (
+                          reqData.status ? (
                             <CheckCircle className="h-3 w-3 text-emerald-500" />
                           ) : (
                             <XCircle className="h-3 w-3 text-red-500" />
