@@ -16,9 +16,53 @@ import { SettingsUtils, PostSettings } from '@/types/settings';
 // Initialize nonce store
 NonceStore.initialize();
 
-// LUKSO mainnet RPC configuration
-const LUKSO_RPC_URL = process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
-const luksoProvider = new ethers.providers.JsonRpcProvider(LUKSO_RPC_URL);
+// LUKSO mainnet RPC configuration with fallbacks
+const LUKSO_RPC_URLS = [
+  process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL,
+  'https://rpc.mainnet.lukso.network',
+  'https://lukso-mainnet.rpc.thirdweb.com',
+  'https://42.rpc.thirdweb.com'
+].filter(Boolean) as string[];
+
+const LUKSO_RPC_URL = LUKSO_RPC_URLS[0];
+
+// Configure LUKSO network explicitly
+const luksoNetwork = {
+  name: 'lukso',
+  chainId: 42,
+  ensAddress: undefined,
+};
+
+// Create provider with fallback logic
+let luksoProvider: ethers.providers.JsonRpcProvider;
+
+async function createLuksoProvider(): Promise<ethers.providers.JsonRpcProvider> {
+  for (const rpcUrl of LUKSO_RPC_URLS) {
+    try {
+      console.log(`[createLuksoProvider] Trying RPC: ${rpcUrl}`);
+      const provider = new ethers.providers.JsonRpcProvider({
+        url: rpcUrl,
+        timeout: 5000, // 5 second timeout for testing
+      }, luksoNetwork);
+      
+      // Test the connection
+      await provider.getNetwork();
+      console.log(`[createLuksoProvider] Successfully connected to: ${rpcUrl}`);
+      return provider;
+    } catch (error) {
+      console.warn(`[createLuksoProvider] Failed to connect to ${rpcUrl}:`, error);
+    }
+  }
+  
+  // If all fail, throw an error
+  throw new Error('Unable to connect to any LUKSO RPC endpoint');
+}
+
+// Initialize provider (will be created on first use)
+luksoProvider = new ethers.providers.JsonRpcProvider({
+  url: LUKSO_RPC_URL,
+  timeout: 10000,
+}, luksoNetwork);
 
 // LSP0 ERC725Account ABI for signature verification
 const LSP0_ABI = [
@@ -76,13 +120,36 @@ async function verifyUPSignature(
       return { valid: false, error: 'No signature provided' };
     }
 
+    // Test provider connection first, with fallback logic
+    console.log(`[verifyUPSignature] Testing connection to LUKSO RPC`);
+    let activeProvider = luksoProvider;
+    
+    try {
+      const network = await activeProvider.getNetwork();
+      console.log(`[verifyUPSignature] Connected to network:`, network);
+    } catch (networkError) {
+      console.warn('[verifyUPSignature] Default provider failed, trying fallback:', networkError);
+      try {
+        activeProvider = await createLuksoProvider();
+        console.log(`[verifyUPSignature] Successfully connected with fallback provider`);
+      } catch (fallbackError) {
+        console.error('[verifyUPSignature] All RPC endpoints failed:', fallbackError);
+        return { valid: false, error: 'Unable to connect to LUKSO network for verification' };
+      }
+    }
+
     // Create the message that was signed
     const message = ChallengeUtils.createSigningMessage(challenge);
     const messageHash = ethers.utils.hashMessage(message);
 
+    console.log(`[verifyUPSignature] Verifying signature for UP: ${upAddress}`);
+    console.log(`[verifyUPSignature] Message hash: ${messageHash}`);
+
     // Verify signature using ERC-1271 on the UP contract
-    const upContract = new ethers.Contract(upAddress, LSP0_ABI, luksoProvider);
+    const upContract = new ethers.Contract(upAddress, LSP0_ABI, activeProvider);
     const result = await upContract.isValidSignature(messageHash, challenge.signature);
+
+    console.log(`[verifyUPSignature] isValidSignature result: ${result}`);
 
     if (result !== ERC1271_MAGIC_VALUE) {
       return { valid: false, error: 'Invalid signature' };
@@ -92,6 +159,10 @@ async function verifyUPSignature(
 
   } catch (error) {
     console.error('[verifyUPSignature] Error verifying signature:', error);
+    // Check if it's a network-related error
+    if (error instanceof Error && error.message.includes('network')) {
+      return { valid: false, error: 'Network connection failed. Please try again.' };
+    }
     return { valid: false, error: 'Signature verification failed' };
   }
 }
@@ -104,7 +175,17 @@ async function verifyLyxBalance(
   minBalance: string
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    const balance = await luksoProvider.getBalance(upAddress);
+    let activeProvider = luksoProvider;
+    
+    // Try default provider first, fallback if needed
+    try {
+      await activeProvider.getNetwork();
+    } catch {
+      console.log('[verifyLyxBalance] Using fallback provider');
+      activeProvider = await createLuksoProvider();
+    }
+
+    const balance = await activeProvider.getBalance(upAddress);
     const minBalanceBN = ethers.BigNumber.from(minBalance);
     
     if (balance.lt(minBalanceBN)) {
