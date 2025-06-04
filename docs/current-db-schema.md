@@ -1,5 +1,13 @@
 -- Adminer 5.2.1 PostgreSQL 17.5 dump
 
+DROP FUNCTION IF EXISTS "trigger_set_timestamp";;
+CREATE FUNCTION "trigger_set_timestamp" () RETURNS trigger LANGUAGE plpgsql AS '
+    BEGIN
+      NEW.updated_at = NOW();
+      RETURN NEW;
+    END;
+    ';
+
 DROP TABLE IF EXISTS "boards";
 DROP SEQUENCE IF EXISTS boards_id_seq;
 CREATE SEQUENCE boards_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -102,6 +110,7 @@ CREATE TABLE "public"."posts" (
     "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "board_id" integer NOT NULL,
+    "settings" jsonb DEFAULT '{}' NOT NULL,
     CONSTRAINT "posts_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
@@ -114,6 +123,10 @@ CREATE INDEX posts_created_at_index ON public.posts USING btree (created_at);
 CREATE INDEX posts_tags_index ON public.posts USING gin (tags);
 
 CREATE INDEX posts_board_id_index ON public.posts USING btree (board_id);
+
+CREATE INDEX posts_cursor_pagination_idx ON public.posts USING btree (upvote_count DESC, created_at DESC, id DESC);
+
+CREATE INDEX posts_settings_index ON public.posts USING gin (settings);
 
 
 DELIMITER ;;
@@ -153,4 +166,4 @@ ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_board_id_fkey" FOREIGN K
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
--- 2025-05-30 00:02:49 UTC
+-- 2025-06-04 14:25:37 UTC
