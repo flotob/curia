@@ -28,6 +28,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
 }) => {
   const { activateUP, initializeConnection, hasUserTriggeredConnection } = useUPActivation();
   const {
+    isInitialized,
     isConnected,
     upAddress,
     isConnecting,
@@ -36,7 +37,8 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     disconnect,
     switchToLukso,
     getLyxBalance,
-    checkTokenBalance
+    checkTokenBalance,
+    connect
   } = useConditionalUniversalProfile();
 
   const [lyxBalance, setLyxBalance] = React.useState<string | null>(null);
@@ -161,11 +163,21 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     }
   }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens]);
 
-  // Handle explicit connection request
+  // Handle explicit connection request (triggers Web3-Onboard initialization)
   const handleConnectWallet = React.useCallback(() => {
     console.log('[InlineUPConnection] User requested wallet connection');
     initializeConnection();
   }, [initializeConnection]);
+  
+  // Handle actual wallet connection (after Web3-Onboard is initialized)
+  const handleConnect = React.useCallback(async () => {
+    console.log('[InlineUPConnection] Attempting wallet connection via Web3-Onboard');
+    try {
+      await connect();
+    } catch (error) {
+      console.error('[InlineUPConnection] Connection failed:', error);
+    }
+  }, [connect]);
 
   const formatAddress = (address: string): string => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -194,7 +206,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     return null;
   }
 
-  // Show requirements and connect button if UP hasn't been initialized yet
+  // Show requirements and connect button if UP hasn't been triggered yet
   if (!hasUserTriggeredConnection) {
     return (
       <div className={`border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 rounded-lg p-4 ${className}`}>
@@ -239,7 +251,25 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     );
   }
 
-  // Once initialization is triggered, show the full UP interface
+  // Show initializing state if triggered but Web3-Onboard not ready yet
+  if (hasUserTriggeredConnection && !isInitialized) {
+    return (
+      <div className={`border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 rounded-lg p-4 ${className}`}>
+        <div className="flex items-center gap-2 mb-3">
+          <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-spin" />
+          <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+            Initializing Universal Profile
+          </span>
+        </div>
+        
+        <div className="text-xs text-amber-700 dark:text-amber-300">
+          Setting up Web3-Onboard connection interface...
+        </div>
+      </div>
+    );
+  }
+
+  // Once initialization is complete, show the full UP interface
   return (
     <Card className={`border-2 ${className}`}>
       <CardHeader className="pb-3">
@@ -338,7 +368,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
               Connect your Universal Profile to verify ownership and comment.
             </div>
             <Button
-              onClick={handleConnectWallet}
+              onClick={handleConnect}
               disabled={isConnecting}
               className="w-full"
               size="sm"

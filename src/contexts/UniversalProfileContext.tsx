@@ -28,7 +28,8 @@ const initOnboard = () => {
       description: 'Community governance and discussions'
     },
     connect: {
-      autoConnectLastWallet: true
+      autoConnectLastWallet: false,
+      showSidebar: false,
     }
   });
 };
@@ -51,6 +52,9 @@ export interface TokenBalance {
 
 // Context interface
 export interface UniversalProfileContextType {
+  // Initialization state
+  isInitialized: boolean;
+  
   // Connection state
   isConnected: boolean;
   upAddress: string | null;
@@ -124,6 +128,7 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
   // Always provide a context - use loading state during initialization
   if (!isInitialized) {
     const loadingContext: UniversalProfileContextType = {
+      isInitialized: false,
       isConnected: false,
       upAddress: null,
       isConnecting: false,
@@ -725,6 +730,9 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
   }, [getProvider]);
 
   const contextValue: UniversalProfileContextType = {
+    // Initialization state
+    isInitialized: true,
+    
     // Connection state
     isConnected,
     upAddress,

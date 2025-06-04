@@ -8,6 +8,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiCommunity } from '@/app/api/communities/route';
+import { useUPActivation } from './ConditionalUniversalProfileProvider';
 
 // ===== ENHANCED SOCKET CONTEXT WITH MULTI-DEVICE PRESENCE =====
 
@@ -84,6 +85,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { token, isAuthenticated, user } = useAuth();
+  const { hasUserTriggeredConnection } = useUPActivation();
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -201,15 +203,23 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
 
     const socketUrl = process.env.NODE_ENV === 'production' ? undefined : undefined;
-    console.log('[Socket] (Re-)Establishing connection due to auth state change or initial mount.');
+    
+    // Use polling when Web3-Onboard is active to prevent WebSocket conflicts
+    const transports = hasUserTriggeredConnection 
+      ? ['polling']
+      : ['websocket', 'polling'];
+    
+    console.log(`[Socket] Establishing connection with transport strategy: ${transports.join(', ')} (UP active: ${hasUserTriggeredConnection})`);
+    
     const newSocket = io(socketUrl, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports,
       timeout: 20000,
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 3,
+      reconnectionAttempts: 10, // Increased from 3 to allow better recovery
+      reconnectionDelayMax: 5000, // Max delay between attempts
     });
 
     newSocket.on('connect', () => {
@@ -467,7 +477,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setEnhancedUserPresence([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, token, userId, queryClient, navigateToPost, navigateToBoard]); // Note: 'socket' intentionally excluded to prevent infinite re-renders
+  }, [isAuthenticated, token, userId, hasUserTriggeredConnection, queryClient, navigateToPost, navigateToBoard]); // Added hasUserTriggeredConnection to trigger reconnect with new transport
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {

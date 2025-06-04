@@ -42,6 +42,7 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
   
   // Default/mock functionality when UP is not activated
   const defaultContext: UniversalProfileContextType = useMemo(() => ({
+    isInitialized: false,
     isConnected: false,
     upAddress: null,
     isConnecting: false,
