@@ -78,6 +78,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const hasGating = SettingsUtils.hasUPGating(post.settings);
   const requirements = hasGating ? SettingsUtils.getUPGatingRequirements(post.settings) : null;
   
+  // For gated posts, redirect to detail view instead of inline comments
+  const handleCommentClick = () => {
+    if (hasGating) {
+      // Navigate to post detail page for gated posts
+      const detailUrl = buildInternalUrl(`/board/${post.board_id}/post/${post.id}`);
+      router.push(detailUrl);
+    } else {
+      // Toggle inline comments for non-gated posts
+      setShowComments(!showComments);
+    }
+  };
+  
 
 
   // Helper function to format LYX amount
@@ -511,10 +523,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
           <CardFooter className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 md:pb-4 px-3 sm:px-6">
             <div className="flex items-center gap-2 sm:gap-3">
-              <Button variant="ghost" size="sm" className="p-1 h-auto text-xs sm:text-sm" onClick={() => setShowComments(!showComments)} aria-expanded={showComments}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="p-1 h-auto text-xs sm:text-sm" 
+                onClick={handleCommentClick} 
+                aria-expanded={hasGating ? undefined : showComments}
+                title={hasGating ? "View comments (gated post)" : "Toggle comments"}
+              >
                 <MessageSquare size={14} className="mr-1 sm:mr-1.5" /> 
                 <span className="hidden xs:inline">{post.comment_count}</span>
                 <span className="xs:hidden">{post.comment_count}</span>
+                {hasGating && <span className="ml-1 text-blue-500">→</span>}
               </Button>
               <Button variant="ghost" size="sm" className="p-1 h-auto">
                 <Share2 size={14} /> 
@@ -616,8 +636,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         </DialogContent>
       </Dialog>
 
-      {/* Comments Section - Conditionally Rendered */}
-      {showComments && (
+      {/* Comments Section - Conditionally Rendered (only for non-gated posts) */}
+      {showComments && !hasGating && (
         <div className="border-t border-border p-3 sm:p-4">
           <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
           <NewCommentForm postId={post.id} post={post} />

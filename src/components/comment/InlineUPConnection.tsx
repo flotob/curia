@@ -164,13 +164,21 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens]);
 
   // Handle explicit connection request (triggers Web3-Onboard initialization)
-  const handleConnectWallet = React.useCallback(() => {
+  const handleConnectWallet = React.useCallback((event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation(); // Prevent event bubbling that collapses comment section
+      event.preventDefault();
+    }
     console.log('[InlineUPConnection] User requested wallet connection');
     initializeConnection();
   }, [initializeConnection]);
   
   // Handle actual wallet connection (after Web3-Onboard is initialized)
-  const handleConnect = React.useCallback(async () => {
+  const handleConnect = React.useCallback(async (event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation(); // Prevent event bubbling that collapses comment section
+      event.preventDefault();
+    }
     console.log('[InlineUPConnection] Attempting wallet connection via Web3-Onboard');
     try {
       await connect();
@@ -178,6 +186,33 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       console.error('[InlineUPConnection] Connection failed:', error);
     }
   }, [connect]);
+
+  // Handle disconnect with event prevention
+  const handleDisconnect = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent event bubbling
+    event.preventDefault();
+    disconnect();
+  }, [disconnect]);
+
+  // Handle network switch with event prevention  
+  const handleSwitchNetwork = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent event bubbling
+    event.preventDefault();
+    switchToLukso();
+  }, [switchToLukso]);
+
+  // Check if we're on mobile device
+  const [isMobile, setIsMobile] = React.useState(false);
+  
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Auto-trigger connection once Web3-Onboard is initialized (seamless UX)
   React.useEffect(() => {
@@ -243,18 +278,30 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
           ))}
         </div>
         
-        <Button
-          onClick={handleConnectWallet}
-          className="w-full"
-          size="sm"
-        >
-          <Wallet className="h-4 w-4 mr-2" />
-          Connect Universal Profile
-        </Button>
-        
-        <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-          Connect your Universal Profile to verify token requirements and participate in this discussion.
-        </div>
+        {isMobile ? (
+          <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="h-3 w-3" />
+              <span className="font-medium">Desktop Required</span>
+            </div>
+            Universal Profile connection is currently only available on desktop devices. Please use a desktop browser to verify your token requirements and participate in this discussion.
+          </div>
+        ) : (
+          <>
+            <Button
+              onClick={handleConnectWallet}
+              className="w-full"
+              size="sm"
+            >
+              <Wallet className="h-4 w-4 mr-2" />
+              Connect Universal Profile
+            </Button>
+            
+            <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              Connect your Universal Profile to verify token requirements and participate in this discussion.
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -374,15 +421,25 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
         {/* Connection Status & Actions */}
         {!isConnected ? (
           <div className="space-y-3">
-            <div className="text-xs text-muted-foreground">
-              Connect your Universal Profile to verify ownership and comment.
-            </div>
-            <Button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="w-full"
-              size="sm"
-            >
+            {isMobile ? (
+              <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="h-3 w-3" />
+                  <span className="font-medium">Desktop Required</span>
+                </div>
+                Universal Profile connection is currently only available on desktop devices. Please use a desktop browser to verify your token requirements and participate in this discussion.
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-muted-foreground">
+                  Connect your Universal Profile to verify ownership and comment.
+                </div>
+                <Button
+                  onClick={handleConnect}
+                  disabled={isConnecting}
+                  className="w-full"
+                  size="sm"
+                >
               {isConnecting ? (
                 <>
                   <Loader2 className="mr-2 h-3 w-3 animate-spin" />
@@ -395,6 +452,8 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                 </>
               )}
             </Button>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -410,7 +469,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                   {isCorrectChain ? 'Connected' : 'Wrong Network'}
                 </span>
               </div>
-              <Button variant="ghost" size="sm" onClick={disconnect} className="h-6 px-2 text-xs">
+              <Button variant="ghost" size="sm" onClick={handleDisconnect} className="h-6 px-2 text-xs">
                 Disconnect
               </Button>
             </div>
@@ -502,9 +561,10 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
             {!isCorrectChain && (
               <Button 
                 variant="outline" 
-                onClick={switchToLukso} 
+                onClick={handleSwitchNetwork} 
                 className="w-full" 
                 size="sm"
+                disabled={isMobile}
               >
                 Switch to LUKSO Network
               </Button>
