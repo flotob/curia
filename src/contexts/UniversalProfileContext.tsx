@@ -30,6 +30,14 @@ const initOnboard = () => {
     connect: {
       autoConnectLastWallet: false,
       showSidebar: false,
+    },
+    accountCenter: {
+      desktop: {
+        enabled: false
+      },
+      mobile: {
+        enabled: false
+      }
     }
   });
 };
