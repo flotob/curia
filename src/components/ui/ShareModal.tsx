@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Copy, Share2, ExternalLink } from 'lucide-react';
+import { Copy, Share2 } from 'lucide-react';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -109,20 +109,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               >
                 <Copy size={16} />
               </Button>
-            </div>
-          </div>
-          
-          <div className="flex flex-col gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg">
-            <div className="flex items-start gap-2">
-              <ExternalLink size={14} className="mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="font-medium mb-1">How to share:</p>
-                <ul className="space-y-1">
-                  <li>• The URL above is selected - press <kbd className="px-1 py-0.5 bg-background rounded text-xs">Ctrl+C</kbd> (or <kbd className="px-1 py-0.5 bg-background rounded text-xs">⌘+C</kbd>) to copy</li>
-                  <li>• Share this link anywhere - social media, messaging apps, email, etc.</li>
-                  <li>• Recipients will be taken directly to this discussion</li>
-                </ul>
-              </div>
             </div>
           </div>
         </div>

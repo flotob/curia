@@ -139,9 +139,16 @@ export function getCgParams(): Record<string, string> {
  * This URL will use the cookie-based workaround to handle the fact that CG doesn't pass query params
  * @param postId - The ID of the post
  * @param boardId - The ID of the board the post belongs to
+ * @param communityShortId - The community short ID for URL construction
+ * @param pluginId - The plugin ID for URL construction
  * @returns External URL that includes a token for identifying returning visitors
  */
-export function buildExternalShareUrl(postId: number, boardId: number): string {
+export function buildExternalShareUrl(
+  postId: number, 
+  boardId: number, 
+  communityShortId?: string, 
+  pluginId?: string
+): string {
   const pluginBaseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL;
   
   if (!pluginBaseUrl) {
@@ -155,8 +162,23 @@ export function buildExternalShareUrl(postId: number, boardId: number): string {
   // Generate a unique token for this share attempt
   const shareToken = generateShareToken(postId, boardId);
   
+  // Build query parameters - include community and plugin context in URL
+  const params = new URLSearchParams({
+    token: shareToken,
+    postId: postId.toString(),
+    boardId: boardId.toString(),
+  });
+  
+  // Add community and plugin context if available
+  if (communityShortId) {
+    params.set('communityShortId', communityShortId);
+  }
+  if (pluginId) {
+    params.set('pluginId', pluginId);
+  }
+  
   // The external URL will hit our cookie-setter endpoint first
-  return `${baseUrl}/api/share-redirect?token=${shareToken}&postId=${postId}&boardId=${boardId}`;
+  return `${baseUrl}/api/share-redirect?${params.toString()}`;
 }
 
 /**

@@ -186,7 +186,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     }
 
     try {
-      const generatedShareUrl = buildExternalShareUrl(post.id, post.board_id);
+      const generatedShareUrl = buildExternalShareUrl(
+        post.id, 
+        post.board_id, 
+        user?.communityShortId || undefined,
+        user?.pluginId || undefined
+      );
       console.log(`[PostCard] Generated share URL: ${generatedShareUrl}`);
 
       // Detect if Web Share API is available and likely mobile

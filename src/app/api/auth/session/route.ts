@@ -21,6 +21,8 @@ interface SessionRequestBody {
   iframeUid?: string | null;
   communityId?: string | null;
   communityName?: string | null; // Added for community upsert
+  communityShortId?: string | null; // 🆕 Short ID for URL construction
+  pluginId?: string | null;         // 🆕 Plugin ID from context
 }
 
 // This should match or be compatible with JwtPayload in withAuth.ts
@@ -35,6 +37,8 @@ interface TokenSignPayload {
   uid?: string | null;
   cid?: string | null;
   roles?: string[]; // Add user roles to JWT
+  communityShortId?: string; // 🆕 Short ID for URL construction
+  pluginId?: string;         // 🆕 Plugin ID from context
 }
 
 export async function POST(req: NextRequest) {
@@ -53,7 +57,7 @@ export async function POST(req: NextRequest) {
     console.log('[/api/auth/session] Parsed request body object immediately after parse:', body);
     console.log('[/api/auth/session] Value of body.communityName immediately after parse:', body.communityName);
 
-    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId /*, communityName - will access directly from body */ } = body;
+    const { userId, name, profilePictureUrl, roles: userRoleIds, communityRoles, iframeUid, communityId, communityShortId, pluginId /*, communityName - will access directly from body */ } = body;
     // console.log('[/api/auth/session] Destructured user role IDs:', userRoleIds);
     // console.log('[/api/auth/session] Destructured communityRoles:', communityRoles);
     // console.log('[/api/auth/session] Destructured iframeUid:', iframeUid);
@@ -127,6 +131,8 @@ export async function POST(req: NextRequest) {
       uid: iframeUid,
       cid: communityId,
       roles: userRoleIds,
+      communityShortId: communityShortId ?? undefined, // 🆕 Short ID for URL construction
+      pluginId: pluginId ?? undefined,                 // 🆕 Plugin ID from context
     };
     console.log('[/api/auth/session] Payload to sign (checking adm, uid, cid claims):', payloadToSign);
 

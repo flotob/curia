@@ -32,12 +32,19 @@ export interface SharedPostData {
  * @returns Object with sharing info if detected, null otherwise
  */
 export function getSharedContentInfo(): { isShared: boolean; postData?: SharedPostData } {
-  const sharedContentToken = getCookie('shared_content_token');
+  console.log('[cookieUtils] Checking for shared content...');
+  
+  // Log all available cookies for debugging
+  console.log('[cookieUtils] All cookies:', document.cookie);
+  
   const sharedPostDataStr = getCookie('shared_post_data');
   
-  if (!sharedContentToken || !sharedPostDataStr) {
+  if (!sharedPostDataStr) {
+    console.log('[cookieUtils] No shared_post_data cookie found');
     return { isShared: false };
   }
+  
+  console.log('[cookieUtils] Found shared_post_data cookie:', sharedPostDataStr);
   
   try {
     const postData: SharedPostData = JSON.parse(sharedPostDataStr);
@@ -52,7 +59,7 @@ export function getSharedContentInfo(): { isShared: boolean; postData?: SharedPo
       return { isShared: false };
     }
     
-    console.log('[cookieUtils] ✔ Shared content detected:', postData);
+    console.log('[cookieUtils] ✔ Shared content detected and valid:', postData);
     return { isShared: true, postData };
     
   } catch (error) {
@@ -87,12 +94,14 @@ export function logCookieDebugInfo(): void {
     { browser: 'Firefox (strict/private)', expectation: 'cookie likely blocked by ETP' },
   ]);
   
-  const hasToken = !!getCookie('shared_content_token');
   const hasPostData = !!getCookie('shared_post_data');
+  const postDataValue = getCookie('shared_post_data');
   
   console.log(`[cookieUtils] Cookie detection results:`, {
-    shared_content_token: hasToken,
     shared_post_data: hasPostData,
+    shared_post_data_value: postDataValue,
+    all_cookies: document.cookie,
     userAgent: navigator.userAgent,
+    location: window.location.href,
   });
 } 

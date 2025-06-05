@@ -47,6 +47,10 @@ export function AppInitializer() {
           const userInfo = userInfoResponse.data;
           const communityInfo = communityInfoResponse.data;
 
+          // Extract plugin context data for share URL construction
+          const contextData = cgInstance.getContextData();
+          const pluginId = contextData?.pluginId;
+
           // isAdmin is now determined by the backend based on roles and communityRoles
           // const isAdmin = userInfo.roles?.includes('admin') || false; 
           // console.log(`[AppInitializer] Determined isAdmin: ${isAdmin} from roles:`, userInfo.roles);
@@ -61,7 +65,15 @@ export function AppInitializer() {
             iframeUid: iframeUid,
             communityId: communityInfo.id,
             communityName: communityInfo.title,
+            communityShortId: communityInfo.url,  // 🆕 Short ID for URL construction
+            pluginId: pluginId,                  // 🆕 Plugin ID from context
           };
+
+          console.log('[AppInitializer] Extracted context data:', {
+            communityShortId: communityInfo.url,
+            pluginId: pluginId,
+            contextData: contextData
+          });
 
           console.log('[AppInitializer] Data fetched successfully. Calling auth.login() with payload:', loginPayload);
           await auth.login(loginPayload);

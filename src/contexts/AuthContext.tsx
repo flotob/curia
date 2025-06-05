@@ -13,6 +13,8 @@ interface AuthUser {
   isAdmin?: boolean;
   cid?: string | null; // Added communityId
   roles?: string[]; // Add user roles from JWT
+  communityShortId?: string | null; // 🆕 Short ID for URL construction
+  pluginId?: string | null;         // 🆕 Plugin ID from context
 }
 
 // Define the structure for a community role, mirroring cg-data.md
@@ -44,7 +46,9 @@ interface UserDataFromCgLib {
   communityRoles?: CommunityRoleInfo[]; 
   communityName?: string | null;
   iframeUid?: string | null; 
-  communityId?: string | null; 
+  communityId?: string | null;
+  communityShortId?: string | null;  // 🆕 Short ID for URL construction
+  pluginId?: string | null;          // 🆕 Plugin ID from context
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -73,6 +77,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         iframeUid: loginData.iframeUid,       
         communityId: loginData.communityId,
         communityName: loginData.communityName,
+        communityShortId: loginData.communityShortId,  // 🆕 Short ID for URLs
+        pluginId: loginData.pluginId,                  // 🆕 Plugin ID from context
     };
 
     try {
@@ -92,7 +98,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const { token: newToken } = await response.json();
       if (newToken) {
-        const decoded = jwtDecode<AuthUser & { sub: string, adm?: boolean, exp?: number, uid?: string, cid?: string, roles?: string[] }>(newToken);
+        const decoded = jwtDecode<AuthUser & { 
+          sub: string, 
+          adm?: boolean, 
+          exp?: number, 
+          uid?: string, 
+          cid?: string, 
+          roles?: string[],
+          communityShortId?: string,  // 🆕
+          pluginId?: string           // 🆕
+        }>(newToken);
         console.log('[AuthContext] New token received. Decoded JWT:', decoded);
         setToken(newToken);
         setUser({
@@ -101,7 +116,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             picture: decoded.picture,
             isAdmin: decoded.adm || false,
             cid: decoded.cid, 
-            roles: decoded.roles, 
+            roles: decoded.roles,
+            communityShortId: decoded.communityShortId,  // 🆕
+            pluginId: decoded.pluginId,                  // 🆕
         });
         lastCgUserData.current = loginData; // Store successful login data for potential refresh fallback
         return true; // Indicate success
@@ -150,6 +167,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         ]);
 
         if (userInfoResponse?.data?.id && communityInfoResponse?.data?.id) {
+          // Extract plugin context data for pluginId
+          const contextData = cgInstance.getContextData();
+          const pluginId = contextData?.pluginId;
+          
           freshCgData = {
             userId: userInfoResponse.data.id,
             name: userInfoResponse.data.name,
@@ -159,7 +180,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             communityName: communityInfoResponse.data.title,
             iframeUid: currentIframeUid,
             communityId: communityInfoResponse.data.id,
+            communityShortId: communityInfoResponse.data.url,  // 🆕 Short ID for URLs
+            pluginId: pluginId,                                // 🆕 Plugin ID from context
           };
+          
+          console.log('[AuthContext] Extracted data for refresh:', {
+            communityShortId: communityInfoResponse.data.url,
+            pluginId: pluginId,
+            contextData: contextData
+          });
         } else {
           console.warn('[AuthContext] Failed to get complete fresh data from CgLib for refresh.', {userInfoResponse, communityInfoResponse});
         }

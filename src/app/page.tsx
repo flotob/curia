@@ -20,6 +20,7 @@ import {
   Settings, 
 } from 'lucide-react';
 import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } from '@/utils/cookieUtils';
+import '@/utils/cookieDebug'; // Load cookie debug utilities
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
@@ -102,7 +103,12 @@ export default function HomePage() {
   // Handle shared content detection (from external share links)
   useEffect(() => {
     // Only run on client side
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      console.log('[HomePage] Skipping shared content check - server side');
+      return;
+    }
+    
+    console.log('[HomePage] 🔍 Running shared content detection...');
     
     const { isShared, postData } = getSharedContentInfo();
     
@@ -114,10 +120,15 @@ export default function HomePage() {
       
       // Navigate to the shared post
       const postUrl = buildUrl(`/board/${postData.boardId}/post/${postData.postId}`);
+      console.log('[HomePage] Navigating to shared post URL:', postUrl);
       router.push(postUrl);
       
       // Clear the cookies after processing to avoid repeated redirects
       clearSharedContentCookies();
+    } else {
+      console.log('[HomePage] No shared content detected');
+      // Still log debug info to help troubleshoot
+      logCookieDebugInfo();
     }
   }, [buildUrl, router]); // Include dependencies to fix React Hook warning
 
