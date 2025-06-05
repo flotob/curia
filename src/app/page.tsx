@@ -39,6 +39,29 @@ export default function HomePage() {
     setTheme(cgTheme as 'light' | 'dark');
   }, [searchParams]);
 
+  // Handle create post from URL params (mobile navigation from search)
+  useEffect(() => {
+    const shouldCreatePost = searchParams?.get('createPost') === 'true';
+    const titleFromUrl = searchParams?.get('title') || '';
+    
+    if (shouldCreatePost) {
+      setShowExpandedForm(true);
+      setInitialPostTitle(titleFromUrl);
+      
+      // Clean up URL params to avoid showing form again on refresh
+      const newSearchParams = new URLSearchParams(searchParams?.toString() || '');
+      newSearchParams.delete('createPost');
+      newSearchParams.delete('title');
+      
+      const newUrl = newSearchParams.toString() 
+        ? `/?${newSearchParams.toString()}` 
+        : '/';
+      
+      // Replace the current URL without triggering a re-render
+      window.history.replaceState(null, '', newUrl);
+    }
+  }, [searchParams]);
+
   // 🚀 REAL-TIME: Auto-join/leave board rooms based on current boardId
   useEffect(() => {
     if (!isConnected || !boardId) return;

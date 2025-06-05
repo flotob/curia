@@ -191,14 +191,20 @@ export function GlobalSearchModal() {
     if (isMobile) {
       // Mobile: Close modal and navigate to home to show main form
       handleClose();
-      const homeUrl = buildInternalUrl('/', currentSearchScope ? { boardId: currentSearchScope } : {});
+      const params: Record<string, string> = {
+        createPost: 'true',
+        title: (currentInput || searchQuery).trim()
+      };
+      if (currentSearchScope) {
+        params.boardId = currentSearchScope;
+      }
+      const homeUrl = buildInternalUrl('/', params);
       router.push(homeUrl);
-      // Note: Would need additional logic to trigger expanded form on home page
     } else {
       // Desktop: Show inline form in modal
       setShowInlineForm(true);
     }
-  }, [isMobile, handleClose, currentSearchScope, buildInternalUrl, router]);
+  }, [isMobile, handleClose, currentSearchScope, currentInput, searchQuery, buildInternalUrl, router]);
 
   // Handle selection of current item
   const handleSelection = useCallback(() => {
