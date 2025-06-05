@@ -49,7 +49,6 @@ export async function GET(request: NextRequest) {
                 backgroundColor: 'rgba(255, 255, 255, 0.9)',
                 borderRadius: '12px',
                 padding: '12px 24px',
-                backdropFilter: 'blur(10px)',
               }}
             >
               <div
@@ -89,6 +88,9 @@ export async function GET(request: NextRequest) {
                 color: 'white',
                 fontSize: '16px',
                 fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               #{id}
@@ -112,10 +114,12 @@ export async function GET(request: NextRequest) {
                 borderRadius: '8px',
                 padding: '8px 16px',
                 marginBottom: '24px',
-                width: 'fit-content',
                 color: 'white',
                 fontSize: '18px',
                 fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                alignSelf: 'flex-start',
               }}
             >
               📋 {board}
@@ -147,7 +151,6 @@ export async function GET(request: NextRequest) {
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               borderRadius: '16px',
               padding: '20px 32px',
-              backdropFilter: 'blur(10px)',
             }}
           >
             <div
