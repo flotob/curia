@@ -39,15 +39,32 @@ export function CgLibProvider({ children }: { children: React.ReactNode }) {
       const checkWindowAndRedirect = () => {
         // Check if running in the top window (not in an iframe)
         if (window.top === window.self) {
-          if (pluginInstanceUrl) {
-            console.log(`[CgLibContext] Top-level access without iframeUid. Redirecting to: ${pluginInstanceUrl}`);
-            window.location.replace(pluginInstanceUrl);
-            // Important: Return early to prevent further state updates in this render cycle while redirecting.
-            // Setting isInitializing to true can also prevent rendering child components temporarily.
-            setIsInitializing(true); 
-            return; 
+          // Check if this is a shared link (has share context params)
+          const hasShareToken = searchParams?.get('token');
+          const hasCommunityShortId = searchParams?.get('communityShortId');
+          const hasPluginId = searchParams?.get('pluginId');
+          const isSharedLink = hasShareToken && hasCommunityShortId && hasPluginId;
+          
+          // Only redirect to plugin instance URL from root page, not shared links
+          const isRootPage = window.location.pathname === '/';
+          
+          if (isSharedLink) {
+            console.log("[CgLibContext] Shared link detected, skipping plugin instance redirect");
+            // Don't redirect shared links - let them handle their own redirect logic
+          } else if (isRootPage) {
+            if (pluginInstanceUrl) {
+              console.log(`[CgLibContext] Root page access without iframeUid. Redirecting to: ${pluginInstanceUrl}`);
+              window.location.replace(pluginInstanceUrl);
+              // Important: Return early to prevent further state updates in this render cycle while redirecting.
+              // Setting isInitializing to true can also prevent rendering child components temporarily.
+              setIsInitializing(true); 
+              return; 
+            } else {
+              console.warn("[CgLibContext] Root page access without iframeUid, but NEXT_PUBLIC_PLUGIN_INSTANCE_URL is not set. Cannot redirect.");
+            }
           } else {
-            console.warn("[CgLibContext] Top-level access without iframeUid, but NEXT_PUBLIC_PLUGIN_INSTANCE_URL is not set. Cannot redirect.");
+            console.log("[CgLibContext] Non-root page access without iframeUid, skipping plugin instance redirect");
+            // Allow non-root pages (like /board/123/post/456) to load normally
           }
         } else {
           console.warn("[CgLibContext] Running in an iframe but iframeUid is missing from URL. This is unexpected.");

@@ -27,6 +27,7 @@ interface PostDetailPageProps {
 export default function PostDetailPage({ params }: PostDetailPageProps) {
   const [boardId, setBoardId] = useState<string>('');
   const [postId, setPostId] = useState<string>('');
+  const [isSharedLinkRedirecting, setIsSharedLinkRedirecting] = useState(false);
   
   // All hooks must be called at the top level
   const { token } = useAuth();
@@ -41,6 +42,51 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
       setPostId(postId);
     });
   }, [params]);
+
+  // 🔗 SHARED LINK DETECTION: Handle external share links
+  useEffect(() => {
+    if (!searchParams || !boardId || !postId) return;
+
+    const shareToken = searchParams.get('token');
+    const communityShortId = searchParams.get('communityShortId');
+    const pluginId = searchParams.get('pluginId');
+
+    // Check if this is a shared link access (has share context params)
+    const isSharedLink = shareToken && communityShortId && pluginId;
+
+    if (isSharedLink) {
+      console.log(`[PostDetailPage] 🔗 Shared link detected, redirecting to Common Ground...`);
+      console.log(`[PostDetailPage] Share context:`, { shareToken, communityShortId, pluginId, postId, boardId });
+      
+      setIsSharedLinkRedirecting(true);
+      
+      // Set the same cookies as the original share-redirect endpoint
+      const sharedContentToken = `${postId}-${boardId}-${Date.now()}`;
+      const postData = JSON.stringify({ 
+        postId, 
+        boardId, 
+        token: shareToken, 
+        timestamp: Date.now() 
+      });
+
+      // Set cookies using document.cookie (client-side)
+      document.cookie = `shared_content_token=${sharedContentToken}; path=/; SameSite=None; Secure; max-age=${60 * 60 * 24 * 7}`;
+      document.cookie = `shared_post_data=${encodeURIComponent(postData)}; path=/; SameSite=None; Secure; max-age=${60 * 60 * 24 * 7}`;
+
+      // Construct Common Ground URL
+      const commonGroundBaseUrl = process.env.NEXT_PUBLIC_COMMON_GROUND_BASE_URL || 'https://app.commonground.wtf';
+      const redirectUrl = `${commonGroundBaseUrl}/c/${communityShortId}/plugin/${pluginId}`;
+      
+      console.log(`[PostDetailPage] 🚀 Redirecting to: ${redirectUrl}`);
+      console.log(`[PostDetailPage] 🍪 Cookies set for post detection in iframe`);
+      
+      // Redirect to Common Ground (will load plugin in iframe)
+      window.location.href = redirectUrl;
+      return;
+    }
+
+    console.log(`[PostDetailPage] 📄 Normal post page access (not shared link)`);
+  }, [searchParams, boardId, postId]);
 
   const boardIdNum = parseInt(boardId, 10);
   const postIdNum = parseInt(postId, 10);
@@ -58,24 +104,24 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     };
   }, [isConnected, boardIdNum, joinBoard, leaveBoard, boardId]);
 
-  // Fetch the specific post
+  // Fetch the specific post (skip if redirecting shared link)
   const { data: post, isLoading: isLoadingPost, error: postError } = useQuery<ApiPost>({
     queryKey: ['post', postIdNum],
     queryFn: async () => {
       if (!token) throw new Error('No auth token');
       return authFetchJson<ApiPost>(`/api/posts/${postIdNum}`, { token });
     },
-    enabled: !!token && !isNaN(postIdNum) && !!postId,
+    enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLinkRedirecting,
   });
 
-  // Fetch comments for the post
+  // Fetch comments for the post (skip if redirecting shared link)
   const { data: comments, isLoading: isLoadingComments } = useQuery<ApiComment[]>({
     queryKey: ['comments', postIdNum],
     queryFn: async () => {
       if (!token) throw new Error('No auth token');
       return authFetchJson<ApiComment[]>(`/api/posts/${postIdNum}/comments`, { token });
     },
-    enabled: !!token && !isNaN(postIdNum) && !!postId,
+    enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLinkRedirecting,
   });
   
   // Helper function to build URLs while preserving current parameters
@@ -117,6 +163,27 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   // Early return for loading params state
   if (!boardId || !postId) {
     return <div>Loading...</div>;
+  }
+
+  // Early return for shared link redirect state
+  if (isSharedLinkRedirecting) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-4xl mx-auto text-center space-y-4">
+          <Card>
+            <CardContent className="py-12">
+              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+              <h1 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Opening in Common Ground...
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400">
+                Redirecting to the full forum experience...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   // Loading state

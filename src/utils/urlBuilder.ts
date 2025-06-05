@@ -136,12 +136,13 @@ export function getCgParams(): Record<string, string> {
 
 /**
  * Builds an external shareable URL that can be accessed outside of Common Ground
- * This URL will use the cookie-based workaround to handle the fact that CG doesn't pass query params
+ * Points directly to post page for social media crawler compatibility while
+ * still handling human user redirects via client-side detection
  * @param postId - The ID of the post
  * @param boardId - The ID of the board the post belongs to
  * @param communityShortId - The community short ID for URL construction
  * @param pluginId - The plugin ID for URL construction
- * @returns External URL that includes a token for identifying returning visitors
+ * @returns External URL pointing to post page with share context
  */
 export function buildExternalShareUrl(
   postId: number, 
@@ -162,14 +163,12 @@ export function buildExternalShareUrl(
   // Generate a unique token for this share attempt
   const shareToken = generateShareToken(postId, boardId);
   
-  // Build query parameters - include community and plugin context in URL
+  // Build post page URL with share context parameters
   const params = new URLSearchParams({
     token: shareToken,
-    postId: postId.toString(),
-    boardId: boardId.toString(),
   });
   
-  // Add community and plugin context if available
+  // Add community and plugin context if available (for human user redirects)
   if (communityShortId) {
     params.set('communityShortId', communityShortId);
   }
@@ -177,8 +176,8 @@ export function buildExternalShareUrl(
     params.set('pluginId', pluginId);
   }
   
-  // The external URL will hit our cookie-setter endpoint first
-  return `${baseUrl}/api/share-redirect?${params.toString()}`;
+  // Direct to post page - crawlers see meta tags, humans get redirected
+  return `${baseUrl}/board/${boardId}/post/${postId}?${params.toString()}`;
 }
 
 /**
