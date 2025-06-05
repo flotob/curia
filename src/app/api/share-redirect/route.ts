@@ -1,5 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Server-side browser detection for share redirects
+function detectBrowserFromUserAgent(userAgent: string): {
+  isCrawler: boolean;
+  isSafari: boolean;
+  isFirefox: boolean;
+  isSupported: boolean;
+} {
+  const ua = userAgent.toLowerCase();
+  
+  // Check for crawlers first
+  const crawlerPatterns = [
+    'bot', 'crawler', 'spider', 'scraper', 'facebookexternalhit',
+    'twitterbot', 'linkedinbot', 'whatsapp', 'telegram', 'discord',
+    'googlebot', 'bingbot', 'slackbot', 'applebot'
+  ];
+  
+  const isCrawler = crawlerPatterns.some(pattern => ua.includes(pattern));
+  
+  if (isCrawler) {
+    return { isCrawler: true, isSafari: false, isFirefox: false, isSupported: true };
+  }
+
+  // Browser detection
+  const isSafari = ua.includes('safari') && !ua.includes('chrome');
+  const isFirefox = ua.includes('firefox');
+  const isChrome = ua.includes('chrome') && !ua.includes('edg');
+  
+  // Browsers that support auto-forward (iframe cookie access)
+  const isSupported = isChrome || ua.includes('chromium') || ua.includes('edge') || ua.includes('opera');
+
+  return {
+    isCrawler: false,
+    isSafari,
+    isFirefox,
+    isSupported
+  };
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
@@ -13,8 +51,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
   }
 
+  // Detect browser type from user agent
+  const userAgent = request.headers.get('user-agent') || '';
+  const browser = detectBrowserFromUserAgent(userAgent);
+  
   console.log(`[share-redirect] Processing share redirect for post ${postId} in board ${boardId} with token ${token}`);
+  console.log(`[share-redirect] Browser detection:`, browser);
   console.log(`[share-redirect] Community context:`, { communityShortId, pluginId });
+  
+  // For Safari/Firefox users (limited browsers), redirect to enhanced preview page
+  if (!browser.isCrawler && !browser.isSupported && (browser.isSafari || browser.isFirefox)) {
+    console.log(`[share-redirect] Detected limited browser, redirecting to enhanced preview page`);
+    
+    // Construct enhanced preview URL with all necessary parameters
+    const baseUrl = request.nextUrl.origin;
+    const previewParams = new URLSearchParams({
+      postId: postId,
+      boardId: boardId,
+      token: token,
+      ...(communityShortId && { communityShortId }),
+      ...(pluginId && { pluginId }),
+      browser: browser.isSafari ? 'safari' : 'firefox'
+    });
+    
+    const previewUrl = `${baseUrl}/shared-post-preview?${previewParams.toString()}`;
+    console.log(`[share-redirect] Redirecting to enhanced preview: ${previewUrl}`);
+    
+    return NextResponse.redirect(previewUrl);
+  }
 
   if (!communityShortId || !pluginId) {
     console.warn('[share-redirect] Missing community or plugin context, using fallback URL');
