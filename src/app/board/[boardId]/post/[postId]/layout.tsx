@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
-import { PostMetadata } from '@/app/api/posts/[postId]/metadata/route';
-import { generatePostMetadata } from '@/utils/metadataUtils';
+import { EnhancedPostMetadata } from '@/app/api/posts/[postId]/metadata/route';
+import { generatePrivacyAwarePostMetadata } from '@/utils/metadataUtils';
 
 interface PostLayoutProps {
   children: React.ReactNode;
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ boardId: 
   const { postId, boardId } = await params;
   
   try {
-    // Fetch post metadata from our public API
+    // Fetch enhanced post metadata from our public API
     const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || 'http://localhost:3000';
     const response = await fetch(`${baseUrl}/api/posts/${postId}/metadata`, {
       next: { revalidate: 300 } // Cache for 5 minutes
@@ -40,12 +40,14 @@ export async function generateMetadata({ params }: { params: Promise<{ boardId: 
       };
     }
     
-    const postData: PostMetadata = await response.json();
+    const postData: EnhancedPostMetadata = await response.json();
     
-    // Generate complete metadata using our utility
-    const metadata = generatePostMetadata(postData, baseUrl, boardId);
+    // Generate privacy-aware metadata using our enhanced utility
+    const metadata = generatePrivacyAwarePostMetadata(postData, baseUrl, boardId);
     
-    console.log(`Generated metadata for post ${postId}: ${postData.title}`);
+    const gatingStatus = postData.gatingContext.communityGated || postData.gatingContext.boardGated || postData.gatingContext.postGated;
+    console.log(`Generated privacy-aware metadata for post ${postId}: ${postData.title} (${gatingStatus ? 'gated' : 'public'})`);
+    
     return metadata;
     
   } catch (error) {
