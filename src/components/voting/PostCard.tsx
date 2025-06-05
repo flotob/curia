@@ -40,6 +40,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
 import { ethers } from 'ethers';
 import { getUPDisplayName } from '@/lib/upProfile';
+import { buildExternalShareUrl } from '@/utils/urlBuilder';
+import { ShareModal } from '@/components/ui/ShareModal';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -70,6 +72,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [showGatingDetails, setShowGatingDetails] = useState(false);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
   
   // UP profile names for follower requirements (address -> display name)
   const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
@@ -173,6 +177,50 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       router.push(url);
     }
   }, [isDetailView, post.board_id, post.id, buildInternalUrl, router]);
+
+  // Share handler with modal for desktop and Web Share API for mobile
+  const handleShare = React.useCallback(async () => {
+    if (!post.board_id) {
+      console.error('[PostCard] Cannot share post: board_id missing');
+      return;
+    }
+
+    try {
+      const generatedShareUrl = buildExternalShareUrl(post.id, post.board_id);
+      console.log(`[PostCard] Generated share URL: ${generatedShareUrl}`);
+
+      // Detect if Web Share API is available and likely mobile
+      const isMobileShareAvailable = typeof navigator.share === 'function' && 
+        ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
+      if (isMobileShareAvailable) {
+        // Mobile: Use Web Share API
+        await navigator.share({
+          title: post.title,
+          text: `Check out this discussion: "${post.title}"`,
+          url: generatedShareUrl,
+        });
+        console.log('[PostCard] Shared using Web Share API');
+      } else {
+        // Desktop: Show modal with URL for manual copying
+        setShareUrl(generatedShareUrl);
+        setShowShareModal(true);
+        console.log('[PostCard] Showing share modal for desktop');
+      }
+    } catch (error) {
+      console.error('[PostCard] Failed to share post:', error);
+      
+      // Fallback: show modal with internal URL
+      try {
+        const fallbackUrl = window.location.origin + buildInternalUrl(`/board/${post.board_id}/post/${post.id}`);
+        setShareUrl(fallbackUrl);
+        setShowShareModal(true);
+        console.log('[PostCard] Fallback: showing modal with internal URL');
+      } catch (fallbackError) {
+        console.error('[PostCard] Failed to generate fallback URL:', fallbackError);
+      }
+    }
+  }, [post.id, post.board_id, post.title, buildInternalUrl]);
 
   // Update content expansion when showFullContent prop changes
   useEffect(() => {
@@ -644,7 +692,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 <span className="xs:hidden">{post.comment_count}</span>
                 {hasGating && <span className="ml-1 text-blue-500">→</span>}
               </Button>
-              <Button variant="ghost" size="sm" className="p-1 h-auto">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="p-1 h-auto" 
+                onClick={handleShare}
+                title="Share this post"
+              >
                 <Share2 size={14} /> 
               </Button>
             </div>
@@ -758,6 +812,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           </div>
         </div>
       )}
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        shareUrl={shareUrl}
+        postTitle={post.title}
+      />
     </Card>
   );
 }; 

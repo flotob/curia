@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { 
   Settings, 
 } from 'lucide-react';
+import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } from '@/utils/cookieUtils';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
@@ -97,6 +98,28 @@ export default function HomePage() {
     
     return `${path}?${params.toString()}`;
   };
+
+  // Handle shared content detection (from external share links)
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
+    const { isShared, postData } = getSharedContentInfo();
+    
+    if (isShared && postData) {
+      console.log('[HomePage] 🔗 Shared content detected, navigating to post:', postData);
+      
+      // Log debug info for browser compatibility testing
+      logCookieDebugInfo();
+      
+      // Navigate to the shared post
+      const postUrl = buildUrl(`/board/${postData.boardId}/post/${postData.postId}`);
+      router.push(postUrl);
+      
+      // Clear the cookies after processing to avoid repeated redirects
+      clearSharedContentCookies();
+    }
+  }, [buildUrl, router]); // Include dependencies to fix React Hook warning
 
   // Fetch community info
   const { data: communityInfo, isLoading: isLoadingCommunityInfo } = useQuery<CommunityInfoResponsePayload | null>({

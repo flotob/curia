@@ -132,4 +132,44 @@ export function getCgParams(): Record<string, string> {
   });
   
   return cgParams;
+}
+
+/**
+ * Builds an external shareable URL that can be accessed outside of Common Ground
+ * This URL will use the cookie-based workaround to handle the fact that CG doesn't pass query params
+ * @param postId - The ID of the post
+ * @param boardId - The ID of the board the post belongs to
+ * @returns External URL that includes a token for identifying returning visitors
+ */
+export function buildExternalShareUrl(postId: number, boardId: number): string {
+  const pluginBaseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL;
+  
+  if (!pluginBaseUrl) {
+    console.warn('NEXT_PUBLIC_PLUGIN_BASE_URL not configured, falling back to internal URL');
+    return buildPostUrl(postId, boardId, false);
+  }
+  
+  // Remove trailing slash if present
+  const baseUrl = pluginBaseUrl.replace(/\/$/, '');
+  
+  // Generate a unique token for this share attempt
+  const shareToken = generateShareToken(postId, boardId);
+  
+  // The external URL will hit our cookie-setter endpoint first
+  return `${baseUrl}/api/share-redirect?token=${shareToken}&postId=${postId}&boardId=${boardId}`;
+}
+
+/**
+ * Generates a unique share token for tracking shared URLs
+ * @param postId - The ID of the post
+ * @param boardId - The ID of the board
+ * @returns A unique token string
+ */
+function generateShareToken(postId: number, boardId: number): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2);
+  const data = `${postId}-${boardId}-${timestamp}`;
+  
+  // Simple encoding (in production, you might want something more sophisticated)
+  return btoa(data).replace(/[+/=]/g, '') + random;
 } 
