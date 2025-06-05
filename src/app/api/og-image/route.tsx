@@ -71,8 +71,9 @@ export async function GET(request: NextRequest) {
     // Get requirement icons
     const requirements = getRequirementIcons(lyxRequired, tokenCount, followerCount, roleRequired);
 
-    // Truncate title if too long for image
-    const displayTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;
+    // Adjust title length based on requirements presence
+    const maxTitleLength = requirements.length > 0 ? 65 : 80;
+    const displayTitle = title.length > maxTitleLength ? title.substring(0, maxTitleLength - 3) + '...' : title;
 
     return new ImageResponse(
       (
@@ -188,93 +189,97 @@ export async function GET(request: NextRequest) {
               justifyContent: 'center',
             }}
           >
-            {/* Board Tag */}
+            {/* Board + Title Combined Section */}
             <div
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                padding: '8px 16px',
-                marginBottom: '24px',
-                color: 'white',
-                fontSize: '18px',
-                fontWeight: '600',
                 display: 'flex',
-                alignItems: 'center',
-                alignSelf: 'flex-start',
+                flexDirection: 'column',
+                marginBottom: requirements.length > 0 ? '32px' : '40px',
               }}
             >
-              📋 {board}
+              {/* Board Name - connected to title */}
+              <div
+                style={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontSize: '22px',
+                  fontWeight: '600',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                📋 {board}
+              </div>
+
+              {/* Title with privacy-aware styling */}
+              <h1
+                style={{
+                  fontSize: requirements.length > 0 ? '48px' : '56px',
+                  fontWeight: '800',
+                  color: 'white',
+                  lineHeight: '1.1',
+                  margin: '0',
+                  textShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  // Apply privacy blur for content-gated posts
+                  filter: isContentPrivate ? 'blur(1px)' : 'none',
+                  opacity: isContentPrivate ? 0.7 : 1,
+                }}
+              >
+                {displayTitle}
+              </h1>
             </div>
 
-            {/* Requirements Section (if any) */}
+            {/* Large, Prominent Requirements Badges */}
             {requirements.length > 0 && (
               <div
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                  borderRadius: '12px',
-                  padding: '16px 20px',
-                  marginBottom: '20px',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  alignSelf: 'flex-start',
-                  maxWidth: '100%',
+                  flexWrap: 'wrap',
+                  gap: '16px',
+                  alignItems: 'center',
+                  marginBottom: '20px',
                 }}
               >
-                <div
-                  style={{
-                    fontSize: '14px',
-                    color: 'rgba(255, 255, 255, 0.9)',
-                    fontWeight: '600',
-                  }}
-                >
-                  Requirements:
-                </div>
                 {requirements.slice(0, 3).map((req, index) => (
                   <div
                     key={index}
                     style={{
-                      fontSize: '12px',
-                      color: 'rgba(255, 255, 255, 0.8)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      border: '2px solid rgba(255, 255, 255, 0.3)',
+                      borderRadius: '16px',
+                      padding: '12px 20px',
                       display: 'flex',
                       alignItems: 'center',
+                      color: 'white',
+                      fontSize: '20px',
+                      fontWeight: '700',
+                      textShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                     }}
                   >
-                    <span style={{ marginRight: '6px' }}>{req.icon}</span>
+                    <span style={{ marginRight: '10px', fontSize: '24px' }}>{req.icon}</span>
                     <span>{req.text}</span>
                   </div>
                 ))}
                 {requirements.length > 3 && (
                   <div
                     style={{
-                      fontSize: '12px',
-                      color: 'rgba(255, 255, 255, 0.7)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                      border: '2px solid rgba(255, 255, 255, 0.25)',
+                      borderRadius: '16px',
+                      padding: '12px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      fontSize: '18px',
+                      fontWeight: '600',
                       fontStyle: 'italic',
                     }}
                   >
-                    +{requirements.length - 3} more requirements
+                    +{requirements.length - 3} more
                   </div>
                 )}
               </div>
             )}
-
-            {/* Title with privacy-aware styling */}
-            <h1
-              style={{
-                fontSize: '56px',
-                fontWeight: '800',
-                color: 'white',
-                lineHeight: '1.1',
-                margin: '0',
-                textShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                marginBottom: '32px',
-                // Apply privacy blur for content-gated posts
-                filter: isContentPrivate ? 'blur(1px)' : 'none',
-                opacity: isContentPrivate ? 0.7 : 1,
-              }}
-            >
-              {displayTitle}
-            </h1>
           </div>
 
           {/* Footer */}
