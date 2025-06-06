@@ -401,13 +401,12 @@ export class TelegramService {
   }
 
   private formatUpvoteMessage(data: NotificationData): string {
-    const { post_title, user_name, metadata } = data;
+    const { post_title, metadata } = data;
     const upvoteCount = metadata?.upvote_count || 1;
     
     return `👍 <b>Post Upvoted</b>
 
 📝 <b>${this.escapeHtml(post_title || 'Untitled Post')}</b>
-👤 upvoted by ${this.escapeHtml(user_name || 'Community')}
 📊 ${upvoteCount} ${upvoteCount === 1 ? 'upvote' : 'upvotes'} total`;
     // Note: No link in rich message - comes separately for better Telegram preview
   }

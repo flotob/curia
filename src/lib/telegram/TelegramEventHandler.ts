@@ -199,6 +199,7 @@ export class TelegramEventHandler {
    */
   private async handleNewComment(payload: Record<string, unknown>, boardContext: BoardContext): Promise<void> {
     const postId = payload.postId as number;
+    const post_title = payload.post_title as string;
     console.log(`[TelegramEventHandler] Processing new comment notification for post ${postId}`);
     
     const comment = (payload.comment as Record<string, unknown>) || {};
@@ -207,7 +208,7 @@ export class TelegramEventHandler {
     const shareUrl = await generateTelegramShareUrl(
       postId,
       boardContext.boardId,
-      'Post', // Could enhance with post title lookup if not in payload
+      post_title || 'Untitled Post', // ✅ Now uses real post title from payload
       boardContext.boardName,
       payload.communityShortId as string,
       payload.pluginId as string
@@ -216,7 +217,7 @@ export class TelegramEventHandler {
     const notificationData: NotificationData = {
       type: 'comment',
       post_id: postId,
-      post_title: 'Post', // Could enhance with post title lookup if not in payload
+      post_title: post_title || 'Untitled Post', // ✅ Now uses real post title from payload
       user_name: (comment.author_name as string) || 'Unknown User'
       // Note: No content or post_url in rich message - content removed for simplicity, URL comes separately
     };
