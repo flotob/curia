@@ -1,4 +1,4 @@
-import { query } from '@/lib/db';
+import { query } from '../db';
 
 interface TelegramGroup {
   id: number;

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { query } from '@/lib/db';
+import { query } from '../db';
 
 /**
  * Generate a unique connect code for a community

@@ -1,5 +1,5 @@
-import { query } from '@/lib/db';
-import { CommunitySettings, BoardSettings, PostSettings, SettingsUtils } from '@/types/settings';
+import { query } from '../db';
+import { CommunitySettings, BoardSettings, PostSettings, SettingsUtils } from '../../types/settings';
 import { ethers } from 'ethers';
 
 /**

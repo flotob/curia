@@ -1,4 +1,4 @@
-import { SemanticUrlService } from '@/lib/semantic-urls';
+import { SemanticUrlService } from '../semantic-urls';
 
 /**
  * Direct Semantic URL Generator for Telegram Notifications

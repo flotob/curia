@@ -1,4 +1,4 @@
-import { query } from '@/lib/db';
+import { query } from '../db';
 import { telegramService, NotificationData } from './TelegramService';
 import { generateTelegramShareUrl } from './shareUrlGenerator';
 import { fetchPostMetadataDirect } from './directMetadataFetcher';
