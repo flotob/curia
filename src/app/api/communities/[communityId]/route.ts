@@ -15,6 +15,7 @@ export interface ApiCommunity {
   settings: CommunitySettings;
   created_at: string;
   updated_at: string;
+  telegram_groups_count: number; // Count of active Telegram groups for banner logic
 }
 
 // GET a specific community
@@ -26,16 +27,26 @@ async function getCommunityHandler(req: AuthenticatedRequest, context: RouteCont
   console.log(`[API] GET /api/communities/${communityId} called by user ${userId}`);
 
   try {
-    const result = await query(
-      'SELECT id, name, settings, created_at, updated_at FROM communities WHERE id = $1',
-      [communityId]
-    );
+    const result = await query(`
+      SELECT 
+        c.id, 
+        c.name, 
+        c.settings, 
+        c.created_at, 
+        c.updated_at,
+        COALESCE(COUNT(tg.id), 0)::integer as telegram_groups_count
+      FROM communities c
+      LEFT JOIN telegram_groups tg ON c.id = tg.community_id AND tg.is_active = true
+      WHERE c.id = $1
+      GROUP BY c.id, c.name, c.settings, c.created_at, c.updated_at
+    `, [communityId]);
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
     const community: ApiCommunity = result.rows[0];
+    console.log(`[API] Community ${communityId} has ${community.telegram_groups_count} active Telegram groups`);
     return NextResponse.json(community);
   } catch (error) {
     console.error(`[API] Error fetching community ${communityId}:`, error);

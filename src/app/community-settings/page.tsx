@@ -25,6 +25,7 @@ import { CommunitySettings } from '@/types/settings';
 import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { CommunityAccessForm } from '@/components/CommunityAccessForm';
+import { TelegramGroupsSection } from '@/components/settings/TelegramGroupsSection';
 // Removed server-side import - now using API endpoint
 
 export default function CommunitySettingsPage() {
@@ -465,6 +466,14 @@ export default function CommunitySettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Connected Telegram Groups Management */}
+          <div className="mb-6">
+            <TelegramGroupsSection 
+              communityId={user?.cid || ''} 
+              theme={theme} 
+            />
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Community Overview - HIDDEN FOR NOW
