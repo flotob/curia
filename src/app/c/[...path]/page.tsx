@@ -108,20 +108,67 @@ export async function generateMetadata({ params }: SemanticUrlPageProps) {
     };
   }
   
-  // Generate rich metadata for social sharing
+  // Build the semantic URL for meta tags
+  const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
+  const fullSemanticUrl = `${baseUrl}${semanticPath}`;
+  
+  // Generate OG image URL pointing to our API with semantic context
+  const ogImageUrl = `${baseUrl}/api/og-image?${new URLSearchParams({
+    title: semanticUrl.postTitle.substring(0, 100),
+    author: 'Community Member', // Don't expose user data in public URLs
+    board: semanticUrl.boardName,
+    id: semanticUrl.postId.toString(),
+    semantic: 'true' // Flag to indicate this is from a semantic URL
+  }).toString()}`;
+  
+  const description = `Discussion in ${semanticUrl.boardName} • Join the conversation on Common Ground`;
+  
+  // Generate rich metadata for social sharing with semantic URL as canonical
   return {
     title: `${semanticUrl.postTitle} - ${semanticUrl.boardName}`,
-    description: `View this post in ${semanticUrl.boardName} on ${semanticUrl.communityShortId}`,
+    description,
+    
+    // Open Graph tags with semantic URL as canonical
     openGraph: {
       title: semanticUrl.postTitle,
-      description: `Discussion in ${semanticUrl.boardName}`,
+      description,
+      url: fullSemanticUrl, // 🔑 KEY FIX: Use semantic URL, not internal URL
       type: 'article',
-      siteName: 'Common Ground Community'
+      siteName: 'Common Ground Community',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${semanticUrl.postTitle} - ${semanticUrl.boardName}`,
+        }
+      ],
     },
+    
+    // Twitter Card tags
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title: semanticUrl.postTitle,
-      description: `Discussion in ${semanticUrl.boardName}`
-    }
+      description,
+      images: [ogImageUrl],
+    },
+    
+    // Canonical URL pointing to semantic URL (not internal URL)
+    alternates: {
+      canonical: fullSemanticUrl, // 🔑 KEY FIX: Semantic URL as canonical
+    },
+    
+    // Robots configuration
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
   };
 } 
