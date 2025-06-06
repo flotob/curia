@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Copy, Share2 } from 'lucide-react';
+import { Copy, Share2, Check } from 'lucide-react';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ interface ShareModalProps {
   shareUrl: string;
   postTitle: string;
   isGenerating?: boolean;
+  isWebShareFallback?: boolean;
 }
 
 export const ShareModal: React.FC<ShareModalProps> = ({
@@ -25,8 +26,10 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   shareUrl,
   postTitle,
   isGenerating = false,
+  isWebShareFallback = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
 
   // Auto-select the URL when modal opens
   useEffect(() => {
@@ -37,13 +40,17 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         inputRef.current?.focus();
       }, 100);
     }
+    // Reset copied state when modal opens
+    if (isOpen) {
+      setCopied(false);
+    }
   }, [isOpen]);
 
-  // Handle manual copy attempt (might work in some contexts)
+  // Handle manual copy attempt with feedback
   const handleCopyClick = async () => {
     if (inputRef.current) {
       try {
-        // First try to select and use document.execCommand as fallback
+        // First try to select text
         inputRef.current.select();
         inputRef.current.setSelectionRange(0, shareUrl.length);
         
@@ -51,19 +58,23 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         if (navigator.clipboard && window.isSecureContext) {
           await navigator.clipboard.writeText(shareUrl);
           console.log('[ShareModal] URL copied via Clipboard API');
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
         } else {
           // Fallback to execCommand
           const success = document.execCommand('copy');
           if (success) {
             console.log('[ShareModal] URL copied via execCommand');
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
           } else {
             console.log('[ShareModal] Copy failed, but text is selected for manual copy');
           }
         }
-              } catch {
-          console.log('[ShareModal] Copy not available, but text is selected for manual copy');
-          // The text is still selected, so user can manually copy with Ctrl+C
-        }
+      } catch {
+        console.log('[ShareModal] Copy not available, but text is selected for manual copy');
+        // The text is still selected, so user can manually copy with Ctrl+C
+      }
     }
   };
 
@@ -82,8 +93,15 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <Share2 size={20} />
             Share Post
           </DialogTitle>
-          <DialogDescription>
-            Share this discussion: <span className="font-medium">&ldquo;{postTitle}&rdquo;</span>
+          <DialogDescription className="space-y-2">
+            <div>
+              Share this discussion: <span className="font-medium">&ldquo;{postTitle}&rdquo;</span>
+            </div>
+            {isWebShareFallback && (
+              <div className="text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md border border-amber-200 dark:border-amber-800">
+                                 <strong>📱 Mobile Share Note:</strong> Direct sharing isn&apos;t available in this context. Copy the link below to share manually.
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
         
@@ -104,12 +122,19 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               />
               <Button
                 size="sm"
-                variant="outline"
+                variant={copied ? "default" : "outline"}
                 onClick={handleCopyClick}
-                className="px-3"
-                title="Copy to clipboard"
+                className="px-3 min-w-[80px]"
+                title={copied ? "Copied!" : "Copy to clipboard"}
               >
-                <Copy size={16} />
+                {copied ? (
+                  <>
+                    <Check size={16} className="mr-1" />
+                    Copied
+                  </>
+                ) : (
+                  <Copy size={16} />
+                )}
               </Button>
             </div>
           </div>

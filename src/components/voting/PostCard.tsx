@@ -75,6 +75,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
+  const [isWebShareFallback, setIsWebShareFallback] = useState(false);
   
   // UP profile names for follower requirements (address -> display name)
   const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
@@ -194,10 +195,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
     setIsGeneratingShareUrl(true);
 
+    let generatedShareUrl: string;
+    
     try {
       console.log(`[PostCard] Generating share URL for post ${post.id}`);
       
-      const generatedShareUrl = await buildExternalShareUrl(
+      generatedShareUrl = await buildExternalShareUrl(
         post.id, 
         post.board_id, 
         user?.communityShortId || undefined,
@@ -206,41 +209,66 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         post.board_name
       );
       
-      console.log(`[PostCard] Generated share URL: ${generatedShareUrl}`);
+      console.log(`[PostCard] Successfully created semantic URL: ${generatedShareUrl}`);
+      
+    } catch (shareUrlError) {
+      console.warn('[PostCard] Failed to create semantic URL, using internal fallback:', shareUrlError);
+      
+      // Fallback to internal URL if semantic URL generation fails
+      try {
+        generatedShareUrl = window.location.origin + buildInternalUrl(`/board/${post.board_id}/post/${post.id}`);
+        console.log(`[PostCard] Using internal fallback URL: ${generatedShareUrl}`);
+      } catch (fallbackError) {
+        console.error('[PostCard] Failed to generate any URL:', fallbackError);
+        setIsGeneratingShareUrl(false);
+        return;
+      }
+    }
 
-      // Detect if Web Share API is available and likely mobile
-      const isMobileShareAvailable = typeof navigator.share === 'function' && 
-        ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-
-      if (isMobileShareAvailable) {
-        // Mobile: Use Web Share API
+    // Improved mobile detection for Web Share API
+    const isWebShareSupported = typeof navigator.share === 'function';
+    const isMobileDevice = 'ontouchstart' in window || 
+                          navigator.maxTouchPoints > 0 ||
+                          /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Try Web Share API if supported and on mobile device
+    if (isWebShareSupported && isMobileDevice) {
+      try {
         await navigator.share({
           title: post.title,
           text: `Check out this discussion: "${post.title}"`,
           url: generatedShareUrl,
         });
-        console.log('[PostCard] Shared using Web Share API');
-      } else {
-        // Desktop: Show modal with URL for manual copying
-        setShareUrl(generatedShareUrl);
-        setShowShareModal(true);
-        console.log('[PostCard] Showing share modal for desktop');
+        console.log('[PostCard] Successfully shared using Web Share API');
+        setIsGeneratingShareUrl(false);
+        return;
+        
+      } catch (webShareError) {
+        // Check if this is a user cancellation (not an error we should log)
+        if (webShareError instanceof Error && webShareError.name === 'AbortError') {
+          console.log('[PostCard] User cancelled Web Share');
+          setIsGeneratingShareUrl(false);
+          return;
+        }
+        
+        console.warn('[PostCard] Web Share API failed (likely iframe restriction), falling back to modal:', webShareError);
+        setIsWebShareFallback(true);
+        // Continue to show modal with the semantic URL we successfully generated
       }
-    } catch (error) {
-      console.error('[PostCard] Failed to share post:', error);
-      
-      // Fallback: show modal with internal URL
-      try {
-        const fallbackUrl = window.location.origin + buildInternalUrl(`/board/${post.board_id}/post/${post.id}`);
-        setShareUrl(fallbackUrl);
-        setShowShareModal(true);
-        console.log('[PostCard] Fallback: showing modal with internal URL');
-      } catch (fallbackError) {
-        console.error('[PostCard] Failed to generate fallback URL:', fallbackError);
-      }
-    } finally {
-      setIsGeneratingShareUrl(false);
     }
+
+    // Show modal with the URL (either desktop user or Web Share API failed)
+    setShareUrl(generatedShareUrl);
+    setShowShareModal(true);
+    
+    if (isWebShareSupported && isMobileDevice) {
+      console.log('[PostCard] Fallback: showing modal with semantic URL due to Web Share failure');
+    } else {
+      setIsWebShareFallback(false); // Not a Web Share fallback for desktop users
+      console.log('[PostCard] Showing share modal for desktop user');
+    }
+    
+    setIsGeneratingShareUrl(false);
   }, [post.id, post.board_id, post.title, post.board_name, user?.communityShortId, user?.pluginId, buildInternalUrl, isGeneratingShareUrl]);
 
   // Update content expansion when showFullContent prop changes
@@ -840,13 +868,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       )}
 
       {/* Share Modal */}
-              <ShareModal
-          isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
-          shareUrl={shareUrl}
-          postTitle={post.title}
-          isGenerating={isGeneratingShareUrl}
-        />
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setIsWebShareFallback(false);
+        }}
+        shareUrl={shareUrl}
+        postTitle={post.title}
+        isGenerating={isGeneratingShareUrl}
+        isWebShareFallback={isWebShareFallback}
+      />
     </Card>
   );
 }; 
