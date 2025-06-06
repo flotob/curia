@@ -54,8 +54,8 @@ Our initial attempt at URL-only encoding (using patterns like `p34b389` in URLs)
 ### Database Schema
 
 ```sql
--- Migration: 001_create_semantic_urls_table.sql
-CREATE TABLE semantic_urls (
+-- Migration: 001_create_links_table.sql
+CREATE TABLE links (
     id SERIAL PRIMARY KEY,
     
     -- Semantic URL components (human-readable)
