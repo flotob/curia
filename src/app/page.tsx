@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
 import { SearchFirstPostInput } from '@/components/voting/SearchFirstPostInput';
 import { ExpandedNewPostForm } from '@/components/voting/ExpandedNewPostForm';
+import { TelegramSetupBanner } from '@/components/banners/TelegramSetupBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSocket } from '@/contexts/SocketContext';
@@ -237,6 +238,17 @@ export default function HomePage() {
               />
             )}
           </section>
+
+          {/* Telegram Setup Banner - Admin Only */}
+          {communityInfo?.id && (
+            <section className="max-w-2xl mx-auto">
+              <TelegramSetupBanner 
+                communityId={communityInfo.id}
+                theme={theme}
+                buildUrl={buildUrl}
+              />
+            </section>
+          )}
 
           {/* Feed Section */}
           <main className="max-w-2xl mx-auto space-y-6">
