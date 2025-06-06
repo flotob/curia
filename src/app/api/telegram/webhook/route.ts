@@ -6,7 +6,7 @@ import {
   cleanConnectCodeInput, 
   isValidConnectCodeFormat 
 } from '@/lib/telegram/connectCode';
-import crypto from 'crypto';
+// import crypto from 'crypto'; // TEMP: Commented out for testing
 
 // Telegram Update types we care about
 interface TelegramUpdate {
@@ -40,26 +40,26 @@ interface TelegramUpdate {
   };
 }
 
-// Verify webhook authenticity
-function verifyTelegramWebhook(body: string, signature: string): boolean {
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!secret) {
-    console.warn('[Telegram] No webhook secret configured');
-    return false;
-  }
+// TEMP: Commented out for testing - Verify webhook authenticity
+// function verifyTelegramWebhook(body: string, signature: string): boolean {
+//   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+//   if (!secret) {
+//     console.warn('[Telegram] No webhook secret configured');
+//     return false;
+//   }
 
-  const hash = crypto
-    .createHmac('sha256', secret)
-    .update(body)
-    .digest('hex');
+//   const hash = crypto
+//     .createHmac('sha256', secret)
+//     .update(body)
+//     .digest('hex');
     
-  return signature === hash;
-}
+//   return signature === hash;
+// }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
-    const signature = req.headers.get('x-telegram-bot-api-secret-token') || '';
+    // const signature = req.headers.get('x-telegram-bot-api-secret-token') || '';
     
     // TEMP: Skip signature verification for testing
     // if (process.env.NODE_ENV === 'production' && !verifyTelegramWebhook(body, signature)) {
