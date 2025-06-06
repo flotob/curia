@@ -87,20 +87,20 @@ CREATE TABLE links (
     access_count INTEGER DEFAULT 0 NOT NULL,
     
     -- Ensure unique semantic paths
-    CONSTRAINT semantic_urls_unique_path UNIQUE (community_short_id, board_slug, slug)
+    CONSTRAINT links_unique_path UNIQUE (community_short_id, board_slug, slug)
 );
 
 -- Performance indexes
-CREATE INDEX semantic_urls_post_id_idx ON semantic_urls(post_id);
-CREATE INDEX semantic_urls_board_id_idx ON semantic_urls(board_id);
-CREATE INDEX semantic_urls_community_idx ON semantic_urls(community_short_id);
-CREATE INDEX semantic_urls_created_at_idx ON semantic_urls(created_at);
-CREATE INDEX semantic_urls_expires_at_idx ON semantic_urls(expires_at) WHERE expires_at IS NOT NULL;
-CREATE INDEX semantic_urls_access_count_idx ON semantic_urls(access_count);
+CREATE INDEX links_post_id_idx ON links(post_id);
+CREATE INDEX links_board_id_idx ON links(board_id);
+CREATE INDEX links_community_idx ON links(community_short_id);
+CREATE INDEX links_created_at_idx ON links(created_at);
+CREATE INDEX links_expires_at_idx ON links(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX links_access_count_idx ON links(access_count);
 
 -- Updated timestamp trigger
-CREATE TRIGGER set_timestamp_semantic_urls 
-    BEFORE UPDATE ON semantic_urls 
+CREATE TRIGGER set_timestamp_links 
+    BEFORE UPDATE ON links 
     FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 ```
 
@@ -117,15 +117,15 @@ CREATE TRIGGER set_timestamp_semantic_urls
 ### API Architecture
 
 ```typescript
-// POST /api/semantic-urls - Generate new semantic URL
-interface CreateSemanticUrlRequest {
+// POST /api/links - Generate new semantic URL
+interface CreateLinkRequest {
   postId: number;
   shareSource?: 'direct_share' | 'social_media' | 'email' | 'embed';
   expiresIn?: string; // '7d', '30d', 'never'
   customSlug?: string; // Optional custom slug for admins
 }
 
-interface CreateSemanticUrlResponse {
+interface CreateLinkResponse {
   id: number;
   url: string; // Full semantic URL
   slug: string; // Just the slug portion
@@ -133,12 +133,12 @@ interface CreateSemanticUrlResponse {
   expiresAt?: string;
 }
 
-// GET /api/semantic-urls/resolve - Resolve semantic URL to context
-interface ResolveSemanticUrlRequest {
+// GET /api/links/resolve - Resolve semantic URL to context
+interface ResolveLinkRequest {
   path: string; // "/c/community/board/slug"
 }
 
-interface ResolveSemanticUrlResponse {
+interface ResolveLinkResponse {
   postId: number;
   boardId: number;
   pluginId: string;
@@ -150,8 +150,8 @@ interface ResolveSemanticUrlResponse {
   createdAt: string;
 }
 
-// GET /api/semantic-urls/analytics/{id} - Analytics data
-interface SemanticUrlAnalytics {
+// GET /api/links/analytics/{id} - Analytics data
+interface LinkAnalytics {
   totalAccess: number;
   dailyAccess: { date: string; count: number }[];
   shareSource: string;
@@ -169,7 +169,7 @@ interface SemanticUrlAnalytics {
 **Work Packages:**
 
 **1.1 Database Migration (4 hours)**
-- Create `semantic_urls` table migration
+- Create `links` table migration
 - Add indexes for performance optimization  
 - Test migration rollback procedures
 - **Deliverable**: Production-ready database schema
@@ -219,7 +219,7 @@ interface SemanticUrlAnalytics {
 **Work Packages:**
 
 **3.1 PostCard Integration (2 hours)**
-- Update `buildExternalShareUrl` to call semantic URL API
+- Update `buildExternalShareUrl` to call links API
 - Implement fallback to legacy URLs during transition
 - Add loading states for URL generation
 - **Deliverable**: Posts generate semantic URLs when shared
@@ -403,7 +403,7 @@ export class SemanticUrlService {
     
     // Insert into database
     const result = await db.query(`
-      INSERT INTO semantic_urls (
+      INSERT INTO links (
         slug, community_short_id, board_slug, post_id, board_id,
         plugin_id, share_token, post_title, board_name,
         shared_by_user_id, share_source, expires_at
@@ -429,7 +429,7 @@ export class SemanticUrlService {
     const [, communityShortId, boardSlug, slug] = pathMatch;
     
     const result = await db.query(`
-      SELECT * FROM semantic_urls
+      SELECT * FROM links
       WHERE community_short_id = $1 
         AND board_slug = $2 
         AND slug = $3
@@ -446,7 +446,7 @@ export class SemanticUrlService {
    */
   static async recordAccess(id: number): Promise<void> {
     await db.query(`
-      UPDATE semantic_urls 
+      UPDATE links 
       SET access_count = access_count + 1, 
           last_accessed_at = NOW()
       WHERE id = $1
@@ -495,7 +495,7 @@ export class SemanticUrlService {
     slug: string
   ): Promise<boolean> {
     const result = await db.query(`
-      SELECT 1 FROM semantic_urls
+      SELECT 1 FROM links
       WHERE community_short_id = $1 
         AND board_slug = $2 
         AND slug = $3
@@ -631,7 +631,7 @@ export async function buildExternalShareUrl(
 
 ```sql
 -- Migrate existing popular posts to semantic URLs
-INSERT INTO semantic_urls (
+INSERT INTO links (
   post_id, board_id, community_short_id, board_slug, slug,
   plugin_id, share_token, post_title, board_name,
   shared_by_user_id, share_source
