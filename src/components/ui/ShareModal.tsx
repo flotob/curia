@@ -16,6 +16,7 @@ interface ShareModalProps {
   onClose: () => void;
   shareUrl: string;
   postTitle: string;
+  isGenerating?: boolean;
 }
 
 export const ShareModal: React.FC<ShareModalProps> = ({
@@ -23,6 +24,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   shareUrl,
   postTitle,
+  isGenerating = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -94,11 +96,11 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <Input
                 id="share-url"
                 ref={inputRef}
-                value={shareUrl}
+                value={isGenerating ? '' : shareUrl}
                 readOnly
                 onClick={handleInputClick}
                 className="font-mono text-sm"
-                placeholder="Generating share link..."
+                placeholder={isGenerating ? "Generating share link..." : "Share URL"}
               />
               <Button
                 size="sm"

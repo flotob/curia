@@ -6,6 +6,18 @@
  */
 
 /**
+ * Response from /api/links API endpoint
+ */
+interface CreateSemanticUrlResponse {
+  id: number;
+  url: string;
+  slug: string;
+  shareToken: string;
+  expiresAt?: string;
+  isExisting: boolean;
+}
+
+/**
  * Builds a URL to a specific post detail page
  * @param postId - The ID of the post
  * @param boardId - The ID of the board the post belongs to
@@ -135,16 +147,77 @@ export function getCgParams(): Record<string, string> {
 }
 
 /**
- * Builds an external shareable URL that can be accessed outside of Common Ground
- * Points directly to post page for social media crawler compatibility while
- * still handling human user redirects via client-side detection
+ * Builds an external shareable URL using semantic URLs when possible
+ * Falls back to legacy URLs during transition or when semantic URL generation fails
+ * @param postId - The ID of the post
+ * @param boardId - The ID of the board the post belongs to
+ * @param communityShortId - The community short ID for URL construction
+ * @param pluginId - The plugin ID for URL construction
+ * @param postTitle - The post title for semantic URL generation
+ * @param boardName - The board name for semantic URL generation
+ * @param useSemanticUrl - Whether to attempt semantic URL generation (default: true)
+ * @returns Promise resolving to external URL
+ */
+export async function buildExternalShareUrl(
+  postId: number, 
+  boardId: number, 
+  communityShortId?: string, 
+  pluginId?: string,
+  postTitle?: string,
+  boardName?: string,
+  useSemanticUrl: boolean = true
+): Promise<string> {
+  const pluginBaseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL;
+  
+  if (!pluginBaseUrl) {
+    console.warn('NEXT_PUBLIC_PLUGIN_BASE_URL not configured, falling back to internal URL');
+    return buildPostUrl(postId, boardId, false);
+  }
+  
+  // Try to generate semantic URL if all data available and enabled
+  if (useSemanticUrl && communityShortId && pluginId && postTitle && boardName) {
+    try {
+      console.log(`[buildExternalShareUrl] Attempting to create semantic URL for post ${postId}`);
+      
+      // Import authFetchJson dynamically to avoid issues in SSR/build
+      const { authFetchJson } = await import('@/utils/authFetch');
+      
+      const result = await authFetchJson<CreateSemanticUrlResponse>('/api/links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          postId,
+          postTitle,
+          boardId,
+          boardName,
+          shareSource: 'direct_share'
+        }),
+      });
+      
+      console.log(`[buildExternalShareUrl] Successfully created semantic URL: ${result.url}`);
+      return result.url;
+      
+    } catch (error) {
+      console.warn('[buildExternalShareUrl] Failed to create semantic URL, falling back to legacy:', error);
+    }
+  }
+  
+  // Fallback to legacy URL generation
+  console.log(`[buildExternalShareUrl] Using legacy URL for post ${postId}`);
+  return buildLegacyExternalShareUrl(postId, boardId, communityShortId, pluginId);
+}
+
+/**
+ * Legacy external share URL builder (preserved for fallback)
  * @param postId - The ID of the post
  * @param boardId - The ID of the board the post belongs to
  * @param communityShortId - The community short ID for URL construction
  * @param pluginId - The plugin ID for URL construction
  * @returns External URL pointing to post page with share context
  */
-export function buildExternalShareUrl(
+export function buildLegacyExternalShareUrl(
   postId: number, 
   boardId: number, 
   communityShortId?: string, 

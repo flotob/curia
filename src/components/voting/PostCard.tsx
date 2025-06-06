@@ -74,6 +74,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
   
   // UP profile names for follower requirements (address -> display name)
   const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
@@ -185,13 +186,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       return;
     }
 
+    // Prevent multiple concurrent share operations
+    if (isGeneratingShareUrl) {
+      console.log('[PostCard] Share URL generation already in progress');
+      return;
+    }
+
+    setIsGeneratingShareUrl(true);
+
     try {
-      const generatedShareUrl = buildExternalShareUrl(
+      console.log(`[PostCard] Generating share URL for post ${post.id}`);
+      
+      const generatedShareUrl = await buildExternalShareUrl(
         post.id, 
         post.board_id, 
         user?.communityShortId || undefined,
-        user?.pluginId || undefined
+        user?.pluginId || undefined,
+        post.title,
+        post.board_name
       );
+      
       console.log(`[PostCard] Generated share URL: ${generatedShareUrl}`);
 
       // Detect if Web Share API is available and likely mobile
@@ -224,8 +238,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       } catch (fallbackError) {
         console.error('[PostCard] Failed to generate fallback URL:', fallbackError);
       }
+    } finally {
+      setIsGeneratingShareUrl(false);
     }
-  }, [post.id, post.board_id, post.title, buildInternalUrl]);
+  }, [post.id, post.board_id, post.title, post.board_name, user?.communityShortId, user?.pluginId, buildInternalUrl, isGeneratingShareUrl]);
 
   // Update content expansion when showFullContent prop changes
   useEffect(() => {
@@ -702,9 +718,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 size="sm" 
                 className="p-1 h-auto" 
                 onClick={handleShare}
-                title="Share this post"
+                disabled={isGeneratingShareUrl}
+                title={isGeneratingShareUrl ? "Generating share URL..." : "Share this post"}
               >
-                <Share2 size={14} /> 
+                {isGeneratingShareUrl ? (
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
+                ) : (
+                  <Share2 size={14} />
+                )}
               </Button>
             </div>
             <div className="flex items-center gap-1">
@@ -819,12 +840,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       )}
 
       {/* Share Modal */}
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        shareUrl={shareUrl}
-        postTitle={post.title}
-      />
+              <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          shareUrl={shareUrl}
+          postTitle={post.title}
+          isGenerating={isGeneratingShareUrl}
+        />
     </Card>
   );
 }; 
