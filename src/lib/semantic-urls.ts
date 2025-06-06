@@ -7,7 +7,7 @@
  * routing and analytics.
  */
 
-import { query } from '@/lib/db';
+import { query } from './db';
 
 /**
  * Represents a semantic URL record from the database
