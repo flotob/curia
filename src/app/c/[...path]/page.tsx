@@ -1,5 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { SemanticUrlService } from '@/lib/semantic-urls';
+import { EnhancedPostMetadata } from '@/app/api/posts/[postId]/metadata/route';
+import { generatePrivacyAwarePostMetadata } from '@/utils/metadataUtils';
 
 interface SemanticUrlPageProps {
   params: Promise<{ path: string[] }>;
@@ -81,8 +83,9 @@ export default async function SemanticUrlHandler({ params }: SemanticUrlPageProp
 }
 
 /**
- * Generate page metadata for semantic URLs
- * This helps with SEO and social media previews
+ * Generate enhanced page metadata for semantic URLs
+ * Uses the same rich, privacy-aware metadata system as regular post pages
+ * but with semantic URL as canonical instead of internal URL
  */
 export async function generateMetadata({ params }: SemanticUrlPageProps) {
   const { path } = await params;
@@ -91,7 +94,7 @@ export async function generateMetadata({ params }: SemanticUrlPageProps) {
   let semanticUrl;
   
   try {
-    // Look up the semantic URL for metadata
+    // Look up the semantic URL for basic post info
     semanticUrl = await SemanticUrlService.resolve(semanticPath);
   } catch (error) {
     console.error('[SemanticUrlHandler] Error resolving URL for metadata:', error);
@@ -107,68 +110,85 @@ export async function generateMetadata({ params }: SemanticUrlPageProps) {
       description: 'The requested post could not be found.'
     };
   }
-  
-  // Build the semantic URL for meta tags
+
+  // Build URLs
   const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
   const fullSemanticUrl = `${baseUrl}${semanticPath}`;
   
-  // Generate OG image URL pointing to our API with semantic context
-  const ogImageUrl = `${baseUrl}/api/og-image?${new URLSearchParams({
-    title: semanticUrl.postTitle.substring(0, 100),
-    author: 'Community Member', // Don't expose user data in public URLs
-    board: semanticUrl.boardName,
-    id: semanticUrl.postId.toString(),
-    semantic: 'true' // Flag to indicate this is from a semantic URL
-  }).toString()}`;
-  
-  const description = `Discussion in ${semanticUrl.boardName} • Join the conversation on Common Ground`;
-  
-  // Generate rich metadata for social sharing with semantic URL as canonical
-  return {
-    title: `${semanticUrl.postTitle} - ${semanticUrl.boardName}`,
-    description,
+  try {
+    // Fetch enhanced post metadata with gating information (same as post layout)
+    const response = await fetch(`${baseUrl}/api/posts/${semanticUrl.postId}/metadata`, {
+      next: { revalidate: 300 } // Cache for 5 minutes
+    });
     
-    // Open Graph tags with semantic URL as canonical
-    openGraph: {
-      title: semanticUrl.postTitle,
-      description,
-      url: fullSemanticUrl, // 🔑 KEY FIX: Use semantic URL, not internal URL
-      type: 'article',
-      siteName: 'Common Ground Community',
-      images: [
-        {
-          url: ogImageUrl,
-          width: 1200,
-          height: 630,
-          alt: `${semanticUrl.postTitle} - ${semanticUrl.boardName}`,
-        }
-      ],
-    },
+    if (!response.ok) {
+      console.warn(`Failed to fetch enhanced metadata for post ${semanticUrl.postId}, using semantic URL fallback`);
+      // Use basic semantic URL metadata as fallback
+      return {
+        title: `${semanticUrl.postTitle} - ${semanticUrl.boardName}`,
+        description: `Discussion in ${semanticUrl.boardName} • Join the conversation on Common Ground`,
+        openGraph: {
+          title: semanticUrl.postTitle,
+          description: `Discussion in ${semanticUrl.boardName}`,
+          url: fullSemanticUrl,
+          type: 'article',
+          siteName: 'Common Ground Community',
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title: semanticUrl.postTitle,
+          description: `Discussion in ${semanticUrl.boardName}`,
+        },
+        alternates: {
+          canonical: fullSemanticUrl,
+        },
+      };
+    }
     
-    // Twitter Card tags
-    twitter: {
-      card: 'summary_large_image',
-      title: semanticUrl.postTitle,
-      description,
-      images: [ogImageUrl],
-    },
+    const postData: EnhancedPostMetadata = await response.json();
     
-    // Canonical URL pointing to semantic URL (not internal URL)
-    alternates: {
-      canonical: fullSemanticUrl, // 🔑 KEY FIX: Semantic URL as canonical
-    },
+    // Generate rich privacy-aware metadata using existing utility
+    const richMetadata = generatePrivacyAwarePostMetadata(postData, baseUrl, semanticUrl.boardId.toString());
     
-    // Robots configuration
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
+    // Override the canonical URL to point to semantic URL instead of internal URL
+    const semanticAwareMetadata = {
+      ...richMetadata,
+      openGraph: {
+        ...richMetadata.openGraph,
+        url: fullSemanticUrl, // 🔑 Use semantic URL as canonical
       },
-    },
-  };
+      alternates: {
+        canonical: fullSemanticUrl, // 🔑 Use semantic URL as canonical
+      },
+    };
+    
+    const gatingStatus = postData.gatingContext.communityGated || postData.gatingContext.boardGated || postData.gatingContext.postGated;
+    console.log(`[SemanticUrlHandler] Generated rich metadata for ${semanticPath}: ${postData.title} (${gatingStatus ? 'gated' : 'public'})`);
+    
+    return semanticAwareMetadata;
+    
+  } catch (error) {
+    console.error(`[SemanticUrlHandler] Error fetching enhanced metadata for post ${semanticUrl.postId}:`, error);
+    
+    // Fallback to basic semantic URL metadata
+    return {
+      title: `${semanticUrl.postTitle} - ${semanticUrl.boardName}`,
+      description: `Discussion in ${semanticUrl.boardName} • Join the conversation on Common Ground`,
+      openGraph: {
+        title: semanticUrl.postTitle,
+        description: `Discussion in ${semanticUrl.boardName}`,
+        url: fullSemanticUrl,
+        type: 'article',
+        siteName: 'Common Ground Community',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: semanticUrl.postTitle,
+        description: `Discussion in ${semanticUrl.boardName}`,
+      },
+      alternates: {
+        canonical: fullSemanticUrl,
+      },
+    };
+  }
 } 
