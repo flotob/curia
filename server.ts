@@ -25,6 +25,7 @@ import { canUserAccessBoard } from './src/lib/boardPermissions';
 import { query } from './src/lib/db';
 import { JwtPayload } from './src/lib/withAuth';
 import { EventEmitter } from 'events';
+import { telegramEventHandler } from './src/lib/telegram/TelegramEventHandler';
 
 // Load environment variables for custom server (development only)
 // if (process.env.NODE_ENV !== 'production' && !process.env.JWT_SECRET) {
@@ -361,6 +362,19 @@ async function bootstrap() {
       payload,
       config
     });
+  });
+
+  // ===== TELEGRAM NOTIFICATION SYSTEM =====
+  
+  // Setup parallel listener for Telegram notifications (NEW)
+  customEventEmitter.on('broadcastEvent', async (eventDetails: { room: string; eventName: string; payload: any }) => {
+    try {
+      console.log(`[Telegram] Processing event: ${eventDetails.eventName} for room: ${eventDetails.room}`);
+      await telegramEventHandler.handleBroadcastEvent(eventDetails);
+    } catch (error) {
+      // Log error but don't crash the main event system
+      console.error('[Telegram] Event handling failed:', error);
+    }
   });
 
   // JWT Authentication middleware

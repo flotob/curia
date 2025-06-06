@@ -1,15 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Settings,
   Shield,
   ArrowLeft,
+  MessageSquare,
+  Copy,
+  Check,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -20,12 +25,15 @@ import { CommunitySettings } from '@/types/settings';
 import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { CommunityAccessForm } from '@/components/CommunityAccessForm';
+// Removed server-side import - now using API endpoint
 
 export default function CommunitySettingsPage() {
   const { cgInstance, isInitializing } = useCgLib();
   const searchParams = useSearchParams();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [bgColor, setBgColor] = useState('#ffffff');
+  const [copiedConnectCode, setCopiedConnectCode] = useState(false);
+  const connectCodeInputRef = useRef<HTMLInputElement>(null);
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -60,6 +68,84 @@ export default function CommunitySettingsPage() {
     });
     
     return `${path}?${params.toString()}`;
+  };
+
+  // Fetch Telegram connect code data
+  const { data: telegramData } = useQuery<{
+    connectCode: string;
+    formattedConnectCode: string;
+    botName: string;
+    botUsername: string;
+  }>({
+    queryKey: ['telegramConnectCode', user?.cid],
+    queryFn: async () => {
+      if (!user?.cid || !token) throw new Error('No community ID or token available');
+      const response = await authFetchJson<{
+        connectCode: string;
+        formattedConnectCode: string;
+        botName: string;
+        botUsername: string;
+      }>('/api/telegram/connect-code', { token });
+      return response;
+    },
+    enabled: !!user?.cid && !!token && user.isAdmin,
+  });
+
+  // Auto-select connect code when it loads
+  useEffect(() => {
+    if (telegramData?.connectCode && connectCodeInputRef.current) {
+      setTimeout(() => {
+        connectCodeInputRef.current?.select();
+        connectCodeInputRef.current?.focus();
+      }, 100);
+    }
+  }, [telegramData?.connectCode]);
+
+  // Copy connect code to clipboard (same approach as ShareModal)
+  const copyConnectCode = async () => {
+    if (!telegramData?.connectCode || !connectCodeInputRef.current) return;
+    
+    try {
+      // First try to select text
+      connectCodeInputRef.current.select();
+      connectCodeInputRef.current.setSelectionRange(0, telegramData.connectCode.length);
+      
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(telegramData.connectCode);
+        console.log('[CommunitySettings] Connect code copied via Clipboard API');
+        setCopiedConnectCode(true);
+        toast({
+          title: "Copied!",
+          description: "Connect code copied to clipboard",
+        });
+        setTimeout(() => setCopiedConnectCode(false), 2000);
+      } else {
+        // Fallback to execCommand
+        const success = document.execCommand('copy');
+        if (success) {
+          console.log('[CommunitySettings] Connect code copied via execCommand');
+          setCopiedConnectCode(true);
+          toast({
+            title: "Copied!",
+            description: "Connect code copied to clipboard",
+          });
+          setTimeout(() => setCopiedConnectCode(false), 2000);
+        } else {
+          console.log('[CommunitySettings] Copy failed, but text is selected for manual copy');
+          toast({
+            title: "Text selected",
+            description: "Please copy manually with Ctrl+C or Cmd+C",
+          });
+        }
+      }
+    } catch {
+      console.log('[CommunitySettings] Copy not available, but text is selected for manual copy');
+      toast({
+        title: "Text selected", 
+        description: "Please copy manually with Ctrl+C or Cmd+C",
+      });
+    }
   };
 
   // Fetch community settings from our new API
@@ -236,6 +322,149 @@ export default function CommunitySettingsPage() {
               View and manage your community configuration
             </p>
           </div>
+
+          {/* Telegram Notifications Section */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare size={20} />
+                Telegram Notifications
+              </CardTitle>
+              <CardDescription>
+                Connect your Telegram groups to receive real-time notifications about forum activity
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Connect Code Section */}
+              <div className="space-y-4">
+                <div>
+                  <h4 className={cn(
+                    "font-medium mb-2",
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  )}>
+                    Your Connect Code
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      ref={connectCodeInputRef}
+                      value={telegramData?.formattedConnectCode || 'Loading...'}
+                      readOnly
+                      onClick={() => connectCodeInputRef.current?.select()}
+                      className="flex-1 font-mono text-lg tracking-wider text-center"
+                      placeholder="Loading connect code..."
+                    />
+                    <Button
+                      onClick={copyConnectCode}
+                      disabled={!telegramData?.connectCode}
+                      variant={copiedConnectCode ? "default" : "outline"}
+                      size="sm"
+                      className="px-3 min-w-[80px]"
+                      title={copiedConnectCode ? "Copied!" : "Copy to clipboard"}
+                    >
+                      {copiedConnectCode ? (
+                        <>
+                          <Check size={16} className="mr-1" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} className="mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className={cn(
+                    "text-sm mt-2",
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                  )}>
+                    This code rotates daily for security. Use it to register Telegram groups.
+                  </p>
+                </div>
+
+                {/* Setup Instructions */}
+                <div className={cn(
+                  "p-4 rounded-lg border",
+                  theme === 'dark' 
+                    ? 'bg-blue-900/20 border-blue-800/30' 
+                    : 'bg-blue-50 border-blue-200'
+                )}>
+                  <h5 className={cn(
+                    "font-medium mb-3 flex items-center gap-2",
+                    theme === 'dark' ? 'text-blue-300' : 'text-blue-800'
+                  )}>
+                    📱 How to Connect Your Telegram Group
+                  </h5>
+                  <div className={cn(
+                    "space-y-2 text-sm",
+                    theme === 'dark' ? 'text-blue-200' : 'text-blue-700'
+                  )}>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium min-w-[20px]">1.</span>
+                      <span>
+                        Add <strong>@{telegramData?.botUsername || 'bot'}</strong> to your Telegram group
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium min-w-[20px]">2.</span>
+                      <span>Copy the connect code above</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium min-w-[20px]">3.</span>
+                      <span>
+                        In your Telegram group, type: <code className={cn(
+                          "px-1 py-0.5 rounded text-xs",
+                          theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-700'
+                        )}>
+                          /register {telegramData?.connectCode || 'CODE'}
+                        </code>
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium min-w-[20px]">4.</span>
+                      <span>Start receiving notifications about posts, upvotes, and comments!</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bot Information */}
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center",
+                      theme === 'dark' ? 'bg-slate-700' : 'bg-slate-100'
+                    )}>
+                      <MessageSquare size={20} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className={cn(
+                        "font-medium",
+                        theme === 'dark' ? 'text-slate-200' : 'text-slate-800'
+                      )}>
+                        {telegramData?.botName || 'Loading...'}
+                      </p>
+                      <p className={cn(
+                        "text-sm",
+                        theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                      )}>
+                        @{telegramData?.botUsername || 'bot'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <a 
+                      href={`https://t.me/${telegramData?.botUsername || 'bot'}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink size={16} className="mr-1" />
+                      Open Bot
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Community Overview - HIDDEN FOR NOW

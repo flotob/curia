@@ -98,7 +98,17 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
       emitter.emit('broadcastEvent', {
         room: `board:${board_id}`,
         eventName: 'voteUpdate',
-        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId, board_id, post_title, board_name }
+        payload: { 
+          postId, 
+          newCount: updatedPost.upvote_count, 
+          userIdVoted: userId, 
+          board_id, 
+          post_title, 
+          board_name,
+          // Add community context for Telegram notifications
+          communityShortId: user.communityShortId,
+          pluginId: user.pluginId
+        }
       });
       console.log('[API /api/posts/.../votes POST] Successfully emitted event on process.customEventEmitter for vote add.');
     } else {
@@ -200,7 +210,17 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
       emitter.emit('broadcastEvent', {
         room: `board:${board_id}`,
         eventName: 'voteUpdate', // Same eventName, client can deduce based on newCount and user_has_upvoted
-        payload: { postId, newCount: updatedPost.upvote_count, userIdVoted: userId, board_id, post_title, board_name }
+        payload: { 
+          postId, 
+          newCount: updatedPost.upvote_count, 
+          userIdVoted: userId, 
+          board_id, 
+          post_title, 
+          board_name,
+          // Add community context for Telegram notifications
+          communityShortId: user.communityShortId,
+          pluginId: user.pluginId
+        }
       });
       console.log('[API /api/posts/.../votes DELETE] Successfully emitted event on process.customEventEmitter for vote remove.');
     } else {

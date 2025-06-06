@@ -308,7 +308,10 @@ async function createPostHandler(req: AuthenticatedRequest) {
           created_at: newPost.created_at,
           upvote_count: newPost.upvote_count,
           comment_count: newPost.comment_count,
-          board_id: validBoardId
+          board_id: validBoardId,
+          // Add community context for Telegram notifications
+          communityShortId: user.communityShortId,
+          pluginId: user.pluginId
         }
       });
       console.log('[API /api/posts] Successfully emitted event on process.customEventEmitter for new post.');
