@@ -1,639 +1,731 @@
-# Semantic URL Shortening Service - Research & Specification
+# Semantic URL Shortener Service - Database-Backed Solution
 
-## Overview
+## Executive Summary
 
-This document outlines the design for a semantic URL shortening service that transforms machine-readable forum URLs into human-friendly, semantically meaningful URLs while maintaining all existing functionality for social sharing, SEO, and iframe-based redirect handling.
+This document outlines the design for a **database-backed semantic URL shortener** that transforms cryptic forum share URLs into clean, human-readable final destination URLs while maintaining all existing functionality for Common Ground integration, social sharing, and analytics.
 
-## Current State Analysis
-
-### Existing Link Sharing Architecture
-
-Our current system is sophisticated and handles multiple complex requirements:
-
-1. **External Share URL Generation** (`buildExternalShareUrl`):
-   ```
-   curia.commonground.cg/board/389/post/34?token=MzQtMzg5LTE3NDkxOTUxMjAzMTIg9d4lp9dnuj&communityShortId=commonground&pluginId=6434de36-4e59-40ba-971b-d4ac5f6050bf
-   ```
-
-2. **Multi-Platform Share Button** (`PostCard.tsx`):
-   - Desktop: ShareModal with copyable URLs
-   - Mobile: Native Web Share API integration
-
-3. **Complex Redirect System**:
-   - Cookie-based shared content detection
-   - Iframe-aware redirect handling
-   - Social media crawler compatibility
-
-4. **Privacy-Aware Meta Tags**:
-   - Board permission-aware metadata
-   - Dynamic OG image generation
-   - SEO optimization
-
-### Current Token System Analysis
-
-The existing share token in URLs like:
+**Problem**: Current share URLs are user-hostile and expose implementation details:
 ```
 curia.commonground.cg/board/389/post/34?token=MzQtMzg5LTE3NDkxOTUxMjAzMTIg9d4lp9dnuj&communityShortId=commonground&pluginId=6434de36-4e59-40ba-971b-d4ac5f6050bf
 ```
 
-**Token Generation:**
-```typescript
-function generateShareToken(postId: number, boardId: number): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2);
-  const data = `${postId}-${boardId}-${timestamp}`;
-  return btoa(data).replace(/[+/=]/g, '') + random;
-}
+**Solution**: Clean, semantic URLs that work as final destinations:
+```
+curia.commonground.cg/c/commonground/general-discussion/introducing-new-governance-proposal
 ```
 
-**Token Purposes:**
-1. **Share Link Detection**: Signals "this is a shared link vs. direct navigation"
-2. **Iframe Redirect Trigger**: Initiates Common Ground redirect flow
-3. **Context Preservation**: Passed through cookies during iframe → CG → iframe flow
+## Why Database-Backed Architecture is Required
 
-**Critical Finding**: The token is **never validated or parsed** - it's used purely as a boolean signal that a URL is from sharing.
+### Context Requirements for Share URLs
 
-### Limitations Being Addressed
+Share URLs must contain sufficient context for Common Ground to properly route users:
 
-1. **Human Readability**: Current URLs are opaque with numeric IDs and cryptic tokens
-2. **Semantic Meaning**: URLs don't convey content context to users  
-3. **Shareability**: Long URLs with tokens are not user-friendly
-4. **Brand Recognition**: No clear indication of content type or community
-5. **Token Complexity**: Unnecessary token generation adds complexity without functional value
+1. **Plugin Instance Routing**: Requires `pluginId` (36-character UUID)
+2. **Community Context**: Requires `communityShortId` 
+3. **Content Navigation**: Requires `postId`, `boardId`
+4. **Share Detection**: Requires unique share tokens for iframe handling
+5. **Analytics & Tracking**: Requires share metadata and access tracking
 
-## Proposed Semantic URL System
+### Why URL-Only Encoding Fails
 
-### Target URL Format
+**Technical Limitations:**
+- **Plugin ID Length**: UUIDs are 36 characters, making URLs unwieldy
+- **Context Explosion**: All required context creates URLs over 200 characters
+- **Security Exposure**: Internal IDs and plugin UUIDs exposed in URLs
+- **Inflexibility**: Cannot evolve URL structure without breaking existing links
 
-```
-{NEXT_PUBLIC_PLUGIN_BASE_URL}/c/{communityShortId}/{board-slug}/{post-title-slug}-{uid-slug}
-```
+**Functional Limitations:**
+- **No Analytics**: Cannot track individual share instances or access patterns
+- **No Management**: Cannot expire, update, or manage URLs at scale
+- **No Customization**: Cannot support custom slugs or branding
+- **Redirect Chains**: Still requires multi-hop redirects instead of final destinations
 
-**Example Transformation:**
-```
-Before: curia.commonground.cg/board/389/post/34?token=...&communityShortId=commonground&pluginId=...
-After:  curia.commonground.cg/c/commonground/general-discussion/introducing-new-governance-proposal-p34b389
-```
+### Failed Approach: URL-Only Encoding
 
-### URL Structure Breakdown
+Our initial attempt at URL-only encoding (using patterns like `p34b389` in URLs) was fundamentally flawed because:
 
-1. **`/c/`**: Reserved prefix indicating semantic short URL (similar to Twitter's `/status/` or Reddit's `/r/`)
-2. **`{communityShortId}`**: Existing community identifier (e.g., "commonground")
-3. **`{board-slug}`**: URL-safe board name (e.g., "general-discussion", "governance")
-4. **`{post-title-slug}`**: URL-safe post title (e.g., "introducing-new-governance-proposal")
-5. **`{uid-slug}`**: Unique identifier combining post and board IDs (e.g., "p34b389")
+1. **Missing Plugin Context**: Cannot encode 36-character plugin UUIDs in user-friendly URLs
+2. **Redirect Complexity**: Still required client-side detection and multiple redirects
+3. **Not Final Destinations**: URLs were just redirect middleware, not true semantic endpoints
+4. **No Share Context**: Cannot distinguish individual share instances for analytics
 
-### UID Slug Format
+## Proposed Solution: Database-Backed Semantic URLs
 
-The UID slug serves as the definitive identifier for database lookups:
-- **Format**: `p{postId}b{boardId}` (e.g., "p34b389")
-- **Parsing**: Regex pattern `/p(\d+)b(\d+)/` extracts IDs
-- **Uniqueness**: Guarantees unique resolution even with duplicate titles
-- **Backwards Compatibility**: Enables fallback to numeric URLs if needed
+### Database Schema
 
-## Database Requirements Analysis
-
-### Available Data for URL Generation
-
-From the `PostCard` component when share button is clicked:
-
-```typescript
-const generatedShareUrl = buildExternalShareUrl(
-  post.id,                                    // ✅ Post ID: 34
-  post.board_id,                             // ✅ Board ID: 389  
-  user?.communityShortId || undefined,       // ✅ Community: "commonground"
-  user?.pluginId || undefined,              // ✅ Plugin ID (not needed for semantics)
-  post.title,                               // ✅ Post title: "Introducing New Governance Proposal"
-  post.board_name                           // ✅ Board name: "General Discussion"
+```sql
+-- Migration: 001_create_semantic_urls_table.sql
+CREATE TABLE semantic_urls (
+    id SERIAL PRIMARY KEY,
+    
+    -- Semantic URL components (human-readable)
+    slug VARCHAR(255) NOT NULL UNIQUE,              -- "introducing-new-governance-proposal"
+    community_short_id VARCHAR(100) NOT NULL,       -- "commonground"
+    board_slug VARCHAR(255) NOT NULL,               -- "general-discussion"
+    
+    -- Target content (for resolution)
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    
+    -- Plugin context (required for Common Ground routing)
+    plugin_id VARCHAR(255) NOT NULL,                -- Full plugin UUID
+    
+    -- Share context (for iframe detection and analytics)
+    share_token VARCHAR(255) NOT NULL UNIQUE,       -- Unique per share instance
+    shared_by_user_id VARCHAR(255) REFERENCES users(user_id),
+    share_source VARCHAR(100),                      -- 'direct_share', 'social_media', 'email'
+    
+    -- Content metadata (for URL generation and SEO)
+    post_title VARCHAR(500) NOT NULL,               -- Original post title
+    board_name VARCHAR(255) NOT NULL,               -- Original board name
+    
+    -- Lifecycle management
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    expires_at TIMESTAMPTZ,                         -- Optional expiration
+    last_accessed_at TIMESTAMPTZ,
+    access_count INTEGER DEFAULT 0 NOT NULL,
+    
+    -- Ensure unique semantic paths
+    CONSTRAINT semantic_urls_unique_path UNIQUE (community_short_id, board_slug, slug)
 );
+
+-- Performance indexes
+CREATE INDEX semantic_urls_post_id_idx ON semantic_urls(post_id);
+CREATE INDEX semantic_urls_board_id_idx ON semantic_urls(board_id);
+CREATE INDEX semantic_urls_community_idx ON semantic_urls(community_short_id);
+CREATE INDEX semantic_urls_created_at_idx ON semantic_urls(created_at);
+CREATE INDEX semantic_urls_expires_at_idx ON semantic_urls(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX semantic_urls_access_count_idx ON semantic_urls(access_count);
+
+-- Updated timestamp trigger
+CREATE TRIGGER set_timestamp_semantic_urls 
+    BEFORE UPDATE ON semantic_urls 
+    FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 ```
 
-### No Migration Required
+### URL Structure & Examples
 
-**Conclusion**: We have all required data available at share generation time. No database table needed because:
+**Format**: `/c/{community_short_id}/{board_slug}/{post_slug}`
 
-1. **Generation**: We can build semantic URLs on-demand using available post/board data
-2. **Resolution**: We can parse post/board IDs directly from the URL slug
-3. **Performance**: Zero database overhead for URL resolution
-4. **Simplicity**: No migration complexity or additional failure points
+**Real Examples**:
+- `/c/commonground/general-discussion/introducing-new-governance-proposal`
+- `/c/dao-coalition/governance/quarterly-budget-review-q4-2024`
+- `/c/makers/announcements/platform-v2-launch-december-update`
+- `/c/ethereum-community/technical/eip-proposal-gas-optimization`
 
-### URL Encoding/Decoding Strategy
-
-```typescript
-// Encoding: postId=34, boardId=389 → "p34b389"
-function encodeIds(postId: number, boardId: number): string {
-  return `p${postId}b${boardId}`;
-}
-
-// Decoding: "p34b389" → {postId: 34, boardId: 389}
-function decodeIds(uidSlug: string): {postId: number, boardId: number} {
-  const match = uidSlug.match(/^p(\d+)b(\d+)$/);
-  if (!match) throw new Error('Invalid UID slug');
-  return {
-    postId: parseInt(match[1], 10),
-    boardId: parseInt(match[2], 10)
-  };
-}
-```
-
-## Technical Implementation
-
-### 1. Semantic URL Utilities
+### API Architecture
 
 ```typescript
-// src/lib/semanticUrls.ts
+// POST /api/semantic-urls - Generate new semantic URL
+interface CreateSemanticUrlRequest {
+  postId: number;
+  shareSource?: 'direct_share' | 'social_media' | 'email' | 'embed';
+  expiresIn?: string; // '7d', '30d', 'never'
+  customSlug?: string; // Optional custom slug for admins
+}
 
-interface SemanticUrlConfig {
+interface CreateSemanticUrlResponse {
+  id: number;
+  url: string; // Full semantic URL
+  slug: string; // Just the slug portion
+  shareToken: string;
+  expiresAt?: string;
+}
+
+// GET /api/semantic-urls/resolve - Resolve semantic URL to context
+interface ResolveSemanticUrlRequest {
+  path: string; // "/c/community/board/slug"
+}
+
+interface ResolveSemanticUrlResponse {
   postId: number;
   boardId: number;
+  pluginId: string;
   communityShortId: string;
+  shareToken: string;
   postTitle: string;
   boardName: string;
+  accessCount: number;
+  createdAt: string;
 }
 
-export class SemanticUrlService {
-  /**
-   * Generates semantic URL for a post - no database required
-   */
-  static generateSemanticUrl(config: SemanticUrlConfig): string {
-    const { postId, boardId, communityShortId, postTitle, boardName } = config;
-    
-    // Create URL-safe slugs
-    const boardSlug = this.createSlug(boardName);
-    const postTitleSlug = this.createSlug(postTitle);
-    const uidSlug = `p${postId}b${boardId}`;
-    
-    // Construct semantic URL - no database storage needed
-    const semanticPath = `/c/${communityShortId}/${boardSlug}/${postTitleSlug}-${uidSlug}`;
-    
-    return `${process.env.NEXT_PUBLIC_PLUGIN_BASE_URL}${semanticPath}`;
-  }
-  
-  /**
-   * Resolves semantic URL to post/board IDs - pure parsing, no database
-   */
-  static resolveSemanticUrl(semanticPath: string): {postId: number, boardId: number} | null {
-    // Extract UID slug from path: "/c/community/board/title-p34b389"
-    const uidMatch = semanticPath.match(/-(p\d+b\d+)$/);
-    if (!uidMatch) return null;
-    
-    const uidSlug = uidMatch[1];
-    
-    // Parse post and board IDs directly from slug
-    const idMatch = uidSlug.match(/^p(\d+)b(\d+)$/);
-    if (!idMatch) return null;
-    
-    return {
-      postId: parseInt(idMatch[1], 10),
-      boardId: parseInt(idMatch[2], 10)
-    };
-  }
-  
-  /**
-   * Creates URL-safe slug from text
-   */
-  private static createSlug(text: string): string {
-    return text
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '') // Remove special chars
-      .replace(/\s+/g, '-')     // Replace spaces with hyphens
-      .replace(/-+/g, '-')      // Collapse multiple hyphens
-      .replace(/^-|-$/g, '')    // Remove leading/trailing hyphens
-      .substring(0, 100);       // Limit length
-  }
+// GET /api/semantic-urls/analytics/{id} - Analytics data
+interface SemanticUrlAnalytics {
+  totalAccess: number;
+  dailyAccess: { date: string; count: number }[];
+  shareSource: string;
+  createdAt: string;
+  lastAccessed: string;
 }
-```
-
-### 2. Enhanced URL Builder
-
-```typescript
-// src/utils/urlBuilder.ts - Enhanced buildExternalShareUrl
-export function buildExternalShareUrl(
-  postId: number, 
-  boardId: number, 
-  communityShortId?: string, 
-  pluginId?: string,
-  postTitle?: string,        // NEW: Post title for semantic URL
-  boardName?: string,        // NEW: Board name for semantic URL  
-  useSemanticUrl: boolean = true
-): string {
-  const pluginBaseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL;
-  
-  if (!pluginBaseUrl) {
-    console.warn('NEXT_PUBLIC_PLUGIN_BASE_URL not configured, falling back to internal URL');
-    return buildPostUrl(postId, boardId, false);
-  }
-  
-  // If we have all data for semantic URL, use it
-  if (useSemanticUrl && communityShortId && postTitle && boardName) {
-    return SemanticUrlService.generateSemanticUrl({
-      postId,
-      boardId,
-      communityShortId,
-      postTitle,
-      boardName
-    });
-  }
-  
-  // Otherwise fall back to legacy URL (existing implementation)
-  return buildLegacyExternalShareUrl(postId, boardId, communityShortId, pluginId);
-}
-```
-
-### 3. Semantic URL Route Handler
-
-```typescript
-// src/app/c/[...path]/page.tsx - Catch-all route for semantic URLs
-import { redirect, notFound } from 'next/navigation';
-import { SemanticUrlService } from '@/lib/semanticUrls';
-
-interface PageProps {
-  params: { path: string[] };
-  searchParams: { [key: string]: string | string[] | undefined };
-}
-
-export default function SemanticUrlHandler({ params, searchParams }: PageProps) {
-  const semanticPath = `/c/${params.path.join('/')}`;
-  
-  // Resolve to actual post/board IDs (pure parsing, no database)
-  const resolved = SemanticUrlService.resolveSemanticUrl(semanticPath);
-  
-  if (!resolved) {
-    notFound();
-  }
-  
-  // Preserve any query parameters (for potential future use)
-  const queryString = new URLSearchParams(searchParams as Record<string, string>).toString();
-  const redirectUrl = `/board/${resolved.boardId}/post/${resolved.postId}${queryString ? `?${queryString}` : ''}`;
-  
-  // Redirect to actual post page - all existing share context handling works
-  redirect(redirectUrl);
-}
-```
-
-### 3. Integration Points
-
-#### Updated Share URL Generation
-
-```typescript
-// src/utils/urlBuilder.ts - Enhanced version
-export function buildExternalShareUrl(
-  postId: number, 
-  boardId: number, 
-  communityShortId?: string, 
-  pluginId?: string,
-  useSemanticUrl: boolean = true
-): string {
-  if (useSemanticUrl && communityShortId) {
-    // Generate/retrieve semantic URL
-    return SemanticUrlService.generateSemanticUrl({
-      postId,
-      boardId,
-      communityShortId,
-      // ... other params
-    });
-  }
-  
-  // Fallback to existing implementation
-  return buildExternalShareUrlLegacy(postId, boardId, communityShortId, pluginId);
-}
-```
-
-#### Backward Compatibility
-
-```typescript
-// Both URL formats supported:
-// New: /c/commonground/general/my-post-title-p34b389
-// Old: /board/389/post/34?token=...
-```
-
-## User Experience Flow
-
-### 1. Share Generation Process
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant PostCard
-    participant SemanticUrlService
-    participant Database
-    participant ShareModal
-    
-    User->>PostCard: Click share button
-    PostCard->>SemanticUrlService: Generate semantic URL
-    SemanticUrlService->>Database: Check existing semantic URL
-    alt URL exists
-        Database-->>SemanticUrlService: Return existing URL
-    else URL doesn't exist
-        SemanticUrlService->>Database: Create new semantic URL entry
-        Database-->>SemanticUrlService: Return new URL
-    end
-    SemanticUrlService-->>PostCard: Return semantic URL
-    PostCard->>ShareModal: Show semantic URL
-    ShareModal-->>User: Display copyable semantic URL
-```
-
-### 2. Share Resolution Process
-
-```mermaid
-sequenceDiagram
-    participant ExternalUser
-    participant SemanticUrlHandler
-    participant SemanticUrlService
-    participant Database
-    participant PostDetailPage
-    
-    ExternalUser->>SemanticUrlHandler: Visit semantic URL
-    SemanticUrlHandler->>SemanticUrlService: Resolve semantic URL
-    SemanticUrlService->>Database: Lookup by UID slug
-    Database-->>SemanticUrlService: Return post/board IDs
-    SemanticUrlService-->>SemanticUrlHandler: Return resolution
-    SemanticUrlHandler->>PostDetailPage: Redirect with share context
-    PostDetailPage-->>ExternalUser: Show post with full sharing flow
 ```
 
 ## Implementation Roadmap
 
-This roadmap breaks down the semantic URL implementation into well-sized work packages that can be completed incrementally while maintaining full backward compatibility.
+### Phase 1: Database Foundation (2-3 days)
 
-### 🎯 **Phase 1: Foundation** (2-3 hours)
-**Goal**: Create core semantic URL utilities without changing existing behavior
+**Goal**: Establish database schema and core service layer
 
-**Work Package 1.1: Semantic URL Service** (1 hour)
-- Create `src/lib/semanticUrls.ts` with URL generation/resolution utilities
-- Implement slug creation and UID encoding/decoding functions
-- Add comprehensive TypeScript types and JSDoc comments
-- **Deliverable**: Pure utility functions ready for integration
+**Work Packages:**
 
-**Work Package 1.2: Enhanced URL Builder** (1 hour)  
-- Extend `buildExternalShareUrl` function signature with optional semantic parameters
-- Implement semantic URL generation path with fallback to legacy URLs
-- Ensure 100% backward compatibility (no breaking changes)
-- **Deliverable**: Enhanced URL builder that generates semantic URLs when data is available
+**1.1 Database Migration (4 hours)**
+- Create `semantic_urls` table migration
+- Add indexes for performance optimization  
+- Test migration rollback procedures
+- **Deliverable**: Production-ready database schema
 
-**Work Package 1.3: Integration Testing** (30 minutes)
-- Unit tests for semantic URL generation and parsing
-- Test edge cases (special characters, long titles, etc.)
-- Verify fallback behavior works correctly
-- **Deliverable**: Test suite ensuring reliability
+**1.2 Core Service Layer (6 hours)**
+- Implement `SemanticUrlService` class with database operations
+- Create URL slug generation utilities (handles collisions)
+- Implement database CRUD operations
+- Add comprehensive error handling and validation
+- **Deliverable**: Complete service layer with unit tests
 
-### 🚀 **Phase 2: Route Handling** (1-2 hours)
-**Goal**: Enable semantic URL resolution and redirects
+**1.3 API Endpoints (4 hours)**
+- Build REST endpoints for URL generation and resolution
+- Implement request validation and error handling
+- Add rate limiting and security measures
+- **Deliverable**: Complete API with comprehensive testing
 
-**Work Package 2.1: Catch-all Route** (45 minutes)
-- Create `src/app/c/[...path]/page.tsx` for semantic URL handling
-- Implement URL parsing and validation
-- Add proper error handling with 404 for invalid URLs
-- **Deliverable**: Working semantic URL resolution
+### Phase 2: Route Handling & Resolution (1-2 days)
 
-**Work Package 2.2: Redirect Logic** (30 minutes)
-- Ensure query parameter preservation during redirects
-- Test redirect behavior with various URL formats
-- Verify existing share detection logic still works
-- **Deliverable**: Seamless redirects maintaining all functionality
+**Goal**: Enable semantic URL access and proper Common Ground redirects
 
-**Work Package 2.3: Share Context Integration** (30 minutes)
-- Update shared link detection to work with `/c/` prefix
-- Ensure iframe redirect flow functions with semantic URLs
-- Test Common Ground integration end-to-end
-- **Deliverable**: Full share workflow compatibility
+**Work Packages:**
 
-### 🔧 **Phase 3: Frontend Integration** (1 hour)
-**Goal**: Update PostCard component to generate semantic URLs
+**2.1 Semantic URL Route Handler (3 hours)**
+- Create `/c/[...path]` catch-all route with database lookup
+- Implement proper Common Ground redirect with full plugin context
+- Add analytics tracking for URL access
+- Handle edge cases (expired URLs, deleted content)
+- **Deliverable**: Working semantic URL resolution with analytics
 
-**Work Package 3.1: PostCard Enhancement** (30 minutes)
-- Update `PostCard.tsx` share button to pass `post.title` and `post.board_name`
-- Modify `buildExternalShareUrl` call to include semantic parameters
-- Ensure graceful degradation if board_name is missing
+**2.2 Share Context Integration (2 hours)**
+- Implement cookie setting for iframe detection
+- Ensure compatibility with existing Common Ground redirect flow
+- Test end-to-end share workflow
+- **Deliverable**: Complete share detection and iframe handling
+
+**2.3 Performance Optimization (2 hours)**
+- Implement Redis caching for frequently accessed URLs
+- Add database query optimization
+- Performance testing and benchmarking
+- **Deliverable**: Sub-100ms URL resolution performance
+
+### Phase 3: Frontend Integration (1 day)
+
+**Goal**: Update sharing UI to generate and use semantic URLs
+
+**Work Packages:**
+
+**3.1 PostCard Integration (2 hours)**
+- Update `buildExternalShareUrl` to call semantic URL API
+- Implement fallback to legacy URLs during transition
+- Add loading states for URL generation
 - **Deliverable**: Posts generate semantic URLs when shared
 
-**Work Package 3.2: Share Modal Testing** (30 minutes)
-- Test ShareModal displays semantic URLs correctly
-- Verify Web Share API works with new URL format
-- Test mobile and desktop sharing workflows
-- **Deliverable**: Confirmed semantic URLs work in all share contexts
+**3.2 Share Modal Enhancement (2 hours)**
+- Update ShareModal to display semantic URLs
+- Add copy-to-clipboard functionality with analytics
+- Implement preview/validation for custom slugs
+- **Deliverable**: Enhanced sharing experience with semantic URLs
 
-### 📊 **Phase 4: Testing & Polish** (2-3 hours)
-**Goal**: Comprehensive testing and optimization
+**3.3 Admin Controls (2 hours)**
+- Add admin interface for URL management
+- Implement custom slug creation for moderators
+- Create URL analytics dashboard
+- **Deliverable**: Administrative tools for URL management
 
-**Work Package 4.1: End-to-End Testing** (1 hour)
-- Test complete share workflow: generation → sharing → resolution → redirect
-- Verify social media crawler compatibility (meta tags still work)
-- Test with various post titles and board names
-- **Deliverable**: Comprehensive test coverage
+### Phase 4: Advanced Features & Analytics (2-3 days)
 
-**Work Package 4.2: Performance Validation** (30 minutes)
-- Benchmark semantic URL resolution speed vs. legacy system
-- Test with high traffic scenarios (many concurrent redirects)
-- Monitor bundle size impact of new utilities
-- **Deliverable**: Performance metrics confirmation
+**Goal**: Add analytics, management, and advanced features
 
-**Work Package 4.3: Edge Case Handling** (45 minutes)
-- Handle posts with missing board names gracefully
-- Test with extremely long titles or special characters
-- Verify behavior with deleted/inaccessible posts
-- **Deliverable**: Robust error handling
+**Work Packages:**
 
-**Work Package 4.4: Documentation Update** (30 minutes)
-- Update README with semantic URL examples
-- Document new URL format for team reference
-- Create troubleshooting guide for common issues
-- **Deliverable**: Complete documentation
+**4.1 Analytics Dashboard (4 hours)**
+- Create URL analytics dashboard for admins
+- Implement click tracking and access patterns
+- Add export functionality for analytics data
+- **Deliverable**: Comprehensive analytics and reporting
 
-### 🌟 **Phase 5: Optional Enhancements** (Future)
-**Goal**: Advanced features and analytics
+**4.2 Lifecycle Management (3 hours)**
+- Implement URL expiration and cleanup jobs
+- Add bulk operations for URL management
+- Create migration tools for existing popular posts
+- **Deliverable**: Complete URL lifecycle management
 
-**Work Package 5.1: URL Analytics** (2 hours)
-- Add optional click tracking without database overhead
-- Simple analytics via log aggregation or external service
-- A/B testing framework for semantic vs. legacy URLs
+**4.3 Advanced Features (4 hours)**
+- Custom slug validation and conflict resolution
+- URL preview/metadata endpoints for social media
+- Webhook notifications for URL events
+- **Deliverable**: Production-ready feature set
 
-**Work Package 5.2: Advanced Slug Handling** (1 hour)
-- Implement collision detection for duplicate post titles
-- Add support for custom slug formats
-- Optimize slug generation for SEO
+## Route Handler Implementation
 
-**Work Package 5.3: Admin Tools** (1 hour)
-- Build admin interface for URL format testing
-- Create URL validation tools
-- Add bulk URL format conversion utilities
+```typescript
+// src/app/c/[...path]/page.tsx
+import { NextRequest, NextResponse } from 'next/server';
+import { notFound } from 'next/navigation';
+import { SemanticUrlService } from '@/lib/semantic-urls';
 
-## Analytics & Monitoring
+interface SemanticUrlPageProps {
+  params: Promise<{ path: string[] }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
-### Metrics to Track
-1. **Generation Rate**: How many semantic URLs are created
-2. **Resolution Success**: Percentage of successful semantic URL resolutions
-3. **User Preference**: Usage of semantic vs. legacy URLs
-4. **Performance**: Database query performance for resolution
-5. **Social Sharing**: Click-through rates from different platforms
+export default async function SemanticUrlHandler({ params }: SemanticUrlPageProps) {
+  const { path } = await params;
+  const semanticPath = `/c/${path.join('/')}`;
+  
+  try {
+    // Database lookup for semantic URL
+    const semanticUrl = await SemanticUrlService.resolve(semanticPath);
+    
+    if (!semanticUrl) {
+      console.warn(`[SemanticUrlHandler] URL not found: ${semanticPath}`);
+      notFound();
+    }
+    
+    // Update access analytics
+    await SemanticUrlService.recordAccess(semanticUrl.id);
+    
+    // Set cookies for iframe detection (same as legacy system)
+    const sharedContentToken = `${semanticUrl.postId}-${semanticUrl.boardId}-${Date.now()}`;
+    const postData = JSON.stringify({
+      postId: semanticUrl.postId,
+      boardId: semanticUrl.boardId,
+      token: semanticUrl.shareToken,
+      timestamp: Date.now()
+    });
+    
+    // Construct Common Ground URL with full plugin context
+    const commonGroundBaseUrl = process.env.NEXT_PUBLIC_COMMON_GROUND_BASE_URL || 'https://app.commonground.wtf';
+    const redirectUrl = `${commonGroundBaseUrl}/c/${semanticUrl.communityShortId}/plugin/${semanticUrl.pluginId}`;
+    
+    // Create redirect response with cookies
+    const response = NextResponse.redirect(redirectUrl);
+    
+    // Set cookies for iframe share detection
+    response.cookies.set('shared_content_token', sharedContentToken, {
+      path: '/',
+      sameSite: 'none',
+      secure: true,
+      maxAge: 60 * 60 * 24 * 7 // 7 days
+    });
+    
+    response.cookies.set('shared_post_data', encodeURIComponent(postData), {
+      path: '/',
+      sameSite: 'none',
+      secure: true,
+      maxAge: 60 * 60 * 24 * 7 // 7 days
+    });
+    
+    console.log(`[SemanticUrlHandler] Redirecting ${semanticPath} → ${redirectUrl}`);
+    console.log(`[SemanticUrlHandler] Post context: ${semanticUrl.postTitle} (${semanticUrl.postId})`);
+    
+    return response;
+    
+  } catch (error) {
+    console.error(`[SemanticUrlHandler] Error resolving URL ${semanticPath}:`, error);
+    notFound();
+  }
+}
+```
 
-### Database Analytics
+## Service Layer Implementation
+
+```typescript
+// src/lib/semantic-urls.ts
+import { db } from '@/lib/db';
+
+export interface SemanticUrlData {
+  id: number;
+  slug: string;
+  communityShortId: string;
+  boardSlug: string;
+  postId: number;
+  boardId: number;
+  pluginId: string;
+  shareToken: string;
+  postTitle: string;
+  boardName: string;
+  sharedByUserId?: string;
+  shareSource?: string;
+  accessCount: number;
+  createdAt: Date;
+  lastAccessedAt?: Date;
+  expiresAt?: Date;
+}
+
+export interface CreateSemanticUrlParams {
+  postId: number;
+  postTitle: string;
+  boardId: number;
+  boardName: string;
+  communityShortId: string;
+  pluginId: string;
+  sharedByUserId?: string;
+  shareSource?: string;
+  expiresIn?: string; // '7d', '30d', 'never'
+  customSlug?: string;
+}
+
+export class SemanticUrlService {
+  /**
+   * Generate a new semantic URL for a post
+   */
+  static async create(params: CreateSemanticUrlParams): Promise<SemanticUrlData> {
+    const {
+      postId,
+      postTitle,
+      boardId,
+      boardName,
+      communityShortId,
+      pluginId,
+      sharedByUserId,
+      shareSource = 'direct_share',
+      expiresIn,
+      customSlug
+    } = params;
+    
+    // Generate URL-safe slugs
+    const boardSlug = this.createSlug(boardName);
+    const baseSlug = customSlug || this.createSlug(postTitle);
+    
+    // Handle slug collisions
+    const slug = await this.ensureUniqueSlug(communityShortId, boardSlug, baseSlug);
+    
+    // Calculate expiration
+    const expiresAt = this.calculateExpiration(expiresIn);
+    
+    // Generate unique share token
+    const shareToken = this.generateShareToken();
+    
+    // Insert into database
+    const result = await db.query(`
+      INSERT INTO semantic_urls (
+        slug, community_short_id, board_slug, post_id, board_id,
+        plugin_id, share_token, post_title, board_name,
+        shared_by_user_id, share_source, expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      slug, communityShortId, boardSlug, postId, boardId,
+      pluginId, shareToken, postTitle, boardName,
+      sharedByUserId, shareSource, expiresAt
+    ]);
+    
+    return this.mapDbResult(result.rows[0]);
+  }
+  
+  /**
+   * Resolve a semantic URL path to full context
+   */
+  static async resolve(path: string): Promise<SemanticUrlData | null> {
+    // Parse path: "/c/community/board/slug"
+    const pathMatch = path.match(/^\/c\/([^\/]+)\/([^\/]+)\/(.+)$/);
+    if (!pathMatch) return null;
+    
+    const [, communityShortId, boardSlug, slug] = pathMatch;
+    
+    const result = await db.query(`
+      SELECT * FROM semantic_urls
+      WHERE community_short_id = $1 
+        AND board_slug = $2 
+        AND slug = $3
+        AND (expires_at IS NULL OR expires_at > NOW())
+    `, [communityShortId, boardSlug, slug]);
+    
+    if (result.rows.length === 0) return null;
+    
+    return this.mapDbResult(result.rows[0]);
+  }
+  
+  /**
+   * Record an access to a semantic URL for analytics
+   */
+  static async recordAccess(id: number): Promise<void> {
+    await db.query(`
+      UPDATE semantic_urls 
+      SET access_count = access_count + 1, 
+          last_accessed_at = NOW()
+      WHERE id = $1
+    `, [id]);
+  }
+  
+  /**
+   * Create URL-safe slug from text
+   */
+  private static createSlug(text: string): string {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')     // Replace spaces with hyphens
+      .replace(/-+/g, '-')      // Collapse multiple hyphens
+      .replace(/^-+|-+$/g, '')  // Remove leading/trailing hyphens
+      .substring(0, 100);       // Limit length
+  }
+  
+  /**
+   * Ensure slug is unique within community/board context
+   */
+  private static async ensureUniqueSlug(
+    communityShortId: string,
+    boardSlug: string,
+    baseSlug: string
+  ): Promise<string> {
+    let slug = baseSlug;
+    let counter = 1;
+    
+    while (await this.slugExists(communityShortId, boardSlug, slug)) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    
+    return slug;
+  }
+  
+  /**
+   * Check if slug already exists
+   */
+  private static async slugExists(
+    communityShortId: string,
+    boardSlug: string,
+    slug: string
+  ): Promise<boolean> {
+    const result = await db.query(`
+      SELECT 1 FROM semantic_urls
+      WHERE community_short_id = $1 
+        AND board_slug = $2 
+        AND slug = $3
+        AND (expires_at IS NULL OR expires_at > NOW())
+      LIMIT 1
+    `, [communityShortId, boardSlug, slug]);
+    
+    return result.rows.length > 0;
+  }
+  
+  /**
+   * Generate unique share token
+   */
+  private static generateShareToken(): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2);
+    return `semantic_${timestamp}_${random}`;
+  }
+  
+  /**
+   * Calculate expiration date from string
+   */
+  private static calculateExpiration(expiresIn?: string): Date | null {
+    if (!expiresIn || expiresIn === 'never') return null;
+    
+    const now = new Date();
+    switch (expiresIn) {
+      case '7d':
+        return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      case '30d':
+        return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      default:
+        return null;
+    }
+  }
+  
+  /**
+   * Map database result to TypeScript interface
+   */
+  private static mapDbResult(row: any): SemanticUrlData {
+    return {
+      id: row.id,
+      slug: row.slug,
+      communityShortId: row.community_short_id,
+      boardSlug: row.board_slug,
+      postId: row.post_id,
+      boardId: row.board_id,
+      pluginId: row.plugin_id,
+      shareToken: row.share_token,
+      postTitle: row.post_title,
+      boardName: row.board_name,
+      sharedByUserId: row.shared_by_user_id,
+      shareSource: row.share_source,
+      accessCount: row.access_count,
+      createdAt: row.created_at,
+      lastAccessedAt: row.last_accessed_at,
+      expiresAt: row.expires_at
+    };
+  }
+}
+```
+
+## Migration Strategy
+
+### 1. Backward Compatibility
+
+```typescript
+// Enhanced buildExternalShareUrl with database fallback
+export async function buildExternalShareUrl(
+  postId: number,
+  boardId: number,
+  communityShortId?: string,
+  pluginId?: string,
+  postTitle?: string,
+  boardName?: string,
+  useSemanticUrl: boolean = true
+): Promise<string> {
+  const pluginBaseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL;
+  
+  if (!pluginBaseUrl) {
+    console.warn('NEXT_PUBLIC_PLUGIN_BASE_URL not configured');
+    return buildPostUrl(postId, boardId, false);
+  }
+  
+  // Try to generate semantic URL if all data available
+  if (useSemanticUrl && communityShortId && pluginId && postTitle && boardName) {
+    try {
+      const semanticUrl = await SemanticUrlService.create({
+        postId,
+        postTitle,
+        boardId,
+        boardName,
+        communityShortId,
+        pluginId,
+        shareSource: 'direct_share'
+      });
+      
+      return `${pluginBaseUrl}/c/${semanticUrl.communityShortId}/${semanticUrl.boardSlug}/${semanticUrl.slug}`;
+      
+    } catch (error) {
+      console.warn('Failed to create semantic URL, falling back to legacy:', error);
+    }
+  }
+  
+  // Fallback to legacy URL generation
+  return buildLegacyExternalShareUrl(postId, boardId, communityShortId, pluginId);
+}
+```
+
+### 2. Gradual Rollout Plan
+
+**Phase 1: Shadow Mode (Week 1)**
+- Deploy database schema and services
+- Generate semantic URLs but don't use them yet
+- Monitor database performance and storage usage
+
+**Phase 2: Opt-in Testing (Week 2)**
+- Enable semantic URLs for specific communities/boards
+- A/B test semantic vs legacy URLs
+- Gather user feedback and analytics
+
+**Phase 3: Default Rollout (Week 3)**
+- Make semantic URLs the default for new shares
+- Legacy URLs still supported for existing links
+- Monitor performance and user adoption
+
+**Phase 4: Full Migration (Week 4)**
+- Migrate popular/recent posts to semantic URLs
+- Implement legacy URL redirects to semantic URLs
+- Deprecate legacy URL generation
+
+### 3. Data Migration
+
 ```sql
--- Track most shared content
-SELECT p.title, s.click_count, s.semantic_url
-FROM semantic_urls s
-JOIN posts p ON s.post_id = p.id
-ORDER BY s.click_count DESC
-LIMIT 10;
-
--- Monitor URL generation patterns
-SELECT community_id, COUNT(*) as url_count
-FROM semantic_urls
-GROUP BY community_id
-ORDER BY url_count DESC;
+-- Migrate existing popular posts to semantic URLs
+INSERT INTO semantic_urls (
+  post_id, board_id, community_short_id, board_slug, slug,
+  plugin_id, share_token, post_title, board_name,
+  shared_by_user_id, share_source
+)
+SELECT 
+  p.id,
+  p.board_id,
+  c.id,  -- Assumes community context available
+  LOWER(REGEXP_REPLACE(b.name, '[^a-zA-Z0-9\s]', '', 'g')),  -- Board slug
+  LOWER(REGEXP_REPLACE(p.title, '[^a-zA-Z0-9\s]', '', 'g')), -- Post slug
+  '{{PLUGIN_ID}}',  -- Will need to be determined per community
+  'migrated_' || p.id || '_' || EXTRACT(epoch FROM NOW()),
+  p.title,
+  b.name,
+  p.author_user_id,
+  'migration'
+FROM posts p
+JOIN boards b ON p.board_id = b.id
+JOIN communities c ON b.community_id = c.id
+WHERE p.upvote_count > 10 
+   OR p.created_at > NOW() - INTERVAL '30 days'
+   OR p.comment_count > 5;
 ```
 
-## Security Considerations
+## Benefits & Success Metrics
 
-### 1. Input Validation
-- **Title Sanitization**: Ensure post titles are properly escaped for URLs
-- **Length Limits**: Prevent excessively long URLs
-- **Character Filtering**: Remove potentially problematic URL characters
+### User Experience Benefits
+- **67% shorter URLs** compared to current system
+- **Human-readable** URLs that convey content context
+- **Final destinations** - no redirect chains or client-side hacks
+- **Social media friendly** - clean URLs for sharing
 
-### 2. Access Control
-- **Permission Inheritance**: Semantic URLs inherit board/post permissions
-- **Privacy Preservation**: Respect existing gating and privacy settings
-- **Rate Limiting**: Prevent abuse of URL generation endpoints
+### Technical Benefits
+- **Complete plugin context** stored securely in database
+- **Analytics & management** capabilities for URL lifecycle
+- **Security improvement** - no internal IDs exposed in URLs
+- **Future-proof** architecture for advanced features
 
-### 3. Data Integrity
-- **Unique Constraints**: Prevent duplicate semantic URLs
-- **Referential Integrity**: Cascade deletes when posts/boards are removed
-- **Validation**: Ensure UID slugs are always valid and parseable
+### Business Benefits
+- **Increased sharing** due to user-friendly URLs
+- **Better SEO** with keyword-rich URL structure
+- **Brand recognition** with semantic URL patterns
+- **Analytics insights** into sharing patterns and popular content
 
-## Performance Considerations
+### Success Metrics
+1. **URL Generation**: 95% of new shares use semantic URLs
+2. **Resolution Performance**: Sub-100ms database lookup
+3. **User Adoption**: 80% preference for semantic URLs in A/B tests
+4. **Social Sharing**: 25% increase in click-through rates
+5. **Storage Efficiency**: Under 1MB storage for 10K URLs
 
-### 1. Database Optimization
-- **Indexing Strategy**: Optimize for UID slug lookups (most common)
-- **Query Performance**: Minimize database calls in resolution
-- **Caching**: Cache frequently accessed semantic URLs
+## Cost Analysis
 
-### 2. URL Generation
-- **Deferred Generation**: Generate semantic URLs on-demand rather than for all posts
-- **Batch Processing**: Efficient backfill for existing content
-- **Slug Collision Handling**: Graceful handling of duplicate post titles
+### Development Effort
+- **Database & Service Layer**: 2-3 days
+- **Route Handling & Integration**: 1-2 days  
+- **Frontend Integration**: 1 day
+- **Advanced Features**: 2-3 days
+- **Total Development Time**: 6-9 days
 
-### 3. CDN Compatibility
-- **Static Serving**: Ensure semantic URLs work with CDN caching
-- **Cache Headers**: Appropriate caching strategies for redirect endpoints
-- **Edge Computing**: Consider edge-based resolution for performance
+### Infrastructure Impact
+- **Storage**: ~250 bytes per URL (negligible cost)
+- **Database Load**: Single lookup per URL access (minimal)
+- **Caching**: Redis cache for popular URLs (standard cost)
+- **Monitoring**: Standard observability tools
 
-## Testing Strategy
+### ROI Analysis
+- **Development Cost**: ~$15K-20K (1-2 developer weeks)
+- **Infrastructure Cost**: ~$50/month additional
+- **User Experience Value**: Significant improvement in shareability
+- **SEO Value**: Better search visibility and click-through rates
 
-### 1. Unit Tests
-- URL slug generation and validation
-- UID slug parsing and extraction
-- Database operations and migrations
+## Risk Mitigation
 
-### 2. Integration Tests
-- End-to-end share URL generation
-- Semantic URL resolution and redirect
-- Backward compatibility with legacy URLs
+### Technical Risks
+- **Database Performance**: Mitigated by proper indexing and caching
+- **URL Collisions**: Handled by automatic slug suffixing
+- **Migration Complexity**: Phased rollout with fallback options
 
-### 3. Performance Tests
-- Database query performance under load
-- URL generation speed benchmarks
-- Concurrent resolution testing
+### Business Risks
+- **User Confusion**: Clear communication and gradual rollout
+- **Legacy URL Breakage**: Maintain backward compatibility indefinitely
+- **SEO Impact**: Proper redirects and meta tag preservation
 
-### 4. Social Media Tests
-- Meta tag preservation through redirects
-- OG image generation with semantic URLs
-- Platform-specific sharing validation
+## Conclusion
 
-## Success Metrics
+The database-backed semantic URL shortener provides:
 
-### User Experience
-- **Readability**: URLs clearly convey content and context
-- **Shareability**: Increased social sharing due to better URLs
-- **Recognition**: Users can understand content from URL alone
+1. **True semantic URLs** that work as final destinations
+2. **Complete context storage** for proper Common Ground routing  
+3. **Analytics and management** capabilities for URL lifecycle
+4. **Security and privacy** improvements over current system
+5. **Future-proof architecture** for advanced sharing features
 
-### Technical Performance
-- **Resolution Speed**: Sub-100ms semantic URL resolution
-- **Generation Efficiency**: Minimal overhead for URL creation
-- **Backward Compatibility**: 100% legacy URL support maintained
+This solution addresses all limitations of URL-only encoding while providing a foundation for advanced sharing features, analytics, and user experience improvements.
 
-### Business Impact
-- **Social Engagement**: Increased click-through rates from shared links
-- **SEO Benefits**: Better search engine visibility with semantic URLs
-- **Brand Recognition**: Improved brand presence in shared content
-
-## Future Enhancements
-
-### Advanced Features
-1. **Custom Domains**: Community-specific subdomains (e.g., `governance.curia.cg`)
-2. **URL Analytics**: Detailed tracking of semantic URL performance
-3. **Smart Redirects**: AI-powered URL suggestions for better SEO
-4. **Bulk Operations**: Admin tools for URL management
-
-### Integration Opportunities
-1. **QR Codes**: Generate QR codes for semantic URLs
-2. **Deep Linking**: Mobile app integration with semantic URLs
-3. **API Extensions**: Public API for semantic URL operations
-4. **Webhooks**: Real-time notifications for URL events
-
-## Summary & Next Steps
-
-### Key Findings
-
-1. **No Migration Required**: All necessary data (post title, board name, IDs) is available at share generation time
-2. **Token Elimination**: Current share tokens provide no functional value and can be safely replaced by the `/c/` prefix
-3. **Zero Database Overhead**: URL resolution can be achieved through pure string parsing with sub-millisecond performance
-4. **Backward Compatibility**: Legacy URLs can continue working indefinitely with no breaking changes
-5. **Dramatic Improvement**: URLs will be 67% shorter and semantically meaningful to users
-
-### URL Transformation Example
-
-**Before:**
-```
-curia.commonground.cg/board/389/post/34?token=MzQtMzg5LTE3NDkxOTUxMjAzMTIg9d4lp9dnuj&communityShortId=commonground&pluginId=6434de36-4e59-40ba-971b-d4ac5f6050bf
-```
-
-**After:**
-```
-curia.commonground.cg/c/commonground/general-discussion/introducing-new-governance-proposal-p34b389
-```
-
-### Implementation Timeline
-
-- **Phase 1-2**: 3-5 hours (Foundation + Route Handling)
-- **Phase 3**: 1 hour (Frontend Integration)  
-- **Phase 4**: 2-3 hours (Testing & Polish)
-- **Total**: 6-9 hours for complete implementation
-
-### Benefits
-
-✅ **Human-readable URLs** that convey content context  
-✅ **Improved shareability** with 67% shorter URLs  
-✅ **Enhanced SEO** with keyword-rich URL structure  
-✅ **Zero performance overhead** compared to current system  
-✅ **Social media friendly** - no cryptic tokens  
-✅ **Developer friendly** - easy to debug and understand  
-
-## Recommended First Steps
-
-### Immediate Next Action: Phase 1.1 (1 hour)
-
-**Priority**: Create the `SemanticUrlService` utility class
-
-**Scope**: 
-- Build core URL generation and parsing functions
-- Implement slug creation utilities
-- Add comprehensive TypeScript types
-- Create unit tests for edge cases
-
-**Why Start Here**:
-- Zero risk - doesn't change any existing behavior
-- Provides foundation for all subsequent work
-- Can be tested in isolation
-- Immediate value for manual testing
-
-**Success Criteria**:
-- Utility can generate: `/c/commonground/general/my-post-title-p34b389`
-- Utility can parse back to: `{postId: 34, boardId: 389}`
-- All edge cases handled (special chars, long titles, etc.)
-- 100% test coverage for utility functions
-
-This low-risk first step establishes the foundation while allowing for thorough testing and validation before any user-facing changes.
-
----
-
-*This research document provides a complete implementation strategy for semantic URLs that enhances user experience while maintaining all existing functionality and compatibility.* 
+**Recommended Next Step**: Begin Phase 1 (Database Foundation) with database schema creation and core service layer implementation. 
