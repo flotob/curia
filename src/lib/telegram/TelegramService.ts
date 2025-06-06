@@ -309,6 +309,107 @@ export class TelegramService {
   }
 
   /**
+   * Send photo with caption to Telegram
+   */
+  async sendPhoto(
+    chatId: string,
+    imageBuffer: Buffer,
+    caption?: string
+  ): Promise<boolean> {
+    try {
+      // Ensure service is initialized before use
+      this.ensureInitialized();
+
+      console.log(`[TelegramService] Sending photo to chat ${chatId} (${imageBuffer.length} bytes)`);
+
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      formData.append('photo', new Blob([imageBuffer], { type: 'image/png' }), 'og-image.png');
+      
+      if (caption) {
+        formData.append('caption', caption);
+        formData.append('parse_mode', 'HTML');
+      }
+
+      const response = await fetch(`${this.baseUrl!}/sendPhoto`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[TelegramService] Failed to send photo to ${chatId}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        return false;
+      }
+
+      const result = await response.json();
+      console.log(`[TelegramService] Photo sent successfully to ${chatId}`, {
+        messageId: result.result?.message_id
+      });
+      return true;
+    } catch (error) {
+      console.error(`[TelegramService] Error sending photo to ${chatId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Send rich image notification to all groups in a community
+   */
+  async sendImageNotificationToCommunity(
+    communityId: string,
+    imageBuffer: Buffer,
+    shareUrl: string,
+    caption?: string
+  ): Promise<{ sent: number; failed: number }> {
+    const groups = await this.getGroupsByCommunity(communityId);
+    
+    if (groups.length === 0) {
+      console.log(`[TelegramService] No active groups for community ${communityId}`);
+      return { sent: 0, failed: 0 };
+    }
+
+    console.log(`[TelegramService] Sending image notification to ${groups.length} groups`);
+    
+    let sent = 0;
+    let failed = 0;
+
+    for (const group of groups) {
+      try {
+        // Send image with caption
+        const photoSuccess = await this.sendPhoto(group.chat_id, imageBuffer, caption);
+        if (!photoSuccess) {
+          failed++;
+          continue; // Skip URL message if photo fails
+        }
+        
+        // Small delay between messages to ensure proper order
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Send shareable URL separately for easy copying
+        const linkSuccess = await this.sendMessage(group.chat_id, `🔗 ${shareUrl}`);
+        
+        if (photoSuccess && linkSuccess) {
+          sent++;
+        } else {
+          failed++;
+        }
+        
+      } catch (error) {
+        console.error(`[TelegramService] Failed to send image notification to group ${group.chat_id}:`, error);
+        failed++;
+      }
+    }
+
+    console.log(`[TelegramService] Image notification sent: ${sent} successful, ${failed} failed`);
+    return { sent, failed };
+  }
+
+  /**
    * Check if notification should be sent to a group based on settings
    */
   private shouldSendNotification(group: TelegramGroup, notification: NotificationData): boolean {

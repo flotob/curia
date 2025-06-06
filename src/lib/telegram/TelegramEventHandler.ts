@@ -1,6 +1,8 @@
 import { query } from '@/lib/db';
 import { telegramService, NotificationData } from './TelegramService';
 import { generateTelegramShareUrl } from './shareUrlGenerator';
+import { fetchPostMetadataDirect } from './directMetadataFetcher';
+import { generateTelegramOgImage } from './ogImageGenerator';
 
 interface BroadcastEventDetails {
   room: string;
@@ -25,6 +27,33 @@ const VOTE_NOTIFICATION_THRESHOLDS = [1, 2, 3, 5, 10, 25, 50, 100, 250, 500, 100
  * corresponding notifications to registered Telegram groups
  */
 export class TelegramEventHandler {
+  /**
+   * Get base URL for OG image generation
+   * Uses environment variables to determine the correct base URL
+   */
+  private getBaseUrl(): string {
+    // Try different environment variables in order of preference
+    const baseUrl = 
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+      process.env.PUBLIC_URL ||
+      'http://localhost:3000'; // fallback for development
+    
+    console.log(`[TelegramEventHandler] Using base URL: ${baseUrl}`);
+    return baseUrl;
+  }
+
+  /**
+   * Escape HTML special characters for Telegram HTML parsing
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
   /**
    * Main event handler - routes events to appropriate processors
    */
@@ -108,15 +137,63 @@ export class TelegramEventHandler {
   }
 
   /**
-   * Handle new post notifications
+   * Handle new post notifications with OG image
    */
   private async handleNewPost(payload: Record<string, unknown>, boardContext: BoardContext): Promise<void> {
-    console.log(`[TelegramEventHandler] Processing new post notification for community ${boardContext.communityId}`);
+    console.log(`[TelegramEventHandler] Processing new post notification with OG image for community ${boardContext.communityId}`);
     
     const postId = payload.id as number;
     const postTitle = (payload.title as string) || 'Untitled Post';
     
-    // Generate shareable URL using same logic as ShareModal
+    try {
+      // Fetch complete post metadata with gating context
+      const metadata = await fetchPostMetadataDirect(postId);
+      if (!metadata) {
+        console.warn(`[TelegramEventHandler] Could not fetch metadata for post ${postId}, falling back to text notification`);
+        await this.handleNewPostFallback(payload, boardContext);
+        return;
+      }
+      
+      // Generate OG image
+      const baseUrl = this.getBaseUrl();
+      const imageBuffer = await generateTelegramOgImage(metadata, baseUrl);
+      
+      // Generate shareable URL
+      const shareUrl = await generateTelegramShareUrl(
+        postId,
+        boardContext.boardId,
+        postTitle,
+        boardContext.boardName,
+        payload.communityShortId as string,
+        payload.pluginId as string
+      );
+      
+      // Create caption for the image
+      const caption = `🆕 <b>New Post</b>\n\n📝 <b>${this.escapeHtml(postTitle)}</b>\n👤 by ${this.escapeHtml(metadata.author_name)}\n📋 in ${this.escapeHtml(boardContext.boardName || 'Board')}`;
+      
+      // Send image notification with caption and URL
+      const result = await telegramService.sendImageNotificationToCommunity(
+        boardContext.communityId,
+        imageBuffer,
+        shareUrl,
+        caption
+      );
+      
+      console.log(`[TelegramEventHandler] OG image new post notification sent: ${result.sent} successful, ${result.failed} failed`);
+      
+    } catch (error) {
+      console.error(`[TelegramEventHandler] Error sending OG image notification, falling back to text:`, error);
+      await this.handleNewPostFallback(payload, boardContext);
+    }
+  }
+  
+  /**
+   * Fallback to text notification if OG image fails
+   */
+  private async handleNewPostFallback(payload: Record<string, unknown>, boardContext: BoardContext): Promise<void> {
+    const postId = payload.id as number;
+    const postTitle = (payload.title as string) || 'Untitled Post';
+    
     const shareUrl = await generateTelegramShareUrl(
       postId,
       boardContext.boardId,
@@ -131,19 +208,17 @@ export class TelegramEventHandler {
       post_id: postId,
       post_title: postTitle,
       user_name: (payload.author_name as string) || 'Unknown User',
-      community_name: 'Community', // Could enhance this with community name lookup
+      community_name: 'Community',
       board_name: boardContext.boardName || 'Board'
-      // Note: No post_url in rich message - comes separately
     };
     
-    // Send two-part notification: rich message + clean link
     const result = await telegramService.sendTwoPartNotification(
       boardContext.communityId,
       notificationData,
       shareUrl
     );
     
-    console.log(`[TelegramEventHandler] Two-part new post notification sent: ${result.sent} successful, ${result.failed} failed`);
+    console.log(`[TelegramEventHandler] Fallback new post notification sent: ${result.sent} successful, ${result.failed} failed`);
   }
 
   /**
