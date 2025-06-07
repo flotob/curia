@@ -452,15 +452,70 @@ export default function CommunitySettingsPage() {
                       </p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <a 
-                      href={`https://t.me/${telegramData?.botUsername || 'bot'}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink size={16} className="mr-1" />
-                      Open Bot
-                    </a>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={async () => {
+                      const telegramUrl = telegramData?.botUsername 
+                        ? `https://t.me/${telegramData.botUsername}`
+                        : null;
+
+                      if (!telegramUrl) {
+                        toast({
+                          title: "Navigation Error",
+                          description: "Bot username is not available. Please try refreshing the page.",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+
+                      if (!cgInstance) {
+                        console.error('[CommunitySettings] Cannot navigate: CgPluginLib instance not available');
+                        toast({
+                          title: "Navigation Error",
+                          description: "Unable to navigate to Telegram. The plugin is not fully initialized.",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+
+                      try {
+                        console.log('[CommunitySettings] Navigating to Telegram bot:', telegramUrl);
+                        console.log('[CommunitySettings] CgInstance available:', !!cgInstance);
+                        console.log('[CommunitySettings] CgInstance navigate function:', typeof cgInstance.navigate);
+                        
+                        await cgInstance.navigate(telegramUrl);
+                        
+                        console.log('[CommunitySettings] Navigation successful');
+                        toast({
+                          title: "Opening Telegram",
+                          description: "Redirecting to bot chat...",
+                        });
+                      } catch (error) {
+                        console.error('[CommunitySettings] Navigation failed:', error);
+                        
+                        toast({
+                          title: "Navigation Failed",
+                          description: error instanceof Error ? error.message : "Failed to open Telegram. Please try manually.",
+                          variant: "destructive",
+                          action: (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(telegramUrl);
+                                toast({ title: "Copied!", description: "URL copied to clipboard" });
+                              }}
+                            >
+                              Copy URL
+                            </Button>
+                          ),
+                        });
+                      }
+                    }}
+                  >
+                    <ExternalLink size={16} className="mr-1" />
+                    Open Bot
                   </Button>
                 </div>
               </div>
