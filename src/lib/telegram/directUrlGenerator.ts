@@ -4,7 +4,9 @@ import { SemanticUrlService } from '../semantic-urls';
  * Direct Semantic URL Generator for Telegram Notifications
  * 
  * Generates semantic URLs by calling SemanticUrlService directly,
- * avoiding HTTP calls that fail in server context.
+ * avoiding HTTP calls that fail in server context. Uses the new
+ * createOrUpdate() method that automatically handles community
+ * short ID migration for backward compatibility.
  * 
  * This replaces the HTTP-based buildExternalShareUrl approach
  * for server-side URL generation.
@@ -30,24 +32,15 @@ export async function generateSemanticUrlDirect(
   pluginId: string
 ): Promise<string> {
   try {
-    console.log(`[DirectURLGenerator] Creating semantic URL for post ${postId}`);
+    console.log(`[DirectURLGenerator] Creating/updating semantic URL for post ${postId} with community ${communityShortId}`);
     
-    // Check if semantic URL already exists for this post
-    const existingUrl = await SemanticUrlService.findByPostId(postId);
-    if (existingUrl) {
-      console.log(`[DirectURLGenerator] Using existing semantic URL for post ${postId}`);
-      
-      const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
-      return SemanticUrlService.buildFullUrl(existingUrl, baseUrl);
-    }
-    
-    // Direct database call - no HTTP
-    const semanticUrl = await SemanticUrlService.create({
+    // 🆕 Use createOrUpdate instead of manual checking + create
+    const semanticUrl = await SemanticUrlService.createOrUpdate({
       postId,
       postTitle,
       boardId,
       boardName,
-      communityShortId,
+      communityShortId, // 🆕 Current community short ID - may trigger bulk migration
       pluginId,
       shareSource: 'telegram_notification'
     });
@@ -56,7 +49,13 @@ export async function generateSemanticUrlDirect(
     const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
     const fullUrl = SemanticUrlService.buildFullUrl(semanticUrl, baseUrl);
     
-    console.log(`[DirectURLGenerator] Created semantic URL for post ${postId}: ${fullUrl}`);
+    // Check if this was a migration for logging
+    const wasMigration = semanticUrl.communityShortIdHistory.length > 1;
+    const migrationInfo = wasMigration 
+      ? ` (migrated from: ${semanticUrl.communityShortIdHistory.slice(0, -1).join(', ')})`
+      : '';
+    
+    console.log(`[DirectURLGenerator] Semantic URL ready for post ${postId}: ${fullUrl}${migrationInfo}`);
     return fullUrl;
     
   } catch (error) {

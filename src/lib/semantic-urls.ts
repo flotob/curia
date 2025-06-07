@@ -29,6 +29,7 @@ export interface SemanticUrlData {
   createdAt: Date;
   lastAccessedAt?: Date;
   expiresAt?: Date;
+  communityShortIdHistory: string[]; // 🆕 Historical community short IDs for migration
 }
 
 /**
@@ -67,12 +68,208 @@ interface LinkDbRow {
   created_at: Date;
   last_accessed_at?: Date;
   expires_at?: Date;
+  community_shortid_history: string[]; // 🆕 Historical community short IDs array
 }
 
 /**
  * Service for managing semantic URLs with database persistence
  */
 export class SemanticUrlService {
+  /**
+   * Create or retrieve semantic URL with automatic community ID migration
+   * 
+   * This method checks if a semantic URL already exists for the given post.
+   * If it exists but has a different community short ID, it automatically
+   * migrates ALL records for that community to use the new community short ID
+   * while preserving the old one in the history for backward compatibility.
+   * 
+   * @param params - Configuration for the semantic URL
+   * @returns Promise resolving to semantic URL data (created or migrated)
+   * 
+   * @example
+   * ```typescript
+   * // Post already has URL with old community ID "alpha"
+   * // User context now has community ID "alpha-dao" 
+   * const semanticUrl = await SemanticUrlService.createOrUpdate({
+   *   postId: 34,
+   *   communityShortId: 'alpha-dao', // New community short ID
+   *   // ... other params
+   * });
+   * // Result: ALL URLs for "alpha" community migrated to "alpha-dao"
+   * // Old "alpha" preserved in history for backward compatibility
+   * ```
+   */
+  static async createOrUpdate(params: CreateSemanticUrlParams): Promise<SemanticUrlData> {
+    const { postId, communityShortId } = params;
+    
+    try {
+      // Check if URL already exists for this post
+      const existingUrl = await this.findByPostId(postId);
+      
+      if (existingUrl) {
+        // Check if community short ID has changed
+        if (existingUrl.communityShortId !== communityShortId) {
+          console.log(`[SemanticUrlService] Community short ID changed: ${existingUrl.communityShortId} → ${communityShortId}`);
+          
+          // 🆕 Migrate ALL records for this community (bulk operation)
+          const migrationResult = await this.migrateCommunityBulk(
+            existingUrl.communityShortId,
+            communityShortId
+          );
+          
+          console.log(`[SemanticUrlService] Bulk migration completed: ${migrationResult.migratedCount} records updated`);
+          
+          // Return the specific record that was requested (now migrated)
+          const updatedUrl = await this.findByPostId(postId);
+          if (!updatedUrl) {
+            throw new Error(`Post ${postId} not found after migration`);
+          }
+          
+          return updatedUrl;
+        }
+        
+        // No change needed, return existing
+        console.log(`[SemanticUrlService] Using existing semantic URL for post ${postId}`);
+        return existingUrl;
+      }
+      
+      // Create new URL (original flow)
+      return await this.create(params);
+      
+    } catch (error) {
+      console.error('[SemanticUrlService] Error in createOrUpdate:', error);
+      throw new Error(`Failed to create or update semantic URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  /**
+   * Migrate community short ID and update history
+   * 
+   * Updates an existing semantic URL record to use a new community short ID
+   * while preserving the old short ID in the history array for backward compatibility.
+   * 
+   * @param linkId - Database ID of the link record to update
+   * @param newCommunityShortId - New community short ID to use
+   * @param oldCommunityShortId - Old community short ID to preserve in history
+   * @returns Promise resolving to updated semantic URL data
+   */
+  static async migrateCommunityShortId(
+    linkId: number,
+    newCommunityShortId: string,
+    oldCommunityShortId: string
+  ): Promise<SemanticUrlData> {
+    // Validate input parameters
+    if (!linkId || !newCommunityShortId || !oldCommunityShortId) {
+      throw new Error('Invalid parameters for community short ID migration');
+    }
+    
+    if (newCommunityShortId === oldCommunityShortId) {
+      throw new Error('New and old community short IDs are identical - no migration needed');
+    }
+    
+    try {
+      // Use atomic update to prevent race conditions
+      const result = await query(`
+        UPDATE links
+        SET 
+          community_short_id = $2,
+          community_shortid_history = 
+            CASE 
+              WHEN $3::text = ANY(community_shortid_history) THEN community_shortid_history
+              ELSE community_shortid_history || $3::text
+            END,
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+      `, [linkId, newCommunityShortId, oldCommunityShortId]);
+      
+      if (result.rows.length === 0) {
+        throw new Error(`Failed to migrate community short ID for link ${linkId} - record not found`);
+      }
+      
+      const migratedUrl = this.mapDbResult(result.rows[0]);
+      
+      console.log(`[SemanticUrlService] Successfully migrated link ${linkId}: ${oldCommunityShortId} → ${newCommunityShortId}`);
+      console.log(`[SemanticUrlService] History now contains: [${migratedUrl.communityShortIdHistory.join(', ')}]`);
+      
+      return migratedUrl;
+      
+    } catch (error) {
+      console.error(`[SemanticUrlService] Failed to migrate community short ID for link ${linkId}:`, error);
+      throw new Error(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  /**
+   * Bulk migrate ALL records for a community to new short ID
+   * 
+   * When a community changes its short ID, this method efficiently updates
+   * ALL semantic URL records for that community in a single database operation.
+   * This prevents the need to migrate records one-by-one as they're accessed.
+   * 
+   * @param oldCommunityShortId - Old community short ID to migrate from
+   * @param newCommunityShortId - New community short ID to migrate to
+   * @returns Promise resolving to migration statistics
+   * 
+   * @example
+   * ```typescript
+   * // Migrate all "alpha" community records to "alpha-dao"
+   * const result = await SemanticUrlService.migrateCommunityBulk('alpha', 'alpha-dao');
+   * // { migratedCount: 42, oldShortId: 'alpha', newShortId: 'alpha-dao' }
+   * ```
+   */
+  static async migrateCommunityBulk(
+    oldCommunityShortId: string,
+    newCommunityShortId: string
+  ): Promise<{ migratedCount: number; oldShortId: string; newShortId: string }> {
+    // Validate input parameters
+    if (!oldCommunityShortId || !newCommunityShortId) {
+      throw new Error('Invalid parameters for bulk community migration');
+    }
+    
+    if (oldCommunityShortId === newCommunityShortId) {
+      console.log(`[SemanticUrlService] No migration needed: community short ID unchanged (${oldCommunityShortId})`);
+      return { migratedCount: 0, oldShortId: oldCommunityShortId, newShortId: newCommunityShortId };
+    }
+    
+    try {
+      console.log(`[SemanticUrlService] Starting bulk migration: ${oldCommunityShortId} → ${newCommunityShortId}`);
+      
+      // Use atomic bulk update to migrate all records for this community
+      const result = await query(`
+        UPDATE links
+        SET 
+          community_short_id = $1,
+          community_shortid_history = 
+            CASE 
+              WHEN $2::text = ANY(community_shortid_history) THEN community_shortid_history
+              ELSE community_shortid_history || $2::text
+            END,
+          updated_at = NOW()
+        WHERE community_short_id = $2
+          AND (expires_at IS NULL OR expires_at > NOW())
+      `, [newCommunityShortId, oldCommunityShortId]);
+      
+      const migratedCount = result.rowCount || 0;
+      
+      if (migratedCount > 0) {
+        console.log(`[SemanticUrlService] Bulk migration successful: ${migratedCount} records migrated from ${oldCommunityShortId} to ${newCommunityShortId}`);
+      } else {
+        console.log(`[SemanticUrlService] No records found to migrate for community: ${oldCommunityShortId}`);
+      }
+      
+      return {
+        migratedCount,
+        oldShortId: oldCommunityShortId,
+        newShortId: newCommunityShortId
+      };
+      
+    } catch (error) {
+      console.error(`[SemanticUrlService] Bulk migration failed for community ${oldCommunityShortId}:`, error);
+      throw new Error(`Bulk migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   /**
    * Generate a new semantic URL and store in database
    * 
@@ -126,18 +323,19 @@ export class SemanticUrlService {
       // Generate unique share token
       const shareToken = this.generateShareToken();
       
-      // Insert into database
+      // Insert into database with initial community short ID in history
       const result = await query(`
         INSERT INTO links (
           slug, community_short_id, board_slug, post_id, board_id,
           plugin_id, share_token, post_title, board_name,
-          shared_by_user_id, share_source, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          shared_by_user_id, share_source, expires_at, community_shortid_history
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, ARRAY[$13::text])
         RETURNING *
       `, [
         slug, communityShortId, boardSlug, postId, boardId,
         pluginId, shareToken, postTitle, boardName,
-        sharedByUserId || null, shareSource, expiresAt ? expiresAt.toISOString() : null
+        sharedByUserId || null, shareSource, expiresAt ? expiresAt.toISOString() : null,
+        communityShortId // $13 - for the initial history array
       ]);
       
       if (result.rows.length === 0) {
@@ -157,17 +355,23 @@ export class SemanticUrlService {
   }
   
   /**
-   * Resolve a semantic URL path to full context data
+   * Resolve a semantic URL path to full context data with historical short ID support
+   * 
+   * This method first attempts to resolve using the current community short ID.
+   * If not found, it searches through historical community short IDs for backward
+   * compatibility with old links.
    * 
    * @param path - The semantic URL path (e.g., "/c/community/board/slug")
    * @returns Promise resolving to semantic URL data or null if not found
    * 
    * @example
    * ```typescript
-   * const result = await SemanticUrlService.resolve(
-   *   '/c/commonground/general-discussion/introducing-new-governance-proposal'
-   * );
-   * // Returns: { postId: 34, boardId: 389, pluginId: '...', ... }
+   * // Works with current short ID
+   * const result = await SemanticUrlService.resolve('/c/alpha-dao/general/my-post');
+   * 
+   * // Also works with historical short ID (automatically migrated)
+   * const oldResult = await SemanticUrlService.resolve('/c/alpha/general/my-post');
+   * // Both return the same record with communityShortId = 'alpha-dao'
    * ```
    */
   static async resolve(path: string): Promise<SemanticUrlData | null> {
@@ -181,7 +385,47 @@ export class SemanticUrlService {
       
       const [, communityShortId, boardSlug, slug] = pathMatch;
       
-      // Query database for matching semantic URL
+      // First try current community short ID
+      let result = await this.findByPath(communityShortId, boardSlug, slug);
+      
+      if (!result) {
+        // Try to find by historical community short IDs
+        result = await this.findByHistoricalPath(communityShortId, boardSlug, slug);
+        
+        if (result) {
+          console.log(`[SemanticUrlService] Found link via historical short ID: ${communityShortId} → ${result.communityShortId}`);
+          // Note: The redirect will happen at the resolution layer (in the page handler)
+        }
+      }
+      
+      if (result) {
+        console.log(`[SemanticUrlService] Resolved ${path} → post ${result.postId}, board ${result.boardId}`);
+      } else {
+        console.warn(`[SemanticUrlService] Semantic URL not found: ${path}`);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      console.error('[SemanticUrlService] Error resolving semantic URL:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Find semantic URL by current community short ID, board slug, and slug
+   * 
+   * @param communityShortId - Current community short ID
+   * @param boardSlug - Board slug
+   * @param slug - Post slug
+   * @returns Promise resolving to semantic URL data or null if not found
+   */
+  private static async findByPath(
+    communityShortId: string,
+    boardSlug: string,
+    slug: string
+  ): Promise<SemanticUrlData | null> {
+    try {
       const result = await query(`
         SELECT * FROM links
         WHERE community_short_id = $1 
@@ -191,19 +435,51 @@ export class SemanticUrlService {
         LIMIT 1
       `, [communityShortId, boardSlug, slug]);
       
-      if (result.rows.length === 0) {
-        console.warn(`[SemanticUrlService] Semantic URL not found: ${path}`);
-        return null;
-      }
-      
-      const semanticUrl = this.mapDbResult(result.rows[0]);
-      
-      console.log(`[SemanticUrlService] Resolved ${path} → post ${semanticUrl.postId}, board ${semanticUrl.boardId}`);
-      
-      return semanticUrl;
+      return result.rows.length > 0 ? this.mapDbResult(result.rows[0]) : null;
       
     } catch (error) {
-      console.error('[SemanticUrlService] Error resolving semantic URL:', error);
+      console.error('[SemanticUrlService] Error finding by path:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Find semantic URL by historical community short ID
+   * 
+   * Searches through the community_shortid_history array to find URLs
+   * that were created with an old community short ID but are still valid.
+   * 
+   * @param historicalShortId - Historical community short ID to search for
+   * @param boardSlug - Board slug
+   * @param slug - Post slug
+   * @returns Promise resolving to semantic URL data or null if not found
+   */
+  private static async findByHistoricalPath(
+    historicalShortId: string,
+    boardSlug: string,
+    slug: string
+  ): Promise<SemanticUrlData | null> {
+    // Validate input parameters
+    if (!historicalShortId || !boardSlug || !slug) {
+      console.warn('[SemanticUrlService] Invalid parameters for historical path lookup');
+      return null;
+    }
+    
+    try {
+      const result = await query(`
+        SELECT * FROM links
+        WHERE $1::text = ANY(community_shortid_history)
+          AND board_slug = $2
+          AND slug = $3
+          AND (expires_at IS NULL OR expires_at > NOW())
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, [historicalShortId, boardSlug, slug]);
+      
+      return result.rows.length > 0 ? this.mapDbResult(result.rows[0]) : null;
+      
+    } catch (error) {
+      console.error('[SemanticUrlService] Error finding by historical path:', error);
       return null;
     }
   }
@@ -450,7 +726,8 @@ export class SemanticUrlService {
       accessCount: row.access_count,
       createdAt: row.created_at,
       lastAccessedAt: row.last_accessed_at,
-      expiresAt: row.expires_at
+      expiresAt: row.expires_at,
+      communityShortIdHistory: row.community_shortid_history || [] // 🆕 Map historical short IDs
     };
   }
   

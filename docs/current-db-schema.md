@@ -1,13 +1,5 @@
 -- Adminer 5.2.1 PostgreSQL 17.5 dump
 
-DROP FUNCTION IF EXISTS "trigger_set_timestamp";;
-CREATE FUNCTION "trigger_set_timestamp" () RETURNS trigger LANGUAGE plpgsql AS '
-    BEGIN
-      NEW.updated_at = NOW();
-      RETURN NEW;
-    END;
-    ';
-
 DROP TABLE IF EXISTS "boards";
 DROP SEQUENCE IF EXISTS boards_id_seq;
 CREATE SEQUENCE boards_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -105,6 +97,7 @@ CREATE TABLE "public"."links" (
     "expires_at" timestamptz,
     "last_accessed_at" timestamptz,
     "access_count" integer DEFAULT '0' NOT NULL,
+    "community_shortid_history" text[] DEFAULT '{}' NOT NULL,
     CONSTRAINT "links_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
@@ -136,6 +129,8 @@ COMMENT ON COLUMN "public"."links"."last_accessed_at" IS 'When the URL was last 
 
 COMMENT ON COLUMN "public"."links"."access_count" IS 'Number of times the URL has been accessed';
 
+COMMENT ON COLUMN "public"."links"."community_shortid_history" IS 'Array of all historical community short IDs for backward compatibility';
+
 CREATE UNIQUE INDEX links_slug_key ON public.links USING btree (slug);
 
 CREATE UNIQUE INDEX links_share_token_key ON public.links USING btree (share_token);
@@ -153,6 +148,8 @@ CREATE INDEX links_created_at_idx ON public.links USING btree (created_at);
 CREATE INDEX links_expires_at_idx ON public.links USING btree (expires_at) WHERE (expires_at IS NOT NULL);
 
 CREATE INDEX links_access_count_idx ON public.links USING btree (access_count);
+
+CREATE INDEX links_community_shortid_history_idx ON public.links USING gin (community_shortid_history);
 
 
 DELIMITER ;;
@@ -311,4 +308,4 @@ ALTER TABLE ONLY "public"."telegram_notifications" ADD CONSTRAINT "telegram_noti
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
--- 2025-06-07 18:07:54 UTC
+-- 2025-06-07 19:58:06 UTC

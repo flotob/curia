@@ -29,7 +29,7 @@ export default async function SemanticUrlHandler({ params }: SemanticUrlPageProp
   let semanticUrl;
   
   try {
-    // Database lookup for semantic URL
+    // Database lookup for semantic URL (includes historical short ID lookup)
     semanticUrl = await SemanticUrlService.resolve(semanticPath);
   } catch (error) {
     console.error(`[SemanticUrlHandler] Database error resolving semantic URL:`, error);
@@ -40,6 +40,60 @@ export default async function SemanticUrlHandler({ params }: SemanticUrlPageProp
     console.warn(`[SemanticUrlHandler] URL not found: ${semanticPath}`);
     notFound();
   }
+  
+  // 🆕 Check if this was resolved via historical short ID (community migration)
+  const [requestedShortId] = path;
+  const currentShortId = semanticUrl.communityShortId;
+  
+  if (requestedShortId !== currentShortId) {
+    console.log(`[SemanticUrlHandler] Historical short ID detected: ${requestedShortId} → ${currentShortId}`);
+    console.log(`[SemanticUrlHandler] Migration history: [${semanticUrl.communityShortIdHistory.join(' → ')}]`);
+    
+    // Redirect to updated URL with current community short ID
+    const updatedSemanticPath = `/c/${currentShortId}/${semanticUrl.boardSlug}/${semanticUrl.slug}`;
+    const commonGroundBaseUrl = process.env.NEXT_PUBLIC_COMMON_GROUND_BASE_URL || 'https://app.commonground.wtf';
+    const redirectUrl = `${commonGroundBaseUrl}/c/${currentShortId}/plugin/${semanticUrl.pluginId}`;
+    
+    console.log(`[SemanticUrlHandler] Redirecting historical URL: ${semanticPath} → ${updatedSemanticPath}`);
+    console.log(`[SemanticUrlHandler] Final destination: ${redirectUrl}`);
+    
+    // Prepare share context data for iframe detection (same as normal flow)
+    const sharedContentToken = `${semanticUrl.postId}-${semanticUrl.boardId}-${Date.now()}`;
+    const postData = JSON.stringify({
+      postId: semanticUrl.postId,
+      boardId: semanticUrl.boardId,
+      token: semanticUrl.shareToken,
+      timestamp: Date.now(),
+      source: 'semantic_url_migration'
+    });
+    
+    // Encode the redirect data for the client-side redirect page
+    const encodedData = encodeURIComponent(JSON.stringify({
+      redirectUrl,
+      sharedContentToken,
+      postData,
+      semanticUrl: {
+        postId: semanticUrl.postId,
+        postTitle: semanticUrl.postTitle,
+        boardName: semanticUrl.boardName,
+        accessCount: semanticUrl.accessCount,
+        isMigration: true,
+        oldShortId: requestedShortId,
+        newShortId: currentShortId
+      }
+    }));
+    
+    // Record access for analytics (before redirecting)
+    SemanticUrlService.recordAccess(semanticUrl.id).catch(error => {
+      console.warn(`[SemanticUrlHandler] Failed to record access for migrated URL ${semanticUrl.id}:`, error);
+    });
+    
+    // Redirect to client-side redirect handler with migration context
+    redirect(`/semantic-redirect?data=${encodedData}`);
+  }
+  
+  // Normal flow - no community short ID change detected
+  console.log(`[SemanticUrlHandler] Processing current URL: ${semanticPath}`);
   
   // Record access for analytics (fire-and-forget)
   SemanticUrlService.recordAccess(semanticUrl.id).catch(error => {
@@ -94,7 +148,7 @@ export async function generateMetadata({ params }: SemanticUrlPageProps) {
   let semanticUrl;
   
   try {
-    // Look up the semantic URL for basic post info
+    // Look up the semantic URL for basic post info (includes historical short ID lookup)
     semanticUrl = await SemanticUrlService.resolve(semanticPath);
   } catch (error) {
     console.error('[SemanticUrlHandler] Error resolving URL for metadata:', error);
@@ -111,9 +165,18 @@ export async function generateMetadata({ params }: SemanticUrlPageProps) {
     };
   }
 
+  // 🆕 Handle historical short ID in metadata generation
+  const [requestedShortId] = path;
+  const currentShortId = semanticUrl.communityShortId;
+  
+  // Use current short ID for canonical URL even if accessed via historical short ID
+  const canonicalSemanticPath = requestedShortId !== currentShortId 
+    ? `/c/${currentShortId}/${semanticUrl.boardSlug}/${semanticUrl.slug}`
+    : semanticPath;
+
   // Build URLs
   const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
-  const fullSemanticUrl = `${baseUrl}${semanticPath}`;
+  const fullSemanticUrl = `${baseUrl}${canonicalSemanticPath}`;
   
   try {
     // Fetch enhanced post metadata with gating information (same as post layout)
@@ -163,7 +226,10 @@ export async function generateMetadata({ params }: SemanticUrlPageProps) {
     };
     
     const gatingStatus = postData.gatingContext.communityGated || postData.gatingContext.boardGated || postData.gatingContext.postGated;
-    console.log(`[SemanticUrlHandler] Generated rich metadata for ${semanticPath}: ${postData.title} (${gatingStatus ? 'gated' : 'public'})`);
+    const migrationInfo = requestedShortId !== currentShortId 
+      ? ` [migrated: ${requestedShortId} → ${currentShortId}]` 
+      : '';
+    console.log(`[SemanticUrlHandler] Generated rich metadata for ${semanticPath}: ${postData.title} (${gatingStatus ? 'gated' : 'public'})${migrationInfo}`);
     
     return semanticAwareMetadata;
     

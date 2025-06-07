@@ -50,30 +50,13 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       );
     }
 
-    // Check if semantic URL already exists for this post
-    const existingUrl = await SemanticUrlService.findByPostId(postId);
-    if (existingUrl) {
-      console.log(`[API] Returning existing semantic URL for post ${postId}`);
-      
-      const fullUrl = SemanticUrlService.buildFullUrl(existingUrl);
-      
-      return NextResponse.json({
-        id: existingUrl.id,
-        url: fullUrl,
-        slug: existingUrl.slug,
-        shareToken: existingUrl.shareToken,
-        expiresAt: existingUrl.expiresAt,
-        isExisting: true
-      });
-    }
-
-    // Create new semantic URL
+    // 🆕 Create or update semantic URL with automatic migration
     const semanticUrlParams: CreateSemanticUrlParams = {
       postId,
       postTitle,
       boardId,
       boardName,
-      communityShortId,
+      communityShortId, // 🆕 Current community short ID - may trigger bulk migration
       pluginId,
       sharedByUserId,
       shareSource,
@@ -81,10 +64,18 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       customSlug
     };
 
-    const semanticUrl = await SemanticUrlService.create(semanticUrlParams);
+    console.log(`[API] Creating/updating semantic URL for post ${postId} with community ${communityShortId}`);
+
+    const semanticUrl = await SemanticUrlService.createOrUpdate(semanticUrlParams);
     const fullUrl = SemanticUrlService.buildFullUrl(semanticUrl);
 
-    console.log(`[API] Created semantic URL for post ${postId}: ${fullUrl}`);
+    // Check if this was a migration by comparing community short IDs
+    const wasMigration = semanticUrl.communityShortIdHistory.length > 1;
+    const migrationInfo = wasMigration 
+      ? ` (migrated from: ${semanticUrl.communityShortIdHistory.slice(0, -1).join(', ')})`
+      : '';
+
+    console.log(`[API] Semantic URL ready for post ${postId}: ${fullUrl}${migrationInfo}`);
 
     return NextResponse.json({
       id: semanticUrl.id,
@@ -92,7 +83,8 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       slug: semanticUrl.slug,
       shareToken: semanticUrl.shareToken,
       expiresAt: semanticUrl.expiresAt,
-      isExisting: false
+      wasMigration, // 🆕 Indicates if community migration occurred
+      migrationHistory: wasMigration ? semanticUrl.communityShortIdHistory : undefined
     });
 
   } catch (error) {
