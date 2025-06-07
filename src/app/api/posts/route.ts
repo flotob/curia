@@ -23,6 +23,12 @@ export interface ApiPost {
   board_id: number; // Board ID
   board_name: string; // Board name from boards table
   settings: PostSettings; // Post-level settings including UP gating
+  
+  // 🆕 Share analytics fields from links table
+  share_access_count: number;      // Total clicks on all shared URLs for this post
+  share_count: number;             // Number of different shared URLs created
+  last_shared_at?: string;         // When most recent share URL was created
+  most_recent_access_at?: string;  // When shared URL was last clicked
 }
 
 // Cursor data interface for parsing
@@ -179,11 +185,26 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
         p.id, p.author_user_id, p.title, p.content, p.tags, p.settings,
         p.upvote_count, p.comment_count, p.created_at, p.updated_at,
         u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
-        b.id AS board_id, b.name AS board_name
+        b.id AS board_id, b.name AS board_name,
+        COALESCE(share_stats.total_access_count, 0) as share_access_count,
+        COALESCE(share_stats.share_count, 0) as share_count,
+        share_stats.last_shared_at,
+        share_stats.most_recent_access_at
         ${currentUserId ? ", CASE WHEN v.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS user_has_upvoted" : ""}
       FROM posts p
       JOIN users u ON p.author_user_id = u.user_id
       JOIN boards b ON p.board_id = b.id
+      LEFT JOIN (
+        SELECT 
+          post_id,
+          SUM(access_count) as total_access_count,
+          COUNT(*) as share_count,
+          MAX(created_at) as last_shared_at,
+          MAX(last_accessed_at) as most_recent_access_at
+        FROM links 
+        WHERE expires_at IS NULL OR expires_at > NOW()
+        GROUP BY post_id
+      ) share_stats ON p.id = share_stats.post_id
       ${currentUserId ? "LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $1" : ""}
       ${whereClause}
       ORDER BY p.upvote_count DESC, p.created_at DESC, p.id DESC
@@ -197,6 +218,11 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
       ...row,
       user_has_upvoted: row.user_has_upvoted === undefined ? false : row.user_has_upvoted,
       settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : (row.settings || {}),
+      // Ensure share statistics have proper defaults and types
+      share_access_count: row.share_access_count || 0,
+      share_count: row.share_count || 0,
+      last_shared_at: row.last_shared_at || undefined,
+      most_recent_access_at: row.most_recent_access_at || undefined,
     }));
 
     // Generate next cursor from last post (if we have a full page)
@@ -288,7 +314,12 @@ async function createPostHandler(req: AuthenticatedRequest) {
       author_profile_picture_url: user.picture || null,
       user_has_upvoted: false,
       board_name: '',
-      settings: postSettings
+      settings: postSettings,
+      // New posts have no shares yet
+      share_access_count: 0,
+      share_count: 0,
+      last_shared_at: undefined,
+      most_recent_access_at: undefined,
     };
 
     // 🚀 REAL-TIME: Directly emit event on process.customEventEmitter (now typed)

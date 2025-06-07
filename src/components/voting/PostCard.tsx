@@ -744,7 +744,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="p-1 h-auto" 
+                className="p-1 h-auto text-xs sm:text-sm" 
                 onClick={handleShare}
                 disabled={isGeneratingShareUrl}
                 title={isGeneratingShareUrl ? "Generating share URL..." : "Share this post"}
@@ -752,7 +752,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 {isGeneratingShareUrl ? (
                   <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
                 ) : (
-                  <Share2 size={14} />
+                  <Share2 size={14} className="mr-1 sm:mr-1.5" />
+                )}
+                {!isGeneratingShareUrl && (
+                  <span className="hidden xs:inline">
+                    Share{post.share_access_count > 0 && ` (${post.share_access_count})`}
+                  </span>
                 )}
               </Button>
             </div>

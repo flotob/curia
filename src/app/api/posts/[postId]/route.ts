@@ -20,7 +20,7 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
   try {
     console.log(`[API] GET /api/posts/${postId} called by user ${userId}`);
 
-    // Get post with all related data in a single query
+    // Get post with all related data in a single query including share statistics
     const result = await query(`
       SELECT 
         p.id,
@@ -39,11 +39,26 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
         b.community_id,
         u.name as author_name,
         u.profile_picture_url as author_profile_picture_url,
-        CASE WHEN v.user_id IS NOT NULL THEN true ELSE false END as user_has_upvoted
+        CASE WHEN v.user_id IS NOT NULL THEN true ELSE false END as user_has_upvoted,
+        COALESCE(share_stats.total_access_count, 0) as share_access_count,
+        COALESCE(share_stats.share_count, 0) as share_count,
+        share_stats.last_shared_at,
+        share_stats.most_recent_access_at
       FROM posts p
       JOIN boards b ON p.board_id = b.id  
       JOIN users u ON p.author_user_id = u.user_id
       LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $2
+      LEFT JOIN (
+        SELECT 
+          post_id,
+          SUM(access_count) as total_access_count,
+          COUNT(*) as share_count,
+          MAX(created_at) as last_shared_at,
+          MAX(last_accessed_at) as most_recent_access_at
+        FROM links 
+        WHERE expires_at IS NULL OR expires_at > NOW()
+        GROUP BY post_id
+      ) share_stats ON p.id = share_stats.post_id
       WHERE p.id = $1
     `, [postId, userId || null]);
 
@@ -86,7 +101,12 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
       author_profile_picture_url: postData.author_profile_picture_url,
       user_has_upvoted: postData.user_has_upvoted,
       board_id: postData.board_id,
-      board_name: postData.board_name
+      board_name: postData.board_name,
+      // Add share statistics fields with proper defaults
+      share_access_count: postData.share_access_count || 0,
+      share_count: postData.share_count || 0,
+      last_shared_at: postData.last_shared_at || undefined,
+      most_recent_access_at: postData.most_recent_access_at || undefined,
     };
 
     console.log(`[API] Successfully retrieved post ${postId} for user ${userId}`);
