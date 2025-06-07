@@ -93,16 +93,14 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <Share2 size={20} />
             Share Post
           </DialogTitle>
-          <DialogDescription className="space-y-2">
-            <div>
-              Share this discussion: <span className="font-medium">&ldquo;{postTitle}&rdquo;</span>
-            </div>
-            {isWebShareFallback && (
-              <div className="text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md border border-amber-200 dark:border-amber-800">
-                                 <strong>📱 Mobile Share Note:</strong> Direct sharing isn&apos;t available in this context. Copy the link below to share manually.
-              </div>
-            )}
+          <DialogDescription>
+            Share this discussion: <span className="font-medium">&ldquo;{postTitle}&rdquo;</span>
           </DialogDescription>
+          {isWebShareFallback && (
+            <div className="text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 p-2 rounded-md border border-amber-200 dark:border-amber-800 mt-2">
+              <strong>📱 Mobile Share Note:</strong> Direct sharing isn&apos;t available in this context. Copy the link below to share manually.
+            </div>
+          )}
         </DialogHeader>
         
         <div className="space-y-4">
