@@ -13,11 +13,11 @@ async function getConnectCodeHandler(req: AuthenticatedRequest) {
       return NextResponse.json({ error: 'No community ID found' }, { status: 400 });
     }
 
-    // Generate connect code for user's community
-    const connectCode = generateConnectCode(requestingUserCommunityId);
+    // Generate connect code for user's community (now async with COUNT-based nonce)
+    const connectCode = await generateConnectCode(requestingUserCommunityId);
     const formattedConnectCode = formatConnectCodeForDisplay(connectCode);
     const botName = getBotName();
-
+    
     return NextResponse.json({
       connectCode,
       formattedConnectCode,

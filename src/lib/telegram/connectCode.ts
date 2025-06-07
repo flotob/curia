@@ -2,18 +2,25 @@ import crypto from 'crypto';
 import { query } from '../db';
 
 /**
- * Generate a unique connect code for a community
- * Format: 12-character hex string, rotates daily
+ * Generate a unique connect code for a community using group count as nonce
+ * Each registration increments the count, invalidating previous codes
  */
-export function generateConnectCode(communityId: string): string {
+export async function generateConnectCode(communityId: string): Promise<string> {
   const secret = process.env.TELEGRAM_CONNECT_SECRET;
   if (!secret) {
     throw new Error('TELEGRAM_CONNECT_SECRET environment variable is required');
   }
 
-  // Use current date for daily rotation
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-  const payload = `${communityId}:${today}`;
+  // Get current group count as nonce (0-indexed)
+  const result = await query(
+    'SELECT COUNT(*) FROM telegram_groups WHERE community_id = $1 AND is_active = true',
+    [communityId]
+  );
+  const nonce = parseInt(result.rows[0].count);
+  
+  console.log(`[ConnectCode] Generating code for community ${communityId} with nonce ${nonce}`);
+  
+  const payload = `${communityId}:${nonce}`;
   
   const hash = crypto.createHmac('sha256', secret)
     .update(payload)
@@ -27,9 +34,9 @@ export function generateConnectCode(communityId: string): string {
 /**
  * Validate a connect code for a specific community
  */
-export function validateConnectCode(code: string, communityId: string): boolean {
+export async function validateConnectCode(code: string, communityId: string): Promise<boolean> {
   try {
-    const expectedCode = generateConnectCode(communityId);
+    const expectedCode = await generateConnectCode(communityId);
     return code.toUpperCase() === expectedCode;
   } catch (error) {
     console.error('[ConnectCode] Validation error:', error);
@@ -49,7 +56,7 @@ export async function findCommunityByConnectCode(code: string): Promise<string |
     
     // Test code against each community
     for (const community of communities) {
-      if (validateConnectCode(code, community.id)) {
+      if (await validateConnectCode(code, community.id)) {
         return community.id;
       }
     }
