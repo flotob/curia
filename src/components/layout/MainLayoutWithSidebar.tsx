@@ -428,7 +428,12 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
           {/* Phase 2: Main content with right sidebar */}
           <div className="flex flex-1">
             {/* Page content */}
-            <div className="flex-1 p-4 md:p-6 lg:p-8">
+            <div className={cn(
+              "flex-1 p-4 md:p-6 lg:p-8 transition-all duration-300",
+              // Add right padding/margin on large screens when sidebar is visible
+              showSidebar && !isMobile && !isTablet && rightSidebarOpen && "lg:pr-64 xl:pr-72",
+              showSidebar && !isMobile && !isTablet && "xl:pr-72" // Always account for sidebar on xl+
+            )}>
               {children}
             </div>
 
@@ -436,12 +441,11 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
             {showSidebar && (
               <aside className={cn(
                 "transition-all duration-300 border-l w-64 xl:w-72",
-                theme === 'dark' ? 'border-slate-700/40' : 'border-slate-200/60',
-                // Base visibility rules
-                "xl:block", // Always visible on xl+
-                // Desktop (lg-xl): Show/hide based on toggle
+                theme === 'dark' ? 'border-slate-700/40 bg-background' : 'border-slate-200/60 bg-background',
+                // Large screen sticky positioning (fixed to right side)
+                !isMobile && !isTablet && "lg:fixed lg:right-0 lg:top-0 lg:h-screen lg:z-30 lg:shadow-lg",
                 !isMobile && !isTablet && rightSidebarOpen && "lg:block",
-                !isMobile && !isTablet && !rightSidebarOpen && "lg:hidden",
+                !isMobile && !isTablet && !rightSidebarOpen && "lg:hidden xl:block", // xl+ always visible
                 // Tablet: Hidden by default, overlay when toggled (same as mobile)
                 isTablet && !rightSidebarOpen && "hidden",
                 isTablet && rightSidebarOpen && "fixed right-0 top-0 h-full bg-background z-50 shadow-lg block",
@@ -470,11 +474,11 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     </Button>
                   </div>
                 )}
-                <MultiCommunityPresenceSidebar />
+                <div className="h-full overflow-y-auto">
+                  <MultiCommunityPresenceSidebar />
+                </div>
               </aside>
             )}
-
-
 
             {/* Phase 2: Desktop toggle button for right sidebar */}
             {showSidebar && !isMobile && !isTablet && (
