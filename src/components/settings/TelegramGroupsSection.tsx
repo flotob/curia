@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCgLib } from '@/contexts/CgLibContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { useTimeSince } from '@/utils/timeUtils';
@@ -32,6 +33,7 @@ interface TelegramGroupsSectionProps {
 
 export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSectionProps) {
   const { token } = useAuth();
+  const { cgInstance } = useCgLib();
   const { toast } = useToast();
   const [copiedBotName, setCopiedBotName] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -271,16 +273,25 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
                 </Button>
                 <Button
                   variant="outline"
-                  asChild
+                  onClick={async () => {
+                    if (cgInstance && botInfo?.botUsername) {
+                      try {
+                        await cgInstance.navigate(
+                          `https://t.me/${botInfo.botUsername}?startgroup=true`
+                        );
+                      } catch (error) {
+                        console.error('[TelegramGroupsSection] Navigation failed:', error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to open Telegram. Please try manually.",
+                          variant: "destructive",
+                        });
+                      }
+                    }
+                  }}
                 >
-                  <a 
-                    href={`https://t.me/${botInfo?.botUsername || 'curiaforum_bot'}?startgroup=true`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink size={16} className="mr-2" />
-                    Add Bot to Group
-                  </a>
+                  <ExternalLink size={16} className="mr-2" />
+                  Add Bot to Group
                 </Button>
               </div>
             </div>
