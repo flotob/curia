@@ -277,17 +277,13 @@ export function GlobalSearchModal() {
                     className="absolute left-4 top-1/2 transform -translate-y-1/2 text-primary pointer-events-none"
                   />
                   <Input
-                    placeholder={currentInput ? "Continue typing to refine your search..." : "Search posts or start typing to create..."}
+                    type="text"
+                    placeholder={currentBoard ? `Search in ${currentBoard.name} or create new post...` : "Search all posts or create new..."}
                     value={currentInput}
-                    className={cn(
-                      "pl-12 pr-12 py-4 text-lg transition-all duration-200 font-medium",
-                      "bg-background border-2 border-primary/40 rounded-xl shadow-md",
-                      "focus:border-primary focus:shadow-lg",
-                      "focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    )}
                     onChange={handleModalInputChange}
                     onKeyDown={handleKeyDown}
                     autoFocus
+                    className="pl-10 pr-16 py-3 text-base border-0 focus:ring-0 focus:outline-none bg-transparent"
                   />
                   {/* Clear button */}
                   {currentInput && (

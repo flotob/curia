@@ -41,7 +41,7 @@ interface EnhancedUserPresence {
   lastSeen: Date | string;
 }
 
-// Legacy interface for backward compatibility
+// Legacy interface for backward compatibility with typing support
 interface OnlineUser {
   userId: string;
   userName: string;
@@ -50,6 +50,9 @@ interface OnlineUser {
   currentBoardId?: number;
   currentBoardName?: string;
   isTyping?: boolean;
+  typingPostId?: number;
+  typingBoardId?: number;
+  typingTimestamp?: number;
 }
 
 // Community grouping interfaces
@@ -338,17 +341,58 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setBoardOnlineUsers(prev => prev.filter(u => u.userId !== leftUserId));
     });
 
-    newSocket.on('userTyping', ({ userId, userName, boardId, isTyping }: { userId: string; userName?: string; boardId: number; isTyping: boolean}) => {
-      console.log(`[Socket] User ${userName || userId} ${isTyping ? 'started' : 'stopped'} typing in board ${boardId}`);
+    newSocket.on('userTyping', ({ 
+      userId, 
+      userName, 
+      boardId, 
+      postId,
+      isTyping
+    }: { 
+      userId: string; 
+      userName?: string; 
+      boardId: number; 
+      postId?: number;
+      isTyping: boolean;
+      context?: 'post' | 'comment';
+    }) => {
+      const contextMsg = postId ? `commenting on post ${postId}` : `posting in board ${boardId}`;
+      console.log(`[Socket] User ${userName || userId} ${isTyping ? 'started' : 'stopped'} ${contextMsg}`);
       
-      // Update typing status in board presence
+      // Update typing status in board presence with enhanced context
       setBoardOnlineUsers(prev => 
         prev.map(user => 
           user.userId === userId 
-            ? { ...user, isTyping: isTyping }
+            ? { 
+                ...user, 
+                isTyping: isTyping,
+                typingPostId: isTyping ? postId : undefined,
+                typingBoardId: isTyping ? boardId : undefined,
+                typingTimestamp: isTyping ? Date.now() : undefined
+              }
             : user
         )
       );
+      
+      // Also ensure user exists in the list if not already there
+      if (isTyping) {
+        setBoardOnlineUsers(prev => {
+          const userExists = prev.some(u => u.userId === userId);
+          if (!userExists) {
+            const newUser: OnlineUser = {
+              userId,
+              userName: userName || 'Unknown',
+              communityId: 'unknown', // Will be updated with proper data later
+              currentBoardId: boardId,
+              isTyping: true,
+              typingPostId: postId,
+              typingBoardId: boardId,
+              typingTimestamp: Date.now()
+            };
+            return [...prev, newUser];
+          }
+          return prev;
+        });
+      }
     });
 
     newSocket.on('postDeleted', ({ postId }: { postId: number }) => {
@@ -495,9 +539,43 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const sendTyping = useCallback((boardId: number, postId?: number, isTyping: boolean = true) => {
     if (socket && isConnected) {
-      socket.emit('typing', { boardId, postId, isTyping });
+      const context = postId ? 'comment' : 'post';
+      console.log(`[Socket] Sending typing event: ${isTyping ? 'start' : 'stop'} ${context} (board: ${boardId}, post: ${postId || 'none'})`);
+      socket.emit('typing', { 
+        boardId, 
+        postId, 
+        isTyping,
+        context
+      });
     }
   }, [socket, isConnected]);
+
+  // Automatic cleanup of stale typing indicators
+  useEffect(() => {
+    const cleanupTyping = () => {
+      const now = Date.now();
+      const TYPING_TIMEOUT = 10000; // 10 seconds
+      
+      setBoardOnlineUsers(prev => 
+        prev.map(user => {
+          if (user.isTyping && user.typingTimestamp && (now - user.typingTimestamp > TYPING_TIMEOUT)) {
+            console.log(`[Socket] Auto-cleanup: User ${user.userName} typing timeout`);
+            return {
+              ...user,
+              isTyping: false,
+              typingPostId: undefined,
+              typingBoardId: undefined,
+              typingTimestamp: undefined
+            };
+          }
+          return user;
+        })
+      );
+    };
+
+    const interval = setInterval(cleanupTyping, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const value: SocketContextType = {
     socket,

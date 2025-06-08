@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTypingEvents } from '@/hooks/useTypingEvents';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
@@ -74,6 +75,15 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [postSettings, setPostSettings] = useState<PostSettings['responsePermissions']>();
+
+  // Set up typing events for real-time indicators when creating posts
+  const typingEvents = useTypingEvents({
+    boardId: selectedBoardId ? parseInt(selectedBoardId) : 0,
+    postId: undefined, // No postId for new posts
+    enabled: isAuthenticated && isExpanded && !!selectedBoardId, // Only enable when form is expanded and board is selected
+    onTypingStart: () => console.log('[NewPostForm] Started typing in board', selectedBoardId),
+    onTypingStop: () => console.log('[NewPostForm] Stopped typing in board', selectedBoardId)
+  });
 
   // Fetch available boards for the user's community
   const { data: boardsList, isLoading: isLoadingBoards } = useQuery<ApiBoard[]>({
@@ -171,6 +181,19 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
         class: 'prose prose-sm dark:prose-invert leading-relaxed focus:outline-none min-h-[200px] px-4 py-3 w-full',
       },
     },
+    onUpdate: ({ editor }) => {
+      // Trigger typing events when editor content changes
+      const combinedContent = title + editor.getText().trim();
+      typingEvents.handleInputChange(combinedContent);
+    },
+    onFocus: () => {
+      // Trigger typing events when editor gains focus
+      typingEvents.handleFocus();
+    },
+    onBlur: () => {
+      // Trigger typing events when editor loses focus
+      typingEvents.handleBlur();
+    },
   });
 
   const { 
@@ -189,9 +212,14 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
   const debouncedSetSearchQuery = debounce((query: string) => setSearchQuery(query), 500);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTitle(e.target.value);
+    const newTitle = e.target.value;
+    setTitle(newTitle);
     // Optionally, update search query based on title AND/OR content in future
-    debouncedSetSearchQuery(e.target.value); 
+    debouncedSetSearchQuery(newTitle);
+    
+    // Trigger typing events when title changes
+    const combinedContent = newTitle + (contentEditor?.getText() || '');
+    typingEvents.handleInputChange(combinedContent);
   };
   
   const createPostMutation = useMutation<ApiPost, Error, CreatePostMutationPayload>({
@@ -237,6 +265,10 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Stop typing indicator immediately when submitting
+    typingEvents.handleSubmit();
+    
     setError(null);
     const currentContentJson = contentEditor?.getJSON();
 
@@ -302,7 +334,9 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
                     id="title" 
                     placeholder="Enter a clear and compelling title..."
                     value={title} 
-                    onChange={handleTitleChange} 
+                    onChange={handleTitleChange}
+                    onFocus={() => typingEvents.handleFocus()}
+                    onBlur={() => typingEvents.handleBlur()}
                     required 
                     disabled={createPostMutation.isPending}
                     className="text-sm sm:text-base border-2 rounded-xl px-4 py-3 transition-all duration-200 focus:border-primary focus:shadow-lg focus:shadow-primary/10"

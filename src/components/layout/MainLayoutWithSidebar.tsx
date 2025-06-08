@@ -173,10 +173,45 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
     enabled: !!boardsList && !!user && !!communityIdForBoards,
   });
 
-  // Detect current context for header display
-  const isPostDetailRoute = pathname?.includes('/board/') && pathname?.includes('/post/');
-  const currentBoardId = searchParams?.get('boardId') || (isPostDetailRoute ? pathname?.split('/')[2] : null);
-  const currentPostId = isPostDetailRoute ? pathname?.split('/')[4] : null;
+  // Enhanced context detection for navigation and sidebar
+  const navigationContext = React.useMemo(() => {
+    // Post detail route detection
+    if (pathname?.includes('/board/') && pathname?.includes('/post/')) {
+      const pathParts = pathname.split('/');
+      const boardId = pathParts[2];
+      const postId = pathParts[4];
+      return {
+        type: 'post' as const,
+        boardId,
+        postId,
+        isPostDetail: true
+      };
+    }
+    
+    // Board view detection
+    const boardIdFromParams = searchParams?.get('boardId');
+    if (boardIdFromParams) {
+      return {
+        type: 'board' as const,
+        boardId: boardIdFromParams,
+        postId: null,
+        isPostDetail: false
+      };
+    }
+    
+    // Home/global view
+    return {
+      type: 'home' as const,
+      boardId: null,
+      postId: null,
+      isPostDetail: false
+    };
+  }, [pathname, searchParams]);
+
+  // Legacy compatibility
+  const isPostDetailRoute = navigationContext.type === 'post';
+  const currentBoardId = navigationContext.boardId;
+  const currentPostId = navigationContext.postId;
 
   // Get current board info for header display
   const currentBoard = accessibleBoardsList?.find(board => board.id.toString() === currentBoardId);
@@ -475,7 +510,11 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                   </div>
                 )}
                 <div className="h-full overflow-y-auto">
-                  <MultiCommunityPresenceSidebar />
+                  <MultiCommunityPresenceSidebar 
+                    navigationContext={navigationContext}
+                    currentBoard={currentBoard}
+                    currentPost={currentPost}
+                  />
                 </div>
               </aside>
             )}

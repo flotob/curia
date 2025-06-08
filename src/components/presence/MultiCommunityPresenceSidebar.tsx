@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ContextualNavigationCard } from './ContextualNavigationCard';
+import { TypingIndicator } from './TypingIndicator';
+import { useTypingContext } from '@/hooks/useTypingContext';
+import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
+import { ApiPost } from '@/app/api/posts/route';
 
 // Enhanced interfaces (Socket.IO serializes dates as strings)
 interface DevicePresence {
@@ -155,6 +160,9 @@ const UserPresenceCard = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   
+  // Get typing context for this user
+  const typingContext = useTypingContext(user.userId);
+  
   const navigateToBoard = (boardId: number) => {
     if (isCurrentCommunity) {
       // Same community - normal navigation
@@ -173,7 +181,10 @@ const UserPresenceCard = ({
       <CardContent className="p-3">
         <div className="flex items-center space-x-3">
           <div className="relative">
-            <Avatar className="h-8 w-8">
+            <Avatar className={cn(
+              "h-8 w-8 transition-all duration-300",
+              typingContext.isTyping && "ring-2 ring-amber-400 ring-opacity-50 animate-pulse"
+            )}>
               <AvatarImage src={user.avatarUrl} alt={user.userName} />
               <AvatarFallback className="text-xs font-medium">
                 {user.userName.substring(0, 2).toUpperCase()}
@@ -228,26 +239,39 @@ const UserPresenceCard = ({
             {/* Primary activity (collapsed view) */}
             {!expanded && (
               <>
-                {user.primaryDevice.currentBoardId && (
-                  <button
-                    onClick={() => navigateToBoard(user.primaryDevice.currentBoardId!)}
-                    className={cn(
-                      "text-xs hover:underline transition-colors",
-                      isCurrentCommunity 
-                        ? "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" 
-                        : "text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 cursor-not-allowed opacity-60"
+                {/* Show typing indicator if user is typing */}
+                {typingContext.isTyping ? (
+                  <TypingIndicator 
+                    variant="dots"
+                    context={typingContext.context || undefined}
+                    postTitle={typingContext.postTitle}
+                    size="sm"
+                    showIcon={false}
+                  />
+                ) : (
+                  <>
+                    {user.primaryDevice.currentBoardId && (
+                      <button
+                        onClick={() => navigateToBoard(user.primaryDevice.currentBoardId!)}
+                        className={cn(
+                          "text-xs hover:underline transition-colors",
+                          isCurrentCommunity 
+                            ? "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" 
+                            : "text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 cursor-not-allowed opacity-60"
+                        )}
+                        disabled={!isCurrentCommunity}
+                        title={isCurrentCommunity ? undefined : "Cross-community navigation not yet available"}
+                      >
+                        {!isCurrentCommunity && "🔗 "}
+                        📋 {user.primaryDevice.currentBoardName || `Board ${user.primaryDevice.currentBoardId}`}
+                      </button>
                     )}
-                    disabled={!isCurrentCommunity}
-                    title={isCurrentCommunity ? undefined : "Cross-community navigation not yet available"}
-                  >
-                    {!isCurrentCommunity && "🔗 "}
-                    📋 {user.primaryDevice.currentBoardName || `Board ${user.primaryDevice.currentBoardId}`}
-                  </button>
+                    <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                      <Activity size={10} />
+                      <span>{formatTimeAgo(user.lastSeen)}</span>
+                    </div>
+                  </>
                 )}
-                <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                  <Activity size={10} />
-                  <span>{formatTimeAgo(user.lastSeen)}</span>
-                </div>
               </>
             )}
           </div>
@@ -339,8 +363,27 @@ const CommunityGroupSection = ({ group }: { group: CommunityPresenceGroup }) => 
   );
 };
 
+// Navigation context interface (reused from ContextualNavigationCard)
+interface NavigationContext {
+  type: 'home' | 'board' | 'post';
+  boardId?: string | null;
+  postId?: string | null;
+  isPostDetail: boolean;
+}
+
+// Enhanced props interface
+interface MultiCommunityPresenceSidebarProps {
+  navigationContext?: NavigationContext;
+  currentBoard?: ApiBoard;
+  currentPost?: ApiPost;
+}
+
 // Main multi-community sidebar component
-export function MultiCommunityPresenceSidebar() {
+export function MultiCommunityPresenceSidebar({ 
+  navigationContext,
+  currentBoard,
+  currentPost 
+}: MultiCommunityPresenceSidebarProps = {}) {
   const { 
     isConnected, 
     currentCommunityUsers, 
@@ -372,6 +415,18 @@ export function MultiCommunityPresenceSidebar() {
   
   return (
     <div className="w-64 xl:w-72 p-4 space-y-4 max-h-screen overflow-y-auto">
+      {/* Navigation Context Card */}
+      {navigationContext && (
+        <ContextualNavigationCard 
+          data={{
+            navigationContext,
+            currentBoard,
+            currentPost,
+            commentCount: currentPost?.comment_count
+          }}
+        />
+      )}
+      
       {/* Header */}
       <Card>
         <CardContent className="p-4">

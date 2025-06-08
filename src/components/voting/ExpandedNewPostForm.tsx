@@ -67,11 +67,6 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [postSettings, setPostSettings] = useState<PostSettings['responsePermissions']>();
 
-  // Update title when initialTitle prop changes
-  useEffect(() => {
-    setTitle(initialTitle);
-  }, [initialTitle]);
-
   // Fetch available boards for the user's community
   const { data: boardsList, isLoading: isLoadingBoards } = useQuery<ApiBoard[]>({
     queryKey: ['boards', user?.cid],
@@ -192,6 +187,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
     setError(null);
     const currentContentJson = contentEditor?.getJSON();
 
@@ -252,7 +248,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
               id="title" 
               placeholder="Enter a clear and compelling title..."
               value={title} 
-              onChange={(e) => setTitle(e.target.value)} 
+              onChange={(e) => setTitle(e.target.value)}
               required 
               disabled={createPostMutation.isPending}
               className="text-sm sm:text-base border-2 rounded-xl px-4 py-3 transition-all duration-200 focus:border-primary focus:shadow-lg focus:shadow-primary/10"

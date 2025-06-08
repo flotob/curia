@@ -30,18 +30,18 @@ interface SearchResult extends ApiPost {
   [key: string]: unknown;
 }
 
-export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({ 
-  boardId, 
+export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
+  boardId,
   onCreatePostClick,
   onPostCreated,
-  enableGlobalSearch = true // Default to global search
+  enableGlobalSearch = false
 }) => {
   const { token, isAuthenticated } = useAuth();
   const { openSearch } = useGlobalSearch();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [currentInput, setCurrentInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentInput, setCurrentInput] = useState(''); // Track current input value (not debounced)
   const [isFocused, setIsFocused] = useState(false);
   const [showInlineForm, setShowInlineForm] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -88,12 +88,21 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
     return () => clearTimeout(timeoutId);
   }, [currentInput]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setCurrentInput(value); // Update immediately for UI
+  const handleInputChange = (value: string) => {
+    setCurrentInput(value);
+    
+    // Rest of existing logic
+    if (value.trim().length >= 3) {
+      setSearchQuery(value.trim());
+      if (!isFocused) {
+        setIsFocused(true);
+      }
+    } else {
+      setIsFocused(false);
+      setShowInlineForm(false);
+    }
   };
 
-  // Handler for modal search input
   const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCurrentInput(value); // Update immediately for UI
@@ -125,7 +134,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
     }
   }, [buildInternalUrl, router]);
 
-  // Handle global search click
+  // Handler for modal search input
   const handleSearchClick = useCallback(() => {
     if (enableGlobalSearch) {
       openSearch(currentInput);
@@ -224,8 +233,20 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                 "focus:outline-none focus:ring-2 focus:ring-primary/20",
                 enableGlobalSearch && "cursor-pointer"
               )}
-              onChange={enableGlobalSearch ? undefined : handleInputChange}
-              onFocus={enableGlobalSearch ? undefined : () => setIsFocused(true)}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={() => {
+                if (currentInput.trim().length >= 3) {
+                  setIsFocused(true);
+                }
+              }}
+              onBlur={() => {
+                // Delay hiding results to allow clicking on them
+                setTimeout(() => {
+                  if (!showInlineForm) {
+                    setIsFocused(false);
+                  }
+                }, 150);
+              }}
               onClick={enableGlobalSearch ? handleSearchClick : undefined}
               readOnly={enableGlobalSearch}
             />

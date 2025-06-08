@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
+import { useTypingEvents } from '@/hooks/useTypingEvents';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { ApiPost } from '@/app/api/posts/route';
@@ -67,6 +68,15 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   // Check if this post has gating enabled
   const hasGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
 
+  // Set up typing events for real-time indicators
+  const typingEvents = useTypingEvents({
+    boardId: post?.board_id || 0, // Use board_id from post, fallback to 0
+    postId: postId,
+    enabled: isAuthenticated && !!post?.board_id, // Only enable if authenticated and we have board context
+    onTypingStart: () => console.log('[NewCommentForm] Started typing on post', postId),
+    onTypingStop: () => console.log('[NewCommentForm] Stopped typing on post', postId)
+  });
+
   // Activate UP functionality when gating is detected (but don't initialize yet)
   useEffect(() => {
     if (hasGating) {
@@ -109,6 +119,19 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       attributes: {
         class: 'prose prose-sm dark:prose-invert leading-relaxed focus:outline-none min-h-[100px] px-4 py-3 w-full',
       },
+    },
+    onUpdate: ({ editor }) => {
+      // Trigger typing events when editor content changes
+      const content = editor.getText().trim();
+      typingEvents.handleInputChange(content);
+    },
+    onFocus: () => {
+      // Trigger typing events when editor gains focus
+      typingEvents.handleFocus();
+    },
+    onBlur: () => {
+      // Trigger typing events when editor loses focus
+      typingEvents.handleBlur();
     },
   });
 
@@ -181,6 +204,10 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Stop typing indicator immediately when submitting
+    typingEvents.handleSubmit();
+    
     const editorContentJson = editor?.getJSON();
 
     if (!editorContentJson || editor?.isEmpty) {

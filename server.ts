@@ -71,6 +71,13 @@ interface DevicePresence {
   lastSeen: Date;
   socketId: string;
   isActive: boolean;             // Active in last 30 seconds
+  
+  // NEW: Typing state tracking
+  isTyping?: boolean;
+  typingPostId?: number;
+  typingBoardId?: number;
+  typingContext?: 'post' | 'comment';
+  typingTimestamp?: Date;
 }
 
 // User-aggregated presence for client consumption
@@ -559,27 +566,92 @@ async function bootstrap() {
       });
     });
 
-    // Handle typing indicators (board-specific, not global)
-    socket.on('typing', (data: { boardId: number; postId?: number; isTyping: boolean }) => {
-      const roomName = `board:${data.boardId}`;
-      
-      socket.to(roomName).emit('userTyping', {
-        userId: user.sub,
-        userName: user.name,
-        boardId: data.boardId,
-        postId: data.postId,
-        isTyping: data.isTyping
-      });
+    // Enhanced typing indicators with post context and title resolution
+    socket.on('typing', async (data: { 
+      boardId: number; 
+      postId?: number; 
+      isTyping: boolean;
+      context?: 'post' | 'comment';
+    }) => {
+      try {
+        let postTitle: string | undefined;
+        
+        // Resolve post title if postId provided and user is starting to type
+        if (data.postId && data.isTyping) {
+          const postResult = await query(
+            'SELECT title FROM posts WHERE id = $1 AND board_id = $2',
+            [data.postId, data.boardId]
+          );
+          postTitle = postResult.rows[0]?.title;
+        }
+        
+        // Update device presence with typing state
+        const frameUID = user.uid || `fallback-${socket.id}`;
+        updateDevicePresence(frameUID, {
+          isTyping: data.isTyping,
+          typingPostId: data.isTyping ? data.postId : undefined,
+          typingBoardId: data.isTyping ? data.boardId : undefined,
+          typingContext: data.isTyping ? data.context : undefined,
+          typingTimestamp: data.isTyping ? new Date() : undefined,
+          isActive: true
+        });
+        
+        // Broadcast enhanced typing data to board room
+        const roomName = `board:${data.boardId}`;
+        socket.to(roomName).emit('userTyping', {
+          userId: user.sub,
+          userName: user.name,
+          boardId: data.boardId,
+          postId: data.postId,
+          postTitle,
+          isTyping: data.isTyping,
+          context: data.context,
+          timestamp: Date.now()
+        });
+        
+        console.log(`[Socket.IO Enhanced Typing] User ${user.sub} ${data.isTyping ? 'started' : 'stopped'} typing${postTitle ? ` on "${postTitle}"` : ` in board ${data.boardId}`}`);
+        
+      } catch (error) {
+        console.error('[Socket.IO] Error handling typing event:', error);
+        // Still broadcast basic typing event if database lookup fails
+        const roomName = `board:${data.boardId}`;
+        socket.to(roomName).emit('userTyping', {
+          userId: user.sub,
+          userName: user.name,
+          boardId: data.boardId,
+          postId: data.postId,
+          isTyping: data.isTyping,
+          context: data.context,
+          timestamp: Date.now()
+        });
+      }
     });
 
     // Handle disconnection with multi-device presence cleanup
     socket.on('disconnect', (reason) => {
       console.log(`[Socket.IO] User disconnected: ${user.sub} (reason: ${reason})`);
       
-      // Remove device from presence
       const frameUID = user.uid || `fallback-${socket.id}`;
-      devicePresence.delete(frameUID);
+      const device = devicePresence.get(frameUID);
       
+      // If user was typing, send stop typing event to clean up indicators
+      if (device?.isTyping && device.typingBoardId) {
+        const roomName = `board:${device.typingBoardId}`;
+        socket.to(roomName).emit('userTyping', {
+          userId: user.sub,
+          userName: user.name,
+          boardId: device.typingBoardId,
+          postId: device.typingPostId,
+          isTyping: false,
+          context: device.typingContext,
+          timestamp: Date.now()
+        });
+        console.log(`[Socket.IO Cleanup] Stopped typing indicator for disconnected user ${user.sub}`);
+      }
+      
+      // Remove device from presence
+      devicePresence.delete(frameUID);
+
       // Update user presence (may remove user if no devices left)
       debouncedPresenceUpdate(user.sub);
       
@@ -598,25 +670,76 @@ async function bootstrap() {
     });
   });
 
-  // Enhanced periodic cleanup of stale devices (every minute for better responsiveness)
+  // Enhanced periodic cleanup of stale devices and typing indicators
   setInterval(() => {
     const staleThreshold = Date.now() - (2 * 60 * 1000); // 2 minutes (shorter for better UX)
+    const typingStaleThreshold = Date.now() - (15 * 1000); // 15 seconds for typing indicators
     const staleFrameUIDs: string[] = [];
+    const staleTypingDevices: DevicePresence[] = [];
     let cleanedDevices = 0;
+    let cleanedTyping = 0;
     
-    // Find stale devices
+    // Find stale devices and stale typing indicators
     for (const [frameUID, device] of devicePresence.entries()) {
+      // Check for stale devices
       if (device.lastSeen.getTime() < staleThreshold) {
         staleFrameUIDs.push(frameUID);
         cleanedDevices++;
       }
+      // Check for stale typing indicators (separate from device staleness)
+      else if (device.isTyping && 
+               device.typingTimestamp && 
+               device.typingTimestamp.getTime() < typingStaleThreshold) {
+        staleTypingDevices.push(device);
+        cleanedTyping++;
+      }
     }
     
-    // Batch cleanup and user presence updates
+    // Clean up stale typing indicators
+    staleTypingDevices.forEach(device => {
+      if (device.typingBoardId) {
+        // Broadcast stop typing event
+        const roomName = `board:${device.typingBoardId}`;
+        io.to(roomName).emit('userTyping', {
+          userId: device.userId,
+          userName: device.userName,
+          boardId: device.typingBoardId,
+          postId: device.typingPostId,
+          isTyping: false,
+          context: device.typingContext,
+          timestamp: Date.now()
+        });
+        
+        // Update device to remove typing state
+        updateDevicePresence(device.frameUID, {
+          isTyping: false,
+          typingPostId: undefined,
+          typingBoardId: undefined,
+          typingContext: undefined,
+          typingTimestamp: undefined
+        });
+      }
+    });
+    
+    // Batch cleanup of stale devices and user presence updates
     const affectedUsers = new Set<string>();
     staleFrameUIDs.forEach(frameUID => {
       const device = devicePresence.get(frameUID);
       if (device) {
+        // Send stop typing event if device was typing
+        if (device.isTyping && device.typingBoardId) {
+          const roomName = `board:${device.typingBoardId}`;
+          io.to(roomName).emit('userTyping', {
+            userId: device.userId,
+            userName: device.userName,
+            boardId: device.typingBoardId,
+            postId: device.typingPostId,
+            isTyping: false,
+            context: device.typingContext,
+            timestamp: Date.now()
+          });
+        }
+        
         devicePresence.delete(frameUID);
         affectedUsers.add(device.userId);
       }
@@ -627,10 +750,10 @@ async function bootstrap() {
       debouncedPresenceUpdate(userId);
     });
     
-    if (cleanedDevices > 0) {
-      console.log(`[Socket.IO Cleanup] Removed ${cleanedDevices} stale devices affecting ${affectedUsers.size} users. Total devices: ${devicePresence.size}, Users: ${userPresence.size}`);
+    if (cleanedDevices > 0 || cleanedTyping > 0) {
+      console.log(`[Socket.IO Cleanup] Removed ${cleanedDevices} stale devices, ${cleanedTyping} stale typing indicators affecting ${affectedUsers.size} users. Total devices: ${devicePresence.size}, Users: ${userPresence.size}`);
     }
-  }, 60 * 1000); // Run every minute
+  }, 30 * 1000); // Run every 30 seconds for better typing cleanup
 
   // Start the HTTP server
   const port = parseInt(process.env.PORT || '3000', 10);
