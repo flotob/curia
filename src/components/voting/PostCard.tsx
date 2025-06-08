@@ -152,6 +152,25 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     }
   };
 
+  // Helper function to format access count for share button
+  const formatAccessCount = (count: number): string => {
+    if (count < 1000) return count.toString();
+    if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+    return `${Math.floor(count / 1000)}k`;
+  };
+
+  // Helper function to generate share button tooltip
+  const getShareButtonTitle = (): string => {
+    const accessCount = post.share_access_count || 0;
+    const hasBeenShared = post.share_count > 0;
+    
+    if (isGeneratingShareUrl) return "Generating share URL...";
+    if (!hasBeenShared) return "Share this post";
+    if (accessCount === 0) return "Share this post (shared but not yet accessed)";
+    if (accessCount === 1) return "Share this post (1 person accessed via shared link)";
+    return `Share this post (${accessCount} people accessed via shared links)`;
+  };
+
 
 
   // Get current page context to determine if elements should be clickable
@@ -766,17 +785,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 className="p-1 h-auto text-xs sm:text-sm" 
                 onClick={handleShare}
                 disabled={isGeneratingShareUrl}
-                title={isGeneratingShareUrl ? "Generating share URL..." : "Share this post"}
+                title={getShareButtonTitle()}
               >
                 {isGeneratingShareUrl ? (
                   <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
                 ) : (
-                  <Share2 size={14} className="mr-1 sm:mr-1.5" />
-                )}
-                {!isGeneratingShareUrl && (
-                  <span className="hidden xs:inline">
-                    Share{post.share_access_count > 0 && ` (${post.share_access_count})`}
-                  </span>
+                  <>
+                    <Share2 size={14} className="mr-1 sm:mr-1.5" />
+                    <span>
+                      Share{post.share_access_count > 0 && ` (${formatAccessCount(post.share_access_count)})`}
+                    </span>
+                  </>
                 )}
               </Button>
             </div>
