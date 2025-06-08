@@ -21,7 +21,6 @@ import {
 import { ethers } from 'ethers';
 import { PostSettings, SettingsUtils } from '@/types/settings';
 import { getUPDisplayName, getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
-import { UPSocialProfileDisplay } from '@/components/social/UPSocialProfileDisplay';
 
 interface InlineUPConnectionProps {
   postSettings?: PostSettings;
@@ -477,99 +476,194 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   // Show requirements and connect button if UP hasn't been triggered yet
   if (!hasUserTriggeredConnection) {
     return (
-      <div className={`border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 rounded-lg p-4 ${className}`}>
-        <div className="flex items-center gap-2 mb-3">
-          <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+      <Card className={`border-2 ${className}`}>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center text-sm">
+            <Shield className="h-4 w-4 mr-2" />
             Universal Profile Required
-          </span>
-        </div>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            This post requires verification to comment
+          </CardDescription>
+        </CardHeader>
         
-        <div className="space-y-2 mb-3">
-          {requirements.minLyxBalance && (
-            <div className="text-xs text-blue-700 dark:text-blue-300">
-              • Minimum {ethers.utils.formatEther(requirements.minLyxBalance)} LYX required
-            </div>
-          )}
-          
-          {requirements.requiredTokens?.map((token, index) => (
-            <div key={index} className="text-xs text-blue-700 dark:text-blue-300">
-              • {token.name || token.symbol || 'Token'}: {
-                token.tokenType === 'LSP8' 
-                  ? `${token.minAmount || '1'} NFT(s)` 
-                  : `${token.minAmount || '0'} tokens`
-              }
-            </div>
-          ))}
-
-          {requirements.followerRequirements?.map((follower, index) => {
-            if (follower.type === 'minimum_followers') {
-              return (
-                <div key={index} className="text-xs text-blue-700 dark:text-blue-300">
-                  • Minimum {follower.value} followers
-                </div>
-              );
-            } else {
-              // Address-based requirement - show social profile if available
-              const socialProfile = socialProfiles[follower.value];
-              if (socialProfile) {
-                return (
-                  <div key={index} className="space-y-1">
-                    <div className="text-xs text-blue-700 dark:text-blue-300">
-                      • {follower.type === 'followed_by' ? 'Must be followed by:' : 'Must follow:'}
-                    </div>
-                    <div className="ml-3">
-                      <UPSocialProfileDisplay
-                        address={follower.value}
-                        variant="compact"
-                        showVerificationBadge={true}
-                        showConnectionButton={false}
-                        profileOverride={socialProfile}
-                      />
-                    </div>
-                  </div>
-                );
-              } else {
-                // Fallback to simple text if profile not loaded yet
-                const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
-                return (
-                  <div key={index} className="text-xs text-blue-700 dark:text-blue-300 flex items-center">
-                    • {follower.type === 'followed_by' ? `Must be followed by ${upName}` : `Must follow ${upName}`}
-                    {isLoadingSocialProfiles && (
-                      <Loader2 className="h-3 w-3 ml-2 animate-spin" />
-                    )}
-                  </div>
-                );
-              }
-            }
-          })}
-        </div>
-        
-        {isMobile ? (
-          <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="h-3 w-3" />
-              <span className="font-medium">Desktop Required</span>
-            </div>
-            Universal Profile connection is currently only available on desktop devices. Please use a desktop browser to verify your token requirements and participate in this discussion.
-          </div>
-        ) : (
-          <>
-            <Button
-              onClick={handleConnectWallet}
-              className="w-full"
-              size="sm"
-            >
-              <Wallet className="h-4 w-4 mr-2" />
-              Connect Universal Profile
-            </Button>
+        <CardContent className="space-y-3">
+          {/* Preview Requirements - Same styling as connected version */}
+          <div className="space-y-1">
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Requirements
+            </h4>
             
-            <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              Connect your Universal Profile to verify token requirements and participate in this discussion.
+            {/* LYX Balance Requirement */}
+            {requirements.minLyxBalance && (
+              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[60px]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Coins className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">LYX Balance</div>
+                    <div className="text-xs text-muted-foreground">
+                      Required: {ethers.utils.formatEther(requirements.minLyxBalance)} LYX
+                    </div>
+                  </div>
+                </div>
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              </div>
+            )}
+            
+            {/* Token Requirements */}
+            {requirements.requiredTokens && requirements.requiredTokens.length > 0 && (
+              <>
+                {requirements.requiredTokens.map((tokenReq, index) => {
+                  let displayAmount: string;
+                  if (tokenReq.tokenType === 'LSP7') {
+                    displayAmount = ethers.utils.formatUnits(tokenReq.minAmount || '0', 18);
+                  } else {
+                    displayAmount = tokenReq.minAmount || '1';
+                  }
+                  
+                  return (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[60px]">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                          <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm flex items-center space-x-2">
+                            <span>{tokenReq.symbol || tokenReq.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {tokenReq.tokenType}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Required: {displayAmount} {tokenReq.symbol || 'tokens'}
+                          </div>
+                        </div>
+                      </div>
+                      <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Follower Requirements */}
+            {requirements.followerRequirements && requirements.followerRequirements.length > 0 && (
+              <>
+                {requirements.followerRequirements.map((followerReq, index) => {
+                  if (followerReq.type === 'minimum_followers') {
+                    return (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[60px]">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                            <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">Minimum Followers</div>
+                            <div className="text-xs text-muted-foreground">
+                              Required: {followerReq.value} followers
+                            </div>
+                          </div>
+                        </div>
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      </div>
+                    );
+                  } else {
+                    // Address-based requirement with social profile
+                    const socialProfile = socialProfiles[followerReq.value];
+                    
+                    return (
+                      <div key={index} className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[80px]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center flex-shrink-0">
+                              {followerReq.type === 'followed_by' ? (
+                                <UserCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              ) : (
+                                <UserX className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm mb-1">
+                                {followerReq.type === 'followed_by' ? 'Must be followed by' : 'Must follow'}
+                              </div>
+                              {/* Social Profile Display */}
+                              {socialProfile ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                    {socialProfile.profileImage ? (
+                                      <img 
+                                        src={socialProfile.profileImage} 
+                                        alt={socialProfile.displayName}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                                        {socialProfile.displayName.charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-1 min-w-0">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                      {socialProfile.displayName}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                      {socialProfile.username}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : isLoadingSocialProfiles ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+                                  <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  {followerReq.value.slice(0, 6)}...{followerReq.value.slice(-4)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center ml-3">
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                })}
+              </>
+            )}
+          </div>
+
+          {/* Connection Actions */}
+          {isMobile ? (
+            <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="h-3 w-3" />
+                <span className="font-medium">Desktop Required</span>
+              </div>
+              Universal Profile connection is currently only available on desktop devices. Please use a desktop browser to verify your token requirements and participate in this discussion.
             </div>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              <Button
+                onClick={handleConnectWallet}
+                className="w-full"
+                size="sm"
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                Connect Universal Profile
+              </Button>
+              
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                Connect your Universal Profile to verify token requirements and participate in this discussion.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     );
   }
 
@@ -597,13 +691,104 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   return (
     <Card className={`border-2 ${className}`}>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center text-sm">
-          <Shield className="h-4 w-4 mr-2" />
-          Universal Profile Required
-        </CardTitle>
-        <CardDescription className="text-xs">
-          This post requires verification to comment
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center text-sm">
+              <Shield className="h-4 w-4 mr-2" />
+              Universal Profile Required
+            </CardTitle>
+            <CardDescription className="text-xs">
+              This post requires verification to comment
+            </CardDescription>
+          </div>
+          
+          {/* Connected Profile Status Bar */}
+          <div className="flex items-center space-x-2">
+            {(() => {
+              const connectedProfile = upAddress ? socialProfiles[upAddress] : null;
+              return connectedProfile ? (
+                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  {/* Profile Picture */}
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+                    {connectedProfile.profileImage ? (
+                      <img 
+                        src={connectedProfile.profileImage} 
+                        alt={connectedProfile.displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                        {connectedProfile.displayName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  {/* Name and Username */}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                      {connectedProfile.displayName}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {connectedProfile.username}
+                    </div>
+                  </div>
+                  {/* Verification Badge */}
+                  {connectedProfile.isVerified && (
+                    <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                      <CheckCircle className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                  {/* Disconnect Dropdown */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDisconnect}
+                    className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
+                    title="Disconnect"
+                  >
+                    <XCircle size={14} />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  {/* Loading or fallback */}
+                  {isLoadingSocialProfiles ? (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-sm font-medium">
+                        {upAddress ? upAddress.charAt(2).toUpperCase() : '?'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                          Universal Profile
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                          {formatAddress(upAddress!)}
+                        </div>
+                      </div>
+                      {/* Disconnect Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDisconnect}
+                        className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
+                        title="Disconnect"
+                      >
+                        <XCircle size={14} />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
       </CardHeader>
       
       <CardContent className="space-y-3">
@@ -616,7 +801,12 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
             
             {/* LYX Balance Requirement */}
             {requirements.minLyxBalance && (
-              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 rounded-lg border border-amber-200 dark:border-amber-800 min-h-[60px]">
+              <div className={`flex items-center justify-between p-3 rounded-lg border min-h-[60px] ${
+                isLoadingBalance ? 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700' :
+                meetsLyxRequirement === true ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800' :
+                meetsLyxRequirement === false ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800'
+              }`}>
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
                     <Coins className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -660,7 +850,13 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                   }
                   
                   return (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-lg border border-blue-200 dark:border-blue-800 min-h-[60px]">
+                    <div key={index} className={`flex items-center justify-between p-3 rounded-lg border min-h-[60px] ${
+                      tokenData?.isLoading ? 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700' :
+                      tokenData?.error ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                      tokenData?.meetsRequirement === true ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800' :
+                      tokenData?.meetsRequirement === false ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                      'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800'
+                    }`}>
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                           <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -708,7 +904,13 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                   
                   if (followerReq.type === 'minimum_followers') {
                     return (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-lg border border-purple-200 dark:border-purple-800 min-h-[60px]">
+                      <div key={index} className={`flex items-center justify-between p-3 rounded-lg border min-h-[60px] ${
+                        reqData?.isLoading ? 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700' :
+                        reqData?.error ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                        reqData?.status === true ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800' :
+                        reqData?.status === false ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                        'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800'
+                      }`}>
                         <div className="flex items-center space-x-3">
                           <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                             <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -741,24 +943,21 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                   } else {
                     // Address-based requirement with social profile
                     const socialProfile = socialProfiles[followerReq.value];
-                    const gradientClass = followerReq.type === 'followed_by' 
-                      ? 'from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10' 
-                      : 'from-blue-50 to-cyan-50 dark:from-blue-900/10 dark:to-cyan-900/10';
-                    const borderClass = followerReq.type === 'followed_by'
-                      ? 'border-green-200 dark:border-green-800'
-                      : 'border-blue-200 dark:border-blue-800';
-                    const iconBgClass = followerReq.type === 'followed_by'
-                      ? 'bg-green-100 dark:bg-green-900/30'
-                      : 'bg-blue-100 dark:bg-blue-900/30';
                     const iconClass = followerReq.type === 'followed_by'
                       ? 'text-green-600 dark:text-green-400'
                       : 'text-blue-600 dark:text-blue-400';
                     
                     return (
-                      <div key={index} className={`p-3 bg-gradient-to-r ${gradientClass} rounded-lg border ${borderClass} min-h-[80px]`}>
+                      <div key={index} className={`p-3 rounded-lg border min-h-[80px] ${
+                        reqData?.isLoading ? 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700' :
+                        reqData?.error ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                        reqData?.status === true ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800' :
+                        reqData?.status === false ? 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10 border-red-200 dark:border-red-800' :
+                        'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800'
+                      }`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3 flex-1">
-                            <div className={`w-8 h-8 rounded-full ${iconBgClass} flex items-center justify-center flex-shrink-0`}>
+                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center flex-shrink-0">
                               {followerReq.type === 'followed_by' ? (
                                 <UserCheck className={`h-4 w-4 ${iconClass}`} />
                               ) : (
@@ -769,10 +968,10 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                               <div className="font-medium text-sm mb-1">
                                 {followerReq.type === 'followed_by' ? 'Must be followed by' : 'Must follow'}
                               </div>
-                              {/* Social Profile Display */}
+                              {/* Social Profile Display - BIGGER IMAGES */}
                               {socialProfile ? (
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
                                     {socialProfile.profileImage ? (
                                       <img 
                                         src={socialProfile.profileImage} 
@@ -780,7 +979,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                                         className="w-full h-full object-cover"
                                       />
                                     ) : (
-                                      <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
+                                      <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
                                         {socialProfile.displayName.charAt(0).toUpperCase()}
                                       </div>
                                     )}
@@ -795,8 +994,8 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                                   </div>
                                 </div>
                               ) : isLoadingSocialProfiles ? (
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-6 h-6 bg-gray-200 rounded-full animate-pulse" />
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
                                   <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
                                 </div>
                               ) : (
@@ -886,75 +1085,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                 Disconnect
               </Button>
             </div>
-            
-            {/* Profile Info */}
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground mb-2">Connected Profile:</div>
-              {(() => {
-                const connectedProfile = upAddress ? socialProfiles[upAddress] : null;
-                return connectedProfile ? (
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    {/* Profile Picture */}
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
-                      {connectedProfile.profileImage ? (
-                        <img 
-                          src={connectedProfile.profileImage} 
-                          alt={connectedProfile.displayName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                          {connectedProfile.displayName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    {/* Name and Username */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
-                        {connectedProfile.displayName}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {connectedProfile.username}
-                      </div>
-                    </div>
-                    {/* Verification Badge */}
-                    {connectedProfile.isVerified && (
-                      <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
-                        <CheckCircle className="w-3 h-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    {/* Loading or fallback */}
-                    {isLoadingSocialProfiles ? (
-                      <>
-                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
-                        <div className="flex-1">
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
-                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-sm font-medium">
-                          {upAddress ? upAddress.charAt(2).toUpperCase() : '?'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                            Universal Profile
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                            {formatAddress(upAddress!)}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
 
-            </div>
             
             {/* Network Switch Button */}
             {!isCorrectChain && (

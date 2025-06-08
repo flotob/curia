@@ -344,7 +344,7 @@ async function verifyLSP8Ownership(
 }
 
 /**
- * Verify LSP26 follower requirements using raw RPC calls to the follower registry
+ * Verify LSP26 follower requirements using proper ethers.js ABI encoding
  */
 async function verifyFollowerRequirements(
   upAddress: string,
@@ -355,9 +355,12 @@ async function verifyFollowerRequirements(
 
     const LSP26_REGISTRY_ADDRESS = '0xf01103E5a9909Fc0DBe8166dA7085e0285daDDcA';
     
-    // ABI function selectors for LSP26 registry
-    const FOLLOWER_COUNT_SELECTOR = '0x4dc2d2cb'; // followerCount(address)
-    const IS_FOLLOWING_SELECTOR = '0xf1e72e16'; // isFollowing(address,address)
+    // Use proper ethers.js Interface for ABI encoding
+    const LSP26_ABI = [
+      'function followerCount(address addr) view returns (uint256)',
+      'function isFollowing(address follower, address addr) view returns (bool)'
+    ];
+    const iface = new ethers.utils.Interface(LSP26_ABI);
 
     for (const requirement of requirements) {
       let callData: string;
@@ -365,9 +368,8 @@ async function verifyFollowerRequirements(
 
       switch (requirement.type) {
         case 'minimum_followers': {
-          // Call followerCount(address) on LSP26 registry
-          const addressParam = upAddress.slice(2).padStart(64, '0');
-          callData = FOLLOWER_COUNT_SELECTOR + addressParam;
+          // Call followerCount(address) on LSP26 registry using proper ABI encoding
+          callData = iface.encodeFunctionData('followerCount', [upAddress]);
           
           const followerCountHex = await rawLuksoCall('eth_call', [
             {
@@ -377,27 +379,27 @@ async function verifyFollowerRequirements(
             'latest'
           ]);
 
-          const followerCount = ethers.BigNumber.from(followerCountHex).toNumber();
+          // Decode the result using ethers
+          const [followerCount] = iface.decodeFunctionResult('followerCount', followerCountHex as string);
+          const followerCountNum = followerCount.toNumber();
           const requiredCount = parseInt(requirement.value, 10);
           
-          isValid = followerCount >= requiredCount;
+          isValid = followerCountNum >= requiredCount;
           
           if (!isValid) {
             return {
               valid: false,
-              error: `Insufficient followers. Required: ${requiredCount}, Current: ${followerCount}`
+              error: `Insufficient followers. Required: ${requiredCount}, Current: ${followerCountNum}`
             };
           }
           
-          console.log(`[verifyFollowerRequirements] Follower count check passed: ${followerCount} >= ${requiredCount}`);
+          console.log(`[verifyFollowerRequirements] Follower count check passed: ${followerCountNum} >= ${requiredCount}`);
           break;
         }
 
         case 'followed_by': {
           // Call isFollowing(followerAddress, targetAddress) - check if requirement.value follows upAddress
-          const followerParam = requirement.value.slice(2).padStart(64, '0');
-          const targetParam = upAddress.slice(2).padStart(64, '0');
-          callData = IS_FOLLOWING_SELECTOR + followerParam + targetParam;
+          callData = iface.encodeFunctionData('isFollowing', [requirement.value, upAddress]);
           
           const isFollowedByHex = await rawLuksoCall('eth_call', [
             {
@@ -407,8 +409,9 @@ async function verifyFollowerRequirements(
             'latest'
           ]);
 
-          // Result is bool, check if it's true (non-zero)
-          isValid = ethers.BigNumber.from(isFollowedByHex).gt(0);
+          // Decode the boolean result
+          const [isFollowedByResult] = iface.decodeFunctionResult('isFollowing', isFollowedByHex as string);
+          isValid = Boolean(isFollowedByResult);
           
           if (!isValid) {
             return {
@@ -423,9 +426,7 @@ async function verifyFollowerRequirements(
 
         case 'following': {
           // Call isFollowing(followerAddress, targetAddress) - check if upAddress follows requirement.value
-          const followerParam = upAddress.slice(2).padStart(64, '0');
-          const targetParam = requirement.value.slice(2).padStart(64, '0');
-          callData = IS_FOLLOWING_SELECTOR + followerParam + targetParam;
+          callData = iface.encodeFunctionData('isFollowing', [upAddress, requirement.value]);
           
           const isFollowingHex = await rawLuksoCall('eth_call', [
             {
@@ -435,8 +436,9 @@ async function verifyFollowerRequirements(
             'latest'
           ]);
 
-          // Result is bool, check if it's true (non-zero)
-          isValid = ethers.BigNumber.from(isFollowingHex).gt(0);
+          // Decode the boolean result
+          const [isFollowingResult] = iface.decodeFunctionResult('isFollowing', isFollowingHex as string);
+          isValid = Boolean(isFollowingResult);
           
           if (!isValid) {
             return {
