@@ -3,7 +3,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+
 import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { 
   Wallet, 
@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { ethers } from 'ethers';
 import { PostSettings, SettingsUtils } from '@/types/settings';
-import { getUPDisplayName } from '@/lib/upProfile';
+import { getUPDisplayName, getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
+import { UPSocialProfileDisplay } from '@/components/social/UPSocialProfileDisplay';
 
 interface InlineUPConnectionProps {
   postSettings?: PostSettings;
@@ -84,6 +85,10 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
 
   // UP profile names for follower requirements (address -> display name)
   const [upProfileNames, setUpProfileNames] = React.useState<Record<string, string>>({});
+  
+  // Social profiles for follower requirements (address -> social profile)
+  const [socialProfiles, setSocialProfiles] = React.useState<Record<string, UPSocialProfile>>({});
+  const [isLoadingSocialProfiles, setIsLoadingSocialProfiles] = React.useState(false);
 
   // Get gating requirements
   const hasGating = postSettings ? SettingsUtils.hasUPGating(postSettings) : false;
@@ -305,6 +310,49 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     setUpProfileNames(prev => ({ ...prev, ...newNames }));
   }, []);
 
+  // Load social profiles for follower requirements
+  const fetchSocialProfiles = React.useCallback(async (addresses: string[]) => {
+    if (addresses.length === 0) return;
+    
+    setIsLoadingSocialProfiles(true);
+    try {
+      console.log(`[InlineUPConnection] Fetching social profiles for ${addresses.length} addresses`);
+      
+      const profilePromises = addresses.map(async (address) => {
+        try {
+          const profile = await getUPSocialProfile(address);
+          return { address, profile };
+        } catch (error) {
+          console.error(`Failed to fetch social profile for ${address}:`, error);
+          // Create fallback profile
+          return { 
+            address, 
+            profile: {
+              address,
+              displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+              username: `@${address.slice(2, 6)}${address.slice(-4)}.lukso`,
+              isVerified: false,
+              lastFetched: new Date()
+            } as UPSocialProfile
+          };
+        }
+      });
+
+      const profileResults = await Promise.all(profilePromises);
+      const newProfiles: Record<string, UPSocialProfile> = {};
+      
+      profileResults.forEach(({ address, profile }) => {
+        newProfiles[address] = profile;
+      });
+
+      setSocialProfiles(prev => ({ ...prev, ...newProfiles }));
+    } catch (error) {
+      console.error('[InlineUPConnection] Error fetching social profiles:', error);
+    } finally {
+      setIsLoadingSocialProfiles(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
       const addressesToFetch = requirements.followerRequirements
@@ -315,6 +363,32 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       fetchUPNames(addressesToFetch);
     }
   }, [requirements?.followerRequirements, fetchUPNames, upProfileNames]);
+
+  // Fetch social profiles for follower requirements + connected user
+  React.useEffect(() => {
+    const addressesToFetch: string[] = [];
+    
+    // Add follower requirement addresses
+    if (requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
+      const followerAddresses = requirements.followerRequirements
+        .filter(req => req.type !== 'minimum_followers') // Only fetch for address-based requirements
+        .map(req => req.value)
+        .filter(address => !socialProfiles[address]); // Don't refetch already loaded profiles
+      
+      addressesToFetch.push(...followerAddresses);
+    }
+    
+    // Add connected user address
+    if (upAddress && !socialProfiles[upAddress]) {
+      addressesToFetch.push(upAddress);
+    }
+    
+    // Fetch all needed profiles
+    if (addressesToFetch.length > 0) {
+      console.log(`[InlineUPConnection] Fetching social profiles for ${addressesToFetch.length} addresses:`, addressesToFetch);
+      fetchSocialProfiles(addressesToFetch);
+    }
+  }, [requirements?.followerRequirements, upAddress, fetchSocialProfiles, socialProfiles]);
 
   // Handle explicit connection request (triggers Web3-Onboard initialization)
   const handleConnectWallet = React.useCallback((event?: React.MouseEvent) => {
@@ -431,16 +505,45 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
           ))}
 
           {requirements.followerRequirements?.map((follower, index) => {
-            const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
-            return (
-              <div key={index} className="text-xs text-blue-700 dark:text-blue-300">
-                • {follower.description || (
-                  follower.type === 'minimum_followers' ? `Minimum ${follower.value} followers` :
-                  follower.type === 'followed_by' ? `Must be followed by ${upName}` :
-                  `Must follow ${upName}`
-                )}
-              </div>
-            );
+            if (follower.type === 'minimum_followers') {
+              return (
+                <div key={index} className="text-xs text-blue-700 dark:text-blue-300">
+                  • Minimum {follower.value} followers
+                </div>
+              );
+            } else {
+              // Address-based requirement - show social profile if available
+              const socialProfile = socialProfiles[follower.value];
+              if (socialProfile) {
+                return (
+                  <div key={index} className="space-y-1">
+                    <div className="text-xs text-blue-700 dark:text-blue-300">
+                      • {follower.type === 'followed_by' ? 'Must be followed by:' : 'Must follow:'}
+                    </div>
+                    <div className="ml-3">
+                      <UPSocialProfileDisplay
+                        address={follower.value}
+                        variant="compact"
+                        showVerificationBadge={true}
+                        showConnectionButton={false}
+                        profileOverride={socialProfile}
+                      />
+                    </div>
+                  </div>
+                );
+              } else {
+                // Fallback to simple text if profile not loaded yet
+                const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
+                return (
+                  <div key={index} className="text-xs text-blue-700 dark:text-blue-300 flex items-center">
+                    • {follower.type === 'followed_by' ? `Must be followed by ${upName}` : `Must follow ${upName}`}
+                    {isLoadingSocialProfiles && (
+                      <Loader2 className="h-3 w-3 ml-2 animate-spin" />
+                    )}
+                  </div>
+                );
+              }
+            }
           })}
         </div>
         
@@ -584,67 +687,105 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
 
             {/* Follower Requirements Display */}
             {requirements.followerRequirements && requirements.followerRequirements.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {requirements.followerRequirements.map((followerReq, index) => {
                   const reqKey = `${followerReq.type}-${followerReq.value}`;
                   const reqData = followerData.followerRequirements[reqKey];
                   
-                  const getDisplayText = () => {
-                    if (followerReq.description) return followerReq.description;
-                    
-                    const upName = upProfileNames[followerReq.value] || `${followerReq.value.slice(0, 6)}...${followerReq.value.slice(-4)}`;
-                    
-                    switch (followerReq.type) {
-                      case 'minimum_followers':
-                        return `${followerReq.value} Followers`;
-                      case 'followed_by':
-                        return `Followed by ${upName}`;
-                      case 'following':
-                        return `Following ${upName}`;
-                      default:
-                        return 'Follower Requirement';
-                    }
-                  };
-
-                  const getIcon = () => {
-                    switch (followerReq.type) {
-                      case 'minimum_followers':
-                        return <Users className="h-3 w-3 mr-1 text-purple-500" />;
-                      case 'followed_by':
-                        return <UserCheck className="h-3 w-3 mr-1 text-green-500" />;
-                      case 'following':
-                        return <UserX className="h-3 w-3 mr-1 text-blue-500" />;
-                    }
-                  };
-                  
-                  return (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center">
-                        {getIcon()}
-                        <span>{getDisplayText()}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        {followerReq.type === 'minimum_followers' && followerData.userFollowerCount !== undefined && (
-                          <span className="text-muted-foreground text-xs">
-                            ({followerData.userFollowerCount} followers)
-                          </span>
-                        )}
-                        {reqData?.isLoading ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : reqData?.error ? (
-                          <XCircle className="h-3 w-3 text-red-500" />
-                        ) : reqData?.status !== undefined ? (
-                          reqData.status ? (
-                            <CheckCircle className="h-3 w-3 text-emerald-500" />
-                          ) : (
+                  if (followerReq.type === 'minimum_followers') {
+                    return (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center">
+                          <Users className="h-3 w-3 mr-2 text-purple-500" />
+                          <span>{followerReq.value} Followers</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {followerData.userFollowerCount !== undefined && (
+                            <span className="text-muted-foreground text-xs">
+                              ({followerData.userFollowerCount} followers)
+                            </span>
+                          )}
+                          {reqData?.isLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : reqData?.error ? (
                             <XCircle className="h-3 w-3 text-red-500" />
-                          )
-                        ) : (
-                          <AlertTriangle className="h-3 w-3 text-amber-500" />
-                        )}
+                          ) : reqData?.status !== undefined ? (
+                            reqData.status ? (
+                              <CheckCircle className="h-3 w-3 text-emerald-500" />
+                            ) : (
+                              <XCircle className="h-3 w-3 text-red-500" />
+                            )
+                          ) : (
+                            <AlertTriangle className="h-3 w-3 text-amber-500" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
+                    );
+                  } else {
+                    // Address-based requirement - show social profile
+                    const socialProfile = socialProfiles[followerReq.value];
+                    const getIcon = () => {
+                      switch (followerReq.type) {
+                        case 'followed_by':
+                          return <UserCheck className="h-3 w-3 mr-2 text-green-500" />;
+                        case 'following':
+                          return <UserX className="h-3 w-3 mr-2 text-blue-500" />;
+                        default:
+                          return null;
+                      }
+                    };
+                    
+                    return (
+                      <div key={index} className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center">
+                            {getIcon()}
+                            <span>
+                              {followerReq.type === 'followed_by' ? 'Followed by' : 'Following'}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            {reqData?.isLoading ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : reqData?.error ? (
+                              <XCircle className="h-3 w-3 text-red-500" />
+                            ) : reqData?.status !== undefined ? (
+                              reqData.status ? (
+                                <CheckCircle className="h-3 w-3 text-emerald-500" />
+                              ) : (
+                                <XCircle className="h-3 w-3 text-red-500" />
+                              )
+                            ) : (
+                              <AlertTriangle className="h-3 w-3 text-amber-500" />
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Social Profile Display */}
+                        <div className="ml-5">
+                          {socialProfile ? (
+                            <UPSocialProfileDisplay
+                              address={followerReq.value}
+                              variant="inline"
+                              showVerificationBadge={true}
+                              showConnectionButton={false}
+                              profileOverride={socialProfile}
+                            />
+                          ) : isLoadingSocialProfiles ? (
+                            <div className="flex items-center space-x-2">
+                              <div className="h-6 w-6 bg-gray-200 rounded-full animate-pulse" />
+                              <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {followerReq.value.slice(0, 6)}...{followerReq.value.slice(-4)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
                 })}
               </div>
             )}
@@ -709,12 +850,70 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
             
             {/* Profile Info */}
             <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Profile:</span>
-                <Badge variant="outline" className="text-xs font-mono">
-                  {formatAddress(upAddress!)}
-                </Badge>
-              </div>
+              <div className="text-xs text-muted-foreground mb-2">Connected Profile:</div>
+              {(() => {
+                const connectedProfile = upAddress ? socialProfiles[upAddress] : null;
+                return connectedProfile ? (
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    {/* Profile Picture */}
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+                      {connectedProfile.profileImage ? (
+                        <img 
+                          src={connectedProfile.profileImage} 
+                          alt={connectedProfile.displayName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                          {connectedProfile.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    {/* Name and Username */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                        {connectedProfile.displayName}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {connectedProfile.username}
+                      </div>
+                    </div>
+                    {/* Verification Badge */}
+                    {connectedProfile.isVerified && (
+                      <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                        <CheckCircle className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    {/* Loading or fallback */}
+                    {isLoadingSocialProfiles ? (
+                      <>
+                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
+                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-sm font-medium">
+                          {upAddress ? upAddress.charAt(2).toUpperCase() : '?'}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                            Universal Profile
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                            {formatAddress(upAddress!)}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               
               {/* LYX Balance Display */}
               {requirements?.minLyxBalance && (

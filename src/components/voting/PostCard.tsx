@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 // import Link from 'next/link';
 // import NextImage from 'next/image';
-import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield, Coins, Users, UserCheck, UserX } from 'lucide-react';
+import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, /* CardDescription */ } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -38,7 +38,6 @@ import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 import { useTimeSince } from '@/utils/timeUtils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
-import { ethers } from 'ethers';
 import { getUPDisplayName } from '@/lib/upProfile';
 import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
@@ -70,7 +69,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [isPostContentExpanded, setIsPostContentExpanded] = useState(showFullContent);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
-  const [showGatingDetails, setShowGatingDetails] = useState(false);
+
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -130,27 +129,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   
 
 
-  // Helper function to format LYX amount
-  const formatLyxAmount = (weiAmount: string): string => {
-    try {
-      const etherAmount = ethers.utils.formatEther(weiAmount);
-      const num = parseFloat(etherAmount);
-      return num < 0.001 ? '< 0.001' : num.toFixed(num < 1 ? 3 : 1);
-    } catch {
-      return weiAmount;
-    }
-  };
 
-  // Helper function to format token amount
-  const formatTokenAmount = (weiAmount: string, decimals: number = 18): string => {
-    try {
-      const formatted = ethers.utils.formatUnits(weiAmount, decimals);
-      const num = parseFloat(formatted);
-      return num < 0.001 ? '< 0.001' : num.toFixed(num < 1 ? 3 : 1);
-    } catch {
-      return weiAmount;
-    }
-  };
 
   // Helper function to format access count for share button
   const formatAccessCount = (count: number): string => {
@@ -629,127 +608,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               </div>
             )}
             
-            {/* Gating requirements display */}
-            {hasGating && requirements && (
-              <div className="mt-3 space-y-2">
-                {/* Requirements pills */}
-                <div className="flex flex-wrap gap-1.5">
-                  {requirements.minLyxBalance && (
-                    <Badge variant="outline" className="text-xs bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-700">
-                      <Coins size={10} className="mr-1" />
-                      {formatLyxAmount(requirements.minLyxBalance)} LYX
-                    </Badge>
-                  )}
-                  {requirements.requiredTokens?.map((token, idx) => (
-                    <Badge key={idx} variant="outline" className="text-xs bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-700">
-                      <span className="mr-1">{token.tokenType === 'LSP8' ? '🎨' : '🪙'}</span>
-                      {token.name || token.symbol || 'Token'}
-                      {token.minAmount && ` (${formatTokenAmount(token.minAmount)})`}
-                    </Badge>
-                  ))}
-                  {requirements.followerRequirements?.map((follower, idx) => {
-                    const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
-                    return (
-                      <Badge key={`follower-${idx}`} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700">
-                        {follower.type === 'minimum_followers' ? (
-                          <>
-                            <Users size={10} className="mr-1" />
-                            {follower.value} followers
-                          </>
-                        ) : follower.type === 'followed_by' ? (
-                          <>
-                            <UserCheck size={10} className="mr-1" />
-                            Followed by {upName}
-                          </>
-                        ) : (
-                          <>
-                            <UserX size={10} className="mr-1" />
-                            Follow {upName}
-                          </>
-                        )}
-                      </Badge>
-                    );
-                  })}
-                </div>
-                
-                {/* Expandable requirements details */}
-                <div className="flex items-center justify-between">
+            {/* Simple gating summary */}
+            {hasGating && (
+              <div className="mt-3">
+                <div className="flex items-center space-x-2">
+                  <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700">
+                    <Shield size={10} className="mr-1" />
+                    Gated Post
+                  </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Required to comment
+                    Universal Profile required to comment
                   </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setShowGatingDetails(!showGatingDetails)}
-                    className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {showGatingDetails ? (
-                      <>
-                        <ChevronUp size={12} className="mr-1" />
-                        Hide details
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown size={12} className="mr-1" />
-                        Show details
-                      </>
-                    )}
-                  </Button>
                 </div>
-                
-                {/* Simplified expanded details */}
-                {showGatingDetails && (
-                  <div className="mt-2 p-2 border border-border/50 rounded text-xs space-y-1">
-                    {requirements.minLyxBalance && (
-                      <div className="flex items-center justify-between">
-                        <span>Minimum LYX Balance</span>
-                        <span className="font-medium">{formatLyxAmount(requirements.minLyxBalance)} LYX</span>
-                      </div>
-                    )}
-                    {requirements.requiredTokens?.map((token, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <span>{token.name || token.symbol || `${token.tokenType} Token`}</span>
-                        <span className="font-medium">
-                          {token.tokenType === 'LSP8' 
-                            ? (token.tokenId ? `Token #${token.tokenId}` : `${token.minAmount || '1'} NFT${parseInt(token.minAmount || '1') !== 1 ? 's' : ''}`)
-                            : `${formatTokenAmount(token.minAmount || '0')} ${token.symbol || 'tokens'}`
-                          }
-                        </span>
-                      </div>
-                    ))}
-                    {requirements.followerRequirements?.map((follower, idx) => {
-                      const upName = upProfileNames[follower.value] || `${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`;
-                      return (
-                        <div key={`follower-detail-${idx}`} className="flex items-center justify-between">
-                          <span className="flex items-center">
-                            {follower.type === 'minimum_followers' ? (
-                              <>
-                                <Users size={12} className="mr-1.5 text-purple-500" />
-                                Minimum Followers
-                              </>
-                            ) : follower.type === 'followed_by' ? (
-                              <>
-                                <UserCheck size={12} className="mr-1.5 text-green-500" />
-                                Followed by Profile
-                              </>
-                            ) : (
-                              <>
-                                <UserX size={12} className="mr-1.5 text-blue-500" />
-                                Must Follow Profile
-                              </>
-                            )}
-                          </span>
-                          <span className="font-medium">
-                            {follower.type === 'minimum_followers' 
-                              ? `${follower.value} followers`
-                              : upName
-                            }
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             )}
           </CardHeader>

@@ -1,3 +1,5 @@
+import { GatingCategory } from './gating';
+
 /**
  * Community-level settings for plugin access control and features
  */
@@ -58,14 +60,22 @@ export interface UPGatingRequirements {
 
 /**
  * Post-level settings for response gating and features
+ * Supports both legacy upGating format and new multi-category format
  */
 export interface PostSettings {
   responsePermissions?: {
+    // Legacy format (backward compatibility)
     upGating?: {
       enabled: boolean; // Whether UP gating is active for this post
       requirements: UPGatingRequirements; // What UP requirements must be met
     };
-    // Future gating types:
+    
+    // New multi-category format
+    categories?: GatingCategory[];
+    requireAll?: boolean; // If true, user must satisfy ALL categories
+    requireAny?: boolean; // If true, user must satisfy ANY category (default)
+    
+    // Future gating types (legacy approach - will be migrated to categories):
     // socialGating?: { requiredFollows: string[]; }; // LSP26 follow requirements
     // nftGating?: { collections: string[]; }; // NFT collection ownership
     // credentialGating?: { requiredCredentials: string[]; }; // Verifiable credentials
@@ -220,5 +230,121 @@ export const SettingsUtils = {
       return null;
     }
     return settings.responsePermissions!.upGating!.requirements;
+  },
+
+  // ===== MULTI-CATEGORY UTILITIES =====
+
+  /**
+   * Checks if post uses the new multi-category gating format
+   */
+  hasMultiCategoryGating: (settings: PostSettings): boolean => {
+    return !!(settings?.responsePermissions?.categories?.length);
+  },
+
+  /**
+   * Checks if post has any form of gating (legacy or multi-category)
+   */
+  hasAnyGating: (settings: PostSettings): boolean => {
+    return SettingsUtils.hasUPGating(settings) || SettingsUtils.hasMultiCategoryGating(settings);
+  },
+
+  /**
+   * Gets all gating categories from post settings (converts legacy format if needed)
+   */
+  getGatingCategories: (settings: PostSettings): GatingCategory[] => {
+    // If using new multi-category format, return it directly
+    if (SettingsUtils.hasMultiCategoryGating(settings)) {
+      return settings.responsePermissions!.categories!;
+    }
+
+    // Convert legacy UP gating to category format
+    if (SettingsUtils.hasUPGating(settings)) {
+      const upGating = settings.responsePermissions!.upGating!;
+      return [{
+        type: 'universal_profile',
+        enabled: upGating.enabled,
+        requirements: upGating.requirements
+      }];
+    }
+
+    return [];
+  },
+
+  /**
+   * Converts legacy upGating format to new multi-category format
+   */
+  migrateLegacyToCategories: (settings: PostSettings): PostSettings => {
+    // If already using categories, return as-is
+    if (SettingsUtils.hasMultiCategoryGating(settings)) {
+      return settings;
+    }
+
+    // If no gating at all, return as-is
+    if (!SettingsUtils.hasUPGating(settings)) {
+      return settings;
+    }
+
+    // Convert UP gating to category format
+    const upGating = settings.responsePermissions!.upGating!;
+    const newSettings: PostSettings = {
+      ...settings,
+      responsePermissions: {
+        ...settings.responsePermissions,
+        categories: [{
+          type: 'universal_profile',
+          enabled: upGating.enabled,
+          requirements: upGating.requirements
+        }],
+        requireAny: true, // Default behavior
+        // Keep legacy format for backward compatibility
+        upGating
+      }
+    };
+
+    return newSettings;
+  },
+
+  /**
+   * Converts multi-category format back to legacy format (for backward compatibility)
+   */
+  extractLegacyFormat: (settings: PostSettings): PostSettings => {
+    if (!SettingsUtils.hasMultiCategoryGating(settings)) {
+      return settings;
+    }
+
+    // Find the Universal Profile category
+    const categories = settings.responsePermissions!.categories!;
+    const upCategory = categories.find(cat => cat.type === 'universal_profile');
+
+    if (!upCategory) {
+      return settings;
+    }
+
+    // Extract UP gating to legacy format
+    const newSettings: PostSettings = {
+      ...settings,
+      responsePermissions: {
+        ...settings.responsePermissions,
+        upGating: {
+          enabled: upCategory.enabled,
+          requirements: upCategory.requirements as UPGatingRequirements
+        }
+      }
+    };
+
+    return newSettings;
+  },
+
+  /**
+   * Gets the display mode for gating categories
+   */
+  getGatingDisplayMode: (settings: PostSettings): 'legacy' | 'multi-category' | 'none' => {
+    if (SettingsUtils.hasMultiCategoryGating(settings)) {
+      return 'multi-category';
+    }
+    if (SettingsUtils.hasUPGating(settings)) {
+      return 'legacy';
+    }
+    return 'none';
   }
 }; 
