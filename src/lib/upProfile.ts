@@ -66,7 +66,8 @@ export interface UPSocialProfile {
  */
 const resolveIpfsUrl = (url: string): string => {
   if (url.startsWith('ipfs://')) {
-    return `https://api.universalprofile.cloud/ipfs/${url.substring(7)}`;
+    const gateway = process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/';
+    return `${gateway}${url.substring(7)}`;
   }
   return url;
 };
@@ -163,7 +164,7 @@ export class UPProfileFetcher {
         upAddress,
         this.rpcUrl,
         {
-          ipfsGateway: 'https://api.universalprofile.cloud/ipfs/',
+          ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
         }
       );
 

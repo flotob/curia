@@ -23,6 +23,7 @@ ARG TELEGRAM_BOT_API_URL
 ARG TELEGRAM_WEBHOOK_SECRET
 ARG TELEGRAM_CONNECT_SECRET
 ARG TELEGRAM_BOT_NAME
+ARG NEXT_PUBLIC_LUKSO_IPFS_GATEWAY
 
 # Copy package.json and yarn.lock first to leverage Docker cache
 COPY package.json yarn.lock ./

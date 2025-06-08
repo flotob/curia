@@ -3,6 +3,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { 
@@ -51,7 +52,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
 
   const [lyxBalance, setLyxBalance] = React.useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
-  const [balanceError, setBalanceError] = React.useState<string | null>(null);
+
   
   // Token balance states
   const [tokenBalances, setTokenBalances] = React.useState<Record<string, {
@@ -106,7 +107,6 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   React.useEffect(() => {
     if (isConnected && isCorrectChain && requirements?.minLyxBalance) {
       setIsLoadingBalance(true);
-      setBalanceError(null);
       
       getLyxBalance()
         .then((balance: string) => {
@@ -116,12 +116,10 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
         .catch((error: unknown) => {
           console.error('Failed to load LYX balance:', error);
           setLyxBalance(null);
-          setBalanceError('Unable to load balance');
         })
         .finally(() => setIsLoadingBalance(false));
     } else {
       setLyxBalance(null);
-      setBalanceError(null);
     }
   }, [isConnected, isCorrectChain, getLyxBalance, requirements?.minLyxBalance]);
 
@@ -609,185 +607,226 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       </CardHeader>
       
       <CardContent className="space-y-3">
-        {/* Requirements Display */}
+        {/* Unified Requirements Display */}
         {requirements && (
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="space-y-1">
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
               Requirements
             </h4>
             
+            {/* LYX Balance Requirement */}
             {requirements.minLyxBalance && (
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center">
-                  <Coins className="h-3 w-3 mr-1 text-amber-500" />
-                  <span>LYX Balance</span>
+              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 rounded-lg border border-amber-200 dark:border-amber-800 min-h-[60px]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Coins className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">LYX Balance</div>
+                    <div className="text-xs text-muted-foreground">
+                      Required: {ethers.utils.formatEther(requirements.minLyxBalance)} LYX
+                      {lyxBalance && ` • You have: ${formatBalance(lyxBalance)} LYX`}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-muted-foreground">
-                    {ethers.utils.formatEther(requirements.minLyxBalance)} LYX
-                  </span>
-                  {meetsLyxRequirement !== null && (
+                <div className="flex items-center">
+                  {isLoadingBalance ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  ) : meetsLyxRequirement !== null ? (
                     meetsLyxRequirement ? (
-                      <CheckCircle className="h-3 w-3 text-emerald-500" />
+                      <CheckCircle className="h-5 w-5 text-emerald-500" />
                     ) : (
-                      <XCircle className="h-3 w-3 text-red-500" />
+                      <XCircle className="h-5 w-5 text-red-500" />
                     )
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
                   )}
                 </div>
               </div>
             )}
             
-            {/* Token Requirements Display */}
+            {/* Token Requirements */}
             {requirements.requiredTokens && requirements.requiredTokens.length > 0 && (
-              <div className="space-y-2">
+              <>
                 {requirements.requiredTokens.map((tokenReq, index) => {
                   const contractAddress = tokenReq.contractAddress.toLowerCase();
                   const tokenData = tokenBalances[contractAddress];
-                  // Display required amount (LSP8 defaults to "1" if undefined)
                   let displayAmount: string;
+                  
                   if (tokenReq.tokenType === 'LSP7') {
                     displayAmount = ethers.utils.formatUnits(tokenReq.minAmount || '0', tokenData?.decimals || 18);
                   } else {
-                    // LSP8: show NFT count, default to "1" if undefined
                     displayAmount = tokenReq.minAmount || '1';
                   }
                   
                   return (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center">
-                        <Coins className="h-3 w-3 mr-1 text-blue-500" />
-                        <span>{tokenData?.symbol || tokenReq.symbol || tokenReq.name}</span>
-                        <span className="text-xs text-muted-foreground ml-1">
-                          ({tokenReq.tokenType})
-                        </span>
+                    <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-lg border border-blue-200 dark:border-blue-800 min-h-[60px]">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                          <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm flex items-center space-x-2">
+                            <span>{tokenData?.symbol || tokenReq.symbol || tokenReq.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {tokenReq.tokenType}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Required: {displayAmount} {tokenData?.symbol || tokenReq.symbol || 'tokens'}
+                            {tokenData && ` • You have: ${parseFloat(tokenData.formattedBalance).toFixed(4)} ${tokenData.symbol}`}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-muted-foreground text-xs">
-                          {displayAmount} {tokenData?.symbol || tokenReq.symbol || 'tokens'}
-                        </span>
+                      <div className="flex items-center">
                         {tokenData?.isLoading ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                         ) : tokenData?.error ? (
-                          <XCircle className="h-3 w-3 text-red-500" />
+                          <XCircle className="h-5 w-5 text-red-500" />
                         ) : tokenData?.meetsRequirement !== undefined ? (
                           tokenData.meetsRequirement ? (
-                            <CheckCircle className="h-3 w-3 text-emerald-500" />
+                            <CheckCircle className="h-5 w-5 text-emerald-500" />
                           ) : (
-                            <XCircle className="h-3 w-3 text-red-500" />
+                            <XCircle className="h-5 w-5 text-red-500" />
                           )
                         ) : (
-                          <AlertTriangle className="h-3 w-3 text-amber-500" />
+                          <AlertTriangle className="h-5 w-5 text-amber-500" />
                         )}
                       </div>
                     </div>
                   );
                 })}
-              </div>
+              </>
             )}
 
-            {/* Follower Requirements Display */}
+            {/* Follower Requirements */}
             {requirements.followerRequirements && requirements.followerRequirements.length > 0 && (
-              <div className="space-y-3">
+              <>
                 {requirements.followerRequirements.map((followerReq, index) => {
                   const reqKey = `${followerReq.type}-${followerReq.value}`;
                   const reqData = followerData.followerRequirements[reqKey];
                   
                   if (followerReq.type === 'minimum_followers') {
                     return (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center">
-                          <Users className="h-3 w-3 mr-2 text-purple-500" />
-                          <span>{followerReq.value} Followers</span>
+                      <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-lg border border-purple-200 dark:border-purple-800 min-h-[60px]">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                            <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">Minimum Followers</div>
+                            <div className="text-xs text-muted-foreground">
+                              Required: {followerReq.value} followers
+                              {followerData.userFollowerCount !== undefined && ` • You have: ${followerData.userFollowerCount} followers`}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          {followerData.userFollowerCount !== undefined && (
-                            <span className="text-muted-foreground text-xs">
-                              ({followerData.userFollowerCount} followers)
-                            </span>
-                          )}
+                        <div className="flex items-center">
                           {reqData?.isLoading ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                           ) : reqData?.error ? (
-                            <XCircle className="h-3 w-3 text-red-500" />
+                            <XCircle className="h-5 w-5 text-red-500" />
                           ) : reqData?.status !== undefined ? (
                             reqData.status ? (
-                              <CheckCircle className="h-3 w-3 text-emerald-500" />
+                              <CheckCircle className="h-5 w-5 text-emerald-500" />
                             ) : (
-                              <XCircle className="h-3 w-3 text-red-500" />
+                              <XCircle className="h-5 w-5 text-red-500" />
                             )
                           ) : (
-                            <AlertTriangle className="h-3 w-3 text-amber-500" />
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
                           )}
                         </div>
                       </div>
                     );
                   } else {
-                    // Address-based requirement - show social profile
+                    // Address-based requirement with social profile
                     const socialProfile = socialProfiles[followerReq.value];
-                    const getIcon = () => {
-                      switch (followerReq.type) {
-                        case 'followed_by':
-                          return <UserCheck className="h-3 w-3 mr-2 text-green-500" />;
-                        case 'following':
-                          return <UserX className="h-3 w-3 mr-2 text-blue-500" />;
-                        default:
-                          return null;
-                      }
-                    };
+                    const gradientClass = followerReq.type === 'followed_by' 
+                      ? 'from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10' 
+                      : 'from-blue-50 to-cyan-50 dark:from-blue-900/10 dark:to-cyan-900/10';
+                    const borderClass = followerReq.type === 'followed_by'
+                      ? 'border-green-200 dark:border-green-800'
+                      : 'border-blue-200 dark:border-blue-800';
+                    const iconBgClass = followerReq.type === 'followed_by'
+                      ? 'bg-green-100 dark:bg-green-900/30'
+                      : 'bg-blue-100 dark:bg-blue-900/30';
+                    const iconClass = followerReq.type === 'followed_by'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-blue-600 dark:text-blue-400';
                     
                     return (
-                      <div key={index} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center">
-                            {getIcon()}
-                            <span>
-                              {followerReq.type === 'followed_by' ? 'Followed by' : 'Following'}
-                            </span>
+                      <div key={index} className={`p-3 bg-gradient-to-r ${gradientClass} rounded-lg border ${borderClass} min-h-[80px]`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className={`w-8 h-8 rounded-full ${iconBgClass} flex items-center justify-center flex-shrink-0`}>
+                              {followerReq.type === 'followed_by' ? (
+                                <UserCheck className={`h-4 w-4 ${iconClass}`} />
+                              ) : (
+                                <UserX className={`h-4 w-4 ${iconClass}`} />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm mb-1">
+                                {followerReq.type === 'followed_by' ? 'Must be followed by' : 'Must follow'}
+                              </div>
+                              {/* Social Profile Display */}
+                              {socialProfile ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                    {socialProfile.profileImage ? (
+                                      <img 
+                                        src={socialProfile.profileImage} 
+                                        alt={socialProfile.displayName}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
+                                        {socialProfile.displayName.charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-1 min-w-0">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                      {socialProfile.displayName}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                      {socialProfile.username}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : isLoadingSocialProfiles ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-6 h-6 bg-gray-200 rounded-full animate-pulse" />
+                                  <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  {followerReq.value.slice(0, 6)}...{followerReq.value.slice(-4)}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center ml-3">
                             {reqData?.isLoading ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                             ) : reqData?.error ? (
-                              <XCircle className="h-3 w-3 text-red-500" />
+                              <XCircle className="h-5 w-5 text-red-500" />
                             ) : reqData?.status !== undefined ? (
                               reqData.status ? (
-                                <CheckCircle className="h-3 w-3 text-emerald-500" />
+                                <CheckCircle className="h-5 w-5 text-emerald-500" />
                               ) : (
-                                <XCircle className="h-3 w-3 text-red-500" />
+                                <XCircle className="h-5 w-5 text-red-500" />
                               )
                             ) : (
-                              <AlertTriangle className="h-3 w-3 text-amber-500" />
+                              <AlertTriangle className="h-5 w-5 text-amber-500" />
                             )}
                           </div>
-                        </div>
-                        
-                        {/* Social Profile Display */}
-                        <div className="ml-5">
-                          {socialProfile ? (
-                            <UPSocialProfileDisplay
-                              address={followerReq.value}
-                              variant="inline"
-                              showVerificationBadge={true}
-                              showConnectionButton={false}
-                              profileOverride={socialProfile}
-                            />
-                          ) : isLoadingSocialProfiles ? (
-                            <div className="flex items-center space-x-2">
-                              <div className="h-6 w-6 bg-gray-200 rounded-full animate-pulse" />
-                              <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground font-mono">
-                              {followerReq.value.slice(0, 6)}...{followerReq.value.slice(-4)}
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
                   }
                 })}
-              </div>
+              </>
             )}
           </div>
         )}
@@ -914,79 +953,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
                   </div>
                 );
               })()}
-              
-              {/* LYX Balance Display */}
-              {requirements?.minLyxBalance && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">LYX Balance:</span>
-                  <div className="flex items-center space-x-1">
-                    {isLoadingBalance ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : balanceError ? (
-                      <span className="text-red-500">{balanceError}</span>
-                    ) : lyxBalance ? (
-                      <div className="flex items-center space-x-1">
-                        <span className={`font-mono ${
-                          meetsLyxRequirement === true ? 'text-emerald-600' : 
-                          meetsLyxRequirement === false ? 'text-red-600' : 
-                          'text-foreground'
-                        }`}>
-                          {formatBalance(lyxBalance)} LYX
-                        </span>
-                        {meetsLyxRequirement !== null && (
-                          meetsLyxRequirement ? (
-                            <CheckCircle className="h-3 w-3 text-emerald-500" />
-                          ) : (
-                            <XCircle className="h-3 w-3 text-red-500" />
-                          )
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Unable to load</span>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {/* Token Balance Display */}
-              {requirements?.requiredTokens && requirements.requiredTokens.map((tokenReq, index) => {
-                const contractAddress = tokenReq.contractAddress.toLowerCase();
-                const tokenData = tokenBalances[contractAddress];
-                
-                return (
-                  <div key={index} className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      {tokenData?.symbol || tokenReq.symbol || tokenReq.name}:
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      {tokenData?.isLoading ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : tokenData?.error ? (
-                        <span className="text-red-500">{tokenData.error}</span>
-                      ) : tokenData ? (
-                        <div className="flex items-center space-x-1">
-                          <span className={`font-mono ${
-                            tokenData.meetsRequirement === true ? 'text-emerald-600' : 
-                            tokenData.meetsRequirement === false ? 'text-red-600' : 
-                            'text-foreground'
-                          }`}>
-                            {parseFloat(tokenData.formattedBalance).toFixed(4)} {tokenData.symbol}
-                          </span>
-                          {tokenData.meetsRequirement !== undefined && (
-                            tokenData.meetsRequirement ? (
-                              <CheckCircle className="h-3 w-3 text-emerald-500" />
-                            ) : (
-                              <XCircle className="h-3 w-3 text-red-500" />
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">Unable to load</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+
             </div>
             
             {/* Network Switch Button */}
