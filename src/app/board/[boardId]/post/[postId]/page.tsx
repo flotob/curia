@@ -35,6 +35,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const searchParams = useSearchParams();
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(null);
   
   useEffect(() => {
     params.then(({ boardId, postId }) => {
@@ -153,11 +154,25 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const handleCommentPosted = (newComment: ApiComment) => {
     console.log(`[PostDetailPage] New comment posted: ${newComment.id}`);
     setHighlightedCommentId(newComment.id);
+    setReplyingToCommentId(null); // Clear reply state
     
     // Clear highlight after animation
     setTimeout(() => {
       setHighlightedCommentId(null);
     }, 4000);
+  };
+
+  // Handle when user clicks reply on a comment
+  const handleReplyToComment = (commentId: number) => {
+    console.log(`[PostDetailPage] Replying to comment: ${commentId}`);
+    setReplyingToCommentId(commentId);
+    // Scroll to comment form
+    setTimeout(() => {
+      const formElement = document.querySelector('.new-comment-form');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
 
   // Early return for loading params state
@@ -322,7 +337,27 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* New Comment Form */}
-            <NewCommentForm postId={postIdNum} post={post} onCommentPosted={handleCommentPosted} />
+            <div className="new-comment-form">
+              <NewCommentForm 
+                postId={postIdNum} 
+                post={post} 
+                parentCommentId={replyingToCommentId}
+                onCommentPosted={handleCommentPosted} 
+              />
+              {replyingToCommentId && (
+                <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
+                  <span>Replying to comment #{replyingToCommentId}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setReplyingToCommentId(null)}
+                    className="text-xs"
+                  >
+                    Cancel Reply
+                  </Button>
+                </div>
+              )}
+            </div>
             
             {/* Comments List */}
             {isLoadingComments ? (
@@ -340,6 +375,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 postId={postIdNum} 
                 highlightCommentId={highlightedCommentId}
                 onCommentHighlighted={() => setHighlightedCommentId(null)}
+                onReply={handleReplyToComment}
               />
             ) : (
               <div className="text-center py-8">

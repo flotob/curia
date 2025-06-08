@@ -149,4 +149,54 @@
   .dark .test-mini-mode {
     background: #0f172a;
   }
+
+  /* Comment Threading Styles */
+  .comment-thread {
+    margin-bottom: 0.75rem;
+  }
+
+  .comment-children {
+    margin-left: 1rem;
+    padding-left: 1rem;
+    position: relative;
+  }
+
+  .comment-children.with-thread-line::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: hsl(var(--border));
+    opacity: 0.3;
+  }
+
+  /* Comment depth-based indentation (fallback for complex scenarios) */
+  .comment-depth-0 { padding-left: 0; }
+  .comment-depth-1 { padding-left: 0; }
+  .comment-depth-2 { padding-left: 0; }
+  .comment-depth-3 { padding-left: 0; }
+  .comment-depth-4 { padding-left: 0; }
+  .comment-depth-5 { padding-left: 0; }
+
+  /* Mobile responsive adjustments */
+  @media (max-width: 640px) {
+    .comment-children {
+      margin-left: 0.5rem;
+      padding-left: 0.5rem;
+    }
+    
+    .comment-children.with-thread-line::before {
+      width: 1px;
+    }
+  }
+
+  /* Dark mode thread line */
+  @media (prefers-color-scheme: dark) {
+    .comment-children.with-thread-line::before {
+      background-color: hsl(var(--border));
+      opacity: 0.4;
+    }
+  }
 }

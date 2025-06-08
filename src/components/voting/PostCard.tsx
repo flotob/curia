@@ -72,6 +72,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [showGatingDetails, setShowGatingDetails] = useState(false);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
@@ -106,11 +107,25 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const handleCommentPosted = (newComment: ApiComment) => {
     console.log(`[PostCard] New comment posted: ${newComment.id}`);
     setHighlightedCommentId(newComment.id);
+    setReplyingToCommentId(null); // Clear reply state
     
     // Clear highlight after animation
     setTimeout(() => {
       setHighlightedCommentId(null);
     }, 4000);
+  };
+
+  // Handle when user clicks reply on a comment in feed view
+  const handleReplyToComment = (commentId: number) => {
+    console.log(`[PostCard] Replying to comment: ${commentId}`);
+    setReplyingToCommentId(commentId);
+    // Scroll to comment form within this PostCard
+    setTimeout(() => {
+      const formElement = document.querySelector(`#postcard-${post.id} .new-comment-form`);
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
   
 
@@ -464,10 +479,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
-    <Card className={cn(
-      "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200",
-      hasGating && "border-l-4 border-l-blue-500"
-    )} style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}>
+    <Card 
+      id={`postcard-${post.id}`}
+      className={cn(
+        "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200",
+        hasGating && "border-l-4 border-l-blue-500"
+      )} 
+      style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
+    >
       <div className="flex">
         {/* Vote Section */}
         <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
@@ -861,12 +880,33 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       {showComments && !hasGating && (
         <div className="border-t border-border p-3 sm:p-4">
           <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
-          <NewCommentForm postId={post.id} post={post} onCommentPosted={handleCommentPosted} />
+          <div className="new-comment-form">
+            <NewCommentForm 
+              postId={post.id} 
+              post={post} 
+              parentCommentId={replyingToCommentId}
+              onCommentPosted={handleCommentPosted} 
+            />
+            {replyingToCommentId && (
+              <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
+                <span>Replying to comment #{replyingToCommentId}</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setReplyingToCommentId(null)}
+                  className="text-xs"
+                >
+                  Cancel Reply
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="mt-4">
             <CommentList 
               postId={post.id} 
               highlightCommentId={highlightedCommentId}
               onCommentHighlighted={() => setHighlightedCommentId(null)}
+              onReply={handleReplyToComment}
             />
           </div>
         </div>

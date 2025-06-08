@@ -3,7 +3,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route'; // Import the ApiComment interface
-import { Clock, Trash, MoreVertical } from 'lucide-react';
+import { Clock, Trash, MoreVertical, Reply } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, 
@@ -33,12 +33,16 @@ const lowlight = createLowlight(common);
 
 interface CommentItemProps {
   comment: ApiComment;
+  depth?: number; // Nesting depth for indentation (default: 0)
+  onReply?: (commentId: number) => void; // Callback when user clicks reply
   isHighlighted?: boolean; // Whether this comment should be highlighted
   onHighlightComplete?: () => void; // Callback when highlight animation completes
 }
 
 export const CommentItem: React.FC<CommentItemProps> = ({ 
   comment, 
+  depth = 0,
+  onReply,
   isHighlighted = false,
   onHighlightComplete 
 }) => {
@@ -143,6 +147,15 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   }, [editor, comment.content]);
 
   // Effect for handling link clicks in rendered Tiptap content
+  // Calculate indentation based on depth (moved before conditional returns)
+  const indentStyle = React.useMemo(() => {
+    const maxDisplayDepth = 5;
+    const clampedDepth = Math.min(depth, maxDisplayDepth);
+    return {
+      paddingLeft: `${clampedDepth * 0.5}rem`, // 0.5rem per level
+    };
+  }, [depth]);
+
   React.useEffect(() => {
     if (!editor) return;
 
@@ -190,7 +203,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       }`}
       style={{
         transform: showHighlight ? 'scale(1.01)' : 'scale(1)',
-        transition: 'all 0.5s ease-out'
+        transition: 'all 0.5s ease-out',
+        ...indentStyle
       }}
     >
       <Avatar className="h-8 w-8 flex-shrink-0">
@@ -205,26 +219,43 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             <Clock size={12} className="mr-0.5 flex-shrink-0" />
             <span>{timeSinceText}</span>
           </div>
-          {user?.isAdmin && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="p-1 h-7 w-7">
-                  <MoreVertical size={14} />
-                  <span className="sr-only">Comment Options</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem 
-                  onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
-                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                >
-                  <Trash size={12} className="mr-2" /> Delete Comment
-                </DropdownMenuItem>
-                {/* Add more DropdownMenuItems here later */}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <div className="flex items-center space-x-1">
+            {/* Reply Button */}
+            {onReply && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => onReply(comment.id)}
+                className="p-1 h-7 w-auto px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+                title="Reply to this comment"
+              >
+                <Reply size={12} className="mr-1" />
+                Reply
+              </Button>
+            )}
+            
+            {/* Admin Menu */}
+            {user?.isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="p-1 h-7 w-7">
+                    <MoreVertical size={14} />
+                    <span className="sr-only">Comment Options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                  >
+                    <Trash size={12} className="mr-2" /> Delete Comment
+                  </DropdownMenuItem>
+                  {/* Add more DropdownMenuItems here later */}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
         <div className="mt-1 text-sm">
             <article 

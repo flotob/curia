@@ -6,11 +6,13 @@ import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { CommentItem } from './CommentItem';
 import { authFetchJson } from '@/utils/authFetch'; // Using authFetchJson for consistency, though endpoint is public
 import { Loader2, MessageCircleWarning, MessagesSquare } from 'lucide-react';
+import { buildCommentTree, CommentTree } from '@/utils/commentTree';
 
 interface CommentListProps {
   postId: number;
   highlightCommentId?: number | null; // New prop to highlight a specific comment
   onCommentHighlighted?: () => void; // Callback when highlight animation completes
+  onReply?: (commentId: number) => void; // Callback when user clicks reply
 }
 
 const fetchComments = async (postId: number): Promise<ApiComment[]> => {
@@ -20,7 +22,8 @@ const fetchComments = async (postId: number): Promise<ApiComment[]> => {
 export const CommentList: React.FC<CommentListProps> = ({ 
   postId, 
   highlightCommentId,
-  onCommentHighlighted 
+  onCommentHighlighted,
+  onReply 
 }) => {
   const { 
     data: comments, 
@@ -33,6 +36,16 @@ export const CommentList: React.FC<CommentListProps> = ({
     staleTime: 1 * 60 * 1000, // comments are stale after 1 minute
     refetchInterval: 45 * 1000, // refetch every 45 seconds
   });
+
+  // Build comment tree from flat comments array
+  const commentTree = React.useMemo(() => {
+    if (!comments || comments.length === 0) {
+      return [];
+    }
+    return buildCommentTree(comments, { maxDepth: 5 });
+  }, [comments]);
+
+  // Note: totalCommentCount available via getCommentTreeCount(commentTree) if needed
 
   // Scroll to highlighted comment when it becomes available
   React.useEffect(() => {
@@ -53,6 +66,26 @@ export const CommentList: React.FC<CommentListProps> = ({
     }
   }, [highlightCommentId, comments]);
 
+  // Recursive rendering function for comment trees
+  const renderCommentTree = React.useCallback((trees: CommentTree[]): React.ReactNode => {
+    return trees.map(tree => (
+      <div key={tree.comment.id} className="comment-thread">
+        <CommentItem 
+          comment={tree.comment}
+          depth={tree.depth}
+          onReply={onReply}
+          isHighlighted={highlightCommentId === tree.comment.id}
+          onHighlightComplete={onCommentHighlighted}
+        />
+        {tree.children.length > 0 && (
+          <div className={`comment-children ${tree.depth < 4 ? 'with-thread-line' : ''}`}>
+            {renderCommentTree(tree.children)}
+          </div>
+        )}
+      </div>
+    ));
+  }, [highlightCommentId, onCommentHighlighted, onReply]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-4 text-muted-foreground">
@@ -72,7 +105,7 @@ export const CommentList: React.FC<CommentListProps> = ({
     );
   }
 
-  if (!comments || comments.length === 0) {
+  if (!comments || comments.length === 0 || commentTree.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
         <MessagesSquare className="h-8 w-8 mb-2" />
@@ -83,20 +116,13 @@ export const CommentList: React.FC<CommentListProps> = ({
   }
 
   return (
-    <div className="space-y-3 divide-y divide-border">
+    <div className="comment-list space-y-3">
       {isFetching && (
          <div className="absolute top-0 right-0 p-1 text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin inline-block" /> Syncing...
         </div>
       )}
-      {comments.map((comment) => (
-        <CommentItem 
-          key={comment.id} 
-          comment={comment} 
-          isHighlighted={highlightCommentId === comment.id}
-          onHighlightComplete={onCommentHighlighted}
-        />
-      ))}
+      {renderCommentTree(commentTree)}
     </div>
   );
 }; 
