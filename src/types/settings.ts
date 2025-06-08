@@ -1,4 +1,4 @@
-import { GatingCategory } from './gating';
+import { GatingCategory, EthereumGatingRequirements } from './gating';
 
 /**
  * Community-level settings for plugin access control and features
@@ -232,6 +232,38 @@ export const SettingsUtils = {
     return settings.responsePermissions!.upGating!.requirements;
   },
 
+  // ===== ETHEREUM GATING UTILITIES =====
+
+  /**
+   * Checks if post has Ethereum Profile gating enabled (via multi-category format)
+   */
+  hasEthereumGating: (settings: PostSettings): boolean => {
+    const categories = SettingsUtils.getGatingCategories(settings);
+    return categories.some(cat => cat.type === 'ethereum_profile' && cat.enabled);
+  },
+
+  /**
+   * Gets Ethereum gating requirements from post settings
+   */
+  getEthereumGatingRequirements: (settings: PostSettings): EthereumGatingRequirements | null => {
+    const categories = SettingsUtils.getGatingCategories(settings);
+    const ethCategory = categories.find(cat => cat.type === 'ethereum_profile' && cat.enabled);
+    
+    if (!ethCategory) {
+      return null;
+    }
+    
+    return ethCategory.requirements as EthereumGatingRequirements;
+  },
+
+  /**
+   * Gets the Ethereum gating category from post settings
+   */
+  getEthereumGatingCategory: (settings: PostSettings): GatingCategory | null => {
+    const categories = SettingsUtils.getGatingCategories(settings);
+    return categories.find(cat => cat.type === 'ethereum_profile' && cat.enabled) || null;
+  },
+
   // ===== MULTI-CATEGORY UTILITIES =====
 
   /**
@@ -245,7 +277,9 @@ export const SettingsUtils = {
    * Checks if post has any form of gating (legacy or multi-category)
    */
   hasAnyGating: (settings: PostSettings): boolean => {
-    return SettingsUtils.hasUPGating(settings) || SettingsUtils.hasMultiCategoryGating(settings);
+    return SettingsUtils.hasUPGating(settings) || 
+           SettingsUtils.hasEthereumGating(settings) || 
+           SettingsUtils.hasMultiCategoryGating(settings);
   },
 
   /**

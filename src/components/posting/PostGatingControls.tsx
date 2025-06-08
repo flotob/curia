@@ -1,17 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-import { PostSettings, TokenRequirement, UPGatingRequirements, FollowerRequirement } from '@/types/settings';
-import { Shield, Plus, X, Coins, HelpCircle, Search, CheckCircle, AlertTriangle, Users, UserCheck, UserX } from 'lucide-react';
-import { getUPDisplayName } from '@/lib/upProfile';
-import { ethers } from 'ethers';
-import { INTERFACE_IDS, SupportedStandards, ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
+import { PostSettings } from '@/types/settings';
+import { GatingCategory, GatingCategoryMetadata } from '@/types/gating';
+import { Shield, X, HelpCircle } from 'lucide-react';
+import { getAvailableCategories } from '@/lib/gating/registerCategories';
+import { categoryRegistry } from '@/lib/gating/categoryRegistry';
 
 interface PostGatingControlsProps {
   value?: PostSettings['responsePermissions'];
@@ -19,522 +18,113 @@ interface PostGatingControlsProps {
   disabled?: boolean;
 }
 
-interface TokenRequirementFormData {
-  contractAddress: string;
-  tokenType: 'LSP7' | 'LSP8';
-  minAmount: string;
-  tokenId: string;
-  name: string;
-  symbol: string;
-}
-
-interface FetchedTokenMetadata {
-  name: string;
-  symbol: string;
-  decimals?: number;
-  tokenType: 'LSP7' | 'LSP8';
-  contractAddress: string;
-}
-
-const defaultTokenRequirement: TokenRequirementFormData = {
-  contractAddress: '',
-  tokenType: 'LSP7',
-  minAmount: '',
-  tokenId: '',
-  name: '',
-  symbol: ''
-};
-
-interface FollowerRequirementFormData {
-  type: 'minimum_followers' | 'followed_by' | 'following';
-  value: string;
-  description: string;
-}
-
-const defaultFollowerRequirement: FollowerRequirementFormData = {
-  type: 'minimum_followers',
-  value: '',
-  description: ''
-};
-
 export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
   value,
   onChange,
   disabled = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState<Array<{ type: string; metadata: GatingCategoryMetadata }>>([]);
   
-  // Extract current values
-  const upGating = value?.upGating;
-  const isEnabled = upGating?.enabled || false;
-  const requirements = upGating?.requirements || {};
-  const currentLyxBalance = requirements.minLyxBalance || '';
-  const currentTokens = requirements.requiredTokens || [];
-  const currentFollowerRequirements = requirements.followerRequirements || [];
-
-  // Local state for adding new token requirements
-  const [newTokenRequirement, setNewTokenRequirement] = useState<TokenRequirementFormData>(defaultTokenRequirement);
+  // Multi-category state
+  const currentCategories = value?.categories || [];
+  const hasAnyGating = currentCategories.length > 0;
   
-  // State for metadata fetching process
-  const [contractAddress, setContractAddress] = useState('');
-  const [fetchedMetadata, setFetchedMetadata] = useState<FetchedTokenMetadata | null>(null);
-  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  // Local state for adding new follower requirements
-  const [newFollowerRequirement, setNewFollowerRequirement] = useState<FollowerRequirementFormData>(defaultFollowerRequirement);
-  const [showFollowerForm, setShowFollowerForm] = useState(false);
-
-  // UP profile names for follower requirements (address -> display name)
-  const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
-
-  // Validate contract address format
-  const isValidContractAddress = (address: string): boolean => {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
-  };
-
-  // Robust LUKSO token detection using official libraries and proxy handling
-  const fetchTokenMetadata = async (): Promise<void> => {
-    if (!contractAddress.trim()) {
-      setFetchError('Please enter a contract address');
-      return;
-    }
-
-    if (!isValidContractAddress(contractAddress)) {
-      setFetchError('Invalid contract address format. Must be a valid Ethereum address (0x...)');
-      return;
-    }
-
-    setIsFetchingMetadata(true);
-    setFetchError(null);
-
-    try {
-      // Use LUKSO mainnet RPC
-      const rpcUrl = process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
-      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-
-      console.log(`[LUKSO Token Detection] Analyzing contract: ${contractAddress}`);
-
-      // Step 1: Check if contract supports LSP4 Digital Asset standard via ERC725Y
-      let isLSP4Asset = false;
-      try {
-        const erc725Contract = new ethers.Contract(contractAddress, [
-          'function getData(bytes32) view returns (bytes)',
-        ], provider);
-        
-        const lsp4Key = SupportedStandards.LSP4DigitalAsset.key;
-        const lsp4ExpectedValue = SupportedStandards.LSP4DigitalAsset.value;
-        const storedValue = await erc725Contract.getData(lsp4Key);
-        isLSP4Asset = storedValue === lsp4ExpectedValue;
-        console.log(`[LUKSO Token Detection] LSP4 Digital Asset support: ${isLSP4Asset}`);
-      } catch (error) {
-        console.log(`[LUKSO Token Detection] LSP4 check failed (not ERC725Y):`, error);
-      }
-
-      // Step 2: Check interface support for LSP7/LSP8 (supporting multiple versions)
-      const contract = new ethers.Contract(contractAddress, [
-        'function supportsInterface(bytes4) view returns (bool)',
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function decimals() view returns (uint8)'
-      ], provider);
-
-      // Use official LUKSO interface IDs + legacy versions
-      const LSP7_INTERFACE_ID_NEW = INTERFACE_IDS.LSP7DigitalAsset; // Latest (0xc52d6008)
-      const LSP7_INTERFACE_ID_LEGACY = '0xb3c4928f'; // Legacy v0.14 (for older tokens like LYXOG)
-      const LSP8_INTERFACE_ID = INTERFACE_IDS.LSP8IdentifiableDigitalAsset; // Stable (0x3a271706)
-
-      console.log(`[LUKSO Token Detection] Interface IDs to check:`);
-      console.log(`  LSP7 New: ${LSP7_INTERFACE_ID_NEW}`);
-      console.log(`  LSP7 Legacy: ${LSP7_INTERFACE_ID_LEGACY}`);
-      console.log(`  LSP8: ${LSP8_INTERFACE_ID}`);
-
-      // Check interfaces on main contract
-      let isLSP7 = false, isLSP8 = false;
-      try {
-        const [newLSP7, legacyLSP7, lsp8] = await Promise.all([
-          contract.supportsInterface(LSP7_INTERFACE_ID_NEW).catch(() => false),
-          contract.supportsInterface(LSP7_INTERFACE_ID_LEGACY).catch(() => false),
-          contract.supportsInterface(LSP8_INTERFACE_ID).catch(() => false)
-        ]);
-        
-        isLSP7 = newLSP7 || legacyLSP7;
-        isLSP8 = lsp8;
-        
-        console.log(`[LUKSO Token Detection] Direct interface check results:`);
-        console.log(`  LSP7 (new): ${newLSP7}, LSP7 (legacy): ${legacyLSP7} → Combined: ${isLSP7}`);
-        console.log(`  LSP8: ${isLSP8}`);
-      } catch (error) {
-        console.log(`[LUKSO Token Detection] Direct interface check failed:`, error);
-      }
-
-      // Step 3: If no interfaces detected, check for proxy pattern (EIP-1967)
-      let implementationAddress: string | null = null;
-      if (!isLSP7 && !isLSP8) {
-        console.log(`[LUKSO Token Detection] No interfaces detected, checking for proxy...`);
-        
-        try {
-          // Check EIP-1967 implementation slot
-          const implSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
-          const slotValue = await provider.getStorageAt(contractAddress, implSlot);
-          
-          if (slotValue && slotValue !== ethers.constants.HashZero) {
-            implementationAddress = ethers.utils.getAddress('0x' + slotValue.slice(-40));
-            console.log(`[LUKSO Token Detection] Found EIP-1967 proxy, implementation: ${implementationAddress}`);
-            
-            // Check interfaces on implementation contract
-            const implContract = new ethers.Contract(implementationAddress, [
-              'function supportsInterface(bytes4) view returns (bool)',
-              'function name() view returns (string)',
-              'function symbol() view returns (string)',
-              'function decimals() view returns (uint8)'
-            ], provider);
-            
-            const [newLSP7, legacyLSP7, lsp8] = await Promise.all([
-              implContract.supportsInterface(LSP7_INTERFACE_ID_NEW).catch(() => false),
-              implContract.supportsInterface(LSP7_INTERFACE_ID_LEGACY).catch(() => false),
-              implContract.supportsInterface(LSP8_INTERFACE_ID).catch(() => false)
-            ]);
-            
-            isLSP7 = newLSP7 || legacyLSP7;
-            isLSP8 = lsp8;
-            
-            console.log(`[LUKSO Token Detection] Implementation interface check results:`);
-            console.log(`  LSP7 (new): ${newLSP7}, LSP7 (legacy): ${legacyLSP7} → Combined: ${isLSP7}`);
-            console.log(`  LSP8: ${lsp8}`);
-          }
-        } catch (error) {
-          console.log(`[LUKSO Token Detection] Proxy detection failed:`, error);
-        }
-      }
-
-      // Step 4: Final validation
-      if (!isLSP7 && !isLSP8) {
-        if (isLSP4Asset) {
-          setFetchError('Contract has LSP4 metadata but no detectable LSP7/LSP8 interfaces. May be a custom implementation.');
-        } else {
-          setFetchError('Contract does not appear to be a valid LUKSO LSP7 or LSP8 token. Check console for detailed analysis.');
-        }
-        return;
-      }
-
-      const tokenType: 'LSP7' | 'LSP8' = isLSP7 ? 'LSP7' : 'LSP8';
-      console.log(`[LUKSO Token Detection] ✅ Detected as ${tokenType} token`);
-
-      // Step 5: Fetch token metadata (LSP7 vs LSP8 handling)
-      let name = 'Unknown Token';
-      let symbol = 'UNK';
-      let decimals: number | undefined;
-
-      if (tokenType === 'LSP7') {
-        // LSP7 might use ERC725Y data keys for name/symbol but standard decimals()
-        try {
-          // First try ERC725Y data keys (like LSP8)
-          const lsp7Contract = new ethers.Contract(contractAddress, [
-            'function getData(bytes32) view returns (bytes)',
-            'function getDataBatch(bytes32[]) view returns (bytes[])',
-            'function decimals() view returns (uint8)'
-          ], provider);
-
-          const dataKeys = [
-            ERC725YDataKeys.LSP4.LSP4TokenName,
-            ERC725YDataKeys.LSP4.LSP4TokenSymbol
-          ];
-
-          const [nameBytes, symbolBytes] = await lsp7Contract.getDataBatch(dataKeys);
-          
-          // Decode the bytes data
-          if (nameBytes && nameBytes !== '0x') {
-            name = ethers.utils.toUtf8String(nameBytes);
-          }
-          if (symbolBytes && symbolBytes !== '0x') {
-            symbol = ethers.utils.toUtf8String(symbolBytes);
-          }
-          
-          // Get decimals using standard function (this works)
-          decimals = await lsp7Contract.decimals();
-          
-          console.log(`[LUKSO Token Detection] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-        } catch (erc725yError) {
-          console.log(`[LUKSO Token Detection] ❌ LSP7 ERC725Y metadata failed, trying standard functions:`, erc725yError);
-          
-          // Fallback: try standard ERC20-like functions
-          try {
-            [name, symbol] = await Promise.all([
-              contract.name(),
-              contract.symbol()
-            ]);
-            decimals = await contract.decimals();
-            
-            console.log(`[LUKSO Token Detection] ⚠️ LSP7 fallback to standard functions: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-          } catch (metadataError) {
-            console.log(`[LUKSO Token Detection] LSP7 standard functions also failed, trying implementation:`, metadataError);
-            
-            if (implementationAddress) {
-              try {
-                const implContract = new ethers.Contract(implementationAddress, [
-                  'function name() view returns (string)',
-                  'function symbol() view returns (string)',
-                  'function decimals() view returns (uint8)'
-                ], provider);
-                
-                [name, symbol] = await Promise.all([
-                  implContract.name().catch(() => 'Unknown Token'),
-                  implContract.symbol().catch(() => 'UNK')
-                ]);
-                decimals = await implContract.decimals().catch(() => 18);
-                
-                console.log(`[LUKSO Token Detection] ⚠️ LSP7 implementation fallback: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-              } catch (implError) {
-                console.log(`[LUKSO Token Detection] ❌ LSP7 implementation metadata failed:`, implError);
-                decimals = 18;
-              }
-            } else {
-              console.log(`[LUKSO Token Detection] No implementation found, using defaults`);
-              decimals = 18;
-            }
-          }
-        }
-      } else {
-        // LSP8 uses ERC725Y data keys for metadata
-        try {
-          const lsp8Contract = new ethers.Contract(contractAddress, [
-            'function getData(bytes32) view returns (bytes)',
-            'function getDataBatch(bytes32[]) view returns (bytes[])'
-          ], provider);
-
-          // Use ERC725Y data keys for LSP4 metadata
-          const dataKeys = [
-            ERC725YDataKeys.LSP4.LSP4TokenName,
-            ERC725YDataKeys.LSP4.LSP4TokenSymbol
-          ];
-
-          const [nameBytes, symbolBytes] = await lsp8Contract.getDataBatch(dataKeys);
-          
-          // Decode the bytes data
-          if (nameBytes && nameBytes !== '0x') {
-            name = ethers.utils.toUtf8String(nameBytes);
-          }
-          if (symbolBytes && symbolBytes !== '0x') {
-            symbol = ethers.utils.toUtf8String(symbolBytes);
-          }
-          
-          console.log(`[LUKSO Token Detection] ✅ LSP8 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
-        } catch (lsp8Error) {
-          console.log(`[LUKSO Token Detection] ❌ LSP8 ERC725Y metadata failed:`, lsp8Error);
-          
-          // Fallback: try standard name()/symbol() functions in case it's a hybrid
-          try {
-            [name, symbol] = await Promise.all([
-              contract.name().catch(() => 'Unknown Token'),
-              contract.symbol().catch(() => 'UNK')
-            ]);
-            console.log(`[LUKSO Token Detection] ⚠️ LSP8 fallback to standard functions: name=${name}, symbol=${symbol}`);
-          } catch (fallbackError) {
-            console.log(`[LUKSO Token Detection] ❌ LSP8 fallback also failed:`, fallbackError);
-          }
-        }
-      }
-
-      const metadata: FetchedTokenMetadata = {
-        name,
-        symbol,
-        decimals: tokenType === 'LSP7' ? decimals : undefined,
-        tokenType,
-        contractAddress
-      };
-
-      console.log(`[LUKSO Token Detection] ✅ Successfully fetched metadata:`, metadata);
-      setFetchedMetadata(metadata);
-      setFetchError(null);
-
-    } catch (error) {
-      console.error('[LUKSO Token Detection] Failed to fetch token metadata:', error);
-      setFetchError('Failed to fetch token metadata. Please check the contract address and try again.');
-    } finally {
-      setIsFetchingMetadata(false);
-    }
-  };
-
-  // Reset fetch state when starting a new token requirement
-  const resetFetchState = () => {
-    setContractAddress('');
-    setFetchedMetadata(null);
-    setFetchError(null);
-    setNewTokenRequirement(defaultTokenRequirement);
-  };
+  // Legacy UP gating support (for backward compatibility)
+  const legacyUpGating = value?.upGating;
+  const hasLegacyGating = legacyUpGating?.enabled || false;
+  
+  // Combined gating state
+  const hasGating = hasAnyGating || hasLegacyGating;
 
   // Helper to update gating settings
-  const updateGatingSettings = (updates: Partial<UPGatingRequirements> | { enabled: boolean }) => {
-    if ('enabled' in updates) {
-      // Toggling enabled state
-      const newValue = {
-        ...value,
-        upGating: {
-          enabled: updates.enabled,
-          requirements: updates.enabled ? (requirements || {}) : {}
-        }
-      };
-      onChange(newValue);
-    } else {
-      // Updating requirements
-      const newValue = {
-        ...value,
-        upGating: {
-          enabled: isEnabled,
-          requirements: {
-            ...requirements,
-            ...updates
-          }
-        }
-      };
-      onChange(newValue);
-    }
-  };
-
-  // Handle LYX balance change
-  const handleLyxBalanceChange = (lyxAmount: string) => {
-    try {
-      if (!lyxAmount.trim()) {
-        // Remove LYX requirement
-        const newRequirements = { ...requirements };
-        delete newRequirements.minLyxBalance;
-        updateGatingSettings(newRequirements);
-        return;
-      }
-
-      const weiAmount = ethers.utils.parseEther(lyxAmount).toString();
-      updateGatingSettings({ minLyxBalance: weiAmount });
-    } catch (error) {
-      console.error('Invalid LYX amount:', error);
-    }
-  };
-
-  // Add new token requirement using fetched metadata
-  const handleAddTokenRequirement = () => {
-    if (!fetchedMetadata) return;
-
-    const tokenReq: TokenRequirement = {
-      contractAddress: fetchedMetadata.contractAddress,
-      tokenType: fetchedMetadata.tokenType,
-      name: fetchedMetadata.name,
-      symbol: fetchedMetadata.symbol
+  const updateGatingSettings = useCallback((updates: Partial<PostSettings['responsePermissions']>) => {
+    const newValue = {
+      ...value,
+      ...updates
     };
+    onChange(newValue);
+  }, [value, onChange]);
 
-    if (fetchedMetadata.tokenType === 'LSP7' && newTokenRequirement.minAmount) {
-      try {
-        const decimals = fetchedMetadata.decimals || 18;
-        tokenReq.minAmount = ethers.utils.parseUnits(newTokenRequirement.minAmount, decimals).toString();
-      } catch (error) {
-        console.error('Invalid token amount:', error);
-        return;
-      }
-    }
-
-    if (fetchedMetadata.tokenType === 'LSP8') {
-      if (newTokenRequirement.tokenId) {
-        // Specific NFT ID requirement
-        tokenReq.tokenId = newTokenRequirement.tokenId;
-      } else if (newTokenRequirement.minAmount) {
-        // Collection ownership requirement (multiple NFTs)
-        tokenReq.minAmount = newTokenRequirement.minAmount;
-      } else {
-        // Default: any NFT from collection (minAmount = "1")
-        tokenReq.minAmount = '1';
-      }
-    }
-
-    const updatedTokens = [...currentTokens, tokenReq];
-    updateGatingSettings({ requiredTokens: updatedTokens });
-    resetFetchState();
-  };
-
-  // Remove token requirement
-  const handleRemoveTokenRequirement = (index: number) => {
-    const updatedTokens = currentTokens.filter((_, i) => i !== index);
-    updateGatingSettings({ requiredTokens: updatedTokens });
-  };
-
-  // Add new follower requirement
-  const handleAddFollowerRequirement = () => {
-    if (!newFollowerRequirement.value.trim()) return;
-
-    const followerReq: FollowerRequirement = {
-      type: newFollowerRequirement.type,
-      value: newFollowerRequirement.value.trim(),
-      description: newFollowerRequirement.description.trim() || undefined
-    };
-
-    const updatedFollowerRequirements = [...currentFollowerRequirements, followerReq];
-    updateGatingSettings({ followerRequirements: updatedFollowerRequirements });
-    setNewFollowerRequirement(defaultFollowerRequirement);
-    setShowFollowerForm(false);
-  };
-
-  // Remove follower requirement
-  const handleRemoveFollowerRequirement = (index: number) => {
-    const updatedFollowerRequirements = currentFollowerRequirements.filter((_, i) => i !== index);
-    updateGatingSettings({ followerRequirements: updatedFollowerRequirements });
-  };
-
-  // Validate address format for follower requirements
-  const isValidAddress = (address: string): boolean => {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
-  };
-
-  // Load UP profile names for follower requirements
-  const fetchUPNames = React.useCallback(async (addresses: string[]) => {
-    if (addresses.length === 0) return;
-    
-    console.log(`[PostGatingControls] Fetching UP names for ${addresses.length} addresses`);
-    
-    const namePromises = addresses.map(async (address) => {
-      try {
-        const displayName = await getUPDisplayName(address);
-        return { address, displayName };
-      } catch (error) {
-        console.error(`Failed to fetch UP name for ${address}:`, error);
-        return { address, displayName: `${address.slice(0, 6)}...${address.slice(-4)}` };
-      }
-    });
-
-    const nameResults = await Promise.all(namePromises);
-    const newNames: Record<string, string> = {};
-    
-    nameResults.forEach(({ address, displayName }) => {
-      newNames[address] = displayName;
-    });
-
-    setUpProfileNames(prev => ({ ...prev, ...newNames }));
+  // Load available categories on mount
+  useEffect(() => {
+    const categories = getAvailableCategories();
+    setAvailableCategories(categories);
+    console.log('[PostGatingControls] Available categories:', categories);
   }, []);
 
-  React.useEffect(() => {
-    if (currentFollowerRequirements.length > 0) {
-      const addressesToFetch = currentFollowerRequirements
-        .filter(req => req.type !== 'minimum_followers') // Only fetch for address-based requirements
-        .map(req => req.value)
-        .filter(address => !upProfileNames[address]); // Don't refetch already loaded names
-
-      fetchUPNames(addressesToFetch);
+  // Migrate legacy format to categories if needed
+  useEffect(() => {
+    if (hasLegacyGating && !hasAnyGating && legacyUpGating) {
+      console.log('[PostGatingControls] Migrating legacy UP gating to categories');
+      const upCategory: GatingCategory = {
+        type: 'universal_profile',
+        enabled: legacyUpGating.enabled,
+        requirements: legacyUpGating.requirements
+      };
+      
+      updateGatingSettings({
+        categories: [upCategory],
+        requireAny: true,
+        // Keep legacy format for backward compatibility
+        upGating: legacyUpGating
+      });
     }
-  }, [currentFollowerRequirements, fetchUPNames, upProfileNames]);
+  }, [hasLegacyGating, hasAnyGating, legacyUpGating, updateGatingSettings]);
 
-  // Get human-readable LYX amount
-  const getLyxDisplayAmount = (weiAmount: string): string => {
-    try {
-      return ethers.utils.formatEther(weiAmount);
-    } catch {
-      return weiAmount;
+  // Helper to get current category by type
+  const getCurrentCategory = (type: string): GatingCategory | null => {
+    return currentCategories.find(cat => cat.type === type) || null;
+  };
+
+  // Helper to check if category is enabled
+  const isCategoryEnabled = (type: string): boolean => {
+    const category = getCurrentCategory(type);
+    return category?.enabled || false;
+  };
+
+  // Toggle category enabled/disabled
+  const toggleCategory = (type: string, enabled: boolean) => {
+    const existingCategories = currentCategories.filter(cat => cat.type !== type);
+    
+    if (enabled) {
+      // Add category with default requirements
+      const renderer = categoryRegistry.get(type);
+      if (!renderer) {
+        console.error(`[PostGatingControls] No renderer found for category: ${type}`);
+        return;
+      }
+
+      const newCategory: GatingCategory = {
+        type,
+        enabled: true,
+        requirements: renderer.getDefaultRequirements()
+      };
+
+      const updatedCategories = [...existingCategories, newCategory];
+      updateGatingSettings({ 
+        categories: updatedCategories,
+        requireAny: true // Default behavior
+      });
+    } else {
+      // Remove category
+      updateGatingSettings({ 
+        categories: existingCategories.length > 0 ? existingCategories : undefined
+      });
+    }
+
+    // Auto-expand when enabling first category
+    if (enabled && !hasGating) {
+      setIsExpanded(true);
     }
   };
 
-  // Get human-readable token amount
-  const getTokenDisplayAmount = (weiAmount: string): string => {
-    try {
-      return ethers.utils.formatUnits(weiAmount, 18);
-    } catch {
-      return weiAmount;
-    }
+  // Update category requirements
+  const updateCategoryRequirements = (type: string, requirements: unknown) => {
+    const updatedCategories = currentCategories.map(cat => 
+      cat.type === type ? { ...cat, requirements } : cat
+    );
+    updateGatingSettings({ categories: updatedCategories });
   };
 
   return (
@@ -547,7 +137,7 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
             <HelpCircle className="h-3 w-3 text-muted-foreground" />
           </div>
           <div className="flex items-center space-x-2">
-            {isEnabled && (
+            {hasGating && (
               <Badge variant="secondary" className="text-xs">
                 <Shield className="h-3 w-3 mr-1" />
                 Gated
@@ -555,498 +145,163 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
             )}
             <input
               type="checkbox"
-              checked={isEnabled}
+              checked={hasGating}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                updateGatingSettings({ enabled: e.target.checked });
-                if (e.target.checked) setIsExpanded(true);
+                if (!e.target.checked) {
+                  // Disable all gating
+                  updateGatingSettings({ categories: undefined, upGating: undefined });
+                } else {
+                  // Enable gating and show options
+                  setIsExpanded(true);
+                }
               }}
               disabled={disabled}
               className="h-4 w-4"
             />
           </div>
         </div>
-        </CardHeader>
+      </CardHeader>
 
-        {isEnabled && (
-          <CardContent className="pt-0 space-y-4">
-            {!isExpanded && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(true)}
-                className="w-full text-xs"
-              >
-                Configure Gating Requirements
-              </Button>
-            )}
-
-            {isExpanded && (
-              <div className="space-y-4">
-                {/* LYX Balance Requirement */}
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Coins className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-medium">Minimum LYX Balance</Label>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Input
-                      type="number"
-                      placeholder="e.g., 100"
-                      value={currentLyxBalance ? getLyxDisplayAmount(currentLyxBalance) : ''}
-                      onChange={(e) => handleLyxBalanceChange(e.target.value)}
+      {(hasGating || isExpanded) && (
+        <CardContent className="pt-0 space-y-4">
+          {/* Category Selection */}
+          {!hasGating && isExpanded && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Select Gating Methods:</Label>
+              {availableCategories.map((categoryInfo) => {
+                const isEnabled = isCategoryEnabled(categoryInfo.type);
+                const renderer = categoryRegistry.get(categoryInfo.type);
+                const metadata = renderer?.getMetadata();
+                
+                return (
+                  <div key={categoryInfo.type} className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <input
+                      type="checkbox"
+                      checked={isEnabled}
+                      onChange={(e) => toggleCategory(categoryInfo.type, e.target.checked)}
                       disabled={disabled}
-                      className="text-sm"
+                      className="h-4 w-4"
                     />
-                    <div className="flex items-center px-3 bg-muted rounded-md">
-                      <span className="text-sm text-muted-foreground">LYX</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Current Token Requirements */}
-                {currentTokens.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Required Tokens</Label>
-                    <div className="space-y-2">
-                      {currentTokens.map((token, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="outline" className="text-xs">
-                                {token.tokenType}
-                              </Badge>
-                              <span className="text-sm font-medium">
-                                {token.name || token.symbol || `Token ${index + 1}`}
-                              </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {token.contractAddress.slice(0, 10)}...{token.contractAddress.slice(-8)}
-                              {token.minAmount && (
-                                <span className="ml-2">
-                                  {token.tokenType === 'LSP8' ? 
-                                    `Min: ${token.minAmount} NFTs` : 
-                                    `Min: ${getTokenDisplayAmount(token.minAmount)} ${token.symbol || 'tokens'}`
-                                  }
-                                </span>
-                              )}
-                              {token.tokenId && (
-                                <span className="ml-2">Token ID: {token.tokenId}</span>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveTokenRequirement(index)}
-                            disabled={disabled}
-                            className="p-1 h-auto"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Add New Token Requirement - Multi-step Flow */}
-                <div className="space-y-3 p-3 border border-dashed border-muted rounded-md">
-                  <div className="flex items-center space-x-2">
-                    <Plus className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-medium">Add Token Requirement</Label>
-                  </div>
-                  
-                  {/* Step 1: Contract Address Input */}
-                  {!fetchedMetadata && (
-                    <div className="space-y-3">
+                    <div className="flex items-center space-x-2 flex-1">
+                      <span className="text-lg">{metadata?.icon || '🔒'}</span>
                       <div>
-                        <Label className="text-xs font-medium">Contract Address</Label>
-                        <div className="flex space-x-2">
-                          <Input
-                            placeholder="0x... (LSP7 or LSP8 token contract)"
-                            value={contractAddress}
-                            onChange={(e) => setContractAddress(e.target.value)}
-                            disabled={disabled || isFetchingMetadata}
-                            className="text-sm flex-1"
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={fetchTokenMetadata}
-                            disabled={disabled || isFetchingMetadata || !contractAddress.trim()}
-                            className="px-3"
-                          >
-                            {isFetchingMetadata ? (
-                              <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
-                            ) : (
-                              <Search className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </div>
-                        {fetchError && (
-                          <div className="flex items-center space-x-1 mt-1 text-xs text-red-600">
-                            <AlertTriangle className="h-3 w-3" />
-                            <span>{fetchError}</span>
-                          </div>
-                        )}
+                        <div className="font-medium text-sm">{metadata?.name || categoryInfo.type}</div>
+                        <div className="text-xs text-muted-foreground">{metadata?.description || 'Configure requirements'}</div>
                       </div>
                     </div>
-                  )}
-
-                  {/* Step 2: Show Fetched Metadata + Amount Input */}
-                  {fetchedMetadata && (
-                    <div className="space-y-3">
-                      {/* Success indicator with token info */}
-                      <div className="flex items-center space-x-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-md border border-emerald-200 dark:border-emerald-800">
-                        <CheckCircle className="h-4 w-4 text-emerald-600" />
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                            {fetchedMetadata.name} ({fetchedMetadata.symbol})
-                          </div>
-                          <div className="text-xs text-emerald-700 dark:text-emerald-300">
-                            {fetchedMetadata.tokenType} Token • {fetchedMetadata.contractAddress.slice(0, 10)}...{fetchedMetadata.contractAddress.slice(-8)}
-                            {fetchedMetadata.decimals && (
-                              <span> • {fetchedMetadata.decimals} decimals</span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={resetFetchState}
-                          disabled={disabled}
-                          className="p-1 h-auto text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-
-                      {/* Amount/Token ID input based on token type */}
-                      {fetchedMetadata.tokenType === 'LSP7' ? (
-                        <div>
-                          <Label className="text-xs font-medium">Minimum Amount Required</Label>
-                          <div className="flex space-x-2">
-                            <Input
-                              type="number"
-                              step="any"
-                              placeholder="e.g., 100"
-                              value={newTokenRequirement.minAmount}
-                              onChange={(e) => setNewTokenRequirement(prev => ({ ...prev, minAmount: e.target.value }))}
-                              disabled={disabled}
-                              className="text-sm flex-1"
-                            />
-                            <div className="flex items-center px-3 bg-muted rounded-md border">
-                              <span className="text-sm text-muted-foreground font-medium">
-                                {fetchedMetadata.symbol}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <Label className="text-xs font-medium">NFT Requirement</Label>
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="any-nft"
-                                name="nft-requirement"
-                                checked={!newTokenRequirement.tokenId && !newTokenRequirement.minAmount}
-                                onChange={() => setNewTokenRequirement(prev => ({ ...prev, tokenId: '', minAmount: '' }))}
-                                disabled={disabled}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor="any-nft" className="text-xs">
-                                Any NFT from this collection (default)
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="collection-amount"
-                                name="nft-requirement"
-                                checked={Boolean(newTokenRequirement.minAmount) && !newTokenRequirement.tokenId}
-                                onChange={() => setNewTokenRequirement(prev => ({ ...prev, tokenId: '', minAmount: '1' }))}
-                                disabled={disabled}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor="collection-amount" className="text-xs">
-                                Minimum NFTs from collection:
-                              </Label>
-                              <Input
-                                type="number"
-                                placeholder="1"
-                                value={newTokenRequirement.minAmount}
-                                onChange={(e) => setNewTokenRequirement(prev => ({ ...prev, minAmount: e.target.value, tokenId: '' }))}
-                                disabled={disabled || (!newTokenRequirement.minAmount && !Boolean(newTokenRequirement.minAmount))}
-                                className="text-sm w-16"
-                                min="1"
-                              />
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id="specific-nft"
-                                name="nft-requirement"
-                                checked={Boolean(newTokenRequirement.tokenId)}
-                                onChange={() => setNewTokenRequirement(prev => ({ ...prev, tokenId: '1', minAmount: '' }))}
-                                disabled={disabled}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor="specific-nft" className="text-xs">
-                                Specific NFT ID:
-                              </Label>
-                              <Input
-                                placeholder="Token ID"
-                                value={newTokenRequirement.tokenId}
-                                onChange={(e) => setNewTokenRequirement(prev => ({ ...prev, tokenId: e.target.value, minAmount: '' }))}
-                                disabled={disabled || !Boolean(newTokenRequirement.tokenId)}
-                                className="text-sm w-24"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Add requirement button */}
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={handleAddTokenRequirement}
-                        disabled={
-                          disabled || 
-                          (fetchedMetadata.tokenType === 'LSP7' && newTokenRequirement.minAmount.trim() === '') ||
-                          (fetchedMetadata.tokenType === 'LSP8' && newTokenRequirement.tokenId !== '' && newTokenRequirement.tokenId.trim() === '') ||
-                          (fetchedMetadata.tokenType === 'LSP8' && newTokenRequirement.minAmount !== '' && newTokenRequirement.minAmount.trim() === '')
-                        }
-                        className="w-full text-xs"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Token Requirement
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Follower Requirements Section */}
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-medium">Follower Requirements</Label>
                   </div>
+                );
+              })}
+            </div>
+          )}
 
-                  {/* Current Follower Requirements */}
-                  {currentFollowerRequirements.length > 0 && (
-                    <div className="space-y-2">
-                      {currentFollowerRequirements.map((followerReq, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <div className="flex items-center space-x-1">
-                                {followerReq.type === 'minimum_followers' ? (
-                                  <Users className="h-3 w-3 text-purple-500" />
-                                ) : followerReq.type === 'followed_by' ? (
-                                  <UserCheck className="h-3 w-3 text-green-500" />
-                                ) : (
-                                  <UserX className="h-3 w-3 text-blue-500" />
-                                )}
-                                <Badge variant="outline" className="text-xs">
-                                  {followerReq.type.replace('_', ' ').toUpperCase()}
-                                </Badge>
-                              </div>
-                              <span className="text-sm font-medium">
-                                {followerReq.description || (() => {
-                                  const upName = upProfileNames[followerReq.value] || `${followerReq.value.slice(0, 6)}...${followerReq.value.slice(-4)}`;
-                                  return followerReq.type === 'minimum_followers' 
-                                    ? `Minimum ${followerReq.value} followers`
-                                    : followerReq.type === 'followed_by'
-                                    ? `Must be followed by ${upName}`
-                                    : `Must follow ${upName}`;
-                                })()}
-                              </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {followerReq.type !== 'minimum_followers' && (
-                                <span>{followerReq.value}</span>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveFollowerRequirement(index)}
-                            disabled={disabled}
-                            className="p-1 h-auto"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+          {/* Active Categories Configuration */}
+          {hasGating && (
+            <div className="space-y-4">
+              {!isExpanded && (
+                <div className="space-y-2">
+                  {/* Quick summary view */}
+                  <div className="text-sm text-muted-foreground">
+                    Active gating: {currentCategories.map(cat => {
+                      const renderer = categoryRegistry.get(cat.type);
+                      const metadata = renderer?.getMetadata();
+                      return metadata?.shortName || cat.type;
+                    }).join(', ')}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsExpanded(true)}
+                    className="w-full"
+                  >
+                    Configure Gating Requirements
+                  </Button>
+                </div>
+              )}
 
-                  {/* Add New Follower Requirement */}
-                  {!showFollowerForm ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowFollowerForm(true)}
-                      disabled={disabled}
-                      className="w-full text-xs"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add Follower Requirement
-                    </Button>
-                  ) : (
-                    <div className="space-y-3 p-3 border border-dashed border-muted rounded-md">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <Plus className="h-4 w-4 text-primary" />
-                          <Label className="text-sm font-medium">New Follower Requirement</Label>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setShowFollowerForm(false);
-                            setNewFollowerRequirement(defaultFollowerRequirement);
-                          }}
-                          disabled={disabled}
-                          className="p-1 h-auto"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-
-                      {/* Requirement Type Selector */}
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">Requirement Type</Label>
-                        <div className="grid grid-cols-1 gap-2">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id="min-followers"
-                              name="follower-type"
-                              checked={newFollowerRequirement.type === 'minimum_followers'}
-                              onChange={() => setNewFollowerRequirement(prev => ({ ...prev, type: 'minimum_followers', value: '' }))}
-                              disabled={disabled}
-                              className="h-3 w-3"
-                            />
-                            <div className="flex items-center space-x-1">
-                              <Users className="h-3 w-3 text-purple-500" />
-                              <Label htmlFor="min-followers" className="text-xs cursor-pointer">
-                                Minimum follower count
-                              </Label>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id="followed-by"
-                              name="follower-type"
-                              checked={newFollowerRequirement.type === 'followed_by'}
-                              onChange={() => setNewFollowerRequirement(prev => ({ ...prev, type: 'followed_by', value: '' }))}
-                              disabled={disabled}
-                              className="h-3 w-3"
-                            />
-                            <div className="flex items-center space-x-1">
-                              <UserCheck className="h-3 w-3 text-green-500" />
-                              <Label htmlFor="followed-by" className="text-xs cursor-pointer">
-                                Must be followed by specific profile
-                              </Label>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id="following"
-                              name="follower-type"
-                              checked={newFollowerRequirement.type === 'following'}
-                              onChange={() => setNewFollowerRequirement(prev => ({ ...prev, type: 'following', value: '' }))}
-                              disabled={disabled}
-                              className="h-3 w-3"
-                            />
-                            <div className="flex items-center space-x-1">
-                              <UserX className="h-3 w-3 text-blue-500" />
-                              <Label htmlFor="following" className="text-xs cursor-pointer">
-                                Must follow specific profile
-                              </Label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Value Input */}
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">
-                          {newFollowerRequirement.type === 'minimum_followers' 
-                            ? 'Minimum Follower Count' 
-                            : 'Universal Profile Address'}
-                        </Label>
-                        <Input
-                          type={newFollowerRequirement.type === 'minimum_followers' ? 'number' : 'text'}
-                          placeholder={
-                            newFollowerRequirement.type === 'minimum_followers' 
-                              ? 'e.g., 100' 
-                              : '0x... (Universal Profile address)'
-                          }
-                          value={newFollowerRequirement.value}
-                          onChange={(e) => setNewFollowerRequirement(prev => ({ ...prev, value: e.target.value }))}
-                          disabled={disabled}
-                          className="text-sm"
-                          min={newFollowerRequirement.type === 'minimum_followers' ? "1" : undefined}
-                        />
-                        {newFollowerRequirement.type !== 'minimum_followers' && newFollowerRequirement.value && !isValidAddress(newFollowerRequirement.value) && (
-                          <div className="flex items-center space-x-1 text-xs text-red-600">
-                            <AlertTriangle className="h-3 w-3" />
-                            <span>Please enter a valid address (0x...)</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Optional Description */}
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">Custom Description (Optional)</Label>
-                        <Input
-                          type="text"
-                          placeholder="e.g., Only followers of @InfluencerAccount can comment"
-                          value={newFollowerRequirement.description}
-                          onChange={(e) => setNewFollowerRequirement(prev => ({ ...prev, description: e.target.value }))}
-                          disabled={disabled}
-                          className="text-sm"
-                        />
-                      </div>
-
-                      {/* Add Button */}
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={handleAddFollowerRequirement}
-                        disabled={
-                          disabled || 
-                          !newFollowerRequirement.value.trim() ||
-                          (newFollowerRequirement.type === 'minimum_followers' && (isNaN(Number(newFollowerRequirement.value)) || Number(newFollowerRequirement.value) < 1)) ||
-                          (newFollowerRequirement.type !== 'minimum_followers' && !isValidAddress(newFollowerRequirement.value))
-                        }
-                        className="w-full text-xs"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Follower Requirement
+              {isExpanded && (
+                <div className="space-y-6">
+                  {/* Category management */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Active Gating Categories:</Label>
+                      <Button variant="outline" size="sm" onClick={() => setIsExpanded(false)}>
+                        Collapse
                       </Button>
                     </div>
-                  )}
+                    
+                    {/* Show active categories */}
+                    {currentCategories.map((category) => {
+                      const renderer = categoryRegistry.get(category.type);
+                      const metadata = renderer?.getMetadata();
+                      
+                      return (
+                        <div key={category.type} className="border rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-lg">{metadata?.icon || '🔒'}</span>
+                              <div>
+                                <div className="font-medium text-sm">{metadata?.name || category.type}</div>
+                                <div className="text-xs text-muted-foreground">{metadata?.description}</div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleCategory(category.type, false)}
+                              disabled={disabled}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          
+                          {/* Category configuration */}
+                          {renderer && (
+                            <div className="ml-6">
+                              {renderer.renderConfig({
+                                requirements: category.requirements,
+                                onChange: (newReqs) => updateCategoryRequirements(category.type, newReqs),
+                                disabled
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Add more categories */}
+                    {currentCategories.length < availableCategories.length && (
+                      <div className="border-2 border-dashed rounded-lg p-4">
+                        <Label className="text-sm font-medium mb-3 block">Add More Gating Methods:</Label>
+                        <div className="space-y-2">
+                          {availableCategories
+                            .filter(catInfo => !isCategoryEnabled(catInfo.type))
+                            .map((categoryInfo) => {
+                              const renderer = categoryRegistry.get(categoryInfo.type);
+                              const metadata = renderer?.getMetadata();
+                              
+                              return (
+                                <Button
+                                  key={categoryInfo.type}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => toggleCategory(categoryInfo.type, true)}
+                                  disabled={disabled}
+                                  className="w-full justify-start"
+                                >
+                                  <span className="mr-2">{metadata?.icon || '🔒'}</span>
+                                  Add {metadata?.name || categoryInfo.type}
+                                </Button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsExpanded(false)}
-                  className="w-full text-xs"
-                >
-                  Collapse
-                </Button>
-              </div>
-                      )}
+              )}
+            </div>
+          )}
         </CardContent>
       )}
     </Card>

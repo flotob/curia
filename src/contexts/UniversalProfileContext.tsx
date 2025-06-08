@@ -5,6 +5,7 @@ import { init, useConnectWallet, useSetChain } from '@web3-onboard/react';
 import injectedModule from '@web3-onboard/injected-wallets';
 import { ethers } from 'ethers';
 import { PostSettings, TokenRequirement, SettingsUtils, FollowerRequirement } from '@/types/settings';
+import { VerificationResult } from '@/types/gating';
 import { ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
 import { lsp26Registry } from '@/lib/lsp26';
 
@@ -42,13 +43,6 @@ const initOnboard = () => {
     }
   });
 };
-
-// Verification result interface
-export interface VerificationResult {
-  isValid: boolean;
-  missingRequirements: string[];
-  errors: string[];
-}
 
 // Token balance information
 export interface TokenBalance {

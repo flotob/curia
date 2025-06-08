@@ -95,20 +95,26 @@ export class UniversalProfileRenderer implements CategoryRenderer {
   }
 
   /**
-   * Verify user against UP requirements
+   * Client-side verification of Universal Profile requirements
    */
   async verify(requirements: UPGatingRequirements, userWallet: string): Promise<VerificationResult> {
     try {
-      // This would call the existing verification logic
-      // For now, return a placeholder
-      console.log(`[UPRenderer] Verifying ${userWallet} against requirements:`, requirements);
+      console.log('[UPRenderer] Verifying UP requirements for:', userWallet);
       
       // TODO: Implement actual verification by calling existing server-side logic
-      return { valid: true };
+      return { 
+        isValid: true,
+        missingRequirements: [],
+        errors: []
+      };
       
     } catch (error) {
       console.error('[UPRenderer] Verification error:', error);
-      return { valid: false, error: 'Failed to verify Universal Profile requirements' };
+      return { 
+        isValid: false, 
+        missingRequirements: [],
+        errors: ['Failed to verify Universal Profile requirements']
+      };
     }
   }
 

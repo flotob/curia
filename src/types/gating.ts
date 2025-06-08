@@ -24,6 +24,7 @@ export interface GatingCategory {
  */
 export type GatingCategoryType = 
   | 'universal_profile'
+  | 'ethereum_profile'
   | 'ens_domain'
   | 'nft_collection'
   | 'social_verification'
@@ -46,9 +47,9 @@ export interface GatingCategoryMetadata {
  * Result of verifying a user against category requirements
  */
 export interface VerificationResult {
-  valid: boolean;
-  error?: string;
-  details?: Record<string, unknown>; // Additional verification details
+  isValid: boolean;
+  missingRequirements: string[];
+  errors: string[];
 }
 
 /**
@@ -150,6 +151,76 @@ export interface UniversalProfileCategory extends GatingCategory {
   requirements: UPGatingRequirements;
 }
 
+// ===== ETHEREUM PROFILE SPECIFIC TYPES =====
+
+/**
+ * Ethereum ERC-20 token requirement
+ */
+export interface ERC20Requirement {
+  contractAddress: string;
+  minimum: string; // Minimum balance in smallest unit (wei)
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+}
+
+/**
+ * Ethereum ERC-721 NFT collection requirement
+ */
+export interface ERC721Requirement {
+  contractAddress: string;
+  minimumCount?: number; // Minimum number of NFTs (default: 1)
+  name?: string;
+  symbol?: string;
+}
+
+/**
+ * Ethereum ERC-1155 semi-fungible token requirement
+ */
+export interface ERC1155Requirement {
+  contractAddress: string;
+  tokenId: string;
+  minimum: string; // Minimum balance for this token ID
+  name?: string;
+}
+
+/**
+ * EFP (Ethereum Follow Protocol) social requirements
+ */
+export interface EFPRequirement {
+  type: 'minimum_followers' | 'must_follow' | 'must_be_followed_by';
+  value: string; // Number for minimum_followers, address for others
+  description?: string;
+}
+
+/**
+ * Ethereum Profile gating requirements
+ */
+export interface EthereumGatingRequirements {
+  // ENS requirements
+  requiresENS?: boolean;
+  ensDomainPatterns?: string[]; // e.g., ["*.eth", "*.xyz"]
+  
+  // Native ETH balance
+  minimumETHBalance?: string; // in wei
+  
+  // Token requirements
+  requiredERC20Tokens?: ERC20Requirement[];
+  requiredERC721Collections?: ERC721Requirement[];
+  requiredERC1155Tokens?: ERC1155Requirement[];
+  
+  // EFP social requirements
+  efpRequirements?: EFPRequirement[];
+}
+
+/**
+ * Ethereum Profile category implementation
+ */
+export interface EthereumProfileCategory extends GatingCategory {
+  type: 'ethereum_profile';
+  requirements: EthereumGatingRequirements;
+}
+
 // ===== FUTURE CATEGORY TYPES =====
 
 /**
@@ -207,6 +278,7 @@ export interface CategoryRegistry {
  */
 export type SupportedGatingCategory = 
   | UniversalProfileCategory
+  | EthereumProfileCategory
   | ENSDomainCategory
   | NFTCollectionCategory;
 

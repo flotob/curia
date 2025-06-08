@@ -6,8 +6,11 @@ export interface VerificationChallenge {
   nonce: string;           // Random nonce for replay protection
   timestamp: number;       // Unix timestamp for expiry
   postId: number;          // Post being commented on
-  upAddress: string;       // Universal Profile address
-  chainId: number;         // Chain ID (42 for LUKSO mainnet)
+  chainId: number;         // Chain ID (42 for LUKSO mainnet, 1 for Ethereum mainnet)
+  
+  // Multi-chain address support
+  upAddress?: string;      // Universal Profile address (optional for multi-category)
+  ethAddress?: string;     // Ethereum address (optional for multi-category)
   
   // Signature data (added after user signs)
   signature?: string;      // User's signature of challenge

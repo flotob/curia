@@ -6,6 +6,7 @@
  */
 
 import { universalProfileRenderer } from './renderers/UniversalProfileRenderer';
+import { ethereumProfileRenderer } from './renderers/EthereumProfileRenderer';
 import { categoryRegistry } from './categoryRegistry';
 
 /**
@@ -17,6 +18,9 @@ export function registerAllCategories(): void {
   
   // Register Universal Profile renderer
   categoryRegistry.register('universal_profile', universalProfileRenderer);
+  
+  // Register Ethereum Profile renderer
+  categoryRegistry.register('ethereum_profile', ethereumProfileRenderer);
   
   // Future category registrations will go here:
   // categoryRegistry.register('ens_domain', ensDomainRenderer);

@@ -17,6 +17,8 @@ import {
   TokenVerificationResult
 } from '@/lib/verification';
 import { SettingsUtils, PostSettings, TokenRequirement, FollowerRequirement } from '@/types/settings';
+import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
+import { EthereumGatingRequirements } from '@/types/gating';
 
 // Initialize nonce store
 NonceStore.initialize();
@@ -566,6 +568,111 @@ async function verifyPostGatingRequirements(
   }
 }
 
+/**
+ * Verify multi-category gating requirements (supports both UP and Ethereum)
+ */
+async function verifyMultiCategoryGatingRequirements(
+  challenge: VerificationChallenge,
+  postSettings: PostSettings
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    // Get all active gating categories
+    const categories = SettingsUtils.getGatingCategories(postSettings);
+    
+    if (categories.length === 0) {
+      return { valid: true }; // No gating requirements
+    }
+
+    console.log(`[verifyMultiCategoryGatingRequirements] Checking ${categories.length} gating categories`);
+
+    // Check requireAll vs requireAny logic
+    const requireAll = postSettings.responsePermissions?.requireAll || false;
+    const errors: string[] = [];
+    let anyValid = false;
+
+    for (const category of categories) {
+      if (!category.enabled) {
+        continue; // Skip disabled categories
+      }
+
+      let categoryResult: { valid: boolean; error?: string };
+
+      switch (category.type) {
+        case 'universal_profile': {
+          // Verify Universal Profile requirements
+          if (!challenge.upAddress) {
+            categoryResult = { valid: false, error: 'Universal Profile address required but not provided' };
+            break;
+          }
+
+          categoryResult = await verifyPostGatingRequirements(challenge.upAddress, {
+            responsePermissions: {
+              upGating: {
+                enabled: true,
+                requirements: category.requirements as any
+              }
+            }
+          });
+          break;
+        }
+
+        case 'ethereum_profile': {
+          // Verify Ethereum requirements
+          if (!challenge.ethAddress) {
+            categoryResult = { valid: false, error: 'Ethereum address required but not provided' };
+            break;
+          }
+
+          categoryResult = await verifyEthereumGatingRequirements(
+            challenge.ethAddress,
+            category.requirements as EthereumGatingRequirements
+          );
+          break;
+        }
+
+        default: {
+          categoryResult = { valid: false, error: `Unsupported gating category: ${category.type}` };
+          break;
+        }
+      }
+
+      if (categoryResult.valid) {
+        anyValid = true;
+        if (!requireAll) {
+          // If requireAny (default), one valid category is enough
+          console.log(`[verifyMultiCategoryGatingRequirements] ✅ Category ${category.type} satisfied (requireAny mode)`);
+          return { valid: true };
+        }
+      } else {
+        errors.push(`${category.type}: ${categoryResult.error}`);
+        if (requireAll) {
+          // If requireAll, any failure means overall failure
+          console.log(`[verifyMultiCategoryGatingRequirements] ❌ Category ${category.type} failed (requireAll mode)`);
+          return { valid: false, error: categoryResult.error };
+        }
+      }
+    }
+
+    if (requireAll && anyValid) {
+      // All categories passed in requireAll mode
+      console.log(`[verifyMultiCategoryGatingRequirements] ✅ All categories satisfied (requireAll mode)`);
+      return { valid: true };
+    }
+
+    if (!requireAll && !anyValid) {
+      // No categories passed in requireAny mode
+      console.log(`[verifyMultiCategoryGatingRequirements] ❌ No categories satisfied (requireAny mode)`);
+      return { valid: false, error: `Requirements not met: ${errors.join('; ')}` };
+    }
+
+    return { valid: true };
+
+  } catch (error) {
+    console.error('[verifyMultiCategoryGatingRequirements] Error verifying requirements:', error);
+    return { valid: false, error: 'Failed to verify gating requirements' };
+  }
+}
+
 // GET comments for a post (now protected and permission-checked)
 async function getCommentsHandler(req: AuthenticatedRequest, context: RouteContext) {
   const params = await context.params;
@@ -702,18 +809,18 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       return NextResponse.json({ error: 'Comment content cannot be empty' }, { status: 400 });
     }
 
-    // Parse post settings and check for UP gating
+    // Parse post settings and check for gating
     const postSettings: PostSettings = typeof post_settings === 'string' 
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
-    // ⭐ UNIVERSAL PROFILE GATING VERIFICATION ⭐
-    if (SettingsUtils.hasUPGating(postSettings)) {
-      console.log(`[API POST /api/posts/${postId}/comments] Post has UP gating enabled, verifying challenge...`);
+    // ⭐ MULTI-CATEGORY GATING VERIFICATION ⭐
+    if (SettingsUtils.hasAnyGating(postSettings)) {
+      console.log(`[API POST /api/posts/${postId}/comments] Post has gating enabled, verifying challenge...`);
       
       if (!challenge) {
         return NextResponse.json({ 
-          error: 'This post requires Universal Profile verification to comment. Please connect your UP and try again.' 
+          error: 'This post requires verification to comment. Please connect your wallet and try again.' 
         }, { status: 403 });
       }
 
@@ -732,32 +839,38 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         }, { status: 400 });
       }
 
-      // Verify and consume nonce (prevents replay attacks)
-      const nonceValidation = NonceStore.validateAndConsume(
-        challenge.nonce, 
-        challenge.upAddress, 
-        postId
+      // For multi-category gating, verify the appropriate signature
+      if (challenge.upAddress) {
+        // Verify and consume nonce for Universal Profile (prevents replay attacks)
+        const nonceValidation = NonceStore.validateAndConsume(
+          challenge.nonce, 
+          challenge.upAddress, 
+          postId
+        );
+
+        if (!nonceValidation.valid) {
+          return NextResponse.json({ 
+            error: `Challenge validation failed: ${nonceValidation.error}` 
+          }, { status: 400 });
+        }
+
+        // Verify UP signature using ERC-1271
+        const signatureValidation = await verifyUPSignature(challenge.upAddress, challenge);
+        if (!signatureValidation.valid) {
+          return NextResponse.json({ 
+            error: `Signature verification failed: ${signatureValidation.error}` 
+          }, { status: 401 });
+        }
+      }
+
+      // For Ethereum addresses, signature verification would be added here
+      // TODO: Implement Ethereum signature verification when adding EthereumProfileContext
+
+      // Verify all gating requirements (supports both UP and Ethereum)
+      const requirementValidation = await verifyMultiCategoryGatingRequirements(
+        challenge, 
+        postSettings
       );
-
-      if (!nonceValidation.valid) {
-        return NextResponse.json({ 
-          error: `Challenge validation failed: ${nonceValidation.error}` 
-        }, { status: 400 });
-      }
-
-      // Verify UP signature using ERC-1271
-      const signatureValidation = await verifyUPSignature(challenge.upAddress, challenge);
-      if (!signatureValidation.valid) {
-        return NextResponse.json({ 
-          error: `Signature verification failed: ${signatureValidation.error}` 
-        }, { status: 401 });
-      }
-
-             // Verify post requirements (LYX balance, tokens, etc.)
-       const requirementValidation = await verifyPostGatingRequirements(
-         challenge.upAddress, 
-         postSettings
-       );
 
       if (!requirementValidation.valid) {
         return NextResponse.json({ 
@@ -765,7 +878,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         }, { status: 403 });
       }
 
-      console.log(`[API POST /api/posts/${postId}/comments] UP gating verification successful for ${challenge.upAddress}`);
+      console.log(`[API POST /api/posts/${postId}/comments] Multi-category gating verification successful`);
     }
 
     // Start transaction for comment creation
