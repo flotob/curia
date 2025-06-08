@@ -10,6 +10,7 @@ import {
   CategoryRenderer, 
   CategoryRendererProps, 
   CategoryConfigProps, 
+  CategoryConnectionProps,
   GatingCategoryMetadata, 
   VerificationResult,
   EthereumGatingRequirements
@@ -85,6 +86,60 @@ export class EthereumProfileRenderer implements CategoryRenderer {
         disabled={disabled}
       />
     );
+  }
+
+  /**
+   * NEW: Render the connection component (for commenter-side)
+   */
+  renderConnection(props: CategoryConnectionProps): ReactNode {
+    // TODO: Implement Ethereum connection widget
+    return (
+      <div className="p-4 border rounded-lg bg-blue-50 border-blue-200">
+        <div className="text-sm font-medium text-blue-800">Ethereum Profile Required</div>
+        <div className="text-xs text-blue-600 mt-1">Connect your Ethereum wallet to verify ENS/EFP requirements</div>
+        <button 
+          onClick={props.onConnect}
+          disabled={props.disabled}
+          className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:opacity-50"
+        >
+          Connect Ethereum Wallet
+        </button>
+      </div>
+    );
+  }
+
+  /**
+   * NEW: Generate challenge for Ethereum verification
+   */
+  async generateChallenge(ethAddress: string, postId: number): Promise<unknown> {
+    // TODO: Implement Ethereum challenge generation
+    return {
+      type: 'ethereum_profile',
+      address: ethAddress,
+      postId,
+      timestamp: Date.now()
+    };
+  }
+
+  /**
+   * NEW: Verify user requirements (server-side)
+   */
+  async verifyUserRequirements(_ethAddress: string, _requirements: unknown): Promise<VerificationResult> { // eslint-disable-line @typescript-eslint/no-unused-vars
+    // TODO: Implement Ethereum requirement verification
+    return {
+      isValid: true,
+      missingRequirements: [],
+      errors: []
+    };
+  }
+
+  /**
+   * NEW: Validate Ethereum signature
+   */
+  async validateSignature(challenge: unknown): Promise<boolean> {
+    // TODO: Implement Ethereum signature validation
+    console.log('[EthereumProfileRenderer] Signature validation not yet implemented', challenge);
+    return true;
   }
 
   /**

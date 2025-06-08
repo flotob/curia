@@ -99,18 +99,37 @@ export interface CategoryConfigProps {
 }
 
 /**
+ * Props for category connection components (commenter-side)
+ */
+export interface CategoryConnectionProps {
+  requirements: unknown;
+  onConnect: () => Promise<void>;
+  onDisconnect: () => void;
+  userStatus?: VerificationStatus;
+  disabled?: boolean;
+}
+
+/**
  * Abstract interface for category renderers
  */
 export interface CategoryRenderer {
   // Display information
   getMetadata(): GatingCategoryMetadata;
   
-  // Render components
+  // Render components (poster-side)
   renderDisplay(props: CategoryRendererProps): ReactNode;
   renderConfig(props: CategoryConfigProps): ReactNode;
   
+  // NEW: Render components (commenter-side)
+  renderConnection(props: CategoryConnectionProps): ReactNode;
+  
   // Verification logic
   verify(requirements: unknown, userWallet: string): Promise<VerificationResult>;
+  
+  // NEW: Commenter-side verification methods
+  generateChallenge(address: string, postId: number): Promise<unknown>;
+  verifyUserRequirements(address: string, requirements: unknown): Promise<VerificationResult>;
+  validateSignature(challenge: unknown): Promise<boolean>;
   
   // Requirements processing
   validateRequirements(requirements: unknown): { valid: boolean; errors: string[] };

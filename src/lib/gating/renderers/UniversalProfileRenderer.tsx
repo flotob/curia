@@ -10,6 +10,7 @@ import {
   CategoryRenderer, 
   CategoryRendererProps, 
   CategoryConfigProps, 
+  CategoryConnectionProps,
   GatingCategoryMetadata, 
   VerificationResult,
   UPGatingRequirements
@@ -92,6 +93,60 @@ export class UniversalProfileRenderer implements CategoryRenderer {
         disabled={disabled}
       />
     );
+  }
+
+  /**
+   * NEW: Render the connection component (for commenter-side)
+   */
+  renderConnection(props: CategoryConnectionProps): ReactNode {
+    // TODO: Implement UP connection widget
+    return (
+      <div className="p-4 border rounded-lg bg-pink-50 border-pink-200">
+        <div className="text-sm font-medium text-pink-800">Universal Profile Required</div>
+        <div className="text-xs text-pink-600 mt-1">Connect your UP to verify requirements</div>
+        <button 
+          onClick={props.onConnect}
+          disabled={props.disabled}
+          className="mt-2 px-3 py-1 bg-pink-500 text-white text-xs rounded hover:bg-pink-600 disabled:opacity-50"
+        >
+          Connect Universal Profile
+        </button>
+      </div>
+    );
+  }
+
+  /**
+   * NEW: Generate challenge for UP verification
+   */
+  async generateChallenge(upAddress: string, postId: number): Promise<unknown> {
+    // TODO: Implement UP challenge generation
+    return {
+      type: 'universal_profile',
+      address: upAddress,
+      postId,
+      timestamp: Date.now()
+    };
+  }
+
+  /**
+   * NEW: Verify user requirements (server-side)
+   */
+  async verifyUserRequirements(_upAddress: string, _requirements: unknown): Promise<VerificationResult> { // eslint-disable-line @typescript-eslint/no-unused-vars
+    // TODO: Implement UP requirement verification
+    return {
+      isValid: true,
+      missingRequirements: [],
+      errors: []
+    };
+  }
+
+  /**
+   * NEW: Validate UP signature
+   */
+  async validateSignature(challenge: unknown): Promise<boolean> {
+    // TODO: Implement UP signature validation
+    console.log('[UniversalProfileRenderer] Signature validation not yet implemented', challenge);
+    return true;
   }
 
   /**

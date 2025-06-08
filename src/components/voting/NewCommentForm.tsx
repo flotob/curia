@@ -17,7 +17,7 @@ import { EditorToolbar } from './EditorToolbar';
 // Import our verification types
 import { VerificationChallenge } from '@/lib/verification';
 import { SettingsUtils } from '@/types/settings';
-import { InlineUPConnection } from '@/components/comment/InlineUPConnection';
+import { MultiCategoryConnection } from '@/components/gating/MultiCategoryConnection';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -65,8 +65,8 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingChallenge, setIsGeneratingChallenge] = useState(false);
 
-  // Check if this post has gating enabled
-  const hasGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
+  // Check if this post has gating enabled (supports both old and new formats)
+  const hasGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
 
   // Set up typing events for real-time indicators
   const typingEvents = useTypingEvents({
@@ -251,11 +251,11 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     }
   };
 
-  // Show UP connection widget for gated posts
+  // Show multi-category connection widget for gated posts
   if (hasGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) {
     return (
       <div className="mt-6">
-        <InlineUPConnection postSettings={post?.settings} />
+        <MultiCategoryConnection postSettings={post?.settings || {}} />
       </div>
     );
   }
@@ -276,9 +276,9 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   return (
     <div className="mt-6 space-y-4">
-      {/* Show inline UP connection widget for gated posts when connected */}
+      {/* Show inline multi-category connection widget for gated posts when connected */}
       {hasGating && hasUserTriggeredConnection && isUPConnected && (
-        <InlineUPConnection postSettings={post?.settings} />
+        <MultiCategoryConnection postSettings={post?.settings || {}} />
       )}
       
       <Card className="border-2 shadow-md hover:shadow-lg transition-shadow duration-300">

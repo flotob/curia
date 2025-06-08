@@ -18,7 +18,7 @@ import {
 } from '@/lib/verification';
 import { SettingsUtils, PostSettings, TokenRequirement, FollowerRequirement } from '@/types/settings';
 import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
-import { EthereumGatingRequirements } from '@/types/gating';
+import { EthereumGatingRequirements, UPGatingRequirements } from '@/types/gating';
 
 // Initialize nonce store
 NonceStore.initialize();
@@ -113,6 +113,11 @@ async function verifyUPSignature(
     // Check if challenge is expired
     if (ChallengeUtils.isExpired(challenge)) {
       return { valid: false, error: 'Challenge has expired' };
+    }
+
+    // Verify UP address is provided in challenge
+    if (!challenge.upAddress) {
+      return { valid: false, error: 'No Universal Profile address provided in challenge' };
     }
 
     // Verify the UP address matches
@@ -609,7 +614,7 @@ async function verifyMultiCategoryGatingRequirements(
             responsePermissions: {
               upGating: {
                 enabled: true,
-                requirements: category.requirements as any
+                requirements: category.requirements as UPGatingRequirements
               }
             }
           });
