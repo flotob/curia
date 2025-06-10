@@ -95,7 +95,7 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
   
   // Wagmi hooks
   const { address, isConnected, chain } = useAccount();
-  const { connect, connectors, isPending: isConnecting } = useConnect();
+  const { isPending: isConnecting } = useConnect(); // Keep isConnecting but remove unused connect and connectors
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const { data: balance } = useBalance({ address });
@@ -108,18 +108,11 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
 
   // ===== CONNECTION METHODS =====
 
+  // Connection is now handled by RainbowKit, so we simplify this
   const handleConnect = useCallback(async () => {
-    try {
-      setConnectionError(null);
-      const connector = connectors.find(c => c.name === 'MetaMask') || connectors[0];
-      if (connector) {
-        connect({ connector });
-      }
-    } catch (error) {
-      console.error('[EthereumProfileContext] Connection failed:', error);
-      setConnectionError(error instanceof Error ? error.message : 'Connection failed');
-    }
-  }, [connect, connectors]);
+    // Connection is handled by RainbowKit ConnectButton
+    console.log('[EthereumProfileContext] Connection is handled by RainbowKit');
+  }, []);
 
   const handleDisconnect = useCallback(() => {
     disconnect();

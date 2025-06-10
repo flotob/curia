@@ -201,6 +201,62 @@ async function verifyUPSignature(
 }
 
 /**
+ * Verify Ethereum signature using standard ECDSA verification
+ */
+async function verifyEthereumSignature(
+  challenge: VerificationChallenge
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    console.log(`[verifyEthereumSignature] Verifying Ethereum signature for challenge type: ${challenge.type}`);
+
+    // Validate required fields
+    if (!challenge.ethAddress) {
+      return { valid: false, error: 'No Ethereum address provided in challenge' };
+    }
+
+    if (!challenge.signature) {
+      return { valid: false, error: 'No signature provided' };
+    }
+
+    // Check if challenge is expired
+    if (ChallengeUtils.isExpired(challenge)) {
+      return { valid: false, error: 'Challenge has expired' };
+    }
+
+    // Recreate the message that was signed
+    const message = `Verify access to post ${challenge.postId} on Ethereum mainnet
+
+Address: ${challenge.ethAddress}
+Chain ID: ${challenge.chainId}
+Timestamp: ${challenge.timestamp}
+Nonce: ${challenge.nonce}
+
+This signature proves you control this Ethereum address and grants access to comment on this gated post.`;
+
+    // Verify the signature using ethers.js utilities
+    try {
+      const recoveredAddress = ethers.utils.verifyMessage(message, challenge.signature);
+      
+      if (recoveredAddress.toLowerCase() !== challenge.ethAddress.toLowerCase()) {
+        console.log(`[verifyEthereumSignature] Address mismatch. Expected: ${challenge.ethAddress}, Recovered: ${recoveredAddress}`);
+        return { valid: false, error: 'Signature verification failed - signature does not match the provided Ethereum address' };
+      }
+
+      console.log(`[verifyEthereumSignature] ✅ Ethereum signature verified successfully for ${challenge.ethAddress}`);
+      return { valid: true };
+
+    } catch (signatureError) {
+      console.error('[verifyEthereumSignature] Signature verification failed:', signatureError);
+      return { valid: false, error: 'Invalid signature format or signature verification failed' };
+    }
+
+  } catch (error) {
+    console.error('[verifyEthereumSignature] Error verifying Ethereum signature:', error);
+    return { valid: false, error: 'Ethereum signature verification failed' };
+  }
+}
+
+/**
  * Verify LYX balance requirement using raw RPC calls
  * 
  * Uses eth_getBalance to check the Universal Profile's native LYX balance
@@ -868,8 +924,23 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         }
       }
 
-      // For Ethereum addresses, signature verification would be added here
-      // TODO: Implement Ethereum signature verification when adding EthereumProfileContext
+      // For Ethereum addresses, verify signature using ethers.js
+      if (challenge.ethAddress) {
+        console.log(`[API POST /api/posts/${postId}/comments] Verifying Ethereum signature for ${challenge.ethAddress}`);
+        
+        if (!challenge.signature) {
+          return NextResponse.json({ 
+            error: 'Ethereum signature required but not provided' 
+          }, { status: 400 });
+        }
+
+        const signatureValidation = await verifyEthereumSignature(challenge);
+        if (!signatureValidation.valid) {
+          return NextResponse.json({ 
+            error: `Ethereum signature verification failed: ${signatureValidation.error}` 
+          }, { status: 401 });
+        }
+      }
 
       // Verify all gating requirements (supports both UP and Ethereum)
       const requirementValidation = await verifyMultiCategoryGatingRequirements(

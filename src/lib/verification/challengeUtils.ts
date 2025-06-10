@@ -19,10 +19,12 @@ export class ChallengeUtils {
     const nonce = crypto.randomBytes(16).toString('hex');
     
     return {
+      type: 'universal_profile',
       nonce,
       timestamp: Date.now(),
       postId,
       upAddress: upAddress.toLowerCase(), // Normalize address
+      address: upAddress.toLowerCase(), // For compatibility with new structure
       chainId: LUKSO_MAINNET_CHAIN_ID,
     };
   }
@@ -65,22 +67,42 @@ Sign this message to prove you own the profile and meet the requirements to comm
       return { valid: false, error: 'Invalid or missing postId' };
     }
     
-    if (!challenge.upAddress || typeof challenge.upAddress !== 'string') {
-      return { valid: false, error: 'Invalid or missing upAddress' };
+    if (!challenge.type) {
+      return { valid: false, error: 'Invalid or missing challenge type' };
     }
     
-    if (challenge.chainId !== LUKSO_MAINNET_CHAIN_ID) {
-      return { valid: false, error: 'Invalid chain ID - must be LUKSO mainnet' };
+    // Validate based on challenge type
+    if (challenge.type === 'universal_profile') {
+      if (!challenge.upAddress || typeof challenge.upAddress !== 'string') {
+        return { valid: false, error: 'Invalid or missing upAddress for UP challenge' };
+      }
+      
+      if (challenge.chainId !== LUKSO_MAINNET_CHAIN_ID) {
+        return { valid: false, error: 'Invalid chain ID - must be LUKSO mainnet for UP challenges' };
+      }
+      
+      // Check UP address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(challenge.upAddress)) {
+        return { valid: false, error: 'Invalid Universal Profile address format' };
+      }
+    } else if (challenge.type === 'ethereum_profile') {
+      if (!challenge.ethAddress || typeof challenge.ethAddress !== 'string') {
+        return { valid: false, error: 'Invalid or missing ethAddress for Ethereum challenge' };
+      }
+      
+      if (challenge.chainId !== 1) {
+        return { valid: false, error: 'Invalid chain ID - must be Ethereum mainnet for Ethereum challenges' };
+      }
+      
+      // Check Ethereum address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(challenge.ethAddress)) {
+        return { valid: false, error: 'Invalid Ethereum address format' };
+      }
     }
     
-    // Check address format (basic)
-    if (!/^0x[a-fA-F0-9]{40}$/.test(challenge.upAddress)) {
-      return { valid: false, error: 'Invalid Universal Profile address format' };
-    }
-    
-    // Check nonce format (32 hex characters)
-    if (!/^[a-fA-F0-9]{32}$/.test(challenge.nonce)) {
-      return { valid: false, error: 'Invalid nonce format' };
+    // Check nonce format (32 hex characters for UP, variable for Ethereum)
+    if (challenge.type === 'universal_profile' && !/^[a-fA-F0-9]{32}$/.test(challenge.nonce)) {
+      return { valid: false, error: 'Invalid nonce format for UP challenge' };
     }
     
     return { valid: true };

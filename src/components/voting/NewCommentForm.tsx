@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
+import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { useTypingEvents } from '@/hooks/useTypingEvents';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
@@ -62,6 +63,11 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   const { token, isAuthenticated } = useAuth();
   const { activateUP, hasUserTriggeredConnection } = useUPActivation();
   const { upAddress, signMessage, isConnected: isUPConnected } = useConditionalUniversalProfile();
+  const { 
+    isConnected: isEthConnected, 
+    ethAddress, 
+    signMessage: signEthMessage 
+  } = useEthereumProfile();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingChallenge, setIsGeneratingChallenge] = useState(false);
@@ -69,8 +75,31 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   // Check if this post has gating enabled (supports both old and new formats)
   const hasGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
   
-  // Determine if this is UP-only gating (use existing InlineUPConnection) or multi-category gating
-  const hasUPOnlyGating = post ? SettingsUtils.hasUPGating(post.settings) && !SettingsUtils.hasMultiCategoryGating(post.settings) : false;
+  // Determine gating types - need to check what's actually enabled, not just the format
+  const hasUPGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
+  const hasEthereumGating = post ? SettingsUtils.hasEthereumGating(post.settings) : false;
+  const usesMultiCategoryFormat = post ? SettingsUtils.hasMultiCategoryGating(post.settings) : false;
+  
+  // Determine actual gating behavior
+  const hasUPOnlyGating = hasUPGating && !hasEthereumGating;
+  const hasEthereumOnlyGating = hasEthereumGating && !hasUPGating;
+  const hasMultiCategoryGating = hasUPGating && hasEthereumGating;
+
+  // Debug logging for gating detection
+  useEffect(() => {
+    if (post) {
+      console.log('[NewCommentForm] Gating detection for post', postId, {
+        hasGating,
+        hasUPGating,
+        hasEthereumGating,
+        usesMultiCategoryFormat,
+        hasUPOnlyGating,
+        hasEthereumOnlyGating,
+        hasMultiCategoryGating,
+        postSettings: post.settings
+      });
+    }
+  }, [postId, hasGating, hasUPGating, hasEthereumGating, usesMultiCategoryFormat, hasUPOnlyGating, hasEthereumOnlyGating, hasMultiCategoryGating, post]);
 
   // Set up typing events for real-time indicators
   const typingEvents = useTypingEvents({
@@ -139,13 +168,13 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     },
   });
 
-  // Generate and sign challenge for gated posts
-  const generateSignedChallenge = async (): Promise<VerificationChallenge> => {
+  // Generate and sign challenge for UP-only posts
+  const generateUPChallenge = async (): Promise<VerificationChallenge> => {
     if (!upAddress || !token) {
       throw new Error('Universal Profile not connected or no auth token');
     }
 
-    setIsGeneratingChallenge(true);
+    console.log('[NewCommentForm] Generating UP challenge for post', postId);
     
     try {
       // Request challenge from backend
@@ -169,8 +198,63 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
         signature
       };
     } catch (error) {
-      console.error('[NewCommentForm] Challenge generation failed:', error);
-      throw new Error('Failed to generate verification challenge. Please try again.');
+      console.error('[NewCommentForm] UP challenge generation failed:', error);
+      throw new Error('Failed to generate Universal Profile verification. Please try again.');
+    }
+  };
+
+  // Generate and sign challenge for Ethereum-only posts
+  const generateEthereumChallenge = async (): Promise<VerificationChallenge> => {
+    if (!ethAddress || !token) {
+      throw new Error('Ethereum wallet not connected or no auth token');
+    }
+
+    console.log('[NewCommentForm] Generating Ethereum challenge for post', postId);
+    
+    try {
+      // Request challenge from backend
+      const challengeResponse = await authFetchJson<{
+        challenge: VerificationChallenge;
+        message: string;
+      }>(`/api/posts/${postId}/ethereum-challenge`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ ethAddress }),
+      });
+
+      const { challenge, message } = challengeResponse;
+      
+      // Request signature from user
+      const signature = await signEthMessage(message);
+      
+      // Return challenge with signature
+      return {
+        ...challenge,
+        signature
+      };
+    } catch (error) {
+      console.error('[NewCommentForm] Ethereum challenge generation failed:', error);
+      throw new Error('Failed to generate Ethereum verification. Please try again.');
+    }
+  };
+
+  // Smart challenge generation based on gating type
+  const generateSignedChallenge = async (): Promise<VerificationChallenge> => {
+    setIsGeneratingChallenge(true);
+    
+    try {
+      if (hasUPOnlyGating) {
+        console.log('[NewCommentForm] Detected UP-only gating');
+        return await generateUPChallenge();
+      } else if (hasEthereumOnlyGating) {
+        console.log('[NewCommentForm] Detected Ethereum-only gating');
+        return await generateEthereumChallenge();
+      } else if (hasMultiCategoryGating) {
+        // TODO: Implement multi-category challenge logic in Phase 4C
+        throw new Error('Multi-category gating not yet implemented');
+      } else {
+        throw new Error('Unknown gating configuration');
+      }
     } finally {
       setIsGeneratingChallenge(false);
     }
@@ -230,13 +314,20 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
       // Check if this post requires gating verification
       if (hasGating) {
-        if (!hasUserTriggeredConnection) {
-          setError('Please connect your Universal Profile to comment on this gated post.');
-          return;
-        }
-        
-        if (!isUPConnected || !upAddress) {
-          setError('Please connect your Universal Profile to comment on this gated post.');
+        // Check connection requirements based on gating type
+        if (hasUPOnlyGating) {
+          if (!hasUserTriggeredConnection || !isUPConnected || !upAddress) {
+            setError('Please connect your Universal Profile to comment on this gated post.');
+            return;
+          }
+        } else if (hasEthereumOnlyGating) {
+          if (!isEthConnected || !ethAddress) {
+            setError('Please connect your Ethereum wallet to comment on this gated post.');
+            return;
+          }
+        } else if (hasMultiCategoryGating) {
+          // TODO: Implement multi-category connection checking in Phase 4C
+          setError('Multi-category gating not yet implemented.');
           return;
         }
 
@@ -256,16 +347,38 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   };
 
   // Show appropriate connection widget for gated posts
-  if (hasGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) {
-    return (
-      <div className="mt-6">
-        {hasUPOnlyGating ? (
-          <InlineUPConnection postSettings={post?.settings || {}} />
-        ) : (
-          <MultiCategoryConnection postSettings={post?.settings || {}} />
-        )}
-      </div>
+  if (hasGating) {
+    const needsConnection = (
+      (hasUPOnlyGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) ||
+      (hasEthereumOnlyGating && (!isEthConnected || !ethAddress)) ||
+      hasMultiCategoryGating
     );
+
+    // Debug logging for connection logic
+    console.log('[NewCommentForm] Connection check for post', postId, {
+      hasGating,
+      hasUPOnlyGating,
+      hasEthereumOnlyGating,
+      hasMultiCategoryGating,
+      hasUserTriggeredConnection,
+      isUPConnected,
+      upAddress: !!upAddress,
+      isEthConnected,
+      ethAddress: !!ethAddress,
+      needsConnection
+    });
+
+    if (needsConnection) {
+      return (
+        <div className="mt-6">
+          {hasUPOnlyGating ? (
+            <InlineUPConnection postSettings={post?.settings || {}} />
+          ) : (
+            <MultiCategoryConnection postSettings={post?.settings || {}} />
+          )}
+        </div>
+      );
+    }
   }
 
   if (!isAuthenticated) {
@@ -285,7 +398,11 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   return (
     <div className="mt-6 space-y-4">
       {/* Show inline connection widget for gated posts when connected */}
-      {hasGating && hasUserTriggeredConnection && isUPConnected && (
+      {hasGating && (
+        (hasUPOnlyGating && hasUserTriggeredConnection && isUPConnected) ||
+        (hasEthereumOnlyGating && isEthConnected) ||
+        hasMultiCategoryGating
+      ) && (
         hasUPOnlyGating ? (
           <InlineUPConnection postSettings={post?.settings || {}} />
         ) : (
@@ -340,7 +457,9 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
                   addCommentMutation.isPending || 
                   editor?.isEmpty || 
                   isGeneratingChallenge ||
-                  (hasGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress))
+                  (hasUPOnlyGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) ||
+                  (hasEthereumOnlyGating && (!isEthConnected || !ethAddress)) ||
+                  hasMultiCategoryGating // Disable for multi-category until implemented
                 }
                 className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
               >

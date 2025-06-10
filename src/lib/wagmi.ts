@@ -1,42 +1,30 @@
 /**
- * Wagmi Configuration
+ * Wagmi Configuration with RainbowKit
  * 
- * Configures wagmi for Ethereum wallet connection and blockchain interactions
+ * Configures wagmi with RainbowKit for improved wallet connection UX
  * Used by the Ethereum gating system for ENS/EFP verification
  */
 
-import { createConfig, http } from 'wagmi';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet } from 'wagmi/chains';
-import { injected, walletConnect, metaMask, coinbaseWallet } from 'wagmi/connectors';
 
 // Get environment variables
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'default-project-id';
-const ethereumRpcUrl = process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL || 'https://cloudflare-eth.com';
 
-export const wagmiConfig = createConfig({
-  chains: [mainnet],
-  connectors: [
-    injected(),
-    metaMask(),
-    walletConnect({
-      projectId,
-      metadata: {
-        name: 'Curia',
-        description: 'Community governance and discussions',
-        url: 'https://curia.app',
-        icons: ['https://curia.app/favicon.ico']
-      }
-    }),
-    coinbaseWallet({
-      appName: 'Curia',
-      appLogoUrl: 'https://curia.app/favicon.ico'
-    })
-  ],
-  transports: {
-    [mainnet.id]: http(ethereumRpcUrl)
-  },
-  ssr: true, // Enable SSR support for Next.js
-});
+// Create config safely - only in browser environment
+export const wagmiConfig = (() => {
+  // Prevent SSR issues by only creating config in browser
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return getDefaultConfig({
+    appName: 'Curia',
+    projectId,
+    chains: [mainnet],
+    ssr: true, // Enable SSR support for Next.js
+  });
+})();
 
 // Export for type inference
 export type Config = typeof wagmiConfig;

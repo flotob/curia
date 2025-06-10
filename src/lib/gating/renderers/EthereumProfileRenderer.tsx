@@ -93,14 +93,13 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * NEW: Render the connection component (for commenter-side)
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, disabled } = props;
+    const { requirements, onConnect, onDisconnect } = props;
     
     return (
       <EthereumConnectionWidget
         requirements={requirements as EthereumGatingRequirements}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
-        disabled={disabled}
       />
     );
   }

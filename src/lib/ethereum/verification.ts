@@ -111,7 +111,24 @@ export async function verifyETHBalance(
 }
 
 /**
- * Verify ENS domain requirements
+ * Calculate ENS namehash for a given name
+ */
+function namehash(name: string): string {
+  let node = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  
+  if (name) {
+    const labels = name.split('.');
+    for (let i = labels.length - 1; i >= 0; i--) {
+      const labelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(labels[i]));
+      node = ethers.utils.keccak256(ethers.utils.concat([node, labelHash]));
+    }
+  }
+  
+  return node;
+}
+
+/**
+ * Verify ENS domain requirements using raw RPC calls
  */
 export async function verifyENSRequirements(
   ethAddress: string,
@@ -125,15 +142,94 @@ export async function verifyENSRequirements(
 
     console.log(`[verifyENSRequirements] Checking ENS for ${ethAddress}`);
 
-    // Get ENS name for the address
-    const provider = getEthereumProvider();
-    const ensName = await provider.lookupAddress(ethAddress);
+    // ENS Registry contract address on mainnet
+    const ENS_REGISTRY = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+    
+    // Calculate reverse node hash: address.addr.reverse
+    const normalizedAddress = ethAddress.toLowerCase().replace('0x', '');
+    const reverseNode = namehash(`${normalizedAddress}.addr.reverse`);
+
+    // Get resolver for the reverse record
+    const resolverData = await rawEthereumCall('eth_call', [
+      {
+        to: ENS_REGISTRY,
+        data: `0x0178b8bf${reverseNode.slice(2)}` // resolver(bytes32)
+      },
+      'latest'
+    ]);
+
+    const resolverAddress = `0x${(resolverData as string).slice(-40)}`;
+    
+    // Check if resolver is set (not zero address)
+    if (resolverAddress === '0x0000000000000000000000000000000000000000') {
+      return {
+        valid: false,
+        error: 'No ENS name found for this address'
+      };
+    }
+
+    // Get the name from the resolver
+    const nameData = await rawEthereumCall('eth_call', [
+      {
+        to: resolverAddress,
+        data: `0x691f3431${reverseNode.slice(2)}` // name(bytes32)
+      },
+      'latest'
+    ]);
+
+    // Decode the name from ABI-encoded string
+    let ensName: string;
+    try {
+      const decoded = ethers.utils.defaultAbiCoder.decode(['string'], nameData as string);
+      ensName = decoded[0];
+    } catch {
+      return {
+        valid: false,
+        error: 'No ENS name found for this address'
+      };
+    }
 
     if (!ensName) {
       return {
         valid: false,
         error: 'No ENS name found for this address'
       };
+    }
+
+    // Verify forward resolution (name -> address) to prevent spoofing
+    try {
+      const nameNode = namehash(ensName);
+      const forwardResolverData = await rawEthereumCall('eth_call', [
+        {
+          to: ENS_REGISTRY,
+          data: `0x0178b8bf${nameNode.slice(2)}` // resolver(bytes32)
+        },
+        'latest'
+      ]);
+
+      const forwardResolverAddress = `0x${(forwardResolverData as string).slice(-40)}`;
+      
+      if (forwardResolverAddress !== '0x0000000000000000000000000000000000000000') {
+        const addressData = await rawEthereumCall('eth_call', [
+          {
+            to: forwardResolverAddress,
+            data: `0x3b3b57de${nameNode.slice(2)}` // addr(bytes32)
+          },
+          'latest'
+        ]);
+
+        const resolvedAddress = `0x${(addressData as string).slice(-40)}`;
+        
+        if (resolvedAddress.toLowerCase() !== ethAddress.toLowerCase()) {
+          return {
+            valid: false,
+            error: 'ENS name does not resolve back to this address'
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('[verifyENSRequirements] Forward resolution verification failed:', error);
+      // Continue anyway as some configurations might not support forward resolution
     }
 
     // Check domain patterns if specified
