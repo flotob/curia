@@ -18,6 +18,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { VerificationChallenge } from '@/lib/verification';
 import { SettingsUtils } from '@/types/settings';
 import { MultiCategoryConnection } from '@/components/gating/MultiCategoryConnection';
+import { InlineUPConnection } from '@/components/comment/InlineUPConnection';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -67,6 +68,9 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   // Check if this post has gating enabled (supports both old and new formats)
   const hasGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
+  
+  // Determine if this is UP-only gating (use existing InlineUPConnection) or multi-category gating
+  const hasUPOnlyGating = post ? SettingsUtils.hasUPGating(post.settings) && !SettingsUtils.hasMultiCategoryGating(post.settings) : false;
 
   // Set up typing events for real-time indicators
   const typingEvents = useTypingEvents({
@@ -251,11 +255,15 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     }
   };
 
-  // Show multi-category connection widget for gated posts
+  // Show appropriate connection widget for gated posts
   if (hasGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) {
     return (
       <div className="mt-6">
-        <MultiCategoryConnection postSettings={post?.settings || {}} />
+        {hasUPOnlyGating ? (
+          <InlineUPConnection postSettings={post?.settings || {}} />
+        ) : (
+          <MultiCategoryConnection postSettings={post?.settings || {}} />
+        )}
       </div>
     );
   }
@@ -276,9 +284,13 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   return (
     <div className="mt-6 space-y-4">
-      {/* Show inline multi-category connection widget for gated posts when connected */}
+      {/* Show inline connection widget for gated posts when connected */}
       {hasGating && hasUserTriggeredConnection && isUPConnected && (
-        <MultiCategoryConnection postSettings={post?.settings || {}} />
+        hasUPOnlyGating ? (
+          <InlineUPConnection postSettings={post?.settings || {}} />
+        ) : (
+          <MultiCategoryConnection postSettings={post?.settings || {}} />
+        )
       )}
       
       <Card className="border-2 shadow-md hover:shadow-lg transition-shadow duration-300">

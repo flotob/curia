@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 
 import { ethers } from 'ethers';
+import { EthereumConnectionWidget } from '@/components/ethereum/EthereumConnectionWidget';
 
 // ===== ETHEREUM PROFILE RENDERER CLASS =====
 
@@ -92,19 +93,15 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * NEW: Render the connection component (for commenter-side)
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    // TODO: Implement Ethereum connection widget
+    const { requirements, onConnect, onDisconnect, disabled } = props;
+    
     return (
-      <div className="p-4 border rounded-lg bg-blue-50 border-blue-200">
-        <div className="text-sm font-medium text-blue-800">Ethereum Profile Required</div>
-        <div className="text-xs text-blue-600 mt-1">Connect your Ethereum wallet to verify ENS/EFP requirements</div>
-        <button 
-          onClick={props.onConnect}
-          disabled={props.disabled}
-          className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:opacity-50"
-        >
-          Connect Ethereum Wallet
-        </button>
-      </div>
+      <EthereumConnectionWidget
+        requirements={requirements as EthereumGatingRequirements}
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+        disabled={disabled}
+      />
     );
   }
 
@@ -112,47 +109,123 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * NEW: Generate challenge for Ethereum verification
    */
   async generateChallenge(ethAddress: string, postId: number): Promise<unknown> {
-    // TODO: Implement Ethereum challenge generation
-    return {
+    const challenge = {
       type: 'ethereum_profile',
+      chainId: 1, // Ethereum mainnet
       address: ethAddress,
       postId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      nonce: Math.random().toString(36).substring(2, 15),
+      message: `Verify access to post ${postId} on Ethereum mainnet\nAddress: ${ethAddress}\nTimestamp: ${Date.now()}`
     };
+    
+    return challenge;
   }
 
   /**
    * NEW: Verify user requirements (server-side)
    */
-  async verifyUserRequirements(_ethAddress: string, _requirements: unknown): Promise<VerificationResult> { // eslint-disable-line @typescript-eslint/no-unused-vars
-    // TODO: Implement Ethereum requirement verification
-    return {
-      isValid: true,
-      missingRequirements: [],
-      errors: []
-    };
+  async verifyUserRequirements(ethAddress: string, requirements: unknown): Promise<VerificationResult> {
+    try {
+      const reqs = requirements as EthereumGatingRequirements;
+      
+      // Call the server-side verification function
+      const response = await fetch('/api/ethereum/verify-requirements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: ethAddress,
+          requirements: reqs
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Verification failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      return {
+        isValid: result.valid || false,
+        missingRequirements: result.missingRequirements || [],
+        errors: result.errors || []
+      };
+    } catch (error) {
+      console.error('[EthereumProfileRenderer] Verification failed:', error);
+      return {
+        isValid: false,
+        missingRequirements: [],
+        errors: [error instanceof Error ? error.message : 'Verification failed']
+      };
+    }
   }
 
   /**
    * NEW: Validate Ethereum signature
    */
   async validateSignature(challenge: unknown): Promise<boolean> {
-    // TODO: Implement Ethereum signature validation
-    console.log('[EthereumProfileRenderer] Signature validation not yet implemented', challenge);
-    return true;
+    try {
+      const challengeObj = challenge as { 
+        address: string; 
+        message: string; 
+        signature: string; 
+        chainId: number;
+      };
+
+      if (!challengeObj.address || !challengeObj.message || !challengeObj.signature) {
+        console.error('[EthereumProfileRenderer] Invalid challenge format');
+        return false;
+      }
+
+      // Call server-side signature validation
+      const response = await fetch('/api/ethereum/validate-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: challengeObj.address,
+          message: challengeObj.message,
+          signature: challengeObj.signature,
+          chainId: challengeObj.chainId
+        })
+      });
+
+      if (!response.ok) {
+        console.error('[EthereumProfileRenderer] Signature validation request failed:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      return result.valid || false;
+    } catch (error) {
+      console.error('[EthereumProfileRenderer] Signature validation failed:', error);
+      return false;
+    }
   }
 
   /**
-   * Client-side verification (placeholder for now)
+   * Client-side verification using Ethereum context
    */
-  async verify(): Promise<VerificationResult> {
-    // TODO: Implement client-side verification
-    // This would call Ethereum RPC and EFP API for verification
-    return {
-      isValid: true,
-      missingRequirements: [],
-      errors: []
-    };
+  async verify(requirements: EthereumGatingRequirements, ethAddress?: string): Promise<VerificationResult> {
+    if (!ethAddress) {
+      return {
+        isValid: false,
+        missingRequirements: ['Ethereum wallet not connected'],
+        errors: []
+      };
+    }
+
+    try {
+      // This would be called from a component that has access to the Ethereum context
+      // For now, call the server-side verification
+      return await this.verifyUserRequirements(ethAddress, requirements);
+    } catch (error) {
+      console.error('[EthereumProfileRenderer] Client verification failed:', error);
+      return {
+        isValid: false,
+        missingRequirements: [],
+        errors: [error instanceof Error ? error.message : 'Verification failed']
+      };
+    }
   }
 
   /**
