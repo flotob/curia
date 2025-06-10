@@ -1,0 +1,149 @@
+/**
+ * API Endpoint: GET /api/posts/[postId]/gating-requirements
+ * 
+ * Returns gating categories for a post and the current user's verification status
+ * for each category. Used by the slot-based verification UI.
+ */
+
+import { NextResponse } from 'next/server';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
+import { query } from '@/lib/db';
+import { SettingsUtils, PostSettings } from '@/types/settings';
+
+interface GatingRequirementResponse {
+  postId: number;
+  requireAll: boolean;
+  categories: CategoryStatus[];
+}
+
+interface CategoryStatus {
+  type: string;
+  enabled: boolean;
+  requirements: unknown;
+  verificationStatus: 'not_started' | 'pending' | 'verified' | 'expired';
+  verifiedAt?: string;
+  expiresAt?: string;
+  metadata?: {
+    name: string;
+    description: string;
+    icon: string;
+  };
+}
+
+// Category metadata for display
+const CATEGORY_METADATA = {
+  universal_profile: {
+    name: 'LUKSO Universal Profile',
+    description: 'Verify your Universal Profile and token holdings',
+    icon: 'UserCheck',
+  },
+  ethereum_profile: {
+    name: 'Ethereum Profile',
+    description: 'Verify your Ethereum address, ENS domain, and token holdings',
+    icon: 'Shield',
+  },
+};
+
+async function getGatingRequirementsHandler(
+  req: AuthenticatedRequest,
+  context: RouteContext
+) {
+  const user = req.user;
+  const params = await context.params;
+  const postId = parseInt(params.postId!, 10);
+
+  if (!user || !user.sub) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  if (isNaN(postId)) {
+    return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+  }
+
+  try {
+    // Get post settings and verify access
+    const postResult = await query(
+      `SELECT p.settings as post_settings, p.board_id, b.community_id, b.settings as board_settings
+       FROM posts p 
+       JOIN boards b ON p.board_id = b.id 
+       WHERE p.id = $1`,
+      [postId]
+    );
+
+    if (postResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const { post_settings, community_id } = postResult.rows[0];
+
+    // Verify user has access to this community
+    if (community_id !== user.cid) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    // Parse post settings
+    const postSettings: PostSettings = typeof post_settings === 'string' 
+      ? JSON.parse(post_settings) 
+      : (post_settings || {});
+
+    // Check if post has any gating
+    if (!SettingsUtils.hasAnyGating(postSettings)) {
+      return NextResponse.json({
+        postId,
+        requireAll: false,
+        categories: [],
+      } as GatingRequirementResponse);
+    }
+
+    // Get gating categories
+    const categories = SettingsUtils.getGatingCategories(postSettings);
+    const requireAll = postSettings.responsePermissions?.requireAll || false;
+
+    // Get current verification statuses for this user
+    const verificationResult = await query(
+      `SELECT category_type, verification_status, verified_at, expires_at 
+       FROM pre_verifications 
+       WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW()`,
+      [user.sub, postId]
+    );
+
+    const verificationMap = new Map<string, { verification_status: string; verified_at?: string; expires_at?: string }>();
+    verificationResult.rows.forEach(row => {
+      verificationMap.set(row.category_type, row);
+    });
+
+    // Build category status array
+    const categoryStatuses: CategoryStatus[] = categories.map(category => {
+      const verification = verificationMap.get(category.type);
+      let verificationStatus: CategoryStatus['verificationStatus'] = 'not_started';
+
+      if (verification) {
+        verificationStatus = verification.verification_status as CategoryStatus['verificationStatus'];
+      }
+
+      return {
+        type: category.type,
+        enabled: category.enabled,
+        requirements: category.requirements,
+        verificationStatus,
+        verifiedAt: verification?.verified_at,
+        expiresAt: verification?.expires_at,
+        metadata: CATEGORY_METADATA[category.type as keyof typeof CATEGORY_METADATA],
+      };
+    });
+
+    const response: GatingRequirementResponse = {
+      postId,
+      requireAll,
+      categories: categoryStatuses,
+    };
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error(`[API] Error fetching gating requirements for post ${postId}:`, error);
+    return NextResponse.json({ error: 'Failed to fetch gating requirements' }, { status: 500 });
+  }
+}
+
+export const GET = withAuth(getGatingRequirementsHandler, false); 

@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
-import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
+import { useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { useTypingEvents } from '@/hooks/useTypingEvents';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
@@ -16,10 +15,8 @@ import { Loader2 } from 'lucide-react';
 import { EditorToolbar } from './EditorToolbar';
 
 // Import our verification types
-import { VerificationChallenge } from '@/lib/verification';
 import { SettingsUtils } from '@/types/settings';
-import { MultiCategoryConnection } from '@/components/gating/MultiCategoryConnection';
-import { InlineUPConnection } from '@/components/comment/InlineUPConnection';
+import { GatingRequirementsPanel } from '@/components/gating/GatingRequirementsPanel';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -45,13 +42,11 @@ interface NewCommentFormProps {
 interface CreateCommentMutationPayload {
   content: object; // Tiptap JSON content
   parent_comment_id?: number | null;
-  challenge?: VerificationChallenge; // Optional challenge for gated posts
 }
 
 interface CreateCommentApiPayload {
     content: string; 
     parent_comment_id?: number | null;
-    challenge?: VerificationChallenge; // Include challenge in API payload
 }
 
 export const NewCommentForm: React.FC<NewCommentFormProps> = ({
@@ -61,16 +56,10 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   post, // New optional prop
 }) => {
   const { token, isAuthenticated } = useAuth();
-  const { activateUP, hasUserTriggeredConnection } = useUPActivation();
-  const { upAddress, signMessage, isConnected: isUPConnected } = useConditionalUniversalProfile();
-  const { 
-    isConnected: isEthConnected, 
-    ethAddress, 
-    signMessage: signEthMessage 
-  } = useEthereumProfile();
+  const { activateUP } = useUPActivation();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [isGeneratingChallenge, setIsGeneratingChallenge] = useState(false);
+  const [canComment, setCanComment] = useState(true); // Tracks if user can comment based on verification status
 
   // Check if this post has gating enabled (supports both old and new formats)
   const hasGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
@@ -168,96 +157,10 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     },
   });
 
-  // Generate and sign challenge for UP-only posts
-  const generateUPChallenge = async (): Promise<VerificationChallenge> => {
-    if (!upAddress || !token) {
-      throw new Error('Universal Profile not connected or no auth token');
-    }
-
-    console.log('[NewCommentForm] Generating UP challenge for post', postId);
-    
-    try {
-      // Request challenge from backend
-      const challengeResponse = await authFetchJson<{
-        challenge: VerificationChallenge;
-        message: string;
-      }>(`/api/posts/${postId}/challenge`, {
-        method: 'POST',
-        token,
-        body: JSON.stringify({ upAddress }),
-      });
-
-      const { challenge, message } = challengeResponse;
-      
-      // Request signature from user
-      const signature = await signMessage(message);
-      
-      // Return challenge with signature
-      return {
-        ...challenge,
-        signature
-      };
-    } catch (error) {
-      console.error('[NewCommentForm] UP challenge generation failed:', error);
-      throw new Error('Failed to generate Universal Profile verification. Please try again.');
-    }
-  };
-
-  // Generate and sign challenge for Ethereum-only posts
-  const generateEthereumChallenge = async (): Promise<VerificationChallenge> => {
-    if (!ethAddress || !token) {
-      throw new Error('Ethereum wallet not connected or no auth token');
-    }
-
-    console.log('[NewCommentForm] Generating Ethereum challenge for post', postId);
-    
-    try {
-      // Request challenge from backend
-      const challengeResponse = await authFetchJson<{
-        challenge: VerificationChallenge;
-        message: string;
-      }>(`/api/posts/${postId}/ethereum-challenge`, {
-        method: 'POST',
-        token,
-        body: JSON.stringify({ ethAddress }),
-      });
-
-      const { challenge, message } = challengeResponse;
-      
-      // Request signature from user
-      const signature = await signEthMessage(message);
-      
-      // Return challenge with signature
-      return {
-        ...challenge,
-        signature
-      };
-    } catch (error) {
-      console.error('[NewCommentForm] Ethereum challenge generation failed:', error);
-      throw new Error('Failed to generate Ethereum verification. Please try again.');
-    }
-  };
-
-  // Smart challenge generation based on gating type
-  const generateSignedChallenge = async (): Promise<VerificationChallenge> => {
-    setIsGeneratingChallenge(true);
-    
-    try {
-      if (hasUPOnlyGating) {
-        console.log('[NewCommentForm] Detected UP-only gating');
-        return await generateUPChallenge();
-      } else if (hasEthereumOnlyGating) {
-        console.log('[NewCommentForm] Detected Ethereum-only gating');
-        return await generateEthereumChallenge();
-      } else if (hasMultiCategoryGating) {
-        // TODO: Implement multi-category challenge logic in Phase 4C
-        throw new Error('Multi-category gating not yet implemented');
-      } else {
-        throw new Error('Unknown gating configuration');
-      }
-    } finally {
-      setIsGeneratingChallenge(false);
-    }
+  // Handle verification status changes from GatingRequirementsPanel
+  const handleVerificationStatusChange = (canCommentStatus: boolean) => {
+    setCanComment(canCommentStatus);
+    console.log('[NewCommentForm] Verification status changed:', canCommentStatus);
   };
 
   const addCommentMutation = useMutation<ApiComment, Error, CreateCommentMutationPayload>({
@@ -267,7 +170,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       const apiPayload: CreateCommentApiPayload = {
         content: JSON.stringify(commentData.content),
         parent_comment_id: commentData.parent_comment_id,
-        challenge: commentData.challenge, // Include challenge if present
       };
 
       return authFetchJson<ApiComment>(`/api/posts/${postId}/comments`, {
@@ -310,77 +212,23 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     setError(null);
 
     try {
-      let challenge: VerificationChallenge | undefined;
-
       // Check if this post requires gating verification
-      if (hasGating) {
-        // Check connection requirements based on gating type
-        if (hasUPOnlyGating) {
-          if (!hasUserTriggeredConnection || !isUPConnected || !upAddress) {
-            setError('Please connect your Universal Profile to comment on this gated post.');
-            return;
-          }
-        } else if (hasEthereumOnlyGating) {
-          if (!isEthConnected || !ethAddress) {
-            setError('Please connect your Ethereum wallet to comment on this gated post.');
-            return;
-          }
-        } else if (hasMultiCategoryGating) {
-          // TODO: Implement multi-category connection checking in Phase 4C
-          setError('Multi-category gating not yet implemented.');
-          return;
-        }
-
-        // Generate and sign challenge
-        challenge = await generateSignedChallenge();
+      if (hasGating && !canComment) {
+        setError('Please complete the required verification above before commenting.');
+        return;
       }
 
-      // Submit comment with optional challenge
+      // Submit comment (verification handled by pre-verification system)
       addCommentMutation.mutate({ 
         content: editorContentJson, 
-        parent_comment_id: parentCommentId,
-        challenge 
+        parent_comment_id: parentCommentId
       });
-    } catch (challengeError) {
-      setError(challengeError instanceof Error ? challengeError.message : 'Verification failed');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to submit comment');
     }
   };
 
-  // Show appropriate connection widget for gated posts
-  if (hasGating) {
-    const needsConnection = (
-      (hasUPOnlyGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) ||
-      (hasEthereumOnlyGating && (!isEthConnected || !ethAddress)) ||
-      hasMultiCategoryGating
-    );
-
-    // Debug logging for connection logic
-    console.log('[NewCommentForm] Connection check for post', postId, {
-      hasGating,
-      hasUPOnlyGating,
-      hasEthereumOnlyGating,
-      hasMultiCategoryGating,
-      hasUserTriggeredConnection,
-      isUPConnected,
-      upAddress: !!upAddress,
-      isEthConnected,
-      ethAddress: !!ethAddress,
-      needsConnection
-    });
-
-    if (needsConnection) {
-      return (
-        <div className="mt-6">
-          {hasUPOnlyGating ? (
-            <InlineUPConnection postSettings={post?.settings || {}} />
-          ) : (
-            <MultiCategoryConnection postSettings={post?.settings || {}} />
-          )}
-        </div>
-      );
-    }
-  }
-
+  // For non-authenticated users, show login prompt
   if (!isAuthenticated) {
     return (
       <Card className="mt-6 border-2 shadow-md">
@@ -397,20 +245,27 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
 
   return (
     <div className="mt-6 space-y-4">
-      {/* Show inline connection widget for gated posts when connected */}
+      {/* Show gating requirements panel for gated posts */}
       {hasGating && (
-        (hasUPOnlyGating && hasUserTriggeredConnection && isUPConnected) ||
-        (hasEthereumOnlyGating && isEthConnected) ||
-        hasMultiCategoryGating
-      ) && (
-        hasUPOnlyGating ? (
-          <InlineUPConnection postSettings={post?.settings || {}} />
-        ) : (
-          <MultiCategoryConnection postSettings={post?.settings || {}} />
-        )
+        <GatingRequirementsPanel 
+          postId={postId}
+          onVerificationComplete={handleVerificationStatusChange}
+        />
       )}
       
-      <Card className="border-2 shadow-md hover:shadow-lg transition-shadow duration-300">
+      {/* Authentication check for comment form */}
+      {!isAuthenticated ? (
+        <Card className="border-2 shadow-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Please log in to post a comment.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-2 shadow-md hover:shadow-lg transition-shadow duration-300">
         <CardHeader className="pb-3 bg-gradient-to-br from-background to-muted/10">
           <div className="flex items-center justify-between">
             <div>
@@ -456,22 +311,20 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
                 disabled={
                   addCommentMutation.isPending || 
                   editor?.isEmpty || 
-                  isGeneratingChallenge ||
-                  (hasUPOnlyGating && (!hasUserTriggeredConnection || !isUPConnected || !upAddress)) ||
-                  (hasEthereumOnlyGating && (!isEthConnected || !ethAddress)) ||
-                  hasMultiCategoryGating // Disable for multi-category until implemented
+                  (hasGating && !canComment) // Disable if gating is enabled but user can't comment
                 }
                 className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
               >
-                {(addCommentMutation.isPending || isGeneratingChallenge) && (
+                {addCommentMutation.isPending && (
                   <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                 )} 
-                {isGeneratingChallenge ? 'Verifying...' : 'Post Comment'}
+                Post Comment
               </Button>
             </div>
           </CardContent>
         </form>
       </Card>
+      )}
     </div>
   );
 }; 

@@ -98,7 +98,9 @@ export interface ApiComment {
 
 /**
  * Verify Universal Profile signature using ERC-1271
+ * @deprecated - Will be moved to verification service in Phase 2
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function verifyUPSignature(
   upAddress: string, 
   challenge: VerificationChallenge
@@ -202,7 +204,9 @@ async function verifyUPSignature(
 
 /**
  * Verify Ethereum signature using standard ECDSA verification
+ * @deprecated - Will be moved to verification service in Phase 2
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function verifyEthereumSignature(
   challenge: VerificationChallenge
 ): Promise<{ valid: boolean; error?: string }> {
@@ -631,7 +635,9 @@ async function verifyPostGatingRequirements(
 
 /**
  * Verify multi-category gating requirements (supports both UP and Ethereum)
+ * @deprecated - Replaced with pre-verification system in Phase 1
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function verifyMultiCategoryGatingRequirements(
   challenge: VerificationChallenge,
   postSettings: PostSettings
@@ -699,18 +705,24 @@ async function verifyMultiCategoryGatingRequirements(
 
       if (categoryResult.valid) {
         anyValid = true;
-        if (!requireAll) {
-          // If requireAny (default), one valid category is enough
-          console.log(`[verifyMultiCategoryGatingRequirements] ✅ Category ${category.type} satisfied (requireAny mode)`);
+        console.log(`[verifyMultiCategoryGatingRequirements] ✅ Category ${category.type} satisfied`);
+        if (requireAll) {
+          // In requireAll mode, continue checking other categories
+          continue;
+        } else {
+          // In requireAny mode, one valid category is enough
+          console.log(`[verifyMultiCategoryGatingRequirements] ✅ Sufficient for requireAny mode`);
           return { valid: true };
         }
       } else {
+        console.log(`[verifyMultiCategoryGatingRequirements] ❌ Category ${category.type} failed: ${categoryResult.error}`);
         errors.push(`${category.type}: ${categoryResult.error}`);
         if (requireAll) {
           // If requireAll, any failure means overall failure
-          console.log(`[verifyMultiCategoryGatingRequirements] ❌ Category ${category.type} failed (requireAll mode)`);
+          console.log(`[verifyMultiCategoryGatingRequirements] ❌ RequireAll mode failed due to ${category.type}`);
           return { valid: false, error: categoryResult.error };
         }
+        // In requireAny mode, continue checking other categories
       }
     }
 
@@ -860,10 +872,9 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
     }
 
     const body = await req.json();
-    const { content, parent_comment_id, challenge }: { 
+    const { content, parent_comment_id }: { 
       content: string;
       parent_comment_id?: number;
-      challenge?: VerificationChallenge;
     } = body;
 
     if (!content || String(content).trim() === '') {
@@ -875,86 +886,69 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
-    // ⭐ MULTI-CATEGORY GATING VERIFICATION ⭐
+    // ⭐ PRE-VERIFICATION SLOT-BASED GATING ⭐
     if (SettingsUtils.hasAnyGating(postSettings)) {
-      console.log(`[API POST /api/posts/${postId}/comments] Post has gating enabled, verifying challenge...`);
+      console.log(`[API POST /api/posts/${postId}/comments] Post has gating enabled, checking pre-verifications...`);
       
-      if (!challenge) {
-        return NextResponse.json({ 
-          error: 'This post requires verification to comment. Please connect your wallet and try again.' 
-        }, { status: 403 });
-      }
+      // Get gating categories
+      const categories = SettingsUtils.getGatingCategories(postSettings);
+      const requireAll = postSettings.responsePermissions?.requireAll || false;
+      const enabledCategories = categories.filter(cat => cat.enabled);
 
-      // Verify challenge format and basic validation
-      const formatValidation = ChallengeUtils.validateChallengeFormat(challenge);
-      if (!formatValidation.valid) {
-        return NextResponse.json({ 
-          error: `Invalid challenge: ${formatValidation.error}` 
-        }, { status: 400 });
-      }
-
-      // Verify challenge is for this post
-      if (challenge.postId !== postId) {
-        return NextResponse.json({ 
-          error: 'Challenge post ID mismatch' 
-        }, { status: 400 });
-      }
-
-      // For multi-category gating, verify the appropriate signature
-      if (challenge.upAddress) {
-        // Verify and consume nonce for Universal Profile (prevents replay attacks)
-        const nonceValidation = NonceStore.validateAndConsume(
-          challenge.nonce, 
-          challenge.upAddress, 
-          postId
+      if (enabledCategories.length === 0) {
+        console.log(`[API POST /api/posts/${postId}/comments] No enabled gating categories found`);
+        // No enabled categories, allow comment
+      } else {
+        // Check for valid pre-verifications
+        const verificationResult = await query(
+          `SELECT category_type, verification_status, expires_at 
+           FROM pre_verifications 
+           WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND verification_status = 'verified'`,
+          [user.sub, postId]
         );
 
-        if (!nonceValidation.valid) {
-          return NextResponse.json({ 
-            error: `Challenge validation failed: ${nonceValidation.error}` 
-          }, { status: 400 });
+        const verifiedCategories = new Set(verificationResult.rows.map(row => row.category_type));
+        const verifiedCount = verifiedCategories.size;
+        const totalRequired = enabledCategories.length;
+
+        console.log(`[API POST /api/posts/${postId}/comments] Found ${verifiedCount} verified categories out of ${totalRequired} required (requireAll: ${requireAll})`);
+
+        let canComment = false;
+        let errorMessage = '';
+
+        if (requireAll) {
+          // Need all categories verified
+          const unverifiedCategories = enabledCategories
+            .filter(cat => !verifiedCategories.has(cat.type))
+            .map(cat => cat.type);
+          
+          canComment = unverifiedCategories.length === 0;
+          
+          if (!canComment) {
+            errorMessage = `All verification requirements must be met. Missing: ${unverifiedCategories.join(', ')}. Please complete verification before commenting.`;
+          }
+        } else {
+          // Need at least one category verified
+          canComment = verifiedCount > 0;
+          
+          if (!canComment) {
+            const availableCategories = enabledCategories.map(cat => cat.type).join(', ');
+            errorMessage = `At least one verification requirement must be met. Available options: ${availableCategories}. Please complete verification before commenting.`;
+          }
         }
 
-        // Verify UP signature using ERC-1271
-        const signatureValidation = await verifyUPSignature(challenge.upAddress, challenge);
-        if (!signatureValidation.valid) {
+        if (!canComment) {
+          console.log(`[API POST /api/posts/${postId}/comments] Verification requirements not met: ${errorMessage}`);
           return NextResponse.json({ 
-            error: `Signature verification failed: ${signatureValidation.error}` 
-          }, { status: 401 });
+            error: errorMessage,
+            requiresVerification: true,
+            availableCategories: enabledCategories.map(cat => cat.type),
+            requireAll
+          }, { status: 403 });
         }
+
+        console.log(`[API POST /api/posts/${postId}/comments] Pre-verification check passed - user can comment`);
       }
-
-      // For Ethereum addresses, verify signature using ethers.js
-      if (challenge.ethAddress) {
-        console.log(`[API POST /api/posts/${postId}/comments] Verifying Ethereum signature for ${challenge.ethAddress}`);
-        
-        if (!challenge.signature) {
-          return NextResponse.json({ 
-            error: 'Ethereum signature required but not provided' 
-          }, { status: 400 });
-        }
-
-        const signatureValidation = await verifyEthereumSignature(challenge);
-        if (!signatureValidation.valid) {
-          return NextResponse.json({ 
-            error: `Ethereum signature verification failed: ${signatureValidation.error}` 
-          }, { status: 401 });
-        }
-      }
-
-      // Verify all gating requirements (supports both UP and Ethereum)
-      const requirementValidation = await verifyMultiCategoryGatingRequirements(
-        challenge, 
-        postSettings
-      );
-
-      if (!requirementValidation.valid) {
-        return NextResponse.json({ 
-          error: `Requirements not met: ${requirementValidation.error}` 
-        }, { status: 403 });
-      }
-
-      console.log(`[API POST /api/posts/${postId}/comments] Multi-category gating verification successful`);
     }
 
     // Start transaction for comment creation
