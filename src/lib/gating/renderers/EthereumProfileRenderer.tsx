@@ -409,6 +409,7 @@ const EthereumDisplayComponent: React.FC<EthereumDisplayComponentProps> = ({
           )}
         </div>
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={onToggleExpanded}
@@ -536,7 +537,7 @@ const EthereumDisplayComponent: React.FC<EthereumDisplayComponentProps> = ({
       {/* Connection Controls */}
       {!userStatus.connected && (
         <div className="mt-4">
-          <Button onClick={onConnect} size="sm" className="w-full">
+          <Button type="button" onClick={onConnect} size="sm" className="w-full">
             <Shield size={14} className="mr-2" />
             Connect Ethereum Wallet
           </Button>

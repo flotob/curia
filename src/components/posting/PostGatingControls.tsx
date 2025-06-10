@@ -209,6 +209,7 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
                     }).join(', ')}
                   </div>
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => setIsExpanded(true)}
@@ -225,7 +226,7 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-medium">Active Gating Categories:</Label>
-                      <Button variant="outline" size="sm" onClick={() => setIsExpanded(false)}>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setIsExpanded(false)}>
                         Collapse
                       </Button>
                     </div>
@@ -246,6 +247,7 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
                               </div>
                             </div>
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => toggleCategory(category.type, false)}
@@ -283,6 +285,7 @@ export const PostGatingControls: React.FC<PostGatingControlsProps> = ({
                               return (
                                 <Button
                                   key={categoryInfo.type}
+                                  type="button"
                                   variant="outline"
                                   size="sm"
                                   onClick={() => toggleCategory(categoryInfo.type, true)}
