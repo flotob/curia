@@ -75,8 +75,17 @@ async function generateChallengeHandler(req: AuthenticatedRequest, context: Rout
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
-    if (!SettingsUtils.hasUPGating(postSettings)) {
+    // Check for any form of gating (legacy UP or multi-category)
+    if (!SettingsUtils.hasAnyGating(postSettings)) {
       return NextResponse.json({ error: 'This post does not have gating enabled' }, { status: 400 });
+    }
+
+    // For UP challenge generation, ensure the post has UP gating requirements
+    const hasUpRequirements = SettingsUtils.hasUPGating(postSettings) || 
+                              SettingsUtils.getGatingCategories(postSettings).some(cat => cat.type === 'universal_profile' && cat.enabled);
+    
+    if (!hasUpRequirements) {
+      return NextResponse.json({ error: 'This post does not have Universal Profile gating enabled' }, { status: 400 });
     }
 
     // Generate challenge
