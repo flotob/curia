@@ -36,9 +36,25 @@ import {
 import { ethers } from 'ethers';
 import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 import { UPSocialProfileDisplay } from '@/components/social/UPSocialProfileDisplay';
+import { InlineUPConnection } from '@/components/comment/InlineUPConnection';
+import { PostSettings } from '@/types/settings';
 
-// ===== INTERNAL TYPES =====
-// (Moved to keep file organized but not currently used in simplified implementation)
+// ===== HELPER FUNCTIONS =====
+
+/**
+ * Convert new UPGatingRequirements format to old postSettings format
+ * for compatibility with InlineUPConnection
+ */
+function convertRequirementsToPostSettings(requirements: UPGatingRequirements): PostSettings {
+  return {
+    responsePermissions: {
+      upGating: {
+        enabled: true,
+        requirements: requirements
+      }
+    }
+  };
+}
 
 // ===== UNIVERSAL PROFILE RENDERER CLASS =====
 
@@ -96,22 +112,20 @@ export class UniversalProfileRenderer implements CategoryRenderer {
   }
 
   /**
-   * NEW: Render the connection component (for commenter-side)
+   * Render the connection component (for commenter-side)
+   * Uses the existing InlineUPConnection with format conversion
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    // TODO: Implement UP connection widget
+    const { requirements } = props;
+    
+    // Convert new requirements format to old postSettings format
+    const postSettings = convertRequirementsToPostSettings(requirements as UPGatingRequirements);
+    
     return (
-      <div className="p-4 border rounded-lg bg-pink-50 border-pink-200">
-        <div className="text-sm font-medium text-pink-800">Universal Profile Required</div>
-        <div className="text-xs text-pink-600 mt-1">Connect your UP to verify requirements</div>
-        <button 
-          onClick={props.onConnect}
-          disabled={props.disabled}
-          className="mt-2 px-3 py-1 bg-pink-500 text-white text-xs rounded hover:bg-pink-600 disabled:opacity-50"
-        >
-          Connect Universal Profile
-        </button>
-      </div>
+      <InlineUPConnection 
+        postSettings={postSettings}
+        className="border-0 p-0 bg-transparent"
+      />
     );
   }
 
