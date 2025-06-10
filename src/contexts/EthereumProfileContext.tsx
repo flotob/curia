@@ -347,24 +347,54 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
 
       const missingRequirements: string[] = [];
       
-      // Fetch EFP stats
+      // Fetch EFP stats and following/followers data
       try {
-        const response = await fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/stats`);
-        if (!response.ok) {
-          throw new Error('EFP API error');
+        const [statsResponse, followingResponse, followersResponse] = await Promise.all([
+          fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/stats`),
+          fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/following`),
+          fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/followers`)
+        ]);
+        
+        if (!statsResponse.ok) {
+          throw new Error('EFP stats API error');
         }
         
-        const stats = await response.json();
+        const stats = await statsResponse.json();
         const followerCount = stats.followers || 0;
         
+        // Get following and followers lists (handle API errors gracefully)
+        let followingList: string[] = [];
+        let followersList: string[] = [];
+        
+        if (followingResponse.ok) {
+          const followingData = await followingResponse.json();
+          followingList = (followingData.following || []).map((addr: string) => addr.toLowerCase());
+        }
+        
+        if (followersResponse.ok) {
+          const followersData = await followersResponse.json();
+          followersList = (followersData.followers || []).map((addr: string) => addr.toLowerCase());
+        }
+        
         for (const req of requirements) {
+          const targetAddress = req.value.toLowerCase();
+          
           if (req.type === 'minimum_followers') {
             const required = parseInt(req.value);
             if (followerCount < required) {
               missingRequirements.push(`Need ${required} followers, have ${followerCount}`);
             }
+          } else if (req.type === 'must_follow') {
+            // Check if current user follows the target address
+            if (!followingList.includes(targetAddress)) {
+              missingRequirements.push(`Must follow ${targetAddress}`);
+            }
+          } else if (req.type === 'must_be_followed_by') {
+            // Check if target address follows the current user
+            if (!followersList.includes(targetAddress)) {
+              missingRequirements.push(`Must be followed by ${targetAddress}`);
+            }
           }
-          // TODO: Implement must_follow and must_be_followed_by checks
         }
       } catch (error) {
         console.error('[EthereumProfileContext] EFP verification failed:', error);
