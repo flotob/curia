@@ -9,16 +9,10 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { 
-  UserCheck,
   CheckCircle,
   AlertTriangle,
-  Loader2,
-  Coins,
-  Wallet,
-  XCircle
+  Loader2
 } from 'lucide-react';
 
 import { UPGatingRequirements } from '@/types/gating';
@@ -27,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { VerificationChallenge } from '@/lib/verification/types';
 import { ethers } from 'ethers';
+import { RichRequirementsDisplay, ExtendedVerificationStatus } from '@/components/gating/RichRequirementsDisplay';
 
 interface LUKSOVerificationSlotProps {
   postId: number;
@@ -64,30 +59,10 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lyxBalance, setLyxBalance] = useState<string | null>(null);
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   
   // ===== REQUIREMENTS PARSING =====
   
   const upRequirements = requirements as UPGatingRequirements;
-  
-  const getRequirementsList = () => {
-    const reqs: string[] = [];
-    
-    if (upRequirements.minLyxBalance) {
-      const lyxAmount = parseFloat(upRequirements.minLyxBalance) / 1e18;
-      reqs.push(`${lyxAmount} LYX minimum balance`);
-    }
-    
-    if (upRequirements.requiredTokens?.length) {
-      reqs.push(`${upRequirements.requiredTokens.length} token requirement(s)`);
-    }
-    
-    if (upRequirements.followerRequirements?.length) {
-      reqs.push(`${upRequirements.followerRequirements.length} follower requirement(s)`);
-    }
-    
-    return reqs;
-  };
 
   // ===== EFFECTS =====
 
@@ -100,8 +75,6 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
   // Load LYX balance when connected and on correct chain
   useEffect(() => {
     if (isConnected && isCorrectChain && upRequirements?.minLyxBalance) {
-      setIsLoadingBalance(true);
-      
       getLyxBalance()
         .then((balance: string) => {
           const formatted = ethers.utils.formatEther(balance);
@@ -110,8 +83,7 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
         .catch((error: unknown) => {
           console.error('Failed to load LYX balance:', error);
           setLyxBalance(null);
-        })
-        .finally(() => setIsLoadingBalance(false));
+        });
     } else {
       setLyxBalance(null);
     }
@@ -192,241 +164,120 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
     }
   }, [isConnected, upAddress, token, postId, signMessage, onVerificationComplete]);
 
-  // Check if user meets LYX requirement
-  const meetsLyxRequirement = React.useMemo(() => {
-    if (!upRequirements?.minLyxBalance || !lyxBalance) return null;
-    
-    try {
-      const userBalance = ethers.BigNumber.from(ethers.utils.parseEther(lyxBalance));
-      const requiredBalance = ethers.BigNumber.from(upRequirements.minLyxBalance);
-      return userBalance.gte(requiredBalance);
-    } catch {
-      return null;
-    }
-  }, [lyxBalance, upRequirements?.minLyxBalance]);
-  
   // ===== RENDER =====
   
-  const requirements_list = getRequirementsList();
+  // ===== RICH UI INTEGRATION =====
   
-  // Already verified
-  if (currentStatus === 'verified') {
-    return (
-      <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-        <div className="flex items-center gap-3">
-          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-          <div>
-            <div className="text-sm font-medium text-green-800 dark:text-green-100">
-              Universal Profile Verified
-            </div>
-            <div className="text-xs text-green-600 dark:text-green-300">
-              {upAddress ? `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}` : 'Connected'}
-            </div>
-          </div>
-        </div>
-        <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/50 dark:text-green-300 dark:border-green-700">
-          Complete
-        </Badge>
-      </div>
-    );
-  }
-  
-  // Connection required
-  if (!hasUserTriggeredConnection) {
-    return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <UserCheck className="h-5 w-5 text-gray-400" />
-            <div>
-              <div className="text-sm font-medium">Universal Profile</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {requirements_list.length > 0 ? requirements_list.join(', ') : 'Required for verification'}
-              </div>
-            </div>
-          </div>
-          <Button 
-            onClick={handleConnect}
-            size="sm"
-            variant="outline"
-            className="text-xs"
-          >
-            <Wallet className="h-3 w-3 mr-1" />
-            Connect
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Map slot state to ExtendedVerificationStatus for RichRequirementsDisplay
+  const extendedUserStatus: ExtendedVerificationStatus = {
+    connected: isConnected && isCorrectChain,
+    verified: currentStatus === 'verified',
+    requirements: [], // Rich component doesn't use this for display
+    address: upAddress || undefined,
+    mockBalances: {
+      lyx: lyxBalance ? ethers.utils.parseEther(lyxBalance).toString() : undefined,
+      tokens: {} // TODO: Add token balance mapping when available
+    },
+    mockFollowerStatus: {} // TODO: Add follower status mapping when available
+  };
 
-  // Connecting state
-  if (isConnecting || (hasUserTriggeredConnection && (!isInitialized || !isConnected))) {
-    return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <UserCheck className="h-5 w-5 text-blue-500" />
-            <div>
-              <div className="text-sm font-medium">Universal Profile</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Connecting...
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-blue-600">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Connecting
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // UP metadata for the rich component
+  const upMetadata = {
+    icon: '🆙',
+    name: 'Universal Profile',
+    brandColor: '#FE005B' // LUKSO Pink
+  };
 
-  // Wrong network
-  if (isConnected && !isCorrectChain) {
-    return (
-      <div className="border border-amber-200 dark:border-amber-800 rounded-lg">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            <div>
-              <div className="text-sm font-medium">Universal Profile</div>
-              <div className="text-xs text-amber-600 dark:text-amber-400">
-                Please switch to LUKSO network
-              </div>
-            </div>
-          </div>
-          <Button 
-            onClick={() => switchToLukso()}
-            size="sm"
-            variant="outline"
-            className="text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-          >
-            Switch Network
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Handle connect action - integrates with slot workflow
+  const handleRichConnect = async () => {
+    if (!hasUserTriggeredConnection) {
+      await handleConnect();
+    } else if (!isConnected || !isCorrectChain) {
+      if (!isCorrectChain) {
+        await switchToLukso();
+      } else {
+        await handleConnect();
+      }
+    }
+  };
 
-  // Connection error
+  // Special cases that need simple UI (errors, wrong network)
   if (connectionError) {
     return (
-      <div className="border border-red-200 dark:border-red-800 rounded-lg">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <div>
-              <div className="text-sm font-medium">Universal Profile</div>
-              <div className="text-xs text-red-600 dark:text-red-400">
-                Connection failed
-              </div>
-            </div>
+      <div className="border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <div>
+            <div className="text-sm font-medium text-red-800 dark:text-red-100">Connection Error</div>
+            <div className="text-xs text-red-600 dark:text-red-400">{connectionError}</div>
           </div>
-          <Button 
-            onClick={handleConnect}
-            size="sm"
-            variant="outline"
-            className="text-xs"
-          >
-            Retry
-          </Button>
         </div>
+        <Button onClick={handleConnect} size="sm" variant="outline" className="w-full">
+          Retry Connection
+        </Button>
       </div>
     );
   }
-  
-  // Connected - Show verification interface
-  return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-3">
-          <UserCheck className="h-5 w-5 text-blue-500" />
+
+  if (isConnected && !isCorrectChain) {
+    return (
+      <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500" />
           <div>
-            <div className="text-sm font-medium">Universal Profile</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {upAddress ? `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}` : 'Connected'}
-            </div>
+            <div className="text-sm font-medium text-amber-800 dark:text-amber-100">Wrong Network</div>
+            <div className="text-xs text-amber-600 dark:text-amber-400">Please switch to LUKSO network</div>
           </div>
         </div>
-        <Button 
-          onClick={handleVerify}
-          disabled={isVerifying}
-          size="sm"
-          className="text-xs"
-        >
-          {isVerifying ? (
-            <>
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            'Verify'
-          )}
+        <Button onClick={switchToLukso} size="sm" variant="outline" className="w-full">
+          Switch to LUKSO
         </Button>
       </div>
-      
-      {/* Requirements details */}
-      <div className="px-4 pb-4">
-        <Separator className="mb-3" />
-        <div className="space-y-2">
-          <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            Requirements:
-          </div>
-          
-          {/* LYX Balance */}
-          {upRequirements.minLyxBalance && (
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <Coins className="h-3 w-3 text-yellow-600" />
-                <span>LYX Balance: {ethers.utils.formatEther(upRequirements.minLyxBalance)} LYX minimum</span>
-              </div>
-              {isLoadingBalance ? (
-                <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
-              ) : lyxBalance ? (
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-500">{lyxBalance} LYX</span>
-                  {meetsLyxRequirement === true ? (
-                    <CheckCircle className="h-3 w-3 text-green-500" />
-                  ) : meetsLyxRequirement === false ? (
-                    <XCircle className="h-3 w-3 text-red-500" />
-                  ) : null}
-                </div>
-              ) : (
-                <span className="text-gray-400">-</span>
-              )}
-            </div>
-          )}
+    );
+  }
 
-          {/* Other requirements */}
-          {upRequirements.requiredTokens?.map((token, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <div className="w-1 h-1 bg-gray-400 rounded-full" />
-              {token.symbol}: {token.minAmount || 1} minimum
-            </div>
-          ))}
-          
-          {upRequirements.followerRequirements?.map((follower, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <div className="w-1 h-1 bg-gray-400 rounded-full" />
-              {follower.type === 'minimum_followers' 
-                ? `${follower.value} minimum followers`
-                : follower.type === 'followed_by' 
-                ? `Must be followed by ${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`
-                : `Must follow ${follower.value.slice(0, 6)}...${follower.value.slice(-4)}`
-              }
-            </div>
-          ))}
-        </div>
-      </div>
+  // Main rich requirements display for all other states
+  return (
+    <div className="space-y-4">
+      <RichRequirementsDisplay
+        requirements={upRequirements}
+        userStatus={extendedUserStatus}
+        metadata={upMetadata}
+        onConnect={handleRichConnect}
+        onDisconnect={() => {}} // TODO: Add disconnect functionality if needed
+        disabled={isVerifying || isConnecting}
+        className="border-0"
+      />
       
+      {/* Verify button when connected but not verified */}
+      {isConnected && isCorrectChain && currentStatus !== 'verified' && (
+        <div className="border-t pt-4">
+          <Button 
+            onClick={handleVerify}
+            disabled={isVerifying}
+            className="w-full"
+            size="sm"
+          >
+            {isVerifying ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Verifying Requirements...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Complete Verification
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Error display */}
       {error && (
-        <div className="px-4 pb-4">
-          <div className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
-            <AlertTriangle className="h-3 w-3" />
-            {error}
-          </div>
+        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
         </div>
       )}
     </div>

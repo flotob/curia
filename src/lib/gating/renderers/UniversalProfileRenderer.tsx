@@ -39,27 +39,9 @@ import {
 import { ethers } from 'ethers';
 import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 import { UPSocialProfileDisplay } from '@/components/social/UPSocialProfileDisplay';
-import { InlineUPConnection } from '@/components/comment/InlineUPConnection';
-import { PostSettings } from '@/types/settings';
+import { RichRequirementsDisplay, ExtendedVerificationStatus } from '@/components/gating/RichRequirementsDisplay';
 import { ChallengeUtils } from '@/lib/verification/challengeUtils';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
-
-// ===== HELPER FUNCTIONS =====
-
-/**
- * Convert new UPGatingRequirements format to old postSettings format
- * for compatibility with InlineUPConnection
- */
-function convertRequirementsToPostSettings(requirements: UPGatingRequirements): PostSettings {
-  return {
-    responsePermissions: {
-      upGating: {
-        enabled: true,
-        requirements: requirements
-      }
-    }
-  };
-}
 
 // ===== UNIVERSAL PROFILE RENDERER CLASS =====
 
@@ -118,18 +100,39 @@ export class UniversalProfileRenderer implements CategoryRenderer {
 
   /**
    * Render the connection component (for commenter-side)
-   * Uses the existing InlineUPConnection with format conversion
+   * Uses the rich requirements display for beautiful UI
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements } = props;
+    const { requirements, onConnect, onDisconnect, userStatus, disabled } = props;
+    const metadata = this.getMetadata();
     
-    // Convert new requirements format to old postSettings format
-    const postSettings = convertRequirementsToPostSettings(requirements as UPGatingRequirements);
+    // Convert basic VerificationStatus to ExtendedVerificationStatus
+    // TODO: Add real user data from UP context
+    const extendedUserStatus: ExtendedVerificationStatus = {
+      ...userStatus || { connected: false, verified: false, requirements: [] },
+      address: undefined, // TODO: Get from UP context
+      mockBalances: {
+        lyx: '5000000000000000000', // 5 LYX for testing
+        tokens: {
+          '0x1234567890123456789012345678901234567890': '100000000000000000000' // 100 tokens for testing
+        }
+      },
+      mockFollowerStatus: {
+        'minimum_followers-10': true,
+        'followed_by-0x1234567890123456789012345678901234567890': false,
+        'following-0x1234567890123456789012345678901234567890': true
+      }
+    };
     
     return (
-      <InlineUPConnection 
-        postSettings={postSettings}
-        className="border-0 p-0 bg-transparent"
+      <RichRequirementsDisplay
+        requirements={requirements as UPGatingRequirements}
+        userStatus={extendedUserStatus}
+        metadata={metadata}
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+        disabled={disabled}
+        className="border-0"
       />
     );
   }
