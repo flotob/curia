@@ -575,18 +575,8 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     }
   }, [universalProfile?.isConnected, universalProfile?.upAddress, universalProfile, token, postId]);
 
-  // Auto-verification when all requirements are met
-  React.useEffect(() => {
-    if (allRequirementsMet && !userStatus?.verified && !isVerifying && universalProfile?.isConnected) {
-      console.log('[UPConnectionComponent] All requirements met, triggering auto-verification');
-      handleVerify().then((success) => {
-        if (success) {
-          console.log('[UPConnectionComponent] Auto-verification completed successfully');
-          // The parent component should refresh the verification status
-        }
-      });
-    }
-  }, [allRequirementsMet, userStatus?.verified, isVerifying, universalProfile?.isConnected, handleVerify]);
+  // Note: Auto-verification removed - users must manually click to verify
+  // This provides better UX and user control over when verification occurs
 
   // Create ExtendedVerificationStatus with real data
   const extendedUserStatus: ExtendedVerificationStatus = {
@@ -613,27 +603,39 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
         className="border-0"
       />
       
-      {/* Manual verification button (backup if auto-verification fails) */}
+      {/* Manual verification button */}
       {universalProfile?.isConnected && universalProfile?.isCorrectChain && !userStatus?.verified && (
         <div className="border-t pt-4">
           <Button 
             onClick={() => handleVerify()}
-            disabled={isVerifying}
+            disabled={isVerifying || !allRequirementsMet}
             className="w-full"
             size="sm"
+            variant={allRequirementsMet ? "default" : "secondary"}
           >
             {isVerifying ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Verifying Requirements...
               </>
-            ) : (
+            ) : allRequirementsMet ? (
               <>
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Complete Verification
               </>
+            ) : (
+              <>
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Requirements Not Met
+              </>
             )}
           </Button>
+          
+          {!allRequirementsMet && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Meet all requirements above to enable verification
+            </p>
+          )}
         </div>
       )}
 

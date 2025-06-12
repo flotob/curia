@@ -210,6 +210,51 @@ CREATE TRIGGER "set_timestamp_posts" BEFORE UPDATE ON "public"."posts" FOR EACH 
 
 DELIMITER ;
 
+DROP TABLE IF EXISTS "pre_verifications";
+DROP SEQUENCE IF EXISTS pre_verifications_id_seq;
+CREATE SEQUENCE pre_verifications_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
+
+CREATE TABLE "public"."pre_verifications" (
+    "id" integer DEFAULT nextval('pre_verifications_id_seq') NOT NULL,
+    "user_id" text NOT NULL,
+    "post_id" integer NOT NULL,
+    "category_type" text NOT NULL,
+    "verification_data" jsonb NOT NULL,
+    "verification_status" text DEFAULT 'pending' NOT NULL,
+    "verified_at" timestamptz,
+    "expires_at" timestamptz NOT NULL,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "pre_verifications_pkey" PRIMARY KEY ("id")
+) WITH (oids = false);
+
+COMMENT ON TABLE "public"."pre_verifications" IS 'Stores pre-verification states for slot-based gating system';
+
+COMMENT ON COLUMN "public"."pre_verifications"."category_type" IS 'Type of gating category: ethereum_profile, universal_profile, etc.';
+
+COMMENT ON COLUMN "public"."pre_verifications"."verification_data" IS 'JSON containing signature, challenge, and verified requirement details';
+
+COMMENT ON COLUMN "public"."pre_verifications"."verification_status" IS 'Status: pending (submitted), verified (backend confirmed), expired (timed out)';
+
+COMMENT ON COLUMN "public"."pre_verifications"."expires_at" IS 'Verification expires 30 minutes after creation for security';
+
+CREATE UNIQUE INDEX pre_verifications_unique_user_post_category ON public.pre_verifications USING btree (user_id, post_id, category_type);
+
+CREATE INDEX pre_verifications_user_id_index ON public.pre_verifications USING btree (user_id);
+
+CREATE INDEX pre_verifications_post_id_index ON public.pre_verifications USING btree (post_id);
+
+CREATE INDEX pre_verifications_status_index ON public.pre_verifications USING btree (verification_status);
+
+CREATE INDEX pre_verifications_expires_at_index ON public.pre_verifications USING btree (expires_at);
+
+
+DELIMITER ;;
+
+CREATE TRIGGER "set_timestamp_pre_verifications" BEFORE UPDATE ON "public"."pre_verifications" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
+
+DELIMITER ;
+
 DROP TABLE IF EXISTS "telegram_groups";
 DROP SEQUENCE IF EXISTS telegram_groups_id_seq;
 CREATE SEQUENCE telegram_groups_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -299,6 +344,9 @@ ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_shared_by_user_id_fkey" 
 ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_author_user_id_fkey" FOREIGN KEY (author_user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
 
+ALTER TABLE ONLY "public"."pre_verifications" ADD CONSTRAINT "pre_verifications_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."pre_verifications" ADD CONSTRAINT "pre_verifications_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+
 ALTER TABLE ONLY "public"."telegram_groups" ADD CONSTRAINT "telegram_groups_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."telegram_notifications" ADD CONSTRAINT "telegram_notifications_source_comment_id_fkey" FOREIGN KEY (source_comment_id) REFERENCES comments(id) ON DELETE SET NULL NOT DEFERRABLE;
@@ -308,4 +356,4 @@ ALTER TABLE ONLY "public"."telegram_notifications" ADD CONSTRAINT "telegram_noti
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
--- 2025-06-07 19:58:06 UTC
+-- 2025-06-12 07:15:48 UTC

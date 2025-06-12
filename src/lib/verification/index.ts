@@ -11,4 +11,14 @@ export { ChallengeUtils } from './challengeUtils';
 export { NonceStore } from './nonceStore';
 
 // Token ABIs and utilities (shared)
-export * from './tokenABIs'; 
+export * from './tokenABIs';
+
+// Universal Profile verification functions (shared)
+export {
+  verifyLyxBalance,
+  verifyLSP7Balance,
+  verifyLSP8Ownership,
+  verifyFollowerRequirements,
+  verifyTokenRequirements,
+  verifyPostGatingRequirements
+} from './upVerification'; 

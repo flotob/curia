@@ -10,9 +10,9 @@ import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { SettingsUtils, PostSettings } from '@/types/settings';
 import { VerificationChallenge } from '@/lib/verification/types';
-import { ChallengeUtils } from '@/lib/verification/challengeUtils';
+import { ChallengeUtils, verifyPostGatingRequirements } from '@/lib/verification';
 import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
-import { EthereumGatingRequirements } from '@/types/gating';
+import { EthereumGatingRequirements, UPGatingRequirements } from '@/types/gating';
 
 interface PreVerifyRequest {
   challenge: VerificationChallenge;
@@ -139,8 +139,23 @@ async function preVerifyHandler(
         }, { status: 400 });
       }
 
-      // TODO: Verify UP requirements (will be implemented when we add UP verification)
-      requirementsValid = true; // For now, assume valid for testing
+      // ✅ FIXED: Use actual UP verification instead of hardcoded bypass
+      const requirementsResult = await verifyPostGatingRequirements(
+        challenge.upAddress,
+        {
+          responsePermissions: {
+            upGating: {
+              enabled: true,
+              requirements: targetCategory.requirements as UPGatingRequirements
+            }
+          }
+        }
+      );
+      requirementsValid = requirementsResult.valid;
+      
+      if (!requirementsValid) {
+        verificationError = requirementsResult.error || 'Universal Profile requirements not met';
+      }
     }
 
     const verificationStatus = (signatureValid && requirementsValid) ? 'verified' : 'failed';

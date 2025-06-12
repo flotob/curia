@@ -11,9 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { 
-  CheckCircle, 
   AlertTriangle, 
-  Loader2,
   User,
   Coins,
   Users,
@@ -22,6 +20,8 @@ import {
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { EthereumGatingRequirements } from '@/types/gating';
 import { formatEther } from 'viem';
+import { EthereumRichRequirementsDisplay, EthereumExtendedVerificationStatus } from './EthereumRichRequirementsDisplay';
+import { EthereumSmartVerificationButton } from './EthereumSmartVerificationButton';
 
 interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
@@ -158,10 +158,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     }
   };
 
-  // Format address for display
-  const formatAddress = (address: string): string => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+
 
   // If not connected, show RainbowKit connect button with requirements preview
   if (!isConnected) {
@@ -248,100 +245,71 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     );
   }
 
-  // Connected and on correct chain - show verification status
+  // Create mock balances for the rich display
+  const mockBalances = {
+    eth: ethBalance,
+    tokens: stableRequirements.requiredERC20Tokens?.reduce((acc, token) => {
+      acc[token.contractAddress] = {
+        raw: '0', // TODO: Replace with real token balance
+        formatted: '0',
+        decimals: token.decimals,
+        name: token.name,
+        symbol: token.symbol
+      };
+      return acc;
+    }, {} as Record<string, {
+      raw: string;
+      formatted: string;
+      decimals?: number;
+      name?: string;
+      symbol?: string;
+    }>) || {}
+  };
+
+  // Create extended user status for rich display
+  const extendedUserStatus: EthereumExtendedVerificationStatus = {
+    connected: isConnected,
+    verified: verificationResult?.isValid || false,
+    requirements: [],
+    ethAddress: ethAddress || undefined,
+    mockBalances,
+    mockENSStatus: ensProfile.name ? true : false,
+    mockEFPStatus: stableRequirements.efpRequirements?.reduce((acc, efp) => {
+      const key = `${efp.type}-${efp.value}`;
+      acc[key] = false; // TODO: Replace with real EFP status
+      return acc;
+    }, {} as Record<string, boolean>) || {}
+  };
+
+  // Check if all requirements are met (simplified for now)
+  const allRequirementsMet = verificationResult?.isValid || false;
+
+  // Connected and on correct chain - show rich requirements display
   return (
-    <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-900/50">
-      {/* Connection Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-            <div>
-              <div className="text-sm font-medium">
-                {ensProfile.name || formatAddress(ethAddress || '')}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Ethereum Connected
-              </div>
-            </div>
-          </div>
-          {ensProfile.avatar && (
-            <img 
-              src={ensProfile.avatar} 
-              alt="ENS Avatar" 
-              className="w-8 h-8 rounded-full"
-            />
-          )}
-        </div>
-        <Button onClick={handleDisconnect} variant="ghost" size="sm">
-          Disconnect
-        </Button>
-      </div>
-
-      {/* Profile Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-3 text-center">
-        <div className="text-xs">
-          <div className="font-medium">{formatETHAmount(ethBalance)}</div>
-          <div className="text-muted-foreground">ETH</div>
-        </div>
-        <div className="text-xs">
-          <div className="font-medium">{efpStats.followers}</div>
-          <div className="text-muted-foreground">Followers</div>
-        </div>
-        <div className="text-xs">
-          <div className="font-medium">{efpStats.following}</div>
-          <div className="text-muted-foreground">Following</div>
-        </div>
-      </div>
-
-      {/* Verification Status */}
-      {isVerifying ? (
-        <div className="flex items-center justify-center py-4">
-          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-          <span className="text-sm text-muted-foreground">Verifying requirements...</span>
-        </div>
-      ) : verificationResult ? (
-        <div className={`p-3 rounded-lg border ${
-          verificationResult.isValid 
-            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
-            : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
-        }`}>
-          <div className="flex items-center space-x-2 mb-2">
-            {verificationResult.isValid ? (
-              <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-            )}
-            <span className={`text-sm font-medium ${
-              verificationResult.isValid ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
-            }`}>
-              {verificationResult.isValid ? 'All Requirements Met' : 'Requirements Not Met'}
-            </span>
-          </div>
-          
-          {!verificationResult.isValid && verificationResult.missingRequirements.length > 0 && (
-            <div className="text-xs text-red-700 dark:text-red-300">
-              <div className="font-medium mb-1">Missing:</div>
-              <ul className="list-disc list-inside space-y-1">
-                {verificationResult.missingRequirements.map((req, idx) => (
-                  <li key={idx}>{req}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {verificationResult.errors.length > 0 && (
-            <div className="text-xs text-red-700 dark:text-red-300 mt-2">
-              <div className="font-medium mb-1">Errors:</div>
-              <ul className="list-disc list-inside space-y-1">
-                {verificationResult.errors.map((error, idx) => (
-                  <li key={idx}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      ) : null}
+    <div className="space-y-4">
+      <EthereumRichRequirementsDisplay
+        requirements={stableRequirements}
+        userStatus={extendedUserStatus}
+        metadata={{
+          icon: '⟠',
+          name: 'Ethereum Profile',
+          brandColor: '#627EEA'
+        }}
+        onConnect={async () => {}} // Already connected
+        onDisconnect={handleDisconnect}
+        className="border-0"
+      />
+      
+      <EthereumSmartVerificationButton
+        state="ready_to_verify"
+        allRequirementsMet={allRequirementsMet}
+        isConnected={isConnected}
+        isCorrectChain={isCorrectChain}
+        isVerifying={isVerifying}
+        verified={verificationResult?.isValid || false}
+        onClick={verifyRequirements}
+        error={verificationResult?.errors[0]}
+      />
     </div>
   );
 }; 
