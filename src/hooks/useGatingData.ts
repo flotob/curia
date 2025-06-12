@@ -28,6 +28,33 @@ export interface CategoryStatus {
     description: string;
     icon: string;
   };
+  verificationData?: {
+    walletAddress?: string;
+    verifiedProfiles?: {
+      displayName?: string;
+      username?: string;
+      avatar?: string;
+      ensName?: string;
+      isVerified?: boolean;
+    };
+    verifiedBalances?: {
+      native?: string;
+      tokens?: Array<{
+        address: string;
+        symbol: string;
+        name?: string;
+        balance: string;
+        formattedBalance: string;
+      }>;
+    };
+    verifiedSocial?: {
+      followerCount?: number;
+      followingAddresses?: string[];
+      followedByAddresses?: string[];
+    };
+    signature?: string;
+    challenge?: unknown;
+  };
 }
 
 interface VerificationStatusData {

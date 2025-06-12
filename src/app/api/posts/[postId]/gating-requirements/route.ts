@@ -28,6 +28,33 @@ interface CategoryStatus {
     description: string;
     icon: string;
   };
+  verificationData?: {
+    walletAddress?: string;
+    verifiedProfiles?: {
+      displayName?: string;
+      username?: string;
+      avatar?: string;
+      ensName?: string;
+      isVerified?: boolean;
+    };
+    verifiedBalances?: {
+      native?: string;
+      tokens?: Array<{
+        address: string;
+        symbol: string;
+        name?: string;
+        balance: string;
+        formattedBalance: string;
+      }>;
+    };
+    verifiedSocial?: {
+      followerCount?: number;
+      followingAddresses?: string[];
+      followedByAddresses?: string[];
+    };
+    signature?: string;
+    challenge?: unknown;
+  };
 }
 
 // Category metadata for display
@@ -99,15 +126,20 @@ async function getGatingRequirementsHandler(
     const categories = SettingsUtils.getGatingCategories(postSettings);
     const requireAll = postSettings.responsePermissions?.requireAll || false;
 
-    // Get current verification statuses for this user
+    // Get current verification statuses for this user (including verification_data)
     const verificationResult = await query(
-      `SELECT category_type, verification_status, verified_at, expires_at 
+      `SELECT category_type, verification_status, verified_at, expires_at, verification_data 
        FROM pre_verifications 
        WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW()`,
       [user.sub, postId]
     );
 
-    const verificationMap = new Map<string, { verification_status: string; verified_at?: string; expires_at?: string }>();
+    const verificationMap = new Map<string, { 
+      verification_status: string; 
+      verified_at?: string; 
+      expires_at?: string; 
+      verification_data?: unknown;
+    }>();
     verificationResult.rows.forEach(row => {
       verificationMap.set(row.category_type, row);
     });
@@ -121,6 +153,18 @@ async function getGatingRequirementsHandler(
         verificationStatus = verification.verification_status as CategoryStatus['verificationStatus'];
       }
 
+      // Parse verification data if available
+      let verificationData: CategoryStatus['verificationData'];
+      if (verification?.verification_data) {
+        try {
+          verificationData = typeof verification.verification_data === 'string' 
+            ? JSON.parse(verification.verification_data)
+            : verification.verification_data;
+        } catch (error) {
+          console.error(`[API] Failed to parse verification_data for ${category.type}:`, error);
+        }
+      }
+
       return {
         type: category.type,
         enabled: category.enabled,
@@ -129,6 +173,7 @@ async function getGatingRequirementsHandler(
         verifiedAt: verification?.verified_at,
         expiresAt: verification?.expires_at,
         metadata: CATEGORY_METADATA[category.type as keyof typeof CATEGORY_METADATA],
+        verificationData,
       };
     });
 

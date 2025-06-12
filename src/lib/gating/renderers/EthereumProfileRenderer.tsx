@@ -86,7 +86,7 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * NEW: Render the connection component (for commenter-side)
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, postId } = props;
+    const { requirements, onConnect, onDisconnect, postId, userStatus, onVerificationComplete } = props;
     
     return (
       <EthereumConnectionWidget
@@ -94,6 +94,8 @@ export class EthereumProfileRenderer implements CategoryRenderer {
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         postId={postId}
+        serverVerified={userStatus?.verified || false}
+        onVerificationComplete={onVerificationComplete}
       />
     );
   }
@@ -306,7 +308,7 @@ interface EthereumDisplayComponentProps extends CategoryRendererProps {
 
 const EthereumDisplayComponent: React.FC<EthereumDisplayComponentProps> = ({
   requirements,
-  userStatus, // eslint-disable-line @typescript-eslint/no-unused-vars
+  userStatus,
   isExpanded, // eslint-disable-line @typescript-eslint/no-unused-vars
   onToggleExpanded, // eslint-disable-line @typescript-eslint/no-unused-vars
   metadata, // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -315,11 +317,13 @@ const EthereumDisplayComponent: React.FC<EthereumDisplayComponentProps> = ({
 }) => {
   // EthereumConnectionWidget handles all the RainbowKit integration, wallet connection,
   // balance checking, verification status, and UI display internally
+  // Note: This is used in poster-side display, so no verification completion callback needed
   return (
     <EthereumConnectionWidget
       requirements={requirements}
       onConnect={onConnect}
       onDisconnect={onDisconnect}
+      serverVerified={userStatus?.verified || false}
     />
   );
 };

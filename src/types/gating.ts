@@ -108,6 +108,7 @@ export interface CategoryConnectionProps {
   userStatus?: VerificationStatus;
   disabled?: boolean;
   postId?: number;
+  onVerificationComplete?: () => void; // Callback after successful verification
 }
 
 /**

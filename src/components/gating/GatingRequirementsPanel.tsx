@@ -14,20 +14,17 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { 
   Shield, 
-  CheckCircle, 
-  Clock, 
   AlertTriangle,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp
+  RefreshCw
 } from 'lucide-react';
 
 import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
 import { VerificationStatus } from '@/types/gating';
-import { useGatingRequirements, useVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
+import { useGatingRequirements, useVerificationStatus, useInvalidateVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
 import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
+import { RichCategoryHeader } from './RichCategoryHeader';
 
 // Ensure categories are registered when this module loads
 ensureCategoriesRegistered();
@@ -60,6 +57,9 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
     refetch: refetchStatus 
   } = useVerificationStatus(postId);
   
+  // Hook to invalidate verification status after user actions
+  const invalidateVerificationStatus = useInvalidateVerificationStatus();
+  
   // ===== PROFILE CONTEXTS =====
   
   const universalProfile = useConditionalUniversalProfile();
@@ -68,20 +68,29 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   
   // ===== LOCAL STATE =====
   
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   
   // ===== AUTO-EXPAND LOGIC =====
   
-  // Auto-expand categories that need verification when data changes
+  // Auto-expand first category that needs verification (accordion pattern)
   React.useEffect(() => {
-    if (gatingData?.categories) {
+    if (gatingData?.categories && expandedCategory === null) {
       const needsVerification = gatingData.categories
         .filter(cat => cat.enabled && cat.verificationStatus === 'not_started')
-        .map(cat => cat.type);
+        .sort((a, b) => {
+          // Priority: UP > Ethereum > Others
+          const priority: Record<string, number> = { 
+            universal_profile: 0, 
+            ethereum_profile: 1 
+          };
+          return (priority[a.type] ?? 99) - (priority[b.type] ?? 99);
+        });
       
-      setExpandedCategories(new Set(needsVerification));
+      if (needsVerification.length > 0) {
+        setExpandedCategory(needsVerification[0].type);
+      }
     }
-  }, [gatingData?.categories]);
+  }, [gatingData?.categories, expandedCategory]);
   
   // ===== UP ACTIVATION LOGIC =====
   
@@ -124,14 +133,13 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   // ===== HANDLERS =====
 
   const toggleCategoryExpanded = useCallback((categoryType: string) => {
-    setExpandedCategories(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(categoryType)) {
-        newSet.delete(categoryType);
-      } else {
-        newSet.add(categoryType);
+    setExpandedCategory(prev => {
+      // If clicking already expanded category → collapse it
+      if (prev === categoryType) {
+        return null;
       }
-      return newSet;
+      // If clicking different category → expand that one (closes others)
+      return categoryType;
     });
   }, []);
 
@@ -143,73 +151,19 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   }, [refetchGating, refetchStatus]);
 
   // ===== RENDER HELPERS =====
-
-  const getStatusIcon = (status: 'not_started' | 'pending' | 'verified' | 'expired') => {
-    switch (status) {
-      case 'verified':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'expired':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Shield className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getStatusBadge = (status: 'not_started' | 'pending' | 'verified' | 'expired') => {
-    switch (status) {
-      case 'verified':
-        return <Badge variant="default" className="bg-green-100 text-green-800">Verified</Badge>;
-      case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-      case 'expired':
-        return <Badge variant="destructive">Expired</Badge>;
-      default:
-        return <Badge variant="outline">Not Started</Badge>;
-    }
-  };
+  // Note: Status rendering moved to RichCategoryHeader component
 
   const renderCategorySlot = (category: CategoryStatus) => {
-    const isExpanded = expandedCategories.has(category.type);
+    const isExpanded = expandedCategory === category.type;
     
     return (
-      <div key={category.type} className="border rounded-lg">
-        {/* Category Header */}
-        <div 
-          className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => toggleCategoryExpanded(category.type)}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {getStatusIcon(category.verificationStatus)}
-              <div>
-                <div className="font-medium text-sm">
-                  {category.metadata?.name || category.type}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {category.metadata?.description || `Verify your ${category.type}`}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              {getStatusBadge(category.verificationStatus)}
-              {isExpanded ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
-            </div>
-          </div>
-          
-          {/* Expiry info for verified slots */}
-          {category.verificationStatus === 'verified' && category.expiresAt && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Expires: {new Date(category.expiresAt).toLocaleString()}
-            </div>
-          )}
-        </div>
+      <div key={category.type} className="border rounded-lg overflow-hidden">
+        {/* Rich Category Header */}
+        <RichCategoryHeader
+          category={category}
+          isExpanded={isExpanded}
+          onToggle={() => toggleCategoryExpanded(category.type)}
+        />
 
         {/* Category Content (Expanded) */}
         {isExpanded && (
@@ -292,7 +246,11 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                   onDisconnect: handleDisconnect,
                   userStatus: mockUserStatus,
                   disabled: false,
-                  postId: postId
+                  postId: postId,
+                  onVerificationComplete: () => {
+                    console.log(`[GatingRequirementsPanel] Verification completed for ${category.type}, invalidating cache`);
+                    invalidateVerificationStatus(postId);
+                  }
                 });
               })()}
             </div>

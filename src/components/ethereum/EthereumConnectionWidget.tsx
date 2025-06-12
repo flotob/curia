@@ -22,19 +22,26 @@ import { EthereumGatingRequirements } from '@/types/gating';
 import { formatEther } from 'viem';
 import { EthereumRichRequirementsDisplay, EthereumExtendedVerificationStatus } from './EthereumRichRequirementsDisplay';
 import { EthereumSmartVerificationButton } from './EthereumSmartVerificationButton';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
   onConnect?: () => void;
   onDisconnect?: () => void;
   postId?: number;
+  // Add server verification status from parent
+  serverVerified?: boolean;
+  // Callback when verification is complete (to refresh parent data)
+  onVerificationComplete?: () => void;
 }
 
 export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
   requirements,
   onConnect,
   onDisconnect,
-  postId // eslint-disable-line @typescript-eslint/no-unused-vars
+  postId,
+  serverVerified = false,
+  onVerificationComplete
 }) => {
   const {
     isConnected,
@@ -43,16 +50,18 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     ethAddress,
     disconnect,
     switchToEthereum,
-    verifyPostRequirements,
     getENSProfile,
     getEFPStats,
-    getETHBalance
+    getETHBalance,
+    signMessage
   } = useEthereumProfile();
+  
+  const { token } = useAuth();
 
   const [verificationResult, setVerificationResult] = useState<{ isValid: boolean; missingRequirements: string[]; errors: string[] } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [ensProfile, setEnsProfile] = useState<{ name?: string; avatar?: string }>({});
-  const [efpStats, setEfpStats] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
+  const [, setEfpStats] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
   const [ethBalance, setEthBalance] = useState<string>('0');
 
   // Use refs to track callback props to avoid dependency issues
@@ -87,41 +96,81 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     }
   }, [isConnected]);
 
-  // Memoize the verification function to prevent recreation on every render
+  // Server pre-verification function
   const verifyRequirements = useCallback(async () => {
-    if (!isConnected || !isCorrectChain || !ethAddress) {
+    if (!isConnected || !isCorrectChain || !ethAddress || !postId || !token) {
+      console.error('[EthereumConnectionWidget] Missing required data for verification');
       return;
     }
 
     setIsVerifying(true);
     try {
-      // Create a mock post settings object for verification
-      const postSettings = {
-        responsePermissions: {
-          categories: [{
-            type: 'ethereum_profile',
-            requirements: stableRequirements
-          }]
-        }
+      console.log('[EthereumConnectionWidget] Starting server pre-verification...');
+
+      // 1. Create challenge message
+      const challengeMessage = `Verify Ethereum profile for post ${postId}\nAddress: ${ethAddress}\nTimestamp: ${Date.now()}\nChain: Ethereum Mainnet`;
+      
+      console.log('[EthereumConnectionWidget] Requesting signature from user...');
+      
+      // 2. Request signature from user
+      const signature = await signMessage(challengeMessage);
+      
+      console.log('[EthereumConnectionWidget] Signature received, submitting to server...');
+
+      // 3. Create challenge object for API
+      const challenge = {
+        type: 'ethereum_profile',
+        postId: postId,
+        ethAddress: ethAddress,
+        message: challengeMessage,
+        signature: signature,
+        timestamp: Date.now(),
+        requirements: stableRequirements
       };
 
-      const result = await verifyPostRequirements(postSettings);
-      setVerificationResult(result);
+      // 4. Submit to server pre-verification API
+      const response = await fetch(`/api/posts/${postId}/pre-verify/ethereum_profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ challenge })
+      });
 
-      // Fetch profile data
-      try {
-        const [ensData, efpData, balanceData] = await Promise.all([
-          getENSProfile(),
-          getEFPStats(),
-          getETHBalance()
-        ]);
-        
-        setEnsProfile(ensData);
-        setEfpStats(efpData);
-        setEthBalance(balanceData);
-      } catch (error) {
-        console.error('[EthereumConnectionWidget] Failed to fetch profile data:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server returned ${response.status}`);
       }
+
+      const result = await response.json();
+      console.log('[EthereumConnectionWidget] Server verification result:', result);
+
+      if (result.success && result.verificationStatus === 'verified') {
+        // Success! The parent component will refresh and show verified status
+        console.log('[EthereumConnectionWidget] ✅ Verification successful!');
+        
+        // Update local state to show success
+        setVerificationResult({
+          isValid: true,
+          missingRequirements: [],
+          errors: []
+        });
+        
+        // Notify parent to refresh verification status
+        if (onVerificationComplete) {
+          onVerificationComplete();
+        }
+      } else {
+        // Verification failed
+        console.log('[EthereumConnectionWidget] ❌ Verification failed:', result.error);
+        setVerificationResult({
+          isValid: false,
+          missingRequirements: ['Server verification failed'],
+          errors: [result.error || 'Unknown server error']
+        });
+      }
+
     } catch (error) {
       console.error('[EthereumConnectionWidget] Verification failed:', error);
       setVerificationResult({
@@ -132,14 +181,35 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     } finally {
       setIsVerifying(false);
     }
-  }, [isConnected, isCorrectChain, ethAddress, stableRequirements, verifyPostRequirements, getENSProfile, getEFPStats, getETHBalance]);
+  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete]);
 
-  // Verify requirements when connected - only depend on the memoized function
+  // Load profile data when connected (separate from verification)
+  const loadProfileData = useCallback(async () => {
+    if (!isConnected || !isCorrectChain || !ethAddress) {
+      return;
+    }
+
+    try {
+      const [ensData, efpData, balanceData] = await Promise.all([
+        getENSProfile(),
+        getEFPStats(), 
+        getETHBalance()
+      ]);
+      
+      setEnsProfile(ensData);
+      setEfpStats(efpData);
+      setEthBalance(balanceData);
+    } catch (error) {
+      console.error('[EthereumConnectionWidget] Failed to fetch profile data:', error);
+    }
+  }, [isConnected, isCorrectChain, ethAddress, getENSProfile, getEFPStats, getETHBalance]);
+
+  // Load profile data when connected
   useEffect(() => {
     if (isConnected && isCorrectChain && ethAddress) {
-      verifyRequirements();
+      loadProfileData();
     }
-  }, [isConnected, isCorrectChain, ethAddress, verifyRequirements]);
+  }, [isConnected, isCorrectChain, ethAddress, loadProfileData]);
 
   // Reset verification when disconnected
   useEffect(() => {
@@ -269,7 +339,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
   // Create extended user status for rich display
   const extendedUserStatus: EthereumExtendedVerificationStatus = {
     connected: isConnected,
-    verified: verificationResult?.isValid || false,
+    verified: serverVerified, // Use server verification status, not local
     requirements: [],
     ethAddress: ethAddress || undefined,
     mockBalances,
@@ -281,7 +351,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     }, {} as Record<string, boolean>) || {}
   };
 
-  // Check if all requirements are met (simplified for now)
+  // Check if all requirements are met locally (for button enable/disable)
   const allRequirementsMet = verificationResult?.isValid || false;
 
   // Connected and on correct chain - show rich requirements display
@@ -300,16 +370,19 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
         className="border-0"
       />
       
-      <EthereumSmartVerificationButton
-        state="ready_to_verify"
-        allRequirementsMet={allRequirementsMet}
-        isConnected={isConnected}
-        isCorrectChain={isCorrectChain}
-        isVerifying={isVerifying}
-        verified={verificationResult?.isValid || false}
-        onClick={verifyRequirements}
-        error={verificationResult?.errors[0]}
-      />
+      {/* Only show verification button if not already server-verified */}
+      {!serverVerified && (
+        <EthereumSmartVerificationButton
+          state="ready_to_verify"
+          allRequirementsMet={allRequirementsMet}
+          isConnected={isConnected}
+          isCorrectChain={isCorrectChain}
+          isVerifying={isVerifying}
+          verified={serverVerified} // Use server verification status
+          onClick={verifyRequirements}
+          error={verificationResult?.errors[0]}
+        />
+      )}
     </div>
   );
 }; 
