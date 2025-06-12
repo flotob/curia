@@ -588,7 +588,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
           
           console.log(`[UP Context] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}, decimals=${decimals}`);
         } catch (erc725yError) {
-          console.log(`[UP Context] ❌ LSP7 ERC725Y metadata failed, trying standard functions:`, erc725yError);
+          console.log(`[UP Context] ⚠️ LSP7 ERC725Y metadata failed, trying standard functions:`, erc725yError);
           
           // Fallback: try standard ERC20-like functions
           try {
@@ -600,7 +600,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
             
             console.log(`[UP Context] ⚠️ LSP7 fallback to standard functions: name=${name}, symbol=${symbol}, decimals=${decimals}`);
           } catch (metadataError) {
-            console.log(`[UP Context] LSP7 standard functions also failed, trying implementation:`, metadataError);
+            console.log(`[UP Context] ⚠️ LSP7 standard functions also failed, trying implementation:`, metadataError);
             
             if (workingContract !== directContract) {
               try {

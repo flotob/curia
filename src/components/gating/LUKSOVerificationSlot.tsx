@@ -20,7 +20,6 @@ import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/Cond
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { VerificationChallenge } from '@/lib/verification/types';
-import { ethers } from 'ethers';
 import { RichRequirementsDisplay, ExtendedVerificationStatus } from '@/components/gating/RichRequirementsDisplay';
 
 interface LUKSOVerificationSlotProps {
@@ -51,7 +50,11 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
     switchToLukso,
     getLyxBalance,
     connect,
-    signMessage
+    signMessage,
+    checkTokenBalance,
+    getFollowerCount,
+    isFollowedBy,
+    isFollowing
   } = useConditionalUniversalProfile();
 
   // ===== STATE =====
@@ -59,6 +62,14 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lyxBalance, setLyxBalance] = useState<string | null>(null);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, {
+    raw: string;
+    formatted: string;
+    decimals?: number;
+    name?: string;
+    symbol?: string;
+  }>>({});
+  const [followerStatuses, setFollowerStatuses] = useState<Record<string, boolean>>({});
   
   // ===== REQUIREMENTS PARSING =====
   
@@ -77,8 +88,8 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
     if (isConnected && isCorrectChain && upRequirements?.minLyxBalance) {
       getLyxBalance()
         .then((balance: string) => {
-          const formatted = ethers.utils.formatEther(balance);
-          setLyxBalance(parseFloat(formatted).toFixed(4));
+          // Store the raw wei balance for BigNumber comparison
+          setLyxBalance(balance);
         })
         .catch((error: unknown) => {
           console.error('Failed to load LYX balance:', error);
@@ -88,6 +99,92 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
       setLyxBalance(null);
     }
   }, [isConnected, isCorrectChain, getLyxBalance, upRequirements?.minLyxBalance]);
+
+  // Load token balances when connected and on correct chain
+  useEffect(() => {
+    if (isConnected && isCorrectChain && upRequirements?.requiredTokens?.length) {
+      const loadTokenBalances = async () => {
+        const balances: Record<string, {
+          raw: string;
+          formatted: string;
+          decimals?: number;
+          name?: string;
+          symbol?: string;
+        }> = {};
+        
+        for (const token of upRequirements.requiredTokens!) {
+          try {
+            console.log(`[LUKSOVerificationSlot] Fetching balance for ${token.contractAddress}`);
+            const tokenData = await checkTokenBalance(token.contractAddress, token.tokenType);
+            
+            // Store both raw and formatted balances
+            balances[token.contractAddress] = {
+              raw: tokenData.balance,
+              formatted: tokenData.formattedBalance || '0',
+              decimals: tokenData.decimals,
+              name: tokenData.name || token.name,
+              symbol: tokenData.symbol || token.symbol
+            };
+            
+            console.log(`[LUKSOVerificationSlot] ${token.symbol || 'Token'} balance: ${balances[token.contractAddress].formatted}`);
+          } catch (error) {
+            console.error(`[LUKSOVerificationSlot] Failed to fetch balance for ${token.contractAddress}:`, error);
+            balances[token.contractAddress] = {
+              raw: '0',
+              formatted: '0',
+              decimals: 18,
+              name: token.name,
+              symbol: token.symbol
+            };
+          }
+        }
+        
+        setTokenBalances(balances);
+      };
+      
+      loadTokenBalances();
+    } else {
+      setTokenBalances({});
+    }
+  }, [isConnected, isCorrectChain, upRequirements?.requiredTokens, checkTokenBalance]);
+
+  // Load follower statuses when connected and on correct chain
+  useEffect(() => {
+    if (isConnected && isCorrectChain && upAddress && upRequirements?.followerRequirements?.length) {
+      const loadFollowerStatuses = async () => {
+        const statuses: Record<string, boolean> = {};
+        
+        for (const followerReq of upRequirements.followerRequirements!) {
+          const key = `${followerReq.type}-${followerReq.value}`;
+          
+          try {
+            if (followerReq.type === 'minimum_followers') {
+              const followerCount = await getFollowerCount(upAddress);
+              statuses[key] = followerCount >= parseInt(followerReq.value);
+              console.log(`[LUKSOVerificationSlot] Follower count: ${followerCount} >= ${followerReq.value} = ${statuses[key]}`);
+            } else if (followerReq.type === 'followed_by') {
+              const isFollowed = await isFollowedBy(followerReq.value, upAddress);
+              statuses[key] = isFollowed;
+              console.log(`[LUKSOVerificationSlot] Followed by ${followerReq.value}: ${isFollowed}`);
+            } else if (followerReq.type === 'following') {
+              const isFollowingUser = await isFollowing(upAddress, followerReq.value);
+              statuses[key] = isFollowingUser;
+              console.log(`[LUKSOVerificationSlot] Following ${followerReq.value}: ${isFollowingUser}`);
+            }
+          } catch (error) {
+            console.error(`[LUKSOVerificationSlot] Failed to check follower requirement ${key}:`, error);
+            statuses[key] = false;
+          }
+        }
+        
+        setFollowerStatuses(statuses);
+      };
+      
+      loadFollowerStatuses();
+    } else {
+      setFollowerStatuses({});
+    }
+  }, [isConnected, isCorrectChain, upAddress, upRequirements?.followerRequirements, getFollowerCount, isFollowedBy, isFollowing]);
 
   // Auto-trigger connection once Web3-Onboard is initialized
   useEffect(() => {
@@ -175,10 +272,10 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
     requirements: [], // Rich component doesn't use this for display
     address: upAddress || undefined,
     mockBalances: {
-      lyx: lyxBalance ? ethers.utils.parseEther(lyxBalance).toString() : undefined,
-      tokens: {} // TODO: Add token balance mapping when available
+      lyx: lyxBalance || undefined, // Keep raw wei balance for BigNumber comparison
+      tokens: tokenBalances // Real token balances in raw format
     },
-    mockFollowerStatus: {} // TODO: Add follower status mapping when available
+    mockFollowerStatus: followerStatuses // Real follower statuses
   };
 
   // UP metadata for the rich component

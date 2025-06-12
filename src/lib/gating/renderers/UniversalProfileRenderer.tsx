@@ -13,10 +13,16 @@ import {
   CategoryConnectionProps,
   GatingCategoryMetadata, 
   VerificationResult,
+  VerificationStatus,
   UPGatingRequirements,
   TokenRequirement,
   FollowerRequirement
 } from '@/types/gating';
+
+import { useAuth } from '@/contexts/AuthContext';
+import { authFetchJson } from '@/utils/authFetch';
+import { VerificationChallenge } from '@/lib/verification/types';
+import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -27,8 +33,6 @@ import {
   Plus, 
   X, 
   Coins, 
-  CheckCircle, 
-  AlertTriangle, 
   Users, 
   UserCheck,
   ChevronDown,
@@ -42,6 +46,7 @@ import { UPSocialProfileDisplay } from '@/components/social/UPSocialProfileDispl
 import { RichRequirementsDisplay, ExtendedVerificationStatus } from '@/components/gating/RichRequirementsDisplay';
 import { ChallengeUtils } from '@/lib/verification/challengeUtils';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { useConditionalUniversalProfile } from '@/contexts/ConditionalUniversalProfileProvider';
 
 // ===== UNIVERSAL PROFILE RENDERER CLASS =====
 
@@ -100,39 +105,22 @@ export class UniversalProfileRenderer implements CategoryRenderer {
 
   /**
    * Render the connection component (for commenter-side)
-   * Uses the rich requirements display for beautiful UI
+   * Uses the rich requirements display with real UP context data
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, userStatus, disabled } = props;
+    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId } = props;
     const metadata = this.getMetadata();
     
-    // Convert basic VerificationStatus to ExtendedVerificationStatus
-    // TODO: Add real user data from UP context
-    const extendedUserStatus: ExtendedVerificationStatus = {
-      ...userStatus || { connected: false, verified: false, requirements: [] },
-      address: undefined, // TODO: Get from UP context
-      mockBalances: {
-        lyx: '5000000000000000000', // 5 LYX for testing
-        tokens: {
-          '0x1234567890123456789012345678901234567890': '100000000000000000000' // 100 tokens for testing
-        }
-      },
-      mockFollowerStatus: {
-        'minimum_followers-10': true,
-        'followed_by-0x1234567890123456789012345678901234567890': false,
-        'following-0x1234567890123456789012345678901234567890': true
-      }
-    };
-    
+    // This will be rendered within GatingRequirementsPanel which has UP context
     return (
-      <RichRequirementsDisplay
+      <UPConnectionComponent
         requirements={requirements as UPGatingRequirements}
-        userStatus={extendedUserStatus}
+        userStatus={userStatus}
         metadata={metadata}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         disabled={disabled}
-        className="border-0"
+        postId={postId}
       />
     );
   }
@@ -292,6 +280,373 @@ export class UniversalProfileRenderer implements CategoryRenderer {
     };
   }
 }
+
+// ===== CONNECTION COMPONENT (uses real UP context) =====
+
+interface UPConnectionComponentProps {
+  requirements: UPGatingRequirements;
+  userStatus?: VerificationStatus;
+  metadata: GatingCategoryMetadata;
+  onConnect: () => Promise<void>;
+  onDisconnect: () => void;
+  disabled?: boolean;
+  postId?: number;
+}
+
+const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
+  requirements,
+  userStatus,
+  metadata,
+  onConnect,
+  onDisconnect,
+  disabled,
+  postId
+}) => {
+  const universalProfile = useConditionalUniversalProfile();
+  const { token } = useAuth();
+  const [lyxBalance, setLyxBalance] = useState<string | null>(null);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, {
+    raw: string;
+    formatted: string;
+    decimals?: number;
+    name?: string;
+    symbol?: string;
+  }>>({});
+  const [followerStatuses, setFollowerStatuses] = useState<Record<string, boolean>>({});
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load real LYX balance when connected
+  useEffect(() => {
+    if (universalProfile?.isConnected && universalProfile?.isCorrectChain && requirements?.minLyxBalance) {
+      universalProfile.getLyxBalance()
+        .then((balance: string) => {
+          setLyxBalance(balance);
+          
+          // Debug: Check if LYX balance meets requirement
+          if (requirements?.minLyxBalance) {
+            try {
+              const userBalance = ethers.BigNumber.from(balance);
+              const requiredBalance = ethers.BigNumber.from(requirements.minLyxBalance);
+              const hasEnough = userBalance.gte(requiredBalance);
+              const formattedUser = ethers.utils.formatEther(balance);
+              const formattedRequired = ethers.utils.formatEther(requirements.minLyxBalance);
+              console.log(`[UPConnectionComponent] LYX: has ${formattedUser}, needs ${formattedRequired} - ${hasEnough ? '✅ PASS' : '❌ FAIL'}`);
+            } catch (error) {
+              console.error('Error comparing LYX balances:', error);
+            }
+          }
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to load LYX balance:', error);
+          setLyxBalance(null);
+        });
+    } else {
+      setLyxBalance(null);
+    }
+  }, [universalProfile?.isConnected, universalProfile?.isCorrectChain, universalProfile, requirements?.minLyxBalance]);
+
+  // Load real token balances when connected
+  useEffect(() => {
+    if (universalProfile?.isConnected && universalProfile?.isCorrectChain && requirements?.requiredTokens?.length) {
+      const loadTokenBalances = async () => {
+        const balances: Record<string, {
+          raw: string;
+          formatted: string;
+          decimals?: number;
+          name?: string;
+          symbol?: string;
+        }> = {};
+        
+        console.log(`[UPConnectionComponent] Checking ${requirements.requiredTokens!.length} token requirements`);
+        
+        for (const token of requirements.requiredTokens!) {
+          try {
+            const tokenData = await universalProfile.checkTokenBalance(token.contractAddress, token.tokenType);
+            
+            // Store both raw and formatted balances
+            balances[token.contractAddress] = {
+              raw: tokenData.balance,
+              formatted: tokenData.formattedBalance || ethers.utils.formatUnits(tokenData.balance, tokenData.decimals || 18),
+              decimals: tokenData.decimals,
+              name: tokenData.name || token.name,
+              symbol: tokenData.symbol || token.symbol
+            };
+            
+            // Debug: Check if this token meets the requirement
+            const required = token.minAmount || '1';
+            let hasEnough = false;
+            try {
+              if (token.tokenType === 'LSP7') {
+                // For LSP7 tokens, compare as BigNumbers using raw balance
+                const userBalance = ethers.BigNumber.from(tokenData.balance);
+                const requiredBalance = ethers.BigNumber.from(required);
+                hasEnough = userBalance.gte(requiredBalance);
+              } else {
+                // For LSP8 (NFTs), compare as numbers
+                hasEnough = parseInt(tokenData.balance) >= parseInt(required);
+              }
+            } catch (compareError) {
+              console.error(`Error comparing balances for ${token.contractAddress}:`, compareError);
+            }
+            
+            const formattedRequired = token.tokenType === 'LSP7' ? 
+              ethers.utils.formatUnits(required, tokenData.decimals || 18) :
+              required;
+            
+            console.log(`[UPConnectionComponent] ${token.symbol || token.name || token.contractAddress}: has ${balances[token.contractAddress].formatted}, needs ${formattedRequired} - ${hasEnough ? '✅ PASS' : '❌ FAIL'}`);
+          } catch (error) {
+            console.error(`Failed to fetch balance for ${token.contractAddress}:`, error);
+            balances[token.contractAddress] = {
+              raw: '0',
+              formatted: '0',
+              decimals: 18,
+              name: token.name,
+              symbol: token.symbol
+            };
+          }
+        }
+        
+        setTokenBalances(balances);
+      };
+      
+      loadTokenBalances();
+    } else {
+      setTokenBalances({});
+    }
+  }, [universalProfile?.isConnected, universalProfile?.isCorrectChain, universalProfile, requirements?.requiredTokens]);
+
+  // Load real follower statuses when connected
+  useEffect(() => {
+    if (universalProfile?.isConnected && universalProfile?.isCorrectChain && universalProfile?.upAddress && requirements?.followerRequirements?.length) {
+      const loadFollowerStatuses = async () => {
+        const statuses: Record<string, boolean> = {};
+        const upAddress = universalProfile.upAddress;
+        
+        if (!upAddress) return;
+        
+        for (const followerReq of requirements.followerRequirements!) {
+          const key = `${followerReq.type}-${followerReq.value}`;
+          
+          try {
+            if (followerReq.type === 'minimum_followers') {
+              const followerCount = await universalProfile.getFollowerCount(upAddress);
+              const hasEnough = followerCount >= parseInt(followerReq.value);
+              statuses[key] = hasEnough;
+              console.log(`[UPConnectionComponent] Followers: has ${followerCount}, needs ${followerReq.value} - ${hasEnough ? '✅ PASS' : '❌ FAIL'}`);
+            } else if (followerReq.type === 'followed_by') {
+              const isFollowed = await universalProfile.isFollowedBy(followerReq.value, upAddress);
+              statuses[key] = isFollowed;
+              console.log(`[UPConnectionComponent] Followed by ${followerReq.value}: ${isFollowed ? '✅ PASS' : '❌ FAIL'}`);
+            } else if (followerReq.type === 'following') {
+              const isFollowingUser = await universalProfile.isFollowing(upAddress, followerReq.value);
+              statuses[key] = isFollowingUser;
+              console.log(`[UPConnectionComponent] Following ${followerReq.value}: ${isFollowingUser ? '✅ PASS' : '❌ FAIL'}`);
+            }
+          } catch (error) {
+            console.error(`Failed to check follower requirement ${key}:`, error);
+            statuses[key] = false;
+          }
+        }
+        
+        setFollowerStatuses(statuses);
+      };
+      
+      loadFollowerStatuses();
+    } else {
+      setFollowerStatuses({});
+    }
+  }, [universalProfile?.isConnected, universalProfile?.isCorrectChain, universalProfile?.upAddress, universalProfile, requirements?.followerRequirements]);
+
+  // Check if all requirements are met for auto-verification
+  const allRequirementsMet = React.useMemo(() => {
+    if (!universalProfile?.isConnected || !universalProfile?.isCorrectChain) return false;
+    
+    // Check LYX balance
+    if (requirements?.minLyxBalance && lyxBalance) {
+      try {
+        const userBalance = ethers.BigNumber.from(lyxBalance);
+        const requiredBalance = ethers.BigNumber.from(requirements.minLyxBalance);
+        if (!userBalance.gte(requiredBalance)) return false;
+      } catch {
+        return false;
+      }
+    }
+    
+    // Check token requirements
+    if (requirements?.requiredTokens?.length) {
+      for (const token of requirements.requiredTokens) {
+        const userTokenData = tokenBalances[token.contractAddress];
+        if (!userTokenData) return false;
+        
+        try {
+          const required = token.minAmount || '1';
+          if (token.tokenType === 'LSP7') {
+            // For LSP7 tokens, compare as BigNumbers using raw balance
+            const userBalance = ethers.BigNumber.from(userTokenData.raw);
+            const requiredBalance = ethers.BigNumber.from(required);
+            if (!userBalance.gte(requiredBalance)) return false;
+          } else {
+            // For LSP8 (NFTs), compare as numbers
+            if (parseInt(userTokenData.raw) < parseInt(required)) return false;
+          }
+        } catch {
+          return false;
+        }
+      }
+    }
+    
+    // Check follower requirements
+    if (requirements?.followerRequirements?.length) {
+      for (const followerReq of requirements.followerRequirements) {
+        const key = `${followerReq.type}-${followerReq.value}`;
+        if (!followerStatuses[key]) return false;
+      }
+    }
+    
+    return true;
+  }, [universalProfile?.isConnected, universalProfile?.isCorrectChain, lyxBalance, tokenBalances, followerStatuses, requirements]);
+
+  // Verification function
+  const handleVerify = useCallback(async (overridePostId?: number) => {
+    if (!universalProfile?.isConnected || !universalProfile?.upAddress || !token) {
+      setError('Please connect your Universal Profile first');
+      return false;
+    }
+    
+    const targetPostId = overridePostId || postId;
+    if (!targetPostId) {
+      setError('No post ID available for verification');
+      return false;
+    }
+    
+    setIsVerifying(true);
+    setError(null);
+    
+    try {
+      console.log(`[UPConnectionComponent] Starting verification for post ${targetPostId}`);
+      
+      // Generate challenge using existing UP challenge endpoint
+      const challengeResponse = await authFetchJson<{
+        challenge: VerificationChallenge;
+        message: string;
+      }>(`/api/posts/${targetPostId}/challenge`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ upAddress: universalProfile.upAddress }),
+      });
+
+      const { challenge, message } = challengeResponse;
+      
+      // Sign the challenge using existing UP signing
+      const signature = await universalProfile.signMessage(message);
+      
+      // Add signature to challenge
+      const signedChallenge = {
+        ...challenge,
+        signature
+      };
+      
+      // Submit to pre-verification API
+      const response = await authFetchJson<{
+        success: boolean;
+        error?: string;
+      }>(`/api/posts/${targetPostId}/pre-verify/universal_profile`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          challenge: signedChallenge
+        })
+      });
+      
+      if (response.success) {
+        console.log(`[UPConnectionComponent] ✅ Verification successful for post ${targetPostId}`);
+        return true;
+      } else {
+        throw new Error(response.error || 'Verification failed');
+      }
+      
+    } catch (err) {
+      console.error('[UPConnectionComponent] Verification error:', err);
+      setError(err instanceof Error ? err.message : 'Verification failed');
+      return false;
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [universalProfile?.isConnected, universalProfile?.upAddress, universalProfile, token, postId]);
+
+  // Auto-verification when all requirements are met
+  React.useEffect(() => {
+    if (allRequirementsMet && !userStatus?.verified && !isVerifying && universalProfile?.isConnected) {
+      console.log('[UPConnectionComponent] All requirements met, triggering auto-verification');
+      handleVerify().then((success) => {
+        if (success) {
+          console.log('[UPConnectionComponent] Auto-verification completed successfully');
+          // The parent component should refresh the verification status
+        }
+      });
+    }
+  }, [allRequirementsMet, userStatus?.verified, isVerifying, universalProfile?.isConnected, handleVerify]);
+
+  // Create ExtendedVerificationStatus with real data
+  const extendedUserStatus: ExtendedVerificationStatus = {
+    connected: userStatus?.connected || false,
+    verified: userStatus?.verified || false,
+    requirements: userStatus?.requirements || [],
+    address: universalProfile?.upAddress || undefined,
+    mockBalances: {
+      lyx: lyxBalance || undefined,
+      tokens: tokenBalances
+    },
+    mockFollowerStatus: followerStatuses
+  };
+
+  return (
+    <div className="space-y-4">
+      <RichRequirementsDisplay
+        requirements={requirements}
+        userStatus={extendedUserStatus}
+        metadata={metadata}
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+        disabled={disabled || isVerifying}
+        className="border-0"
+      />
+      
+      {/* Manual verification button (backup if auto-verification fails) */}
+      {universalProfile?.isConnected && universalProfile?.isCorrectChain && !userStatus?.verified && (
+        <div className="border-t pt-4">
+          <Button 
+            onClick={() => handleVerify()}
+            disabled={isVerifying}
+            className="w-full"
+            size="sm"
+          >
+            {isVerifying ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Verifying Requirements...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Complete Verification
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Error display */}
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ===== DISPLAY COMPONENT =====
 

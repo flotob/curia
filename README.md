@@ -624,6 +624,265 @@ To use this plugin, you have three options:
    - Use it as a starting point for building your own custom plugin
    - Adapt the functionality to match your specific use case
 
+## Gating System Architecture
+
+This plugin implements a sophisticated **dual-system gating architecture** that combines powerful pre-verification workflow with beautiful, prominent UI displays. Understanding this architecture is crucial for maintaining and extending the gating functionality.
+
+### System Overview: Slots vs Renderers
+
+The gating system uses **two complementary systems** that serve different purposes:
+
+1. **Slot System** (`GatingRequirementsPanel` + verification slots)
+   - **Purpose**: Pre-verification workflow for commenters
+   - **When**: Users prove requirements BEFORE commenting
+   - **Features**: Database storage, 30-min expiry, signature collection
+   - **UI**: Beautiful, prominent requirements display
+
+2. **Renderer System** (`MultiCategoryConnection` + renderers)  
+   - **Purpose**: Real-time connection UI and requirement display
+   - **When**: Live feedback during wallet connection
+   - **Features**: Dynamic status updates, wallet integration
+   - **UI**: Used for certain display contexts
+
+### The Slot System: Pre-Verification Workflow
+
+**Core Philosophy**: Solve the "signature at submission time" UX problem by allowing users to verify gating requirements in advance.
+
+#### Flow Diagram
+```
+Post Creation → Gating Config → Comment Attempt → Pre-Verification → Comment Success
+     ↓              ↓              ↓               ↓                ↓
+  [Poster Side] [Requirements] [Slot System] [Database Storage] [Bypassed Gating]
+```
+
+#### Database Schema
+```sql
+-- Pre-verification storage with expiry
+CREATE TABLE pre_verifications (
+  id SERIAL PRIMARY KEY,
+  post_id INTEGER REFERENCES posts(id),
+  user_id TEXT NOT NULL,
+  category_type TEXT NOT NULL, -- 'universal_profile', 'ethereum_profile'
+  verification_data JSONB,     -- Signed challenges and proofs
+  expires_at TIMESTAMP,        -- 30-minute expiry
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### Verification States
+- **`not_started`**: User hasn't attempted verification
+- **`pending`**: User connected wallet, working on requirements  
+- **`verified`**: Requirements met, signed challenge stored
+- **`expired`**: Verification older than 30 minutes
+
+### Component Architecture
+
+#### 1. GatingRequirementsPanel (Orchestrator)
+**Location**: `src/components/gating/GatingRequirementsPanel.tsx`
+
+**Responsibilities**:
+- Detects gating categories from post settings
+- Routes to appropriate verification slots
+- Manages overall verification state
+- Handles post settings format conversion
+
+**Key Methods**:
+```typescript
+// Determines which categories need verification
+const gatingCategories = SettingsUtils.getGatingCategories(postSettings);
+
+// Routes to verification slots
+{gatingCategories.map(category => (
+  category.type === 'universal_profile' ? 
+    <LUKSOVerificationSlot key={category.id} {...category} /> :
+    <EthereumVerificationSlot key={category.id} {...category} />
+))}
+```
+
+#### 2. LUKSOVerificationSlot (Universal Profile Verification)
+**Location**: `src/components/gating/LUKSOVerificationSlot.tsx`
+
+**Integration with RichRequirementsDisplay**:
+```typescript
+// Maps slot state to rich component props
+const extendedUserStatus: ExtendedVerificationStatus = {
+  connected: isConnected && isCorrectChain,
+  verified: currentStatus === 'verified',
+  address: upAddress,
+  mockBalances: {
+    lyx: lyxBalance ? ethers.utils.parseEther(lyxBalance).toString() : undefined,
+    tokens: {} // Real-time token balances
+  }
+};
+
+// Beautiful UI with slot workflow
+<RichRequirementsDisplay
+  requirements={upRequirements}
+  userStatus={extendedUserStatus}
+  metadata={upMetadata}
+  onConnect={handleRichConnect}
+  className="border-0"
+/>
+```
+
+**Verification Process**:
+1. **Connection**: User connects Universal Profile wallet
+2. **Requirements Check**: Real-time validation of LYX, tokens, followers
+3. **Challenge Generation**: Server creates signed challenge
+4. **Signature Collection**: User signs challenge with UP
+5. **Database Storage**: Verification stored with 30-min expiry
+
+#### 3. RichRequirementsDisplay (Beautiful UI Component)
+**Location**: `src/components/gating/RichRequirementsDisplay.tsx`
+
+**Key Features**:
+- **Gradient backgrounds** based on verification status
+- **Profile pictures** for follower requirements (10x10 with fallbacks)
+- **Token icons** fetched from IPFS metadata
+- **Real-time balance updates** with loading states
+- **Detailed comparisons** ("Required vs You have")
+- **Status-aware styling** with dynamic colors
+
+**Visual States**:
+```typescript
+// Green gradient for verified requirements
+className="bg-gradient-to-r from-green-50 to-green-100 border-green-200"
+
+// Red gradient for failed requirements  
+className="bg-gradient-to-r from-red-50 to-red-100 border-red-200"
+
+// Amber gradient for pending verification
+className="bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200"
+```
+
+### API Integration
+
+#### Pre-Verification Endpoints
+```typescript
+// Generate challenge for verification
+POST /api/posts/[postId]/challenge
+// Input: { upAddress }
+// Output: { challenge, message }
+
+// Submit verified challenge  
+POST /api/posts/[postId]/pre-verify/universal_profile
+// Input: { challenge: signedChallenge }
+// Output: { success: boolean }
+
+// Check verification status
+GET /api/posts/[postId]/verification-status  
+// Output: { universal_profile: 'verified' | 'expired' | 'not_started' }
+```
+
+#### Comment Submission Flow
+```typescript
+// When user submits comment
+POST /api/posts/[postId]/comments
+// 1. Check for valid pre-verification
+// 2. If verified: Allow comment without re-gating
+// 3. If not verified: Return gating requirements error
+// 4. Frontend shows GatingRequirementsPanel
+```
+
+### Legacy Compatibility
+
+The system maintains **backward compatibility** with existing posts:
+
+```typescript
+// SettingsUtils.getGatingCategories() handles both formats
+const hasLegacyUPGating = postSettings.responsePermissions?.upGating?.enabled;
+const hasNewMultiCategory = postSettings.gatingCategories?.length > 0;
+
+if (hasLegacyUPGating) {
+  // Convert legacy format to new category format
+  return [{
+    id: 'universal_profile',
+    type: 'universal_profile', 
+    requirements: postSettings.responsePermissions.upGating.requirements
+  }];
+}
+```
+
+### Security Model
+
+**Multi-Layer Verification**:
+1. **Client-Side**: Beautiful UI feedback and wallet integration
+2. **Server-Side**: Cryptographic challenge verification
+3. **Database**: Tamper-proof storage with expiry
+4. **Comment API**: Final verification check before allowing comments
+
+**Challenge Structure**:
+```typescript
+interface VerificationChallenge {
+  userId: string;
+  postId: number; 
+  timestamp: number;
+  requirements: UPGatingRequirements;
+  signature?: string; // Added after user signs
+}
+```
+
+### Configuration
+
+**Environment Variables**:
+```bash
+# Pre-verification expiry (seconds)
+PRE_VERIFICATION_EXPIRY=1800  # 30 minutes
+
+# LUKSO network configuration  
+LUKSO_RPC_URL=https://rpc.mainnet.lukso.network
+LUKSO_CHAIN_ID=42
+
+# Universal Profile features
+UP_IPFS_GATEWAY=https://ipfs.lukso.network/ipfs/
+```
+
+### Error Handling
+
+**Graceful Degradation**:
+- Network errors: Show retry options with exponential backoff
+- Wallet errors: Clear error messages with connection help
+- Expired verifications: Auto-prompt for re-verification
+- Invalid signatures: Security error with fresh challenge generation
+
+### Performance Optimizations
+
+**Real-Time Updates**:
+- Debounced balance checking (500ms)
+- Cached profile picture fetching
+- Lazy-loaded token icon resolution
+- WebSocket connections for live verification status
+
+**Database Efficiency**:
+```sql
+-- Optimized verification lookup
+CREATE INDEX idx_pre_verifications_lookup 
+ON pre_verifications(post_id, user_id, category_type, expires_at);
+
+-- Automatic cleanup of expired verifications
+DELETE FROM pre_verifications WHERE expires_at < NOW();
+```
+
+### Debugging
+
+**Development Tools**:
+```typescript
+// Enable gating debug logging
+localStorage.setItem('DEBUG_GATING', 'true');
+
+// Check verification state
+console.log('Verification Status:', await fetchVerificationStatus(postId));
+
+// Inspect challenge generation
+console.log('Challenge:', await generateChallenge(postId, upAddress));
+```
+
+**Common Issues**:
+- **"Still seeing old UI"**: Check if post uses legacy vs new gating format
+- **"Verification not persisting"**: Verify database connection and expiry times
+- **"Rich UI not showing"**: Confirm slot system is routing to verification slots
+- **"Balance not updating"**: Check LUKSO RPC connection and rate limiting
+
 ## Architecture
 
 This plugin demonstrates a comprehensive full-stack architecture with real-time capabilities:

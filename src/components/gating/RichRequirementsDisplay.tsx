@@ -38,8 +38,14 @@ import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 export interface ExtendedVerificationStatus extends VerificationStatus {
   address?: string; // User's wallet address when connected
   mockBalances?: {
-    lyx?: string;
-    tokens?: Record<string, string>;
+    lyx?: string; // Raw balance for LYX (wei)
+    tokens?: Record<string, {
+      raw: string;        // Raw balance for BigNumber comparisons 
+      formatted: string;  // Formatted balance for display
+      decimals?: number;
+      name?: string;
+      symbol?: string;
+    }>;
   };
   mockFollowerStatus?: Record<string, boolean>;
 }
@@ -259,14 +265,15 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   }> = {};
   if (requirements.requiredTokens) {
     requirements.requiredTokens.forEach(token => {
-      const mockBalance = userStatus.mockBalances?.tokens?.[token.contractAddress];
+      const mockTokenData = userStatus.mockBalances?.tokens?.[token.contractAddress];
       tokenVerifications[token.contractAddress] = {
-        balance: mockBalance || '0',
-        formattedBalance: mockBalance ? formatBalance(mockBalance) : '0',
-        name: token.name,
-        symbol: token.symbol,
-        meetsRequirement: mockBalance ? 
-          ethers.BigNumber.from(mockBalance).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
+        balance: mockTokenData?.raw || '0',
+        formattedBalance: mockTokenData?.formatted || '0',
+        name: mockTokenData?.name || token.name,
+        symbol: mockTokenData?.symbol || token.symbol,
+        decimals: mockTokenData?.decimals,
+        meetsRequirement: mockTokenData ? 
+          ethers.BigNumber.from(mockTokenData.raw).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
         isLoading: false
       };
     });

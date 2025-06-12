@@ -107,6 +107,7 @@ export interface CategoryConnectionProps {
   onDisconnect: () => void;
   userStatus?: VerificationStatus;
   disabled?: boolean;
+  postId?: number;
 }
 
 /**

@@ -22,11 +22,15 @@ import {
   ChevronUp
 } from 'lucide-react';
 
-import { EthereumVerificationSlot } from './EthereumVerificationSlot';
-import { LUKSOVerificationSlot } from './LUKSOVerificationSlot';
-import { useGatingRequirements, useVerificationStatus, useInvalidateVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
+import { ensureRegistered } from '@/lib/gating/categoryRegistry';
+import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
+import { VerificationStatus } from '@/types/gating';
+import { useGatingRequirements, useVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
+import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
+import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 
-// Types are now imported from the hooks file
+// Ensure categories are registered when this module loads
+ensureCategoriesRegistered();
 
 interface GatingRequirementsPanelProps {
   postId: number;
@@ -56,7 +60,11 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
     refetch: refetchStatus 
   } = useVerificationStatus(postId);
   
-  const invalidateVerificationStatus = useInvalidateVerificationStatus();
+  // ===== PROFILE CONTEXTS =====
+  
+  const universalProfile = useConditionalUniversalProfile();
+  const upActivation = useUPActivation();
+  const ethereumProfile = useEthereumProfile();
   
   // ===== LOCAL STATE =====
   
@@ -74,6 +82,35 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
       setExpandedCategories(new Set(needsVerification));
     }
   }, [gatingData?.categories]);
+  
+  // ===== UP ACTIVATION LOGIC =====
+  
+  // Activate Universal Profile when UP gating is detected
+  React.useEffect(() => {
+    if (gatingData?.categories) {
+      const hasUPCategory = gatingData.categories.some(cat => 
+        cat.enabled && cat.type === 'universal_profile'
+      );
+      
+      if (hasUPCategory) {
+        console.log('[GatingRequirementsPanel] UP gating detected, activating UP functionality');
+        upActivation.activateUP();
+      }
+    }
+  }, [gatingData?.categories, upActivation]);
+  
+  // Auto-trigger UP connection once Web3-Onboard is initialized
+  React.useEffect(() => {
+    if (upActivation.hasUserTriggeredConnection && 
+        universalProfile?.isInitialized && 
+        !universalProfile?.isConnected && 
+        !universalProfile?.isConnecting) {
+      console.log('[GatingRequirementsPanel] Web3-Onboard initialized, auto-triggering UP connection');
+      universalProfile.connect().catch((error) => {
+        console.error('[GatingRequirementsPanel] Auto-connection failed:', error);
+      });
+    }
+  }, [upActivation.hasUserTriggeredConnection, universalProfile?.isInitialized, universalProfile?.isConnected, universalProfile?.isConnecting, universalProfile]);
   
   // ===== PARENT NOTIFICATION =====
   
@@ -97,11 +134,6 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
       return newSet;
     });
   }, []);
-
-  const handleCategoryVerificationComplete = useCallback(() => {
-    // Invalidate verification status to trigger smooth React Query refetch
-    invalidateVerificationStatus(postId);
-  }, [invalidateVerificationStatus, postId]);
 
   const refreshData = useCallback(async () => {
     await Promise.all([
@@ -183,23 +215,86 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
         {isExpanded && (
           <div className="border-t bg-muted/20">
             <div className="p-4">
-              {category.type === 'ethereum_profile' && (
-                <EthereumVerificationSlot
-                  postId={postId}
-                  requirements={category.requirements}
-                  currentStatus={category.verificationStatus}
-                  onVerificationComplete={handleCategoryVerificationComplete}
-                />
-              )}
-              
-              {category.type === 'universal_profile' && (
-                <LUKSOVerificationSlot
-                  postId={postId}
-                  requirements={category.requirements}
-                  currentStatus={category.verificationStatus}
-                  onVerificationComplete={handleCategoryVerificationComplete}
-                />
-              )}
+              {(() => {
+                const renderer = ensureRegistered(category.type);
+                
+                // Create VerificationStatus based on actual connection state
+                const mockUserStatus: VerificationStatus = (() => {
+                  if (category.type === 'universal_profile') {
+                    return {
+                      connected: universalProfile?.isConnected || false,
+                      verified: category.verificationStatus === 'verified',
+                      requirements: []
+                    };
+                  } else if (category.type === 'ethereum_profile') {
+                    return {
+                      connected: ethereumProfile?.isConnected || false,
+                      verified: category.verificationStatus === 'verified',
+                      requirements: []
+                    };
+                  } else {
+                    return {
+                      connected: category.verificationStatus !== 'not_started',
+                      verified: category.verificationStatus === 'verified',
+                      requirements: []
+                    };
+                  }
+                })();
+
+                // Real connection handlers based on category type
+                const handleConnect = async () => {
+                  console.log(`[GatingRequirementsPanel] Connect triggered for ${category.type}`);
+                  
+                  try {
+                    if (category.type === 'universal_profile') {
+                      // Only initialize UP context - actual connection handled by effect
+                      console.log('[GatingRequirementsPanel] Initializing Universal Profile connection...');
+                      upActivation.initializeConnection();
+                    } else if (category.type === 'ethereum_profile') {
+                      // Use Ethereum Profile connection directly (no timing issues)
+                      if (ethereumProfile?.connect) {
+                        await ethereumProfile.connect();
+                      } else {
+                        console.warn('[GatingRequirementsPanel] Ethereum Profile context not available');
+                      }
+                    } else {
+                      console.warn(`[GatingRequirementsPanel] Unknown category type: ${category.type}`);
+                    }
+                  } catch (error) {
+                    console.error(`[GatingRequirementsPanel] Connection failed for ${category.type}:`, error);
+                  }
+                };
+
+                const handleDisconnect = () => {
+                  console.log(`[GatingRequirementsPanel] Disconnect triggered for ${category.type}`);
+                  
+                  try {
+                    if (category.type === 'universal_profile') {
+                      // Use Universal Profile disconnection
+                      if (universalProfile?.disconnect) {
+                        universalProfile.disconnect();
+                      }
+                    } else if (category.type === 'ethereum_profile') {
+                      // Use Ethereum Profile disconnection
+                      if (ethereumProfile?.disconnect) {
+                        ethereumProfile.disconnect();
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`[GatingRequirementsPanel] Disconnection failed for ${category.type}:`, error);
+                  }
+                };
+
+                // Use the category renderer for connection UI
+                return renderer.renderConnection({
+                  requirements: category.requirements,
+                  onConnect: handleConnect,
+                  onDisconnect: handleDisconnect,
+                  userStatus: mockUserStatus,
+                  disabled: false,
+                  postId: postId
+                });
+              })()}
             </div>
           </div>
         )}

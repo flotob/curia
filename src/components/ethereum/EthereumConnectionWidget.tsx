@@ -27,12 +27,14 @@ interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
   onConnect?: () => void;
   onDisconnect?: () => void;
+  postId?: number;
 }
 
 export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
   requirements,
   onConnect,
-  onDisconnect
+  onDisconnect,
+  postId // eslint-disable-line @typescript-eslint/no-unused-vars
 }) => {
   const {
     isConnected,

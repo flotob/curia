@@ -41,19 +41,42 @@ function WalletProviders({ children }: { children: React.ReactNode }) {
     setIsMounted(true);
   }, []);
 
-  // Don't render wallet providers during SSR or if wagmiConfig is not available
-  if (!isMounted || !wagmiConfig) {
+  // Don't render wallet providers during SSR
+  if (!isMounted) {
     return <>{children}</>;
+  }
+
+  // Isolate the two wallet systems to prevent cross-contamination
+  // UP provider runs standalone, Ethereum provider is conditionally mounted
+  return (
+    <ConditionalUniversalProfileProvider>
+      <ConditionalWagmiProvider>
+        {children}
+      </ConditionalWagmiProvider>
+    </ConditionalUniversalProfileProvider>
+  );
+}
+
+// Conditional Wagmi Provider - only mounts when Ethereum gating is detected
+function ConditionalWagmiProvider({ children }: { children: React.ReactNode }) {
+  // TODO: Detect if Ethereum gating is needed
+  // For now, always mount since we don't have gating detection at this level
+  // This will be improved when we implement proper gating detection
+  
+  if (!wagmiConfig) {
+    return (
+      <ConditionalEthereumProvider enabled={false}>
+        {children}
+      </ConditionalEthereumProvider>
+    );
   }
 
   return (
     <WagmiProvider config={wagmiConfig}>
       <RainbowKitProvider>
-        <ConditionalUniversalProfileProvider>
-          <ConditionalEthereumProvider enabled>
-            {children}
-          </ConditionalEthereumProvider>
-        </ConditionalUniversalProfileProvider>
+        <ConditionalEthereumProvider enabled>
+          {children}
+        </ConditionalEthereumProvider>
       </RainbowKitProvider>
     </WagmiProvider>
   );

@@ -361,17 +361,19 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
         
         if (followingResponse.ok) {
           const followingData = await followingResponse.json();
-          followingList = (followingData.following || []).map((addr: string) => addr.toLowerCase());
+          followingList = (followingData.following || [])
+            .filter((addr: unknown) => typeof addr === 'string')
+            .map((addr: string) => addr.toLowerCase());
         }
         
         if (followersResponse.ok) {
           const followersData = await followersResponse.json();
-          followersList = (followersData.followers || []).map((addr: string) => addr.toLowerCase());
+          followersList = (followersData.followers || [])
+            .filter((addr: unknown) => typeof addr === 'string')
+            .map((addr: string) => addr.toLowerCase());
         }
         
         for (const req of requirements) {
-          const targetAddress = req.value.toLowerCase();
-          
           if (req.type === 'minimum_followers') {
             const required = parseInt(req.value);
             if (followerCount < required) {
@@ -379,11 +381,13 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
             }
           } else if (req.type === 'must_follow') {
             // Check if current user follows the target address
+            const targetAddress = req.value.toLowerCase();
             if (!followingList.includes(targetAddress)) {
               missingRequirements.push(`Must follow ${targetAddress}`);
             }
           } else if (req.type === 'must_be_followed_by') {
             // Check if target address follows the current user
+            const targetAddress = req.value.toLowerCase();
             if (!followersList.includes(targetAddress)) {
               missingRequirements.push(`Must be followed by ${targetAddress}`);
             }
