@@ -969,6 +969,7 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
   const [followerProfilePreview, setFollowerProfilePreview] = useState<UPSocialProfile | null>(null);
   const [isFetchingFollowerProfile, setIsFetchingFollowerProfile] = useState(false);
   const [followerProfileError, setFollowerProfileError] = useState<string | null>(null);
+  const [attemptedProfileFetches, setAttemptedProfileFetches] = useState<Record<string, boolean>>({});
 
   // Fetch UP profile preview when user types an address
   const fetchFollowerProfilePreview = useCallback(async (address: string) => {
@@ -1027,6 +1028,14 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
     if (addresses.length === 0) return;
     
     setIsLoadingExistingProfiles(true);
+    
+    // Mark these addresses as attempted to prevent infinite retries
+    const attemptedAddresses: Record<string, boolean> = {};
+    addresses.forEach(address => {
+      attemptedAddresses[address] = true;
+    });
+    setAttemptedProfileFetches(prev => ({ ...prev, ...attemptedAddresses }));
+    
     try {
       console.log(`[UP Renderer Config] Fetching profiles for ${addresses.length} existing follower requirements`);
       
@@ -1071,13 +1080,17 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
       const addressesToFetch = requirements.followerRequirements
         .filter(req => req.type !== 'minimum_followers')
         .map(req => req.value)
-        .filter(address => !existingFollowerProfiles[address] && isValidAddress(address));
+        .filter(address => 
+          isValidAddress(address) && 
+          !existingFollowerProfiles[address] && 
+          !attemptedProfileFetches[address]
+        );
 
       if (addressesToFetch.length > 0) {
         fetchExistingFollowerProfiles(addressesToFetch);
       }
     }
-  }, [requirements.followerRequirements, fetchExistingFollowerProfiles, existingFollowerProfiles]);
+  }, [requirements.followerRequirements, fetchExistingFollowerProfiles]);
 
   // ===== HELPER FUNCTIONS =====
   
