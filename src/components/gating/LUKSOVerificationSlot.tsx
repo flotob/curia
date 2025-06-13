@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { VerificationChallenge } from '@/lib/verification/types';
 import { RichRequirementsDisplay, ExtendedVerificationStatus } from '@/components/gating/RichRequirementsDisplay';
+import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
 
 interface LUKSOVerificationSlotProps {
   postId: number;
@@ -39,6 +40,7 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
   // ===== HOOKS =====
   
   const { token } = useAuth();
+  const invalidateVerificationStatus = useInvalidateVerificationStatus();
   const { activateUP, initializeConnection, hasUserTriggeredConnection } = useUPActivation();
   const {
     isInitialized,
@@ -60,6 +62,7 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
   // ===== STATE =====
   
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationState, setVerificationState] = useState<'idle' | 'success_pending' | 'error_pending'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [lyxBalance, setLyxBalance] = useState<string | null>(null);
   const [tokenBalances, setTokenBalances] = useState<Record<string, {
@@ -218,7 +221,7 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
       }>(`/api/posts/${postId}/challenge`, {
         method: 'POST',
         token,
-        body: JSON.stringify({ upAddress }),
+        body: JSON.stringify({ upAddress: upAddress }),
       });
 
       const { challenge, message } = challengeResponse;
@@ -246,20 +249,41 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
       
       if (response.success) {
         // Verification successful - now safe to notify parent
+        
+        // 1. Show immediate success feedback
+        setVerificationState('success_pending');
+        setError(null);
+        
+        // 2. Manually invalidate and refetch verification status immediately
+        invalidateVerificationStatus(postId);
+        
+        // 3. Notify parent to refresh verification status
         if (onVerificationComplete) {
           onVerificationComplete();
         }
+        
+        // 4. Reset state after a brief delay (UI will update from React Query)
+        setTimeout(() => {
+          setVerificationState('idle');
+        }, 2000);
       } else {
         throw new Error(response.error || 'Verification failed');
       }
       
     } catch (err) {
       console.error('UP verification error:', err);
+      
+      setVerificationState('error_pending');
       setError(err instanceof Error ? err.message : 'Verification failed');
+      
+      // Reset error state after delay
+      setTimeout(() => {
+        setVerificationState('idle');
+      }, 3000);
     } finally {
       setIsVerifying(false);
     }
-  }, [isConnected, upAddress, token, postId, signMessage, onVerificationComplete]);
+  }, [isConnected, upAddress, token, postId, signMessage, onVerificationComplete, invalidateVerificationStatus]);
 
   // ===== RENDER =====
   
@@ -351,11 +375,26 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
         <div className="border-t pt-4">
           <Button 
             onClick={handleVerify}
-            disabled={isVerifying}
+            disabled={isVerifying || verificationState !== 'idle'}
             className="w-full"
             size="sm"
+            variant={
+              verificationState === 'success_pending' ? "default" :
+              verificationState === 'error_pending' ? "destructive" :
+              "default"
+            }
           >
-            {isVerifying ? (
+            {verificationState === 'success_pending' ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Verification Submitted ✓
+              </>
+            ) : verificationState === 'error_pending' ? (
+              <>
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                {error || 'Verification Failed'}
+              </>
+            ) : isVerifying ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Verifying Requirements...

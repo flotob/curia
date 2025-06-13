@@ -23,6 +23,7 @@ import { formatEther } from 'viem';
 import { EthereumRichRequirementsDisplay, EthereumExtendedVerificationStatus } from './EthereumRichRequirementsDisplay';
 import { EthereumSmartVerificationButton } from './EthereumSmartVerificationButton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
 
 interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
@@ -58,9 +59,11 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
   } = useEthereumProfile();
   
   const { token } = useAuth();
+  const invalidateVerificationStatus = useInvalidateVerificationStatus();
 
   const [verificationResult, setVerificationResult] = useState<{ isValid: boolean; missingRequirements: string[]; errors: string[] } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationState, setVerificationState] = useState<'idle' | 'success_pending' | 'error_pending'>('idle');
   const [ensProfile, setEnsProfile] = useState<{ name?: string; avatar?: string }>({});
   const [, setEfpStats] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
   const [ethBalance, setEthBalance] = useState<string>('0');
@@ -85,6 +88,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     disconnect();
     onDisconnectRef.current?.();
     setVerificationResult(null);
+    setVerificationState('idle');
     setEnsProfile({});
     setEfpStats({ followers: 0, following: 0 });
     setEthBalance('0');
@@ -156,41 +160,68 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
       console.log('[EthereumConnectionWidget] Server verification result:', result);
 
       if (result.success && result.verificationStatus === 'verified') {
-        // Success! The parent component will refresh and show verified status
+        // Success! Show immediate feedback and refresh data
         console.log('[EthereumConnectionWidget] ✅ Verification successful!');
         
-        // Update local state to show success
+        // 1. Show immediate success feedback
+        setVerificationState('success_pending');
+        
+        // 2. Update local state to show success
         setVerificationResult({
           isValid: true,
           missingRequirements: [],
           errors: []
         });
         
-        // Notify parent to refresh verification status
+        // 3. Manually invalidate and refetch verification status immediately
+        if (postId) {
+          invalidateVerificationStatus(postId);
+        }
+        
+        // 4. Notify parent to refresh verification status
         if (onVerificationComplete) {
           onVerificationComplete();
         }
+        
+        // 5. Reset state after a brief delay (UI will update from React Query)
+        setTimeout(() => {
+          setVerificationState('idle');
+        }, 2000);
       } else {
-        // Verification failed
+        // Verification failed - show immediate feedback
         console.log('[EthereumConnectionWidget] ❌ Verification failed:', result.error);
+        
+        setVerificationState('error_pending');
         setVerificationResult({
           isValid: false,
           missingRequirements: ['Server verification failed'],
           errors: [result.error || 'Unknown server error']
         });
+        
+        // Reset error state after delay
+        setTimeout(() => {
+          setVerificationState('idle');
+        }, 3000);
       }
 
     } catch (error) {
       console.error('[EthereumConnectionWidget] Verification failed:', error);
+      
+      setVerificationState('error_pending');
       setVerificationResult({
         isValid: false,
         missingRequirements: ['Verification failed'],
         errors: [error instanceof Error ? error.message : 'Unknown error']
       });
+      
+      // Reset error state after delay
+      setTimeout(() => {
+        setVerificationState('idle');
+      }, 3000);
     } finally {
       setIsVerifying(false);
     }
-  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete]);
+  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, invalidateVerificationStatus]);
 
   // Local verification function to check if requirements are met (for UI only)
   const performLocalVerification = useCallback(async () => {
@@ -285,6 +316,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     if (!isConnected) {
       setVerificationResult(null);
       setIsVerifying(false);
+      setVerificationState('idle');
     }
   }, [isConnected]);
 
@@ -297,7 +329,18 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     }
   };
 
+  // Check if all requirements are met locally (for button enable/disable)
+  const allRequirementsMet = verificationResult?.isValid || false;
 
+  // Determine button state based on verification progress
+  const getButtonState = () => {
+    if (verificationState === 'success_pending') return 'verification_success_pending';
+    if (verificationState === 'error_pending') return 'verification_error_pending';
+    if (serverVerified) return 'verification_complete';
+    if (isVerifying) return 'verifying';
+    if (!allRequirementsMet) return 'requirements_not_met';
+    return 'ready_to_verify';
+  };
 
   // If not connected, show RainbowKit connect button with requirements preview
   if (!isConnected) {
@@ -452,9 +495,6 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     ensAvatar: ensProfile.avatar
   };
 
-  // Check if all requirements are met locally (for button enable/disable)
-  const allRequirementsMet = verificationResult?.isValid || false;
-
   // Connected and on correct chain - show rich requirements display
   return (
     <div className="space-y-4">
@@ -474,7 +514,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
       {/* Only show verification button if not already server-verified */}
       {!serverVerified && (
         <EthereumSmartVerificationButton
-          state="ready_to_verify"
+          state={getButtonState()}
           allRequirementsMet={allRequirementsMet}
           isConnected={isConnected}
           isCorrectChain={isCorrectChain}

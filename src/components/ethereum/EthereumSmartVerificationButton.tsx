@@ -31,7 +31,9 @@ export type VerificationButtonState =
   | 'ready_to_verify'
   | 'verifying'
   | 'verification_complete'
-  | 'verification_failed';
+  | 'verification_failed'
+  | 'verification_success_pending'
+  | 'verification_error_pending';
 
 export interface EthereumSmartVerificationButtonProps {
   state: VerificationButtonState;
@@ -75,8 +77,10 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
       actualState = 'verifying';
     } else if (verified) {
       actualState = 'verification_complete';
-    } else if (error) {
-      actualState = 'verification_failed';
+    } else if (error && (state === 'verification_error_pending' || state === 'verification_failed')) {
+      actualState = state; // Keep the pending/failed state as passed
+    } else if (state === 'verification_success_pending') {
+      actualState = 'verification_success_pending'; // Keep the success pending state
     } else if (!allRequirementsMet) {
       actualState = 'requirements_not_met';
     } else {
@@ -139,6 +143,24 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
         };
         
       case 'verification_failed':
+        return {
+          text: error || 'Verification Failed',
+          icon: <XCircle className="h-4 w-4 mr-2" />,
+          variant: 'destructive' as const,
+          disabled: disabled,
+          clickable: true
+        };
+        
+      case 'verification_success_pending':
+        return {
+          text: 'Verification Submitted ✓',
+          icon: <CheckCircle className="h-4 w-4 mr-2" />,
+          variant: 'default' as const,
+          disabled: true,
+          clickable: false
+        };
+        
+      case 'verification_error_pending':
         return {
           text: error || 'Verification Failed',
           icon: <XCircle className="h-4 w-4 mr-2" />,

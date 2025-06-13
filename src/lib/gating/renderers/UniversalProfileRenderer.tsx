@@ -47,6 +47,7 @@ import { RichRequirementsDisplay, ExtendedVerificationStatus } from '@/component
 import { ChallengeUtils } from '@/lib/verification/challengeUtils';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { useConditionalUniversalProfile } from '@/contexts/ConditionalUniversalProfileProvider';
+import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
 
 // ===== UNIVERSAL PROFILE RENDERER CLASS =====
 
@@ -302,19 +303,21 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   disabled,
   postId
 }) => {
-  const universalProfile = useConditionalUniversalProfile();
+  
+  // ===== HOOKS =====
+  
   const { token } = useAuth();
-  const [lyxBalance, setLyxBalance] = useState<string | null>(null);
-  const [tokenBalances, setTokenBalances] = useState<Record<string, {
-    raw: string;
-    formatted: string;
-    decimals?: number;
-    name?: string;
-    symbol?: string;
-  }>>({});
-  const [followerStatuses, setFollowerStatuses] = useState<Record<string, boolean>>({});
+  const invalidateVerificationStatus = useInvalidateVerificationStatus();
+  const universalProfile = useConditionalUniversalProfile();
+  
+  // ===== STATE =====
+  
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationState, setVerificationState] = useState<'idle' | 'success_pending' | 'error_pending'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [lyxBalance, setLyxBalance] = useState<string | null>(null);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, { raw: string; formatted: string; name?: string; symbol?: string; decimals?: number }>>({});
+  const [followerStatuses, setFollowerStatuses] = useState<Record<string, boolean>>({});
 
   // Load real LYX balance when connected
   useEffect(() => {
@@ -561,6 +564,21 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
       
       if (response.success) {
         console.log(`[UPConnectionComponent] ✅ Verification successful for post ${targetPostId}`);
+        
+        // 1. Show immediate success feedback
+        setVerificationState('success_pending');
+        setError(null);
+        
+        // 2. Manually invalidate and refetch verification status immediately
+        if (targetPostId) {
+          invalidateVerificationStatus(targetPostId);
+        }
+        
+        // 3. Reset state after a brief delay (UI will update from React Query)
+        setTimeout(() => {
+          setVerificationState('idle');
+        }, 2000);
+        
         return true;
       } else {
         throw new Error(response.error || 'Verification failed');
@@ -568,12 +586,20 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
       
     } catch (err) {
       console.error('[UPConnectionComponent] Verification error:', err);
+      
+      setVerificationState('error_pending');
       setError(err instanceof Error ? err.message : 'Verification failed');
+      
+      // Reset error state after delay
+      setTimeout(() => {
+        setVerificationState('idle');
+      }, 3000);
+      
       return false;
     } finally {
       setIsVerifying(false);
     }
-  }, [universalProfile?.isConnected, universalProfile?.upAddress, universalProfile, token, postId]);
+  }, [universalProfile?.isConnected, universalProfile?.upAddress, universalProfile, token, postId, invalidateVerificationStatus]);
 
   // Note: Auto-verification removed - users must manually click to verify
   // This provides better UX and user control over when verification occurs
@@ -608,12 +634,26 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
         <div className="border-t pt-4">
           <Button 
             onClick={() => handleVerify()}
-            disabled={isVerifying || !allRequirementsMet}
+            disabled={isVerifying || (!allRequirementsMet && verificationState === 'idle')}
             className="w-full"
             size="sm"
-            variant={allRequirementsMet ? "default" : "secondary"}
+            variant={
+              verificationState === 'success_pending' ? "default" :
+              verificationState === 'error_pending' ? "destructive" :
+              allRequirementsMet ? "default" : "secondary"
+            }
           >
-            {isVerifying ? (
+            {verificationState === 'success_pending' ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Verification Submitted ✓
+              </>
+            ) : verificationState === 'error_pending' ? (
+              <>
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                {error || 'Verification Failed'}
+              </>
+            ) : isVerifying ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Verifying Requirements...
@@ -631,7 +671,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
             )}
           </Button>
           
-          {!allRequirementsMet && (
+          {!allRequirementsMet && verificationState === 'idle' && (
             <p className="text-xs text-muted-foreground mt-2 text-center">
               Meet all requirements above to enable verification
             </p>
