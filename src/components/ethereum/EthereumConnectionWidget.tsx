@@ -34,6 +34,8 @@ interface EthereumConnectionWidgetProps {
   serverVerified?: boolean;
   // Callback when verification is complete (to refresh parent data)
   onVerificationComplete?: () => void;
+  // Preview mode flag to disable backend verification
+  isPreviewMode?: boolean;
 }
 
 export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
@@ -42,7 +44,8 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
   onDisconnect,
   postId,
   serverVerified = false,
-  onVerificationComplete
+  onVerificationComplete,
+  isPreviewMode = false
 }) => {
   const {
     isConnected,
@@ -103,6 +106,12 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
 
   // Server pre-verification function
   const verifyRequirements = useCallback(async () => {
+    // In preview mode, don't allow backend verification
+    if (isPreviewMode) {
+      console.log('[EthereumConnectionWidget] Preview mode - backend verification disabled');
+      return;
+    }
+
     // Better validation - check for empty string too
     if (!isConnected || !isCorrectChain || !ethAddress || ethAddress.trim() === '' || !postId || !token) {
       console.error('[EthereumConnectionWidget] Missing required data for verification', {
@@ -221,7 +230,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     } finally {
       setIsVerifying(false);
     }
-  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, invalidateVerificationStatus]);
+  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, invalidateVerificationStatus, isPreviewMode]);
 
   // Local verification function to check if requirements are met (for UI only)
   const performLocalVerification = useCallback(async () => {
@@ -339,6 +348,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     if (serverVerified) return 'verification_complete';
     if (isVerifying) return 'verifying';
     if (!allRequirementsMet) return 'requirements_not_met';
+    if (isPreviewMode && allRequirementsMet) return 'preview_mode_complete';
     return 'ready_to_verify';
   };
 

@@ -109,6 +109,7 @@ export interface CategoryConnectionProps {
   disabled?: boolean;
   postId?: number;
   onVerificationComplete?: () => void; // Callback after successful verification
+  isPreviewMode?: boolean; // If true, disable backend verification and show preview-only UI
 }
 
 /**

@@ -86,7 +86,7 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * NEW: Render the connection component (for commenter-side)
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, postId, userStatus, onVerificationComplete } = props;
+    const { requirements, onConnect, onDisconnect, postId, userStatus, onVerificationComplete, isPreviewMode } = props;
     
     return (
       <EthereumConnectionWidget
@@ -96,6 +96,7 @@ export class EthereumProfileRenderer implements CategoryRenderer {
         postId={postId}
         serverVerified={userStatus?.verified || false}
         onVerificationComplete={onVerificationComplete}
+        isPreviewMode={isPreviewMode}
       />
     );
   }

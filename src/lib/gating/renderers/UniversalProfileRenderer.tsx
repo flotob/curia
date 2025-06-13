@@ -109,7 +109,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
    * Uses the rich requirements display with real UP context data
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId } = props;
+    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode } = props;
     const metadata = this.getMetadata();
     
     // This will be rendered within GatingRequirementsPanel which has UP context
@@ -122,6 +122,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
         onDisconnect={onDisconnect}
         disabled={disabled}
         postId={postId}
+        isPreviewMode={isPreviewMode}
       />
     );
   }
@@ -292,6 +293,7 @@ interface UPConnectionComponentProps {
   onDisconnect: () => void;
   disabled?: boolean;
   postId?: number;
+  isPreviewMode?: boolean;
 }
 
 const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
@@ -301,7 +303,8 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   onConnect,
   onDisconnect,
   disabled,
-  postId
+  postId,
+  isPreviewMode = false
 }) => {
   
   // ===== HOOKS =====
@@ -512,6 +515,12 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
 
   // Verification function
   const handleVerify = useCallback(async (overridePostId?: number) => {
+    // In preview mode, don't allow backend verification
+    if (isPreviewMode) {
+      console.log('[UPConnectionComponent] Preview mode - backend verification disabled');
+      return false;
+    }
+
     if (!universalProfile?.isConnected || !universalProfile?.upAddress || !token) {
       setError('Please connect your Universal Profile first');
       return false;
@@ -599,7 +608,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     } finally {
       setIsVerifying(false);
     }
-  }, [universalProfile?.isConnected, universalProfile?.upAddress, universalProfile, token, postId, invalidateVerificationStatus]);
+  }, [universalProfile?.isConnected, universalProfile?.upAddress, universalProfile, token, postId, invalidateVerificationStatus, isPreviewMode]);
 
   // Note: Auto-verification removed - users must manually click to verify
   // This provides better UX and user control over when verification occurs
@@ -634,16 +643,22 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
         <div className="border-t pt-4">
           <Button 
             onClick={() => handleVerify()}
-            disabled={isVerifying || (!allRequirementsMet && verificationState === 'idle')}
+            disabled={isVerifying || (!allRequirementsMet && verificationState === 'idle') || (isPreviewMode && allRequirementsMet)}
             className="w-full"
             size="sm"
             variant={
+              (isPreviewMode && allRequirementsMet) ? "secondary" :
               verificationState === 'success_pending' ? "default" :
               verificationState === 'error_pending' ? "destructive" :
               allRequirementsMet ? "default" : "secondary"
             }
           >
-            {verificationState === 'success_pending' ? (
+            {(isPreviewMode && allRequirementsMet) ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Preview Complete ✓
+              </>
+            ) : verificationState === 'success_pending' ? (
               <>
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Verification Submitted ✓

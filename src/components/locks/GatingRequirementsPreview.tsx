@@ -168,19 +168,59 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                   }
                 })();
 
+                // Real connection handlers based on category type (same as GatingRequirementsPanel)
+                const handleConnect = async () => {
+                  console.log(`[GatingRequirementsPreview] Connect triggered for ${category.type}`);
+                  
+                  try {
+                    if (category.type === 'universal_profile') {
+                      // Only initialize UP context - actual connection handled by effect
+                      console.log('[GatingRequirementsPreview] Initializing Universal Profile connection...');
+                      upActivation.initializeConnection();
+                    } else if (category.type === 'ethereum_profile') {
+                      // Use Ethereum Profile connection directly (no timing issues)
+                      if (ethereumProfile?.connect) {
+                        await ethereumProfile.connect();
+                      } else {
+                        console.warn('[GatingRequirementsPreview] Ethereum Profile context not available');
+                      }
+                    } else {
+                      console.warn(`[GatingRequirementsPreview] Unknown category type: ${category.type}`);
+                    }
+                  } catch (error) {
+                    console.error(`[GatingRequirementsPreview] Connection failed for ${category.type}:`, error);
+                  }
+                };
+
+                const handleDisconnect = () => {
+                  console.log(`[GatingRequirementsPreview] Disconnect triggered for ${category.type}`);
+                  
+                  try {
+                    if (category.type === 'universal_profile') {
+                      // Use Universal Profile disconnection
+                      if (universalProfile?.disconnect) {
+                        universalProfile.disconnect();
+                      }
+                    } else if (category.type === 'ethereum_profile') {
+                      // Use Ethereum Profile disconnection
+                      if (ethereumProfile?.disconnect) {
+                        ethereumProfile.disconnect();
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`[GatingRequirementsPreview] Disconnection failed for ${category.type}:`, error);
+                  }
+                };
+
                 // Render the connection component with preview data
                 return renderer.renderConnection({
                   requirements: category.requirements,
-                  onConnect: async () => {
-                    console.log('[GatingRequirementsPreview] Connect triggered for', category.type);
-                    // In preview mode, connection logic is handled by the contexts
-                  },
-                  onDisconnect: () => {
-                    console.log('[GatingRequirementsPreview] Disconnect triggered for', category.type);
-                  },
+                  onConnect: handleConnect,
+                  onDisconnect: handleDisconnect,
                   userStatus: mockUserStatus,
                   disabled: false,
-                  postId: -1 // Preview mode indicator
+                  postId: -1, // Preview mode indicator (legacy)
+                  isPreviewMode: true // Explicit preview mode flag
                 });
               })()}
             </div>

@@ -150,7 +150,7 @@ export const LockCard: React.FC<LockCardProps> = ({
               {/* Main Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2 mb-1">
-                  <h3 className="font-medium truncate">{lock.name}</h3>
+                  <h3 className="font-medium truncate flex-1 min-w-0" title={lock.name}>{lock.name}</h3>
                   <div className="flex items-center space-x-1 flex-shrink-0">
                     {lock.isTemplate && <Star className="h-3 w-3 text-yellow-500" />}
                     {lock.isPublic && <Globe className="h-3 w-3 text-green-500" />}
@@ -171,10 +171,12 @@ export const LockCard: React.FC<LockCardProps> = ({
                     <span>{formatDate(lock.createdAt)}</span>
                   </div>
                   
-                  {showCreator && lock.creatorUserId && (
-                    <div className="flex items-center space-x-1">
-                      <User className="h-3 w-3" />
-                      <span className="truncate max-w-20">{lock.creatorUserId}</span>
+                  {showCreator && (
+                    <div className="flex items-center space-x-1 min-w-0">
+                      <User className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">
+                        {lock.isOwned ? 'You' : 'Community member'}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -220,7 +222,7 @@ export const LockCard: React.FC<LockCardProps> = ({
             
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-2">
-                <CardTitle className="text-sm truncate">{lock.name}</CardTitle>
+                <CardTitle className="text-sm truncate flex-1 min-w-0" title={lock.name}>{lock.name}</CardTitle>
                 {isSelected && <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />}
               </div>
               
@@ -246,7 +248,7 @@ export const LockCard: React.FC<LockCardProps> = ({
       <CardContent className="pt-0">
         {/* Description */}
         {lock.description && (
-          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+          <p className="text-sm text-muted-foreground mb-3 line-clamp-2" title={lock.description}>
             {lock.description}
           </p>
         )}
@@ -295,10 +297,12 @@ export const LockCard: React.FC<LockCardProps> = ({
         </div>
         
         {/* Creator */}
-        {showCreator && lock.creatorUserId && (
-          <div className="flex items-center space-x-1 mt-2 pt-2 border-t text-xs text-muted-foreground">
-            <User className="h-3 w-3" />
-            <span className="truncate">Created by {lock.creatorUserId}</span>
+        {showCreator && (
+          <div className="flex items-center space-x-1 mt-2 pt-2 border-t text-xs text-muted-foreground min-w-0">
+            <User className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">
+              Created by {lock.isOwned ? 'you' : 'community member'}
+            </span>
           </div>
         )}
         

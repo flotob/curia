@@ -33,7 +33,8 @@ export type VerificationButtonState =
   | 'verification_complete'
   | 'verification_failed'
   | 'verification_success_pending'
-  | 'verification_error_pending';
+  | 'verification_error_pending'
+  | 'preview_mode_complete';
 
 export interface EthereumSmartVerificationButtonProps {
   state: VerificationButtonState;
@@ -69,7 +70,10 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
     // Override state based on actual conditions
     let actualState = state;
     
-    if (!isConnected) {
+    // Special handling for preview mode - don't override this state
+    if (state === 'preview_mode_complete') {
+      actualState = 'preview_mode_complete';
+    } else if (!isConnected) {
       actualState = 'wallet_not_connected';
     } else if (!isCorrectChain) {
       actualState = 'wrong_network';
@@ -167,6 +171,15 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
           variant: 'destructive' as const,
           disabled: disabled,
           clickable: true
+        };
+        
+      case 'preview_mode_complete':
+        return {
+          text: 'Preview Complete ✓',
+          icon: <CheckCircle className="h-4 w-4 mr-2" />,
+          variant: 'secondary' as const,
+          disabled: true,
+          clickable: false
         };
         
       default:
