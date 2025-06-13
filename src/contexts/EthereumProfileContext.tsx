@@ -334,68 +334,69 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
 
   const verifyEFPRequirements = useCallback(async (requirements: EFPRequirement[]): Promise<VerificationResult> => {
     try {
-      if (!ethAddress || requirements.length === 0) {
+      // Better validation for ethAddress - check for empty string too
+      if (!ethAddress || ethAddress.trim() === '' || requirements.length === 0) {
+        console.log('[EthereumProfileContext] Skipping EFP verification - no address or no requirements', { 
+          ethAddress, 
+          addressLength: ethAddress?.length, 
+          requirementsLength: requirements.length 
+        });
         return { isValid: true, missingRequirements: [], errors: [] };
       }
 
+      console.log(`[EthereumProfileContext] Starting EFP verification for address: ${ethAddress}, requirements: ${requirements.length}`);
+
       const missingRequirements: string[] = [];
+      const EFP_API_BASE = 'https://api.ethfollow.xyz/api/v1';
       
-      // Fetch EFP stats and following/followers data
-      try {
-        const [statsResponse, followingResponse, followersResponse] = await Promise.all([
-          fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/stats`),
-          fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/following`),
-          fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/followers`)
-        ]);
-        
-        if (!statsResponse.ok) {
-          throw new Error('EFP stats API error');
-        }
-        
-        const stats = await statsResponse.json();
-        const followerCount = stats.followers || 0;
-        
-        // Get following and followers lists (handle API errors gracefully)
-        let followingList: string[] = [];
-        let followersList: string[] = [];
-        
-        if (followingResponse.ok) {
-          const followingData = await followingResponse.json();
-          followingList = (followingData.following || [])
-            .filter((addr: unknown) => typeof addr === 'string')
-            .map((addr: string) => addr.toLowerCase());
-        }
-        
-        if (followersResponse.ok) {
-          const followersData = await followersResponse.json();
-          followersList = (followersData.followers || [])
-            .filter((addr: unknown) => typeof addr === 'string')
-            .map((addr: string) => addr.toLowerCase());
-        }
-        
-        for (const req of requirements) {
+      for (const req of requirements) {
+        try {
           if (req.type === 'minimum_followers') {
+            // Get follower count from stats endpoint
+            const statsResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/stats`);
+            if (!statsResponse.ok) {
+              throw new Error('EFP stats API error');
+            }
+            
+            const stats = await statsResponse.json();
+            const followerCount = stats.followers_count || 0;
             const required = parseInt(req.value);
+            
             if (followerCount < required) {
               missingRequirements.push(`Need ${required} followers, have ${followerCount}`);
             }
           } else if (req.type === 'must_follow') {
-            // Check if current user follows the target address
-            const targetAddress = req.value.toLowerCase();
-            if (!followingList.includes(targetAddress)) {
-              missingRequirements.push(`Must follow ${targetAddress}`);
+            // Check if current user follows the target address (direct API call)
+            const followResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following/${req.value}`);
+            if (!followResponse.ok) {
+              if (followResponse.status === 404) {
+                missingRequirements.push(`Must follow ${req.value}`);
+              } else {
+                throw new Error(`EFP API error: ${followResponse.status}`);
+              }
             }
           } else if (req.type === 'must_be_followed_by') {
-            // Check if target address follows the current user
-            const targetAddress = req.value.toLowerCase();
-            if (!followersList.includes(targetAddress)) {
-              missingRequirements.push(`Must be followed by ${targetAddress}`);
+            // Skip verification if value is empty (Issue #2)
+            if (!req.value || req.value.trim() === '') {
+              console.error(`[EthereumProfileContext] ❌ must_be_followed_by has empty value - this is Issue #2!`);
+              missingRequirements.push(`Must be followed by ${req.description || 'unknown user'} (address not found)`);
+              continue;
+            }
+            
+            // Check if target address follows the current user (direct API call)
+            const followedResponse = await fetch(`${EFP_API_BASE}/users/${req.value}/following/${ethAddress}`);
+            if (!followedResponse.ok) {
+              if (followedResponse.status === 404) {
+                missingRequirements.push(`Must be followed by ${req.value}`);
+              } else {
+                throw new Error(`EFP API error: ${followedResponse.status}`);
+              }
             }
           }
+        } catch (error) {
+          console.error(`[EthereumProfileContext] EFP requirement check failed for ${req.type}:`, error);
+          missingRequirements.push(`Failed to verify EFP requirement: ${req.type}`);
         }
-      } catch (error) {
-        console.error('[EthereumProfileContext] EFP verification failed:', error);
-        missingRequirements.push('Failed to verify EFP requirements');
       }
 
       return {
@@ -519,8 +520,8 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
       
       const data = await response.json();
       return {
-        followers: data.followers || 0,
-        following: data.following || 0
+        followers: data.followers_count || 0,
+        following: data.following_count || 0
       };
     } catch (error) {
       // Network errors, invalid JSON, etc. - handle gracefully

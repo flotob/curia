@@ -99,8 +99,16 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
 
   // Server pre-verification function
   const verifyRequirements = useCallback(async () => {
-    if (!isConnected || !isCorrectChain || !ethAddress || !postId || !token) {
-      console.error('[EthereumConnectionWidget] Missing required data for verification');
+    // Better validation - check for empty string too
+    if (!isConnected || !isCorrectChain || !ethAddress || ethAddress.trim() === '' || !postId || !token) {
+      console.error('[EthereumConnectionWidget] Missing required data for verification', {
+        isConnected,
+        isCorrectChain,
+        ethAddress,
+        addressLength: ethAddress?.length,
+        postId,
+        hasToken: !!token
+      });
       return;
     }
 
@@ -186,7 +194,14 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
 
   // Local verification function to check if requirements are met (for UI only)
   const performLocalVerification = useCallback(async () => {
-    if (!isConnected || !isCorrectChain || !ethAddress) {
+    // Better validation - check for empty string too
+    if (!isConnected || !isCorrectChain || !ethAddress || ethAddress.trim() === '') {
+      console.log('[EthereumConnectionWidget] Skipping local verification - missing required data', {
+        isConnected,
+        isCorrectChain,
+        ethAddress,
+        addressLength: ethAddress?.length
+      });
       return false;
     }
 
@@ -220,7 +235,14 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
 
   // Load profile data when connected (separate from verification)
   const loadProfileData = useCallback(async () => {
-    if (!isConnected || !isCorrectChain || !ethAddress) {
+    // Better validation - check for empty string too
+    if (!isConnected || !isCorrectChain || !ethAddress || ethAddress.trim() === '') {
+      console.log('[EthereumConnectionWidget] Skipping profile data load - missing required data', {
+        isConnected,
+        isCorrectChain,
+        ethAddress,
+        addressLength: ethAddress?.length
+      });
       return;
     }
 
@@ -244,8 +266,17 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
 
   // Load profile data when connected
   useEffect(() => {
-    if (isConnected && isCorrectChain && ethAddress) {
+    // Better validation - check for empty string too
+    if (isConnected && isCorrectChain && ethAddress && ethAddress.trim() !== '') {
+      console.log('[EthereumConnectionWidget] Triggering profile data load for address:', ethAddress);
       loadProfileData();
+    } else {
+      console.log('[EthereumConnectionWidget] Not loading profile data - validation failed', {
+        isConnected,
+        isCorrectChain,
+        ethAddress,
+        addressLength: ethAddress?.length
+      });
     }
   }, [isConnected, isCorrectChain, ethAddress, loadProfileData]);
 
@@ -384,7 +415,18 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     mockENSStatus: ensProfile.name ? true : false,
     mockEFPStatus: stableRequirements.efpRequirements?.reduce((acc, efp) => {
       const key = `${efp.type}-${efp.value}`;
-      acc[key] = false; // TODO: Replace with real EFP status
+      // ✅ Use actual verification result instead of hardcoded false
+      if (verificationResult) {
+        // Check if this requirement failed (is in missing requirements)
+        const failed = verificationResult.missingRequirements.some(missing => 
+          missing.includes(efp.value) || 
+          (efp.type === 'minimum_followers' && missing.includes(`${efp.value} followers`))
+        );
+        acc[key] = !failed;
+      } else {
+        // No verification result yet - default to false
+        acc[key] = false;
+      }
       return acc;
     }, {} as Record<string, boolean>) || {},
     // Add ENS name information for display
