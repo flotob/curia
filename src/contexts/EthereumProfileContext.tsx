@@ -512,7 +512,9 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
     try {
       const response = await fetch(`https://api.ethfollow.xyz/api/v1/users/${ethAddress}/stats`);
       if (!response.ok) {
-        throw new Error('EFP API error');
+        // Log the specific error but don't throw - return default values instead
+        console.warn(`[EthereumProfileContext] EFP API returned ${response.status}: ${response.statusText}. Using default values.`);
+        return { followers: 0, following: 0 };
       }
       
       const data = await response.json();
@@ -521,7 +523,8 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
         following: data.following || 0
       };
     } catch (error) {
-      console.error('[EthereumProfileContext] Failed to fetch EFP stats:', error);
+      // Network errors, invalid JSON, etc. - handle gracefully
+      console.warn('[EthereumProfileContext] EFP API request failed (network/parsing error). Using default values.', error);
       return { followers: 0, following: 0 };
     }
   }, [ethAddress]);

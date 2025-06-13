@@ -47,6 +47,8 @@ export interface EthereumExtendedVerificationStatus extends VerificationStatus {
   };
   mockENSStatus?: boolean;
   mockEFPStatus?: Record<string, boolean>;
+  ensName?: string; // ENS name if available
+  ensAvatar?: string; // ENS avatar if available
 }
 
 export interface EthereumRichRequirementsDisplayProps {
@@ -207,14 +209,26 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
           {userStatus.connected && userStatus.ethAddress && (
             <div className="flex items-center space-x-2">
               <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                {/* Ethereum Icon */}
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold">
-                  ⟠
-                </div>
-                {/* Address and Network */}
+                {/* Profile Avatar or Ethereum Icon */}
+                {userStatus.ensAvatar ? (
+                  <img 
+                    src={userStatus.ensAvatar} 
+                    alt="ENS Avatar"
+                    className="w-10 h-10 rounded-full object-cover border border-gray-300"
+                    onError={(e) => {
+                      // Fallback to Ethereum icon if avatar fails to load
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold">
+                    ⟠
+                  </div>
+                )}
+                {/* ENS Name or Address */}
                 <div className="flex-1">
                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                    Ethereum Wallet
+                    {userStatus.ensName || 'Ethereum Wallet'}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                     {formatAddress(userStatus.ethAddress)}

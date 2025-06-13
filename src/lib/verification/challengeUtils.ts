@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { 
-  VerificationChallenge, 
+  VerificationChallenge,
+  UPVerificationChallenge,
   CHALLENGE_EXPIRY_MS, 
   LUKSO_MAINNET_CHAIN_ID 
 } from './types';
@@ -12,9 +13,9 @@ import {
 export class ChallengeUtils {
   
   /**
-   * Generate a new verification challenge
+   * Generate a new verification challenge for Universal Profile
    */
-  static generateChallenge(postId: number, upAddress: string): VerificationChallenge {
+  static generateChallenge(postId: number, upAddress: string): UPVerificationChallenge {
     // Generate cryptographically secure random nonce
     const nonce = crypto.randomBytes(16).toString('hex');
     
@@ -55,10 +56,6 @@ Sign this message to prove you own the profile and meet the requirements to comm
     error?: string; 
   } {
     // Check required fields
-    if (!challenge.nonce || typeof challenge.nonce !== 'string') {
-      return { valid: false, error: 'Invalid or missing nonce' };
-    }
-    
     if (!challenge.timestamp || typeof challenge.timestamp !== 'number') {
       return { valid: false, error: 'Invalid or missing timestamp' };
     }
@@ -73,6 +70,11 @@ Sign this message to prove you own the profile and meet the requirements to comm
     
     // Validate based on challenge type
     if (challenge.type === 'universal_profile') {
+      // UP challenges require a nonce field
+      if (!challenge.nonce || typeof challenge.nonce !== 'string') {
+        return { valid: false, error: 'Invalid or missing nonce' };
+      }
+      
       if (!challenge.upAddress || typeof challenge.upAddress !== 'string') {
         return { valid: false, error: 'Invalid or missing upAddress for UP challenge' };
       }
@@ -85,24 +87,36 @@ Sign this message to prove you own the profile and meet the requirements to comm
       if (!/^0x[a-fA-F0-9]{40}$/.test(challenge.upAddress)) {
         return { valid: false, error: 'Invalid Universal Profile address format' };
       }
+      
+      // Check nonce format (32 hex characters for UP)
+      if (!/^[a-fA-F0-9]{32}$/.test(challenge.nonce)) {
+        return { valid: false, error: 'Invalid nonce format for UP challenge' };
+      }
+      
     } else if (challenge.type === 'ethereum_profile') {
+      // Ethereum challenges use timestamp as nonce equivalent, no separate nonce field required
       if (!challenge.ethAddress || typeof challenge.ethAddress !== 'string') {
         return { valid: false, error: 'Invalid or missing ethAddress for Ethereum challenge' };
       }
       
-      if (challenge.chainId !== 1) {
-        return { valid: false, error: 'Invalid chain ID - must be Ethereum mainnet for Ethereum challenges' };
+      // Ethereum challenges should have signature and message
+      if (!challenge.signature || typeof challenge.signature !== 'string') {
+        return { valid: false, error: 'Invalid or missing signature for Ethereum challenge' };
+      }
+      
+      if (!challenge.message || typeof challenge.message !== 'string') {
+        return { valid: false, error: 'Invalid or missing message for Ethereum challenge' };
       }
       
       // Check Ethereum address format
       if (!/^0x[a-fA-F0-9]{40}$/.test(challenge.ethAddress)) {
         return { valid: false, error: 'Invalid Ethereum address format' };
       }
-    }
-    
-    // Check nonce format (32 hex characters for UP, variable for Ethereum)
-    if (challenge.type === 'universal_profile' && !/^[a-fA-F0-9]{32}$/.test(challenge.nonce)) {
-      return { valid: false, error: 'Invalid nonce format for UP challenge' };
+      
+      // Check signature format (should start with 0x and be hex)
+      if (!/^0x[a-fA-F0-9]+$/.test(challenge.signature)) {
+        return { valid: false, error: 'Invalid signature format' };
+      }
     }
     
     return { valid: true };
@@ -131,6 +145,9 @@ Sign this message to prove you own the profile and meet the requirements to comm
    * Create a unique key for challenge storage
    */
   static createChallengeKey(challenge: VerificationChallenge): string {
-    return `${challenge.upAddress}:${challenge.postId}:${challenge.nonce}`;
+    // For UP challenges, use nonce; for Ethereum challenges, use timestamp
+    const uniqueId = challenge.nonce || challenge.timestamp.toString();
+    const address = challenge.upAddress || challenge.ethAddress || 'unknown';
+    return `${address}:${challenge.postId}:${uniqueId}`;
   }
 } 

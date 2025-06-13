@@ -53,7 +53,8 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     getENSProfile,
     getEFPStats,
     getETHBalance,
-    signMessage
+    signMessage,
+    verifyPostRequirements
   } = useEthereumProfile();
   
   const { token } = useAuth();
@@ -183,6 +184,40 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     }
   }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete]);
 
+  // Local verification function to check if requirements are met (for UI only)
+  const performLocalVerification = useCallback(async () => {
+    if (!isConnected || !isCorrectChain || !ethAddress) {
+      return false;
+    }
+
+    try {
+      // Create a mock post settings to use with verifyPostRequirements
+      const postSettings = {
+        responsePermissions: {
+          categories: [{
+            type: 'ethereum_profile',
+            requirements: stableRequirements
+          }]
+        }
+      };
+
+      // Use the context's verification function
+      const result = await verifyPostRequirements(postSettings);
+      
+      // Update local verification result for UI feedback
+      setVerificationResult(result);
+      return result.isValid;
+    } catch (error) {
+      console.error('[EthereumConnectionWidget] Local verification failed:', error);
+      setVerificationResult({
+        isValid: false,
+        missingRequirements: ['Local verification failed'],
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      });
+      return false;
+    }
+  }, [isConnected, isCorrectChain, ethAddress, stableRequirements, verifyPostRequirements]);
+
   // Load profile data when connected (separate from verification)
   const loadProfileData = useCallback(async () => {
     if (!isConnected || !isCorrectChain || !ethAddress) {
@@ -199,10 +234,13 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
       setEnsProfile(ensData);
       setEfpStats(efpData);
       setEthBalance(balanceData);
+      
+      // Perform local verification after loading profile data
+      await performLocalVerification();
     } catch (error) {
       console.error('[EthereumConnectionWidget] Failed to fetch profile data:', error);
     }
-  }, [isConnected, isCorrectChain, ethAddress, getENSProfile, getEFPStats, getETHBalance]);
+  }, [isConnected, isCorrectChain, ethAddress, getENSProfile, getEFPStats, getETHBalance, performLocalVerification]);
 
   // Load profile data when connected
   useEffect(() => {
@@ -348,7 +386,10 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
       const key = `${efp.type}-${efp.value}`;
       acc[key] = false; // TODO: Replace with real EFP status
       return acc;
-    }, {} as Record<string, boolean>) || {}
+    }, {} as Record<string, boolean>) || {},
+    // Add ENS name information for display
+    ensName: ensProfile.name,
+    ensAvatar: ensProfile.avatar
   };
 
   // Check if all requirements are met locally (for button enable/disable)
