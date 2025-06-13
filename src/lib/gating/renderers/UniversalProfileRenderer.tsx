@@ -584,11 +584,11 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     verified: userStatus?.verified || false,
     requirements: userStatus?.requirements || [],
     address: universalProfile?.upAddress || undefined,
-    mockBalances: {
+    balances: {
       lyx: lyxBalance || undefined,
       tokens: tokenBalances
     },
-    mockFollowerStatus: followerStatuses
+    followerStatus: followerStatuses
   };
 
   return (
@@ -1018,6 +1018,7 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
   
   const [existingTokenIcons, setExistingTokenIcons] = useState<Record<string, string>>({});
   const [isLoadingExistingTokenIcons, setIsLoadingExistingTokenIcons] = useState(false);
+  const [attemptedIconFetches, setAttemptedIconFetches] = useState<Record<string, boolean>>({});
 
 
 
@@ -1242,24 +1243,95 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
         detectedTokenType = isLSP7 ? 'LSP7' : 'LSP8';
         console.log(`[UP Renderer] ✅ Detected as ${detectedTokenType} token`);
 
-        // Fetch token metadata using standard functions (fallback)
+        // ✅ FIXED: Use proper LSP4 metadata fetching (same approach as UniversalProfileContext)
         let name = 'Unknown Token';
         let symbol = 'UNK';
         let decimals: number | undefined;
 
-        try {
-          [name, symbol] = await Promise.all([
-            contract.name().catch(() => 'Unknown Token'),
-            contract.symbol().catch(() => 'UNK')
-          ]);
-          
-          if (detectedTokenType === 'LSP7') {
-            decimals = await contract.decimals().catch(() => 18);
+        if (detectedTokenType === 'LSP7') {
+          // LSP7 might use ERC725Y data keys for name/symbol but standard decimals()
+          try {
+            // First try ERC725Y data keys
+            const lsp7Contract = new ethers.Contract(contractAddress, [
+              'function getData(bytes32) view returns (bytes)',
+              'function getDataBatch(bytes32[]) view returns (bytes[])',
+              'function decimals() view returns (uint8)'
+            ], provider);
+
+            // LSP4 metadata data keys
+            const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
+            const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+            
+            const dataKeys = [LSP4_TOKEN_NAME_KEY, LSP4_TOKEN_SYMBOL_KEY];
+            const [nameBytes, symbolBytes] = await lsp7Contract.getDataBatch(dataKeys);
+            
+            // Decode the bytes data
+            if (nameBytes && nameBytes !== '0x') {
+              name = ethers.utils.toUtf8String(nameBytes);
+            }
+            if (symbolBytes && symbolBytes !== '0x') {
+              symbol = ethers.utils.toUtf8String(symbolBytes);
+            }
+            
+            // Get decimals using standard function (this works)
+            decimals = await lsp7Contract.decimals();
+            
+            console.log(`[UP Renderer] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+          } catch (erc725yError) {
+            console.log(`[UP Renderer] ⚠️ LSP7 ERC725Y metadata failed, trying fallback:`, erc725yError);
+            
+            // Fallback: try standard ERC20-like functions
+            try {
+              [name, symbol] = await Promise.all([
+                contract.name().catch(() => 'Unknown Token'),
+                contract.symbol().catch(() => 'UNK')
+              ]);
+              decimals = await contract.decimals().catch(() => 18);
+              
+              console.log(`[UP Renderer] ⚠️ LSP7 fallback to standard functions: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+            } catch (metadataError) {
+              console.log(`[UP Renderer] ❌ LSP7 standard functions also failed:`, metadataError);
+              decimals = 18;
+            }
           }
-          
-          console.log(`[UP Renderer] ⚠️ Fallback metadata: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-        } catch (metadataError) {
-          console.log(`[UP Renderer] Fallback metadata fetch failed:`, metadataError);
+        } else {
+          // LSP8 uses ERC725Y data keys for metadata
+          try {
+            const lsp8Contract = new ethers.Contract(contractAddress, [
+              'function getData(bytes32) view returns (bytes)',
+              'function getDataBatch(bytes32[]) view returns (bytes[])'
+            ], provider);
+
+            // LSP4 metadata data keys
+            const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
+            const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+            
+            const dataKeys = [LSP4_TOKEN_NAME_KEY, LSP4_TOKEN_SYMBOL_KEY];
+            const [nameBytes, symbolBytes] = await lsp8Contract.getDataBatch(dataKeys);
+            
+            // Decode the bytes data
+            if (nameBytes && nameBytes !== '0x') {
+              name = ethers.utils.toUtf8String(nameBytes);
+            }
+            if (symbolBytes && symbolBytes !== '0x') {
+              symbol = ethers.utils.toUtf8String(symbolBytes);
+            }
+            
+            console.log(`[UP Renderer] ✅ LSP8 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
+          } catch (lsp8Error) {
+            console.log(`[UP Renderer] ❌ LSP8 ERC725Y metadata failed:`, lsp8Error);
+            
+            // Fallback: try standard name()/symbol() functions in case it's a hybrid
+            try {
+              [name, symbol] = await Promise.all([
+                contract.name().catch(() => 'Unknown Token'),
+                contract.symbol().catch(() => 'UNK')
+              ]);
+              console.log(`[UP Renderer] ⚠️ LSP8 fallback to standard functions: name=${name}, symbol=${symbol}`);
+            } catch (fallbackError) {
+              console.log(`[UP Renderer] ❌ LSP8 fallback also failed:`, fallbackError);
+            }
+          }
         }
 
         tokenMetadata = {
@@ -1385,6 +1457,14 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
     if (contractAddresses.length === 0) return;
     
     setIsLoadingExistingTokenIcons(true);
+    
+    // Mark these addresses as attempted to prevent infinite retries
+    const attemptedAddresses: Record<string, boolean> = {};
+    contractAddresses.forEach(address => {
+      attemptedAddresses[address] = true;
+    });
+    setAttemptedIconFetches(prev => ({ ...prev, ...attemptedAddresses }));
+    
     try {
       console.log(`[UP Renderer Config] Fetching icons for ${contractAddresses.length} existing token requirements`);
       
@@ -1429,13 +1509,17 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
     if (requirements.requiredTokens && requirements.requiredTokens.length > 0) {
       const addressesToFetch = requirements.requiredTokens
         .map(token => token.contractAddress)
-        .filter(address => !existingTokenIcons[address] && address.trim());
+        .filter(address => 
+          address.trim() && 
+          !existingTokenIcons[address] && 
+          !attemptedIconFetches[address]
+        );
 
       if (addressesToFetch.length > 0) {
         fetchExistingTokenIcons(addressesToFetch);
       }
     }
-  }, [requirements.requiredTokens, fetchExistingTokenIcons, existingTokenIcons]);
+  }, [requirements.requiredTokens, fetchExistingTokenIcons]);
 
   // ===== TOKEN REQUIREMENT HANDLERS =====
   

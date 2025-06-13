@@ -37,7 +37,7 @@ import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 // Extended verification status with additional properties needed for rich display
 export interface ExtendedVerificationStatus extends VerificationStatus {
   address?: string; // User's wallet address when connected
-  mockBalances?: {
+  balances?: {
     lyx?: string; // Raw balance for LYX (wei)
     tokens?: Record<string, {
       raw: string;        // Raw balance for BigNumber comparisons 
@@ -47,7 +47,7 @@ export interface ExtendedVerificationStatus extends VerificationStatus {
       symbol?: string;
     }>;
   };
-  mockFollowerStatus?: Record<string, boolean>;
+  followerStatus?: Record<string, boolean>;
 }
 
 export interface RichRequirementsDisplayProps {
@@ -239,19 +239,19 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
     return <AlertTriangle className="h-5 w-5 text-amber-500" />;
   };
 
-  // ===== MOCK VERIFICATION DATA =====
-  // TODO: Replace with real verification logic in Phase 2
+  // ===== REAL VERIFICATION DATA =====
+  // Using real blockchain data from connected Universal Profile
   
-  // Mock LYX balance verification
+  // LYX balance verification with real data
   const lyxVerification = requirements.minLyxBalance ? {
-    userBalance: userStatus.mockBalances?.lyx || '0',
-    formattedBalance: userStatus.mockBalances?.lyx ? formatBalance(userStatus.mockBalances.lyx) : '0',
-    meetsRequirement: userStatus.mockBalances?.lyx ? 
-      ethers.BigNumber.from(userStatus.mockBalances.lyx).gte(ethers.BigNumber.from(requirements.minLyxBalance)) : false,
+    userBalance: userStatus.balances?.lyx || '0',
+    formattedBalance: userStatus.balances?.lyx ? formatBalance(userStatus.balances.lyx) : '0',
+    meetsRequirement: userStatus.balances?.lyx ? 
+      ethers.BigNumber.from(userStatus.balances.lyx).gte(ethers.BigNumber.from(requirements.minLyxBalance)) : false,
     isLoading: false
   } : undefined;
 
-  // Mock token verification
+  // Token verification with real blockchain data
   const tokenVerifications: Record<string, {
     balance: string;
     formattedBalance: string;
@@ -265,21 +265,21 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   }> = {};
   if (requirements.requiredTokens) {
     requirements.requiredTokens.forEach(token => {
-      const mockTokenData = userStatus.mockBalances?.tokens?.[token.contractAddress];
+      const tokenData = userStatus.balances?.tokens?.[token.contractAddress];
       tokenVerifications[token.contractAddress] = {
-        balance: mockTokenData?.raw || '0',
-        formattedBalance: mockTokenData?.formatted || '0',
-        name: mockTokenData?.name || token.name,
-        symbol: mockTokenData?.symbol || token.symbol,
-        decimals: mockTokenData?.decimals,
-        meetsRequirement: mockTokenData ? 
-          ethers.BigNumber.from(mockTokenData.raw).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
+        balance: tokenData?.raw || '0',
+        formattedBalance: tokenData?.formatted || '0',
+        name: tokenData?.name || token.name,
+        symbol: tokenData?.symbol || token.symbol,
+        decimals: tokenData?.decimals,
+        meetsRequirement: tokenData ? 
+          ethers.BigNumber.from(tokenData.raw).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
         isLoading: false
       };
     });
   }
 
-  // Mock follower verification
+  // Follower verification with real data
   const followerVerifications: Record<string, {
     type: 'minimum_followers' | 'followed_by' | 'following';
     value: string;
@@ -294,7 +294,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
       followerVerifications[key] = {
         type: follower.type,
         value: follower.value,
-        status: userStatus.mockFollowerStatus?.[key] || false,
+        status: userStatus.followerStatus?.[key] || false,
         isLoading: false
       };
     });

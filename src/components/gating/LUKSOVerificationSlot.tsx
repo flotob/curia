@@ -271,11 +271,11 @@ export const LUKSOVerificationSlot: React.FC<LUKSOVerificationSlotProps> = ({
     verified: currentStatus === 'verified',
     requirements: [], // Rich component doesn't use this for display
     address: upAddress || undefined,
-    mockBalances: {
+    balances: {
       lyx: lyxBalance || undefined, // Keep raw wei balance for BigNumber comparison
       tokens: tokenBalances // Real token balances in raw format
     },
-    mockFollowerStatus: followerStatuses // Real follower statuses
+    followerStatus: followerStatuses // Real follower statuses
   };
 
   // UP metadata for the rich component

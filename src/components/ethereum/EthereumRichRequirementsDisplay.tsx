@@ -11,7 +11,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,13 +24,25 @@ import {
   AlertTriangle, 
   Loader2,
   Wallet,
-  Hash
+  Hash,
+  User
 } from 'lucide-react';
 import { ethers } from 'ethers';
 
 import { EthereumGatingRequirements, VerificationStatus } from '@/types/gating';
 
 // ===== TYPES =====
+
+// EFP Profile interface for fetching profile data
+interface EFPProfile {
+  address: string;
+  ensName?: string;
+  displayName: string;
+  avatar?: string;
+  followers: number;
+  following: number;
+  isVerified?: boolean;
+}
 
 // Extended verification status with additional properties needed for rich display
 export interface EthereumExtendedVerificationStatus extends VerificationStatus {
@@ -76,6 +88,97 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
   disabled = false,
   className = ''
 }) => {
+  // ===== STATE FOR EFP PROFILES =====
+  
+  const [efpProfiles, setEfpProfiles] = useState<Record<string, EFPProfile>>({});
+  const [isLoadingEfpProfiles, setIsLoadingEfpProfiles] = useState(false);
+
+  // ===== EFP PROFILE FETCHING =====
+  
+  const fetchEfpProfiles = useCallback(async (addresses: string[]) => {
+    if (addresses.length === 0) return;
+    
+    setIsLoadingEfpProfiles(true);
+    try {
+      console.log(`[EthereumRichDisplay] Fetching EFP profiles for ${addresses.length} addresses`);
+      
+      const profilePromises = addresses.map(async (address) => {
+        try {
+          // Fetch both details and stats for complete profile data (same as EFPUserSearch)
+          const [detailsResponse, statsResponse] = await Promise.all([
+            fetch(`https://api.ethfollow.xyz/api/v1/users/${address}/details`),
+            fetch(`https://api.ethfollow.xyz/api/v1/users/${address}/stats`)
+          ]);
+          
+          if (detailsResponse.ok) {
+            const detailsData = await detailsResponse.json();
+            let stats = { followers_count: 0, following_count: 0 };
+            
+            // Get stats if available
+            if (statsResponse.ok) {
+              stats = await statsResponse.json();
+            }
+            
+            return {
+              address,
+              profile: {
+                address: detailsData.address || address,
+                ensName: detailsData.ens?.name,
+                displayName: detailsData.ens?.name || `${address.slice(0, 6)}...${address.slice(-4)}`,
+                avatar: detailsData.ens?.avatar,
+                followers: stats.followers_count || 0,
+                following: stats.following_count || 0,
+                isVerified: true // From EFP API so considered verified
+              }
+            };
+          }
+        } catch (error) {
+          console.error(`Failed to fetch EFP profile for ${address}:`, error);
+        }
+        
+        // Create fallback profile
+        return { 
+          address, 
+          profile: {
+            address,
+            displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
+            avatar: undefined,
+            followers: 0,
+            following: 0,
+            isVerified: false
+          } as EFPProfile
+        };
+      });
+
+      const profileResults = await Promise.all(profilePromises);
+      const newProfiles: Record<string, EFPProfile> = {};
+      
+      profileResults.forEach(({ address, profile }) => {
+        newProfiles[address] = profile;
+      });
+
+      setEfpProfiles(prev => ({ ...prev, ...newProfiles }));
+    } catch (error) {
+      console.error('[EthereumRichDisplay] Error fetching EFP profiles:', error);
+    } finally {
+      setIsLoadingEfpProfiles(false);
+    }
+  }, []);
+
+  // Load EFP profiles when requirements change
+  useEffect(() => {
+    if (requirements.efpRequirements && requirements.efpRequirements.length > 0) {
+      const addressesToFetch = requirements.efpRequirements
+        .filter(req => req.type !== 'minimum_followers')
+        .map(req => req.value)
+        .filter(address => address && !efpProfiles[address]);
+
+      if (addressesToFetch.length > 0) {
+        fetchEfpProfiles(addressesToFetch);
+      }
+    }
+  }, [requirements.efpRequirements, fetchEfpProfiles, efpProfiles]);
+
   // ===== HELPER FUNCTIONS =====
   
   const formatBalance = (balance: string): string => {
@@ -85,6 +188,12 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
 
   const formatAddress = (address: string): string => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const formatFollowerCount = (count: number): string => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
   };
 
   // Get status styling for requirement cards
@@ -392,36 +501,130 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
                 const key = `${efpReq.type}-${efpReq.value}`;
                 const efpData = efpVerifications[key];
                 
-                return (
-                  <div key={index} className={`flex items-center justify-between p-3 rounded-lg border min-h-[60px] ${
-                    getRequirementStyling(efpData?.isLoading || false, efpData?.status, efpData?.error)
-                  }`}>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                        <Users className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm flex items-center space-x-2">
-                          <span>
-                            {efpReq.type === 'minimum_followers' && `${efpReq.value}+ Followers`}
-                            {efpReq.type === 'must_follow' && 'Must Follow'}
-                            {efpReq.type === 'must_be_followed_by' && 'Followed By'}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            EFP
-                          </Badge>
+                if (efpReq.type === 'minimum_followers') {
+                  return (
+                    <div key={index} className={`flex items-center justify-between p-3 rounded-lg border min-h-[60px] ${
+                      getRequirementStyling(efpData?.isLoading || false, efpData?.status, efpData?.error)
+                    }`}>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                          <Users className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {efpReq.type === 'minimum_followers' && `Have at least ${efpReq.value} followers on EFP`}
-                          {efpReq.type !== 'minimum_followers' && (efpReq.description || formatAddress(efpReq.value))}
+                        <div>
+                          <div className="font-medium text-sm flex items-center space-x-2">
+                            <span>{efpReq.value}+ Followers</span>
+                            <Badge variant="outline" className="text-xs">EFP</Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Have at least {efpReq.value} followers on EFP
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center">
+                        {getStatusIcon(efpData?.isLoading || false, efpData?.status, efpData?.error)}
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      {getStatusIcon(efpData?.isLoading || false, efpData?.status, efpData?.error)}
+                  );
+                } else {
+                  // Address-based requirement with EFP profile display
+                  const efpProfile = efpProfiles[efpReq.value];
+                  const isProfileLoading = isLoadingEfpProfiles && !efpProfile;
+                  
+                  return (
+                    <div key={index} className={`rounded-lg border min-h-[60px] ${
+                      getRequirementStyling(efpData?.isLoading || false, efpData?.status, efpData?.error)
+                    }`}>
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                            <Users className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm flex items-center space-x-2">
+                              <span>
+                                {efpReq.type === 'must_follow' && 'Must Follow'}
+                                {efpReq.type === 'must_be_followed_by' && 'Followed By'}
+                              </span>
+                              <Badge variant="outline" className="text-xs">EFP</Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {efpReq.type === 'must_follow' ? 'You must follow this user' : 'You must be followed by this user'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          {getStatusIcon(efpData?.isLoading || false, efpData?.status, efpData?.error)}
+                        </div>
+                      </div>
+                      
+                      {/* EFP Profile Display */}
+                      <div className="border-t border-border/50 p-3 bg-muted/30">
+                        {isProfileLoading ? (
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                            <div className="flex-1">
+                              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1" />
+                              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4" />
+                            </div>
+                          </div>
+                        ) : efpProfile ? (
+                          <div className="flex items-center space-x-3">
+                            {/* EFP Profile Avatar */}
+                            <div className="relative">
+                              {efpProfile.avatar ? (
+                                <img
+                                  src={efpProfile.avatar}
+                                  alt={efpProfile.displayName}
+                                  className="w-10 h-10 rounded-full object-cover border border-gray-300"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                                  <User className="h-5 w-5 text-muted-foreground" />
+                                </div>
+                              )}
+                              {efpProfile.isVerified && (
+                                <CheckCircle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 bg-white rounded-full" />
+                              )}
+                            </div>
+                            
+                            {/* Profile Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-sm truncate">
+                                  {efpProfile.displayName}
+                                </span>
+                                {efpProfile.ensName && efpProfile.ensName !== efpProfile.displayName && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {efpProfile.ensName}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {efpProfile.address.slice(0, 6)}...{efpProfile.address.slice(-4)}
+                              </div>
+                              
+                              {/* EFP Stats */}
+                              <div className="flex items-center space-x-3 mt-1">
+                                <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                                  <Users className="h-3 w-3" />
+                                  <span>{formatFollowerCount(efpProfile.followers)} followers</span>
+                                </div>
+                                <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                                  <User className="h-3 w-3" />
+                                  <span>{formatFollowerCount(efpProfile.following)} following</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {formatAddress(efpReq.value)}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
+                  );
+                }
               })}
             </>
           )}
