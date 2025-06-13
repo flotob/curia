@@ -35,7 +35,7 @@ import { EthereumGatingRequirements, VerificationStatus } from '@/types/gating';
 // Extended verification status with additional properties needed for rich display
 export interface EthereumExtendedVerificationStatus extends VerificationStatus {
   ethAddress?: string; // User's Ethereum wallet address when connected
-  mockBalances?: {
+  balances?: {
     eth?: string; // Raw balance for ETH (wei)
     tokens?: Record<string, {
       raw: string;        // Raw balance for BigNumber comparisons 
@@ -45,8 +45,8 @@ export interface EthereumExtendedVerificationStatus extends VerificationStatus {
       symbol?: string;
     }>;
   };
-  mockENSStatus?: boolean;
-  mockEFPStatus?: Record<string, boolean>;
+  ensStatus?: boolean; // Real ENS verification status
+  efpStatus?: Record<string, boolean>; // Real EFP verification status by requirement key
   ensName?: string; // ENS name if available
   ensAvatar?: string; // ENS avatar if available
 }
@@ -121,19 +121,19 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
     return <AlertTriangle className="h-5 w-5 text-amber-500" />;
   };
 
-  // ===== MOCK VERIFICATION DATA =====
-  // Using userStatus.mockBalances to populate verification state
+  // ===== REAL VERIFICATION DATA =====
+  // Using userStatus.balances to populate verification state with real blockchain data
   
-  // Mock ETH balance verification
+  // ETH balance verification
   const ethVerification = requirements.minimumETHBalance ? {
-    userBalance: userStatus.mockBalances?.eth || '0',
-    formattedBalance: userStatus.mockBalances?.eth ? formatBalance(ethers.utils.formatEther(userStatus.mockBalances.eth)) : '0',
-    meetsRequirement: userStatus.mockBalances?.eth ? 
-      ethers.BigNumber.from(userStatus.mockBalances.eth).gte(ethers.BigNumber.from(requirements.minimumETHBalance)) : false,
+    userBalance: userStatus.balances?.eth || '0',
+    formattedBalance: userStatus.balances?.eth ? formatBalance(ethers.utils.formatEther(userStatus.balances.eth)) : '0',
+    meetsRequirement: userStatus.balances?.eth ? 
+      ethers.BigNumber.from(userStatus.balances.eth).gte(ethers.BigNumber.from(requirements.minimumETHBalance)) : false,
     isLoading: false
   } : undefined;
 
-  // Mock token verification for ERC-20
+  // ERC-20 token verification with real blockchain data
   const tokenVerifications: Record<string, {
     balance: string;
     formattedBalance: string;
@@ -148,27 +148,27 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
   
   if (requirements.requiredERC20Tokens) {
     requirements.requiredERC20Tokens.forEach(token => {
-      const mockTokenData = userStatus.mockBalances?.tokens?.[token.contractAddress];
+      const tokenData = userStatus.balances?.tokens?.[token.contractAddress];
       tokenVerifications[token.contractAddress] = {
-        balance: mockTokenData?.raw || '0',
-        formattedBalance: mockTokenData?.formatted || '0',
-        name: mockTokenData?.name || token.name,
-        symbol: mockTokenData?.symbol || token.symbol,
-        decimals: mockTokenData?.decimals || token.decimals,
-        meetsRequirement: mockTokenData ? 
-          ethers.BigNumber.from(mockTokenData.raw).gte(ethers.BigNumber.from(token.minimum || '0')) : false,
+        balance: tokenData?.raw || '0',
+        formattedBalance: tokenData?.formatted || '0',
+        name: tokenData?.name || token.name,
+        symbol: tokenData?.symbol || token.symbol,
+        decimals: tokenData?.decimals || token.decimals,
+        meetsRequirement: tokenData ? 
+          ethers.BigNumber.from(tokenData.raw).gte(ethers.BigNumber.from(token.minimum || '0')) : false,
         isLoading: false
       };
     });
   }
 
-  // Mock ENS verification
+  // ENS verification with real data
   const ensVerification = requirements.requiresENS ? {
-    hasENS: userStatus.mockENSStatus || false,
+    hasENS: userStatus.ensStatus || false,
     isLoading: false
   } : undefined;
 
-  // Mock EFP verification
+  // EFP verification with real blockchain data
   const efpVerifications: Record<string, {
     type: 'minimum_followers' | 'must_follow' | 'must_be_followed_by';
     value: string;
@@ -183,7 +183,7 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
       efpVerifications[key] = {
         type: efp.type,
         value: efp.value,
-        status: userStatus.mockEFPStatus?.[key] || false,
+        status: userStatus.efpStatus?.[key] || false,
         isLoading: false
       };
     });

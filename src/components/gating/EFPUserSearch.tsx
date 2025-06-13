@@ -49,9 +49,9 @@ export const EFPUserSearch: React.FC<EFPUserSearchProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Debounced search function
+  // Manual search function
   const searchUsers = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 3) {
+    if (!query.trim()) {
       setSearchResults([]);
       return;
     }
@@ -66,16 +66,28 @@ export const EFPUserSearch: React.FC<EFPUserSearchProps> = ({
       // 1. Direct ENS lookup if it looks like an ENS name
       if (query.includes('.')) {
         try {
-          const ensResponse = await fetch(`https://api.ethfollow.xyz/api/v1/users/${query}/details`);
-          if (ensResponse.ok) {
-            const ensData = await ensResponse.json();
+          // Fetch both details and stats for complete profile data
+          const [detailsResponse, statsResponse] = await Promise.all([
+            fetch(`https://api.ethfollow.xyz/api/v1/users/${query}/details`),
+            fetch(`https://api.ethfollow.xyz/api/v1/users/${query}/stats`)
+          ]);
+          
+          if (detailsResponse.ok) {
+            const detailsData = await detailsResponse.json();
+            let stats = { followers_count: 0, following_count: 0 };
+            
+            // Get stats if available
+            if (statsResponse.ok) {
+              stats = await statsResponse.json();
+            }
+            
             results.push({
-              address: ensData.address || '',
+              address: detailsData.address || '',
               ensName: query,
-              displayName: ensData.display_name || query,
-              avatar: ensData.avatar,
-              followers: ensData.followers_count || 0,
-              following: ensData.following_count || 0,
+              displayName: detailsData.ens?.name || query,
+              avatar: detailsData.ens?.avatar,
+              followers: stats.followers_count || 0,
+              following: stats.following_count || 0,
               isVerified: true // From EFP API so considered verified
             });
           }
@@ -157,14 +169,10 @@ export const EFPUserSearch: React.FC<EFPUserSearchProps> = ({
     }
   }, [selectedProfiles]);
 
-  // Handle search input with debouncing
-  React.useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchUsers(searchQuery);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchUsers]);
+  // Manual search trigger (no more autosearch)
+  const handleManualSearch = () => {
+    searchUsers(searchQuery);
+  };
 
   const handleSelect = (profile: EFPProfile) => {
     onSelect(profile);
@@ -180,19 +188,37 @@ export const EFPUserSearch: React.FC<EFPUserSearchProps> = ({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <Input
-          type="text"
-          placeholder={placeholder}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 pr-10"
-        />
-        {isSearching && (
-          <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-        )}
+      {/* Search Input with Manual Trigger */}
+      <div className="flex space-x-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && searchQuery.trim() && !isSearching) {
+                handleManualSearch();
+              }
+            }}
+            className="pl-10"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="default"
+          onClick={handleManualSearch}
+          disabled={!searchQuery.trim() || isSearching}
+          className="px-3"
+        >
+          {isSearching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+        </Button>
       </div>
 
       {/* Error Message */}
@@ -275,9 +301,9 @@ export const EFPUserSearch: React.FC<EFPUserSearchProps> = ({
       )}
 
       {/* Search Hint */}
-      {searchQuery.length > 0 && searchQuery.length < 3 && (
+      {!searchQuery.trim() && (
         <div className="text-xs text-muted-foreground">
-          Type at least 3 characters to search...
+          Enter an ENS name (e.g., vitalik.eth) and click Search or press Enter
         </div>
       )}
     </div>

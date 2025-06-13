@@ -9,6 +9,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
 import { EthereumGatingRequirements } from '@/types/gating';
 
+interface EFPFollowRecord {
+  version: number;
+  record_type: string;
+  data: string;
+  address: string;
+  tags: string[];
+}
+
 // Use the same RPC configuration as verification.ts
 const ETHEREUM_RPC_URLS = [
   process.env.ETHEREUM_RPC_URL || 'https://ethereum.publicnode.com',
@@ -180,15 +188,45 @@ export async function POST(request: NextRequest) {
           for (const efpReq of requirements.efpRequirements) {
             if (efpReq.type === 'must_follow') {
               try {
-                const followResponse = await fetch(`${EFP_API_BASE}/users/${address}/following/${efpReq.value}`);
-                followingStatus[`following-${efpReq.value}`] = followResponse.ok;
+                const followResponse = await fetch(`${EFP_API_BASE}/users/${address}/following`);
+                if (followResponse.ok) {
+                  const followData = await followResponse.json();
+                  const followingList = followData.following || [];
+                  
+                  // Extract addresses from EFP objects (each has an 'address' field)
+                  const addresses = followingList
+                    .filter((item: unknown): item is EFPFollowRecord => 
+                      item != null && typeof item === 'object' && 'address' in item)
+                    .map((item: EFPFollowRecord) => item.address);
+                  
+                  followingStatus[`following-${efpReq.value}`] = addresses.some((addr: string) => 
+                    addr.toLowerCase() === efpReq.value.toLowerCase()
+                  );
+                } else {
+                  followingStatus[`following-${efpReq.value}`] = false;
+                }
               } catch {
                 followingStatus[`following-${efpReq.value}`] = false;
               }
             } else if (efpReq.type === 'must_be_followed_by') {
               try {
-                const followedResponse = await fetch(`${EFP_API_BASE}/users/${efpReq.value}/following/${address}`);
-                followingStatus[`followed_by-${efpReq.value}`] = followedResponse.ok;
+                const followedResponse = await fetch(`${EFP_API_BASE}/users/${efpReq.value}/following`);
+                if (followedResponse.ok) {
+                  const followedData = await followedResponse.json();
+                  const followingList = followedData.following || [];
+                  
+                  // Extract addresses from EFP objects (each has an 'address' field)
+                  const addresses = followingList
+                    .filter((item: unknown): item is EFPFollowRecord => 
+                      item != null && typeof item === 'object' && 'address' in item)
+                    .map((item: EFPFollowRecord) => item.address);
+                  
+                  followingStatus[`followed_by-${efpReq.value}`] = addresses.some((addr: string) => 
+                    addr.toLowerCase() === address.toLowerCase()
+                  );
+                } else {
+                  followingStatus[`followed_by-${efpReq.value}`] = false;
+                }
               } catch {
                 followingStatus[`followed_by-${efpReq.value}`] = false;
               }

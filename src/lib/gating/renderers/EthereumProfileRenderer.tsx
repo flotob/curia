@@ -428,7 +428,8 @@ const EthereumConfigComponent: React.FC<EthereumConfigComponentProps> = ({
   const updateEFPRequirement = (index: number, field: keyof EFPRequirement, value: string) => {
     const updatedRequirements = [...(requirements.efpRequirements || [])];
     updatedRequirements[index] = { ...updatedRequirements[index], [field]: value };
-    onChange({ ...requirements, efpRequirements: updatedRequirements });
+    const newRequirements = { ...requirements, efpRequirements: updatedRequirements };
+    onChange(newRequirements);
   };
 
   const removeEFPRequirement = (index: number) => {
@@ -837,8 +838,15 @@ const EthereumConfigComponent: React.FC<EthereumConfigComponentProps> = ({
                       </Label>
                       <EFPUserSearch
                         onSelect={(profile) => {
-                          updateEFPRequirement(index, 'value', profile.address);
-                          updateEFPRequirement(index, 'description', `${profile.displayName} (${profile.ensName || profile.address.slice(0, 6) + '...' + profile.address.slice(-4)})`);
+                          // ✅ Fix: Update both value and description in a single state change to prevent race condition
+                          const updatedRequirements = [...(requirements.efpRequirements || [])];
+                          updatedRequirements[index] = {
+                            ...updatedRequirements[index],
+                            value: profile.address,
+                            description: `${profile.displayName} (${profile.ensName || profile.address.slice(0, 6) + '...' + profile.address.slice(-4)})`
+                          };
+                          const newRequirements = { ...requirements, efpRequirements: updatedRequirements };
+                          onChange(newRequirements);
                         }}
                         placeholder={`Search for user to ${efp.type === 'must_follow' ? 'follow' : 'be followed by'}`}
                         className="text-sm"

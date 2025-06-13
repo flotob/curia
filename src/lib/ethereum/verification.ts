@@ -11,6 +11,14 @@
 import { ethers } from 'ethers';
 import { EthereumGatingRequirements, ERC20Requirement, ERC721Requirement, ERC1155Requirement, EFPRequirement } from '@/types/gating';
 
+interface EFPFollowRecord {
+  version: number;
+  record_type: string;
+  data: string;
+  address: string;
+  tags: string[];
+}
+
 // Ethereum RPC configuration
 const ETHEREUM_RPC_URLS = [
   process.env.ETHEREUM_RPC_URL || 'https://ethereum.publicnode.com',
@@ -421,15 +429,29 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_follow': {
-          const response = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following/${requirement.value}`);
+          const response = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following`);
           if (!response.ok) {
-            if (response.status === 404) {
-              return {
-                valid: false,
-                error: `Not following required address: ${requirement.value.slice(0, 6)}...${requirement.value.slice(-4)}`
-              };
-            }
             throw new Error(`EFP API error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const followingList = data.following || [];
+          
+          // Extract addresses from EFP objects (each has an 'address' field)
+          const addresses = followingList
+            .filter((item: unknown): item is EFPFollowRecord => 
+              item != null && typeof item === 'object' && 'address' in item)
+            .map((item: EFPFollowRecord) => item.address);
+          
+          const isFollowing = addresses.some((addr: string) => 
+            addr.toLowerCase() === requirement.value.toLowerCase()
+          );
+
+          if (!isFollowing) {
+            return {
+              valid: false,
+              error: `Not following required address: ${requirement.value.slice(0, 6)}...${requirement.value.slice(-4)}`
+            };
           }
 
           console.log(`[verifyEFPRequirements] ✅ Following check passed: ${ethAddress} follows ${requirement.value}`);
@@ -437,15 +459,29 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_be_followed_by': {
-          const response = await fetch(`${EFP_API_BASE}/users/${requirement.value}/following/${ethAddress}`);
+          const response = await fetch(`${EFP_API_BASE}/users/${requirement.value}/following`);
           if (!response.ok) {
-            if (response.status === 404) {
-              return {
-                valid: false,
-                error: `Not followed by required address: ${requirement.value.slice(0, 6)}...${requirement.value.slice(-4)}`
-              };
-            }
             throw new Error(`EFP API error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const followingList = data.following || [];
+          
+          // Extract addresses from EFP objects (each has an 'address' field)
+          const addresses = followingList
+            .filter((item: unknown): item is EFPFollowRecord => 
+              item != null && typeof item === 'object' && 'address' in item)
+            .map((item: EFPFollowRecord) => item.address);
+          
+          const isFollowedBy = addresses.some((addr: string) => 
+            addr.toLowerCase() === ethAddress.toLowerCase()
+          );
+
+          if (!isFollowedBy) {
+            return {
+              valid: false,
+              error: `Not followed by required address: ${requirement.value.slice(0, 6)}...${requirement.value.slice(-4)}`
+            };
           }
 
           console.log(`[verifyEFPRequirements] ✅ Followed-by check passed: ${requirement.value} follows ${ethAddress}`);

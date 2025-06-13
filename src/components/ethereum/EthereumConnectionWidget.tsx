@@ -384,12 +384,12 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     );
   }
 
-  // Create mock balances for the rich display
-  const mockBalances = {
+  // Create real balances object for the rich display
+  const balances = {
     eth: ethBalance,
     tokens: stableRequirements.requiredERC20Tokens?.reduce((acc, token) => {
       acc[token.contractAddress] = {
-        raw: '0', // TODO: Replace with real token balance
+        raw: '0', // TODO: Replace with real token balance from blockchain
         formatted: '0',
         decimals: token.decimals,
         name: token.name,
@@ -405,23 +405,41 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     }>) || {}
   };
 
-  // Create extended user status for rich display
+  // Create extended user status for rich display with real blockchain data
   const extendedUserStatus: EthereumExtendedVerificationStatus = {
     connected: isConnected,
     verified: serverVerified, // Use server verification status, not local
     requirements: [],
     ethAddress: ethAddress || undefined,
-    mockBalances,
-    mockENSStatus: ensProfile.name ? true : false,
-    mockEFPStatus: stableRequirements.efpRequirements?.reduce((acc, efp) => {
+    balances,
+    ensStatus: ensProfile.name ? true : false,
+    efpStatus: stableRequirements.efpRequirements?.reduce((acc, efp) => {
       const key = `${efp.type}-${efp.value}`;
       // ✅ Use actual verification result instead of hardcoded false
       if (verificationResult) {
-        // Check if this requirement failed (is in missing requirements)
-        const failed = verificationResult.missingRequirements.some(missing => 
-          missing.includes(efp.value) || 
-          (efp.type === 'minimum_followers' && missing.includes(`${efp.value} followers`))
-        );
+        // More precise logic to determine if this specific requirement failed
+        let failed = false;
+        
+        if (efp.type === 'minimum_followers') {
+          // For minimum followers, look for specific patterns in missing requirements
+          failed = verificationResult.missingRequirements.some(missing => 
+            missing.includes(`Need ${efp.value} followers`) || 
+            missing.includes(`${efp.value} followers, have`)
+          );
+        } else if (efp.type === 'must_follow') {
+          // For must follow, look for specific address in missing requirements
+          failed = verificationResult.missingRequirements.some(missing => 
+            missing.includes(`Must follow ${efp.value}`) ||
+            missing.includes(efp.value)
+          );
+        } else if (efp.type === 'must_be_followed_by') {
+          // For must be followed by, look for specific address in missing requirements
+          failed = verificationResult.missingRequirements.some(missing => 
+            missing.includes(`Must be followed by ${efp.value}`) ||
+            missing.includes(efp.value)
+          );
+        }
+        
         acc[key] = !failed;
       } else {
         // No verification result yet - default to false

@@ -71,6 +71,14 @@ interface EFPRequirement {
   description?: string;
 }
 
+interface EFPFollowRecord {
+  version: number;
+  record_type: string;
+  data: string;
+  address: string;
+  tags: string[];
+}
+
 interface PostSettings {
   responsePermissions?: {
     categories?: Array<{
@@ -366,14 +374,27 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
               missingRequirements.push(`Need ${required} followers, have ${followerCount}`);
             }
           } else if (req.type === 'must_follow') {
-            // Check if current user follows the target address (direct API call)
-            const followResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following/${req.value}`);
+            // Check if current user follows the target address
+            const followResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following`);
             if (!followResponse.ok) {
-              if (followResponse.status === 404) {
-                missingRequirements.push(`Must follow ${req.value}`);
-              } else {
-                throw new Error(`EFP API error: ${followResponse.status}`);
-              }
+              throw new Error(`EFP API error: ${followResponse.status}`);
+            }
+            
+            const followData = await followResponse.json();
+            const followingList = followData.following || [];
+            
+            // Extract addresses from EFP objects (each has an 'address' field)
+            const addresses = followingList
+              .filter((item: unknown): item is EFPFollowRecord => 
+                item != null && typeof item === 'object' && 'address' in item)
+              .map((item: EFPFollowRecord) => item.address);
+            
+            const isFollowing = addresses.some((addr: string) => 
+              addr.toLowerCase() === req.value.toLowerCase()
+            );
+            
+            if (!isFollowing) {
+              missingRequirements.push(`Must follow ${req.value}`);
             }
           } else if (req.type === 'must_be_followed_by') {
             // Skip verification if value is empty (Issue #2)
@@ -383,14 +404,27 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
               continue;
             }
             
-            // Check if target address follows the current user (direct API call)
-            const followedResponse = await fetch(`${EFP_API_BASE}/users/${req.value}/following/${ethAddress}`);
+            // Check if target address follows the current user
+            const followedResponse = await fetch(`${EFP_API_BASE}/users/${req.value}/following`);
             if (!followedResponse.ok) {
-              if (followedResponse.status === 404) {
-                missingRequirements.push(`Must be followed by ${req.value}`);
-              } else {
-                throw new Error(`EFP API error: ${followedResponse.status}`);
-              }
+              throw new Error(`EFP API error: ${followedResponse.status}`);
+            }
+            
+            const followedData = await followedResponse.json();
+            const followingList = followedData.following || [];
+            
+            // Extract addresses from EFP objects (each has an 'address' field)
+            const addresses = followingList
+              .filter((item: unknown): item is EFPFollowRecord => 
+                item != null && typeof item === 'object' && 'address' in item)
+              .map((item: EFPFollowRecord) => item.address);
+            
+            const isFollowedBy = addresses.some((addr: string) => 
+              addr.toLowerCase() === ethAddress.toLowerCase()
+            );
+            
+            if (!isFollowedBy) {
+              missingRequirements.push(`Must be followed by ${req.value}`);
             }
           }
         } catch (error) {
