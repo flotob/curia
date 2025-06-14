@@ -81,7 +81,7 @@ import { ERC721NFTConfigurator } from './configurators/ERC721NFTConfigurator';
 import { ERC1155TokenConfigurator } from './configurators/ERC1155TokenConfigurator';
 import { RequirementType } from '@/types/locks';
 
-const CategorySelectionStep = () => {
+const RequirementsStep = () => {
   const { state, addRequirement, updateRequirement, navigateBackToRequirements, navigateToRequirementConfig } = useLockBuilder();
 
   const handleSelectRequirementType = (requirementType: RequirementType) => {
@@ -284,35 +284,218 @@ const CategorySelectionStep = () => {
   }
 };
 
-const ConfigurationStep = () => (
-  <div className="text-center py-8">
-    <div className="h-12 w-12 mx-auto bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-      <span className="text-2xl">⚙️</span>
-    </div>
-    <h3 className="text-lg font-semibold mb-2">Configure Requirements</h3>
-    <p className="text-muted-foreground">Set up specific requirements for each category (Phase 3)</p>
-  </div>
-);
 
-const PreviewStep = () => (
-  <div className="text-center py-8">
-    <div className="h-12 w-12 mx-auto bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-      <span className="text-2xl">👀</span>
-    </div>
-    <h3 className="text-lg font-semibold mb-2">Preview & Test</h3>
-    <p className="text-muted-foreground">Test with real wallet connections (Phase 4)</p>
-  </div>
-);
 
-const SaveStep = () => (
-  <div className="text-center py-8">
-    <div className="h-12 w-12 mx-auto bg-green-100 rounded-lg flex items-center justify-center mb-4">
-      <span className="text-2xl">💾</span>
+const PreviewStep = () => {
+  const { state } = useLockBuilder();
+  
+  return (
+    <div className="space-y-6">
+      {/* Lock Summary */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <span className="text-2xl mr-3">{state.metadata.icon}</span>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {state.metadata.name || 'Untitled Lock'}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {state.requirements.length} requirement{state.requirements.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+          <Badge variant="secondary">Preview Mode</Badge>
+        </div>
+        
+        {state.metadata.description && (
+          <p className="text-gray-700 mb-4">{state.metadata.description}</p>
+        )}
+        
+        {/* Requirements Preview */}
+        <div className="space-y-2">
+          <h4 className="font-medium text-gray-900">Requirements:</h4>
+          {state.requirements.length === 0 ? (
+            <p className="text-sm text-gray-500 italic">No requirements configured</p>
+          ) : (
+            <div className="space-y-1">
+              {state.requirements.map((req: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
+                <div key={index} className="text-sm text-gray-700 flex items-center">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2 flex-shrink-0" />
+                  {req.description || `${req.type} requirement`}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Preview Instructions */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <span className="text-xl mr-3">💡</span>
+          <div>
+            <h4 className="font-medium text-amber-900 mb-1">How to Test</h4>
+            <p className="text-sm text-amber-800">
+              To fully test this lock, you would connect your wallet and verify each requirement. 
+              In this preview, you can see the lock configuration and verify it matches your expectations.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Template Info (if selected) */}
+      {state.selectedTemplate && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center mb-2">
+            <span className="text-lg mr-2">{state.selectedTemplate.icon}</span>
+            <h4 className="font-medium text-gray-900">Based on Template</h4>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">{state.selectedTemplate.name}</p>
+          <p className="text-xs text-gray-500">{state.selectedTemplate.description}</p>
+        </div>
+      )}
+
+      {/* Next Steps */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <span className="text-xl mr-3">✅</span>
+          <div>
+            <h4 className="font-medium text-green-900 mb-1">Ready to Save</h4>
+            <p className="text-sm text-green-800">
+              Your lock configuration looks good! Click &quot;Next&quot; to save it for reuse in post gating.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
-    <h3 className="text-lg font-semibold mb-2">Save Lock</h3>
-    <p className="text-muted-foreground">Review and save your lock configuration</p>
-  </div>
-);
+  );
+};
+
+const SaveStep = () => {
+  const { state, setState } = useLockBuilder();
+  const [lockName, setLockName] = useState(state.metadata.name || '');
+  const [lockDescription, setLockDescription] = useState(state.metadata.description || '');
+  
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setLockName(name);
+    setState((prev: LockBuilderState) => ({
+      ...prev,
+      metadata: { ...prev.metadata, name }
+    }));
+  };
+
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const description = e.target.value;
+    setLockDescription(description);
+    setState((prev: LockBuilderState) => ({
+      ...prev,
+      metadata: { ...prev.metadata, description }
+    }));
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Final Configuration Review */}
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
+        <div className="flex items-center mb-4">
+          <span className="text-2xl mr-3">✨</span>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Lock Ready to Save</h3>
+            <p className="text-sm text-gray-600">
+              Add final details and save your lock for reuse
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Lock Details Form */}
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="lock-name" className="block text-sm font-medium text-gray-700 mb-2">
+            Lock Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="lock-name"
+            type="text"
+            value={lockName}
+            onChange={handleNameChange}
+            placeholder="Enter a name for this lock..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            This name will help you identify the lock when applying it to posts
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="lock-description" className="block text-sm font-medium text-gray-700 mb-2">
+            Description (Optional)
+          </label>
+          <textarea
+            id="lock-description"
+            value={lockDescription}
+            onChange={handleDescriptionChange}
+            placeholder="Describe what this lock is for..."
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Optional description to explain the purpose of this lock
+          </p>
+        </div>
+      </div>
+
+      {/* Configuration Summary */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h4 className="font-medium text-gray-900 mb-3">Configuration Summary</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-gray-600">Requirements:</span>
+            <span className="ml-2 font-medium text-gray-900">
+              {state.requirements.length} configured
+            </span>
+          </div>
+          <div>
+            <span className="text-gray-600">Template:</span>
+            <span className="ml-2 font-medium text-gray-900">
+              {state.selectedTemplate?.name || 'Custom'}
+            </span>
+          </div>
+        </div>
+        
+        {state.requirements.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <span className="text-gray-600 text-sm">Requirements:</span>
+            <div className="mt-1 space-y-1">
+              {state.requirements.map((req: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
+                <div key={index} className="text-xs text-gray-700 flex items-center">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2 flex-shrink-0" />
+                  {req.description || `${req.type} requirement`}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Save Instructions */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <span className="text-xl mr-3">📋</span>
+          <div>
+            <h4 className="font-medium text-blue-900 mb-1">After Saving</h4>
+            <p className="text-sm text-blue-800">
+              Your lock will be saved and available for use when creating gated posts. 
+              You can apply it to control who can view or respond to your content.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Step configuration
 const STEP_CONFIG: Record<LockBuilderStep, {
@@ -322,26 +505,20 @@ const STEP_CONFIG: Record<LockBuilderStep, {
   isRequired: boolean;
 }> = {
   metadata: {
-    title: 'Lock Details',
-    description: 'Name, description, and visual identity',
+    title: 'Template & Info',
+    description: 'Choose a template and add basic details',
     component: MetadataStep,
     isRequired: true
   },
-  categories: {
+  requirements: {
     title: 'Requirements',
     description: 'Add and configure gating requirements',
-    component: CategorySelectionStep,
-    isRequired: true
-  },
-  configure: {
-    title: 'Configure Requirements',
-    description: 'Set up specific requirements for each category',
-    component: ConfigurationStep,
+    component: RequirementsStep,
     isRequired: true
   },
   preview: {
     title: 'Preview & Test',
-    description: 'Test your lock with real wallet connections',
+    description: 'Test your lock with wallet connections',
     component: PreviewStep,
     isRequired: false
   },
@@ -353,7 +530,7 @@ const STEP_CONFIG: Record<LockBuilderStep, {
   }
 };
 
-const STEP_ORDER: LockBuilderStep[] = ['metadata', 'categories', 'configure', 'preview', 'save'];
+const STEP_ORDER: LockBuilderStep[] = ['metadata', 'requirements', 'preview', 'save'];
 
 interface LockCreationModalContentProps {
   onSave: () => void;

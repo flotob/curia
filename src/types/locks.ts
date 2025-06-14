@@ -203,10 +203,9 @@ export type RequirementBuilderScreen =
   | 'configure';    // Configure specific requirement
 
 export type LockBuilderStep = 
-  | 'metadata' // Name, description, icon, color
-  | 'categories' // Select requirement types (UP, Ethereum, etc.)
-  | 'configure' // Configure each requirement
-  | 'preview' // Preview and test
+  | 'metadata' // Template selection and basic info
+  | 'requirements' // Requirements list + picker + configurators  
+  | 'preview' // Preview and test with wallets
   | 'save'; // Final save step
 
 /**
