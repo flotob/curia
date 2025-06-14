@@ -95,35 +95,35 @@ export const UPFollowerCountConfigurator: React.FC<UPFollowerCountConfiguratorPr
         <div className="flex items-center gap-3">
           <button 
             onClick={onCancel}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             Back to Requirements
           </button>
         </div>
         
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           {editingRequirement ? 'Edit Requirement' : 'Add Requirement'}
         </div>
       </div>
 
       {/* Configuration Form */}
       <div className="max-w-md mx-auto">
-        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 transition-all duration-300 hover:shadow-lg hover:border-green-300">
+        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-6 transition-all duration-300 hover:shadow-lg hover:border-green-300 dark:hover:border-green-600">
           {/* Icon and Title */}
           <div className="flex items-center space-x-3 mb-6">
             <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center shadow-lg">
               <Users className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">UP Follower Requirement</h3>
-              <p className="text-sm text-gray-600">Minimum Universal Profile followers required</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">UP Follower Requirement</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Minimum Universal Profile followers required</p>
             </div>
           </div>
 
           {/* Count Input */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium text-gray-700">
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Minimum Follower Count
             </Label>
             
@@ -145,8 +145,8 @@ export const UPFollowerCountConfigurator: React.FC<UPFollowerCountConfiguratorPr
                   }`}
                 />
               </div>
-              <div className="flex items-center px-4 bg-green-100 rounded-lg border border-green-200">
-                <span className="text-sm font-medium text-green-800">followers</span>
+              <div className="flex items-center px-4 bg-green-100 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
+                <span className="text-sm font-medium text-green-800 dark:text-green-200">followers</span>
               </div>
             </div>
 
@@ -159,8 +159,8 @@ export const UPFollowerCountConfigurator: React.FC<UPFollowerCountConfiguratorPr
 
             {/* Success Preview */}
             {validation.isValid && followerCount.trim() && (
-              <div className="mt-4 p-3 bg-green-100 rounded-lg border border-green-200">
-                <p className="text-sm text-green-800">
+              <div className="mt-4 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
+                <p className="text-sm text-green-800 dark:text-green-200">
                   ✓ Users need at least <strong>{parseInt(followerCount).toLocaleString()} followers</strong> on their Universal Profile
                 </p>
               </div>
@@ -189,7 +189,7 @@ export const UPFollowerCountConfigurator: React.FC<UPFollowerCountConfiguratorPr
 
       {/* Help Text */}
       <div className="max-w-md mx-auto text-center">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           Universal Profiles are digital identities on LUKSO. This requirement checks the user&apos;s follower count for social validation.
         </p>
       </div>

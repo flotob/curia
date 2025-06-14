@@ -93,26 +93,26 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
         onClick={() => handleSelectType(req.type)}
         onKeyDown={(e) => handleKeyPress(e, req.type)}
         tabIndex={0}
-        className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-4 transition-all hover:border-blue-300 hover:shadow-md focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="group cursor-pointer rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 transition-all hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       >
         <div className="flex items-start gap-3">
           <div className="text-2xl">{req.icon}</div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+              <h3 className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 {req.name}
               </h3>
               <div className="flex items-center gap-2">
                 {/* Popularity indicator */}
                 <div className="flex items-center gap-1">
-                  <Users className="h-3 w-3 text-gray-400" />
-                  <span className="text-xs text-gray-500">{req.popularity}%</span>
+                  <Users className="h-3 w-3 text-gray-400 dark:text-gray-500" />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{req.popularity}%</span>
                 </div>
               </div>
             </div>
             
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               {req.description}
             </p>
             
@@ -126,7 +126,7 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
               </div>
               
               {/* Estimated config time */}
-              <div className="flex items-center gap-1 text-xs text-gray-500">
+              <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                 <Clock className="h-3 w-3" />
                 {req.estimatedConfigTime}
               </div>
@@ -147,10 +147,10 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
       <div key={category} className="mb-8">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xl">{categoryInfo.icon}</span>
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {categoryInfo.name}
           </h2>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             ({requirements.length})
           </span>
         </div>
@@ -169,41 +169,41 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             Back to Requirements
           </button>
         </div>
         
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           Choose a requirement type to add
         </div>
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
         <input
           type="text"
           placeholder="Search requirement types..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         />
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-4">
-        <span className="text-sm font-medium text-gray-700">Filter by:</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by:</span>
         
         <div className="flex gap-2">
           <button
             onClick={() => setFilterMode('all')}
             className={`px-3 py-1 text-sm rounded-full transition-colors ${
               filterMode === 'all' 
-                ? 'bg-blue-100 text-blue-700 font-medium' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium' 
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             All ({REQUIREMENT_TYPES.length})
@@ -216,7 +216,7 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
               setSelectedCategory(cat || null);
               setFilterMode(cat ? 'category' : 'all');
             }}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-full focus:border-blue-500 focus:outline-none"
+            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-full focus:border-blue-500 focus:outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           >
             <option value="">All Categories</option>
             {Object.entries(REQUIREMENT_CATEGORIES).map(([key, info]) => (
@@ -233,7 +233,7 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
               setSelectedDifficulty(diff || null);
               setFilterMode(diff ? 'difficulty' : 'all');
             }}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-full focus:border-blue-500 focus:outline-none"
+            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-full focus:border-blue-500 focus:outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           >
             <option value="">All Difficulties</option>
             {Object.entries(DIFFICULTY_LEVELS).map(([key, info]) => (
@@ -249,11 +249,11 @@ export const RequirementTypePicker: React.FC<RequirementTypePickerProps> = ({
       <div>
         {filteredRequirements.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-gray-400 text-4xl mb-4">🔍</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <div className="text-gray-400 dark:text-gray-500 text-4xl mb-4">🔍</div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
               No requirements found
             </h3>
-            <p className="text-gray-500">
+            <p className="text-gray-500 dark:text-gray-400">
               Try adjusting your search or filters
             </p>
           </div>

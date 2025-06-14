@@ -4,24 +4,19 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Coins } from 'lucide-react';
+import { ArrowLeft, Users } from 'lucide-react';
 
-import { GatingRequirement, LyxBalanceConfig } from '@/types/locks';
-import { 
-  parseLyxToWei, 
-  formatWeiToLyx, 
-  isValidLyxAmount, 
-  validatePositiveNumber 
-} from '@/lib/requirements/conversions';
+import { GatingRequirement, EFPFollowerCountConfig } from '@/types/locks';
+import { validateFollowerCount } from '@/lib/requirements/validation';
 
-interface LyxBalanceConfiguratorProps {
+interface EFPFollowerCountConfiguratorProps {
   editingRequirement?: GatingRequirement;
   onSave: (requirement: GatingRequirement) => void;
   onCancel: () => void;
   disabled?: boolean;
 }
 
-export const LyxBalanceConfigurator: React.FC<LyxBalanceConfiguratorProps> = ({
+export const EFPFollowerCountConfigurator: React.FC<EFPFollowerCountConfiguratorProps> = ({
   editingRequirement,
   onSave,
   onCancel,
@@ -29,16 +24,16 @@ export const LyxBalanceConfigurator: React.FC<LyxBalanceConfiguratorProps> = ({
 }) => {
   // ===== STATE =====
   
-  const [lyxAmount, setLyxAmount] = useState('');
+  const [followerCount, setFollowerCount] = useState('');
   const [validation, setValidation] = useState<{ isValid: boolean; error?: string }>({ isValid: false });
 
   // ===== INITIALIZATION =====
   
   useEffect(() => {
-    if (editingRequirement && editingRequirement.type === 'lyx_balance') {
-      const config = editingRequirement.config as LyxBalanceConfig;
-      if (config.minAmount) {
-        setLyxAmount(formatWeiToLyx(config.minAmount));
+    if (editingRequirement && editingRequirement.type === 'efp_follower_count') {
+      const config = editingRequirement.config as EFPFollowerCountConfig;
+      if (config.minCount !== undefined) {
+        setFollowerCount(config.minCount.toString());
       }
     }
   }, [editingRequirement]);
@@ -46,48 +41,40 @@ export const LyxBalanceConfigurator: React.FC<LyxBalanceConfiguratorProps> = ({
   // ===== VALIDATION =====
   
   useEffect(() => {
-    const numberValidation = validatePositiveNumber(lyxAmount);
-    const lyxValidation = lyxAmount.trim() ? { isValid: isValidLyxAmount(lyxAmount) } : { isValid: false };
-    
-    if (!numberValidation.isValid) {
-      setValidation(numberValidation);
-    } else if (!lyxValidation.isValid) {
-      setValidation({ isValid: false, error: 'Invalid LYX amount' });
-    } else {
-      setValidation({ isValid: true });
-    }
-  }, [lyxAmount]);
+    const validation = validateFollowerCount(followerCount);
+    setValidation(validation);
+  }, [followerCount]);
 
   // ===== HANDLERS =====
   
   const handleSave = () => {
-    if (!validation.isValid || !lyxAmount.trim()) return;
+    if (!validation.isValid || !followerCount.trim()) return;
 
     try {
-      const weiAmount = parseLyxToWei(lyxAmount);
+      const count = parseInt(followerCount, 10);
       
       const requirement: GatingRequirement = {
         id: editingRequirement?.id || crypto.randomUUID(),
-        type: 'lyx_balance',
-        category: 'token',
+        type: 'efp_follower_count',
+        category: 'social',
         config: {
-          minAmount: weiAmount
-        } as LyxBalanceConfig,
+          minCount: count
+        } as EFPFollowerCountConfig,
         isValid: true,
-        displayName: `LYX Balance: ≥ ${parseFloat(lyxAmount).toLocaleString()} LYX`
+        displayName: `EFP Followers: ≥ ${count.toLocaleString()} followers`
       };
 
       onSave(requirement);
     } catch (error) {
-      console.error('Failed to save LYX balance requirement:', error);
+      console.error('Failed to save EFP follower count requirement:', error);
       setValidation({ isValid: false, error: 'Failed to save requirement' });
     }
   };
 
-  const handleAmountChange = (value: string) => {
-    // Allow decimal numbers and empty string
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-      setLyxAmount(value);
+  const handleCountChange = (value: string) => {
+    // Allow only positive integers
+    if (value === '' || /^\d+$/.test(value)) {
+      setFollowerCount(value);
     }
   };
 
@@ -122,59 +109,59 @@ export const LyxBalanceConfigurator: React.FC<LyxBalanceConfiguratorProps> = ({
 
       {/* Configuration Form */}
       <div className="max-w-md mx-auto">
-        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 p-6 transition-all duration-300 hover:shadow-lg hover:border-pink-300 dark:hover:border-pink-600">
+        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 p-6 transition-all duration-300 hover:shadow-lg hover:border-cyan-300 dark:hover:border-cyan-600">
           {/* Icon and Title */}
           <div className="flex items-center space-x-3 mb-6">
-            <div className="flex-shrink-0 w-12 h-12 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-              <Coins className="h-6 w-6 text-white" />
+            <div className="flex-shrink-0 w-12 h-12 bg-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+              <Users className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">LYX Balance Requirement</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Minimum LYX tokens required in wallet</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">EFP Follower Requirement</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Minimum EFP followers required</p>
             </div>
           </div>
 
-          {/* Amount Input */}
+          {/* Count Input */}
           <div className="space-y-3">
             <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Minimum LYX Amount
+              Minimum Follower Count
             </Label>
             
             <div className="flex space-x-3">
               <div className="flex-1">
                 <Input
                   type="text"
-                  placeholder="e.g., 50"
-                  value={lyxAmount}
-                  onChange={(e) => handleAmountChange(e.target.value)}
+                  placeholder="e.g., 100"
+                  value={followerCount}
+                  onChange={(e) => handleCountChange(e.target.value)}
                   onKeyDown={handleKeyPress}
                   disabled={disabled}
                   className={`text-lg font-medium ${
                     validation.isValid 
-                      ? 'border-pink-200 focus:border-pink-400 focus:ring-pink-400' 
-                      : lyxAmount.trim() 
+                      ? 'border-cyan-200 focus:border-cyan-400 focus:ring-cyan-400' 
+                      : followerCount.trim() 
                         ? 'border-red-300 focus:border-red-400 focus:ring-red-400'
                         : 'border-gray-300 focus:border-gray-400 focus:ring-gray-400'
                   }`}
                 />
               </div>
-              <div className="flex items-center px-4 bg-pink-100 dark:bg-pink-900/30 rounded-lg border border-pink-200 dark:border-pink-800">
-                <span className="text-sm font-medium text-pink-800 dark:text-pink-200">LYX</span>
+              <div className="flex items-center px-4 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                <span className="text-sm font-medium text-cyan-800 dark:text-cyan-200">followers</span>
               </div>
             </div>
 
             {/* Validation Message */}
-            {lyxAmount.trim() && !validation.isValid && validation.error && (
+            {followerCount.trim() && !validation.isValid && validation.error && (
               <p className="text-sm text-red-600 mt-2">
                 {validation.error}
               </p>
             )}
 
             {/* Success Preview */}
-            {validation.isValid && lyxAmount.trim() && (
-              <div className="mt-4 p-3 bg-pink-100 dark:bg-pink-900/30 rounded-lg border border-pink-200 dark:border-pink-800">
-                <p className="text-sm text-pink-800 dark:text-pink-200">
-                  ✓ Users need at least <strong>{parseFloat(lyxAmount).toLocaleString()} LYX</strong> in their wallet
+            {validation.isValid && followerCount.trim() && (
+              <div className="mt-4 p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                <p className="text-sm text-cyan-800 dark:text-cyan-200">
+                  ✓ Users need at least <strong>{parseInt(followerCount).toLocaleString()} followers</strong> on EFP
                 </p>
               </div>
             )}
@@ -192,8 +179,8 @@ export const LyxBalanceConfigurator: React.FC<LyxBalanceConfiguratorProps> = ({
           </Button>
           <Button 
             onClick={handleSave}
-            disabled={disabled || !validation.isValid || !lyxAmount.trim()}
-            className="bg-pink-600 hover:bg-pink-700 text-white"
+            disabled={disabled || !validation.isValid || !followerCount.trim()}
+            className="bg-cyan-600 hover:bg-cyan-700 text-white"
           >
             {editingRequirement ? 'Update Requirement' : 'Add Requirement'}
           </Button>
@@ -203,7 +190,8 @@ export const LyxBalanceConfigurator: React.FC<LyxBalanceConfiguratorProps> = ({
       {/* Help Text */}
       <div className="max-w-md mx-auto text-center">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          LYX is the native currency of LUKSO. Users must have this amount in their Universal Profile to access gated content.
+          EFP (Ethereum Follow Protocol) is a decentralized social graph on Ethereum. 
+          This requirement checks the user&apos;s follower count for social validation.
         </p>
       </div>
     </div>

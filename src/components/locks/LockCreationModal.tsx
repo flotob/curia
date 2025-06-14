@@ -67,6 +67,18 @@ import { RequirementTypePicker } from './RequirementTypePicker';
 import { LyxBalanceConfigurator } from './configurators/LyxBalanceConfigurator';
 import { EthBalanceConfigurator } from './configurators/EthBalanceConfigurator';
 import { UPFollowerCountConfigurator } from './configurators/UPFollowerCountConfigurator';
+import { ENSDomainConfigurator } from './configurators/ENSDomainConfigurator';
+import { ENSPatternConfigurator } from './configurators/ENSPatternConfigurator';
+import { EFPFollowerCountConfigurator } from './configurators/EFPFollowerCountConfigurator';
+import { UPMustFollowConfigurator } from './configurators/UPMustFollowConfigurator';
+import { UPMustBeFollowedByConfigurator } from './configurators/UPMustBeFollowedByConfigurator';
+import { EFPMustFollowConfigurator } from './configurators/EFPMustFollowConfigurator';
+import { EFPMustBeFollowedByConfigurator } from './configurators/EFPMustBeFollowedByConfigurator';
+import { LSP7TokenConfigurator } from './configurators/LSP7TokenConfigurator';
+import { LSP8NFTConfigurator } from './configurators/LSP8NFTConfigurator';
+import { ERC20TokenConfigurator } from './configurators/ERC20TokenConfigurator';
+import { ERC721NFTConfigurator } from './configurators/ERC721NFTConfigurator';
+import { ERC1155TokenConfigurator } from './configurators/ERC1155TokenConfigurator';
 import { RequirementType } from '@/types/locks';
 
 const CategorySelectionStep = () => {
@@ -132,6 +144,114 @@ const CategorySelectionStep = () => {
         case 'up_follower_count':
           return (
             <UPFollowerCountConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'efp_follower_count':
+          return (
+            <EFPFollowerCountConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'ens_domain':
+          return (
+            <ENSDomainConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'ens_pattern':
+          return (
+            <ENSPatternConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'up_must_follow':
+          return (
+            <UPMustFollowConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'up_must_be_followed_by':
+          return (
+            <UPMustBeFollowedByConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'efp_must_follow':
+          return (
+            <EFPMustFollowConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'efp_must_be_followed_by':
+          return (
+            <EFPMustBeFollowedByConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'lsp7_token':
+          return (
+            <LSP7TokenConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'lsp8_nft':
+          return (
+            <LSP8NFTConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'erc20_token':
+          return (
+            <ERC20TokenConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'erc721_nft':
+          return (
+            <ERC721NFTConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'erc1155_token':
+          return (
+            <ERC1155TokenConfigurator
               editingRequirement={editingRequirement}
               onSave={handleSaveRequirement}
               onCancel={handleBackToRequirements}

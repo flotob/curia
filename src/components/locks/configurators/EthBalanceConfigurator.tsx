@@ -108,35 +108,35 @@ export const EthBalanceConfigurator: React.FC<EthBalanceConfiguratorProps> = ({
         <div className="flex items-center gap-3">
           <button 
             onClick={onCancel}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             Back to Requirements
           </button>
         </div>
         
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           {editingRequirement ? 'Edit Requirement' : 'Add Requirement'}
         </div>
       </div>
 
       {/* Configuration Form */}
       <div className="max-w-md mx-auto">
-        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 transition-all duration-300 hover:shadow-lg hover:border-blue-300">
+        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 transition-all duration-300 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600">
           {/* Icon and Title */}
           <div className="flex items-center space-x-3 mb-6">
             <div className="flex-shrink-0 w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
               <Zap className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">ETH Balance Requirement</h3>
-              <p className="text-sm text-gray-600">Minimum Ethereum required in wallet</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ETH Balance Requirement</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Minimum Ethereum required in wallet</p>
             </div>
           </div>
 
           {/* Amount Input */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium text-gray-700">
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Minimum ETH Amount
             </Label>
             
@@ -158,8 +158,8 @@ export const EthBalanceConfigurator: React.FC<EthBalanceConfiguratorProps> = ({
                   }`}
                 />
               </div>
-              <div className="flex items-center px-4 bg-blue-100 rounded-lg border border-blue-200">
-                <span className="text-sm font-medium text-blue-800">ETH</span>
+              <div className="flex items-center px-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">ETH</span>
               </div>
             </div>
 
@@ -172,8 +172,8 @@ export const EthBalanceConfigurator: React.FC<EthBalanceConfiguratorProps> = ({
 
             {/* Success Preview */}
             {validation.isValid && ethAmount.trim() && (
-              <div className="mt-4 p-3 bg-blue-100 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-800">
+              <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
                   ✓ Users need at least <strong>{parseFloat(ethAmount).toLocaleString()} ETH</strong> in their wallet
                 </p>
               </div>
@@ -202,7 +202,7 @@ export const EthBalanceConfigurator: React.FC<EthBalanceConfiguratorProps> = ({
 
       {/* Help Text */}
       <div className="max-w-md mx-auto text-center">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           ETH is the native currency of Ethereum. Users must have this amount in their connected wallet to access gated content.
         </p>
       </div>

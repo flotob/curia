@@ -15,17 +15,17 @@ const CATEGORY_INFO = {
   token: {
     name: 'Token Requirements',
     icon: '🪙',
-    color: 'text-blue-600'
+    color: 'text-blue-600 dark:text-blue-400'
   },
   social: {
     name: 'Social Requirements', 
     icon: '👥',
-    color: 'text-green-600'
+    color: 'text-green-600 dark:text-green-400'
   },
   identity: {
     name: 'Identity Requirements',
     icon: '🌐', 
-    color: 'text-purple-600'
+    color: 'text-purple-600 dark:text-purple-400'
   }
 } as const;
 
