@@ -14,8 +14,7 @@ import {
   ArrowLeft, 
   ArrowRight,
   Save,
-  AlertTriangle,
-  Eye
+  AlertTriangle
 } from 'lucide-react';
 import { LockCreationStepper } from './LockCreationStepper';
 import { LockBuilderProvider, useLockBuilder } from './LockBuilderProvider';
@@ -293,16 +292,164 @@ const PreviewStep = () => {
   
   // Convert current builder state to a lock format for preview
   const previewLock = useMemo(() => {
-    // Convert requirements to gating categories
-    const categories = state.requirements.map((req: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      // This is a simplified conversion - in a real implementation,
-      // you'd need to properly convert GatingRequirement to GatingCategory
-      return {
-        type: req.category === 'social' ? 'universal_profile' : 'ethereum_profile',
-        enabled: true,
-        requirements: req // Simplified - would need proper conversion
+    // Helper function to convert requirements to proper gating config
+    const convertRequirementsToGatingConfig = () => {
+      const upRequirements: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
+        minLyxBalance: undefined,
+        requiredTokens: [],
+        followerRequirements: []
       };
-    });
+      
+      const ethRequirements: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
+        requiresENS: false,
+        ensDomainPatterns: [],
+        minimumETHBalance: undefined,
+        requiredERC20Tokens: [],
+        requiredERC721Collections: [],
+        requiredERC1155Tokens: [],
+        efpRequirements: []
+      };
+
+      // Convert each requirement to the proper format
+      state.requirements.forEach((req: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        switch (req.type) {
+          // UP (LUKSO) requirements
+          case 'lyx_balance':
+            upRequirements.minLyxBalance = req.config.minAmount;
+            break;
+          case 'lsp7_token':
+            upRequirements.requiredTokens.push({
+              name: req.config.name || 'Unknown Token',
+              symbol: req.config.symbol || 'UNK',
+              minAmount: req.config.minAmount,
+              tokenType: 'LSP7',
+              contractAddress: req.config.contractAddress
+            });
+            break;
+          case 'lsp8_nft':
+            upRequirements.requiredTokens.push({
+              name: req.config.name || 'Unknown Token',
+              symbol: req.config.symbol || 'UNK',
+              minAmount: req.config.minAmount || '1',
+              tokenType: 'LSP8',
+              contractAddress: req.config.contractAddress,
+              tokenId: req.config.tokenId
+            });
+            break;
+          case 'up_follower_count':
+            upRequirements.followerRequirements.push({
+              type: 'minimum_followers',
+              value: req.config.minCount.toString()
+            });
+            break;
+          case 'up_must_follow':
+            upRequirements.followerRequirements.push({
+              type: 'following',
+              value: req.config.address,
+              description: req.config.profileName || req.config.username
+            });
+            break;
+          case 'up_must_be_followed_by':
+            upRequirements.followerRequirements.push({
+              type: 'followed_by',
+              value: req.config.address,
+              description: req.config.profileName || req.config.username
+            });
+            break;
+
+          // Ethereum requirements
+          case 'eth_balance':
+            ethRequirements.minimumETHBalance = req.config.minAmount;
+            break;
+          case 'erc20_token':
+            ethRequirements.requiredERC20Tokens.push({
+              contractAddress: req.config.contractAddress,
+              minimum: req.config.minAmount,
+              name: req.config.name,
+              symbol: req.config.symbol,
+              decimals: req.config.decimals
+            });
+            break;
+          case 'erc721_nft':
+            ethRequirements.requiredERC721Collections.push({
+              contractAddress: req.config.contractAddress,
+              minimumCount: req.config.minCount || 1,
+              name: req.config.name,
+              symbol: req.config.symbol
+            });
+            break;
+          case 'erc1155_token':
+            ethRequirements.requiredERC1155Tokens.push({
+              contractAddress: req.config.contractAddress,
+              tokenId: req.config.tokenId,
+              minimum: req.config.minAmount,
+              name: req.config.name
+            });
+            break;
+          case 'ens_domain':
+            ethRequirements.requiresENS = req.config.requiresENS;
+            break;
+          case 'ens_pattern':
+            ethRequirements.ensDomainPatterns = req.config.patterns || [];
+            break;
+          case 'efp_follower_count':
+            ethRequirements.efpRequirements.push({
+              type: 'minimum_followers',
+              value: req.config.minCount.toString()
+            });
+            break;
+          case 'efp_must_follow':
+            ethRequirements.efpRequirements.push({
+              type: 'must_follow',
+              value: req.config.address,
+              description: req.config.ensName || req.config.displayName
+            });
+            break;
+          case 'efp_must_be_followed_by':
+            ethRequirements.efpRequirements.push({
+              type: 'must_be_followed_by',
+              value: req.config.address,
+              description: req.config.ensName || req.config.displayName
+            });
+            break;
+        }
+      });
+
+      // Build categories array - only include categories that have requirements
+      const categories = [];
+      
+      // Check if UP category has any requirements
+      const hasUPRequirements = upRequirements.minLyxBalance || 
+                                upRequirements.requiredTokens.length > 0 || 
+                                upRequirements.followerRequirements.length > 0;
+      
+      if (hasUPRequirements) {
+        categories.push({
+          type: 'universal_profile',
+          enabled: true,
+          requirements: upRequirements
+        });
+      }
+
+      // Check if Ethereum category has any requirements
+      const hasEthRequirements = ethRequirements.requiresENS ||
+                                ethRequirements.ensDomainPatterns.length > 0 ||
+                                ethRequirements.minimumETHBalance ||
+                                ethRequirements.requiredERC20Tokens.length > 0 ||
+                                ethRequirements.requiredERC721Collections.length > 0 ||
+                                ethRequirements.requiredERC1155Tokens.length > 0 ||
+                                ethRequirements.efpRequirements.length > 0;
+
+      if (hasEthRequirements) {
+        categories.push({
+          type: 'ethereum_profile',
+          enabled: true,
+          requirements: ethRequirements
+        });
+      }
+
+      return { categories, requireAny: true };
+    };
 
     return {
       id: -1, // Preview mode indicator
@@ -310,10 +457,7 @@ const PreviewStep = () => {
       description: state.metadata.description || 'Preview of your lock configuration',
       icon: state.metadata.icon || '🔒',
       color: state.metadata.color || '#3b82f6',
-      gatingConfig: {
-        categories,
-        requireAny: true // Default to OR logic for now
-      },
+      gatingConfig: convertRequirementsToGatingConfig(),
       tags: state.metadata.tags || [],
       usageCount: 0,
       successRate: 1.0,
@@ -330,87 +474,13 @@ const PreviewStep = () => {
     };
   }, [state]);
 
-  const requirementCount = state.requirements.length;
-
   return (
     <div className="space-y-6">
-      {/* Preview Header */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center">
-            <span className="text-2xl mr-3">{state.metadata.icon || '🔒'}</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                {state.metadata.name || 'Untitled Lock'}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {requirementCount} requirement{requirementCount !== 1 ? 's' : ''} configured
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
-            <Eye className="h-3 w-3 mr-1" />
-            Preview Mode
-          </Badge>
-        </div>
-        
-        {state.metadata.description && (
-          <p className="text-gray-700">{state.metadata.description}</p>
-        )}
-      </div>
-
-      {/* Interactive Preview Explanation */}
-      <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <div className="flex-shrink-0 mt-0.5">
-            <Eye className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
-              Live Interactive Preview
-            </h4>
-            <p className="text-sm text-amber-700 dark:text-amber-300">
-              This is exactly how users will see and interact with your access control requirements. 
-              You can connect your wallets below to test the verification flow!
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Real Lock Preview - Same as users will see */}
-      <div className="border-2 border-dashed border-primary/30 rounded-lg p-1">
-        <GatingRequirementsPreview 
-          gatingConfig={previewLock.gatingConfig}
-          className="border-0 shadow-none bg-background"
-        />
-      </div>
-
-      {/* Template Info (if selected) */}
-      {state.selectedTemplate && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center mb-2">
-            <span className="text-lg mr-2">{state.selectedTemplate.icon}</span>
-            <h4 className="font-medium text-gray-900">Based on Template</h4>
-          </div>
-          <p className="text-sm text-gray-600 mb-2">{state.selectedTemplate.name}</p>
-          <p className="text-xs text-gray-500">{state.selectedTemplate.description}</p>
-        </div>
-      )}
-
-      {/* Ready Confirmation */}
-      {requirementCount > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <span className="text-xl mr-3">✅</span>
-            <div>
-              <h4 className="font-medium text-green-900 mb-1">Lock Ready!</h4>
-              <p className="text-sm text-green-800">
-                Your access control configuration looks perfect. Click &quot;Next&quot; to finalize the lock details.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Live Preview - Exactly what users will see */}
+      <GatingRequirementsPreview 
+        gatingConfig={previewLock.gatingConfig}
+        className="border shadow-sm"
+      />
     </div>
   );
 };
@@ -576,7 +646,7 @@ const STEP_CONFIG: Record<LockBuilderStep, {
 const STEP_ORDER: LockBuilderStep[] = ['metadata', 'requirements', 'preview', 'save'];
 
 interface LockCreationModalContentProps {
-  onSave: () => void;
+  onSave: (lockId: number) => void;
   onCancel: () => void;
 }
 
@@ -627,15 +697,222 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      // TODO: Implement actual save logic in later phases
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      onSave();
+      // Helper function to convert lock builder state to API format
+      const convertStateToCreateRequest = (): any => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        const upRequirements: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
+          minLyxBalance: undefined,
+          requiredTokens: [],
+          followerRequirements: []
+        };
+        
+        const ethRequirements: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
+          requiresENS: false,
+          ensDomainPatterns: [],
+          minimumETHBalance: undefined,
+          requiredERC20Tokens: [],
+          requiredERC721Collections: [],
+          requiredERC1155Tokens: [],
+          efpRequirements: []
+        };
+
+        // Convert each requirement to the proper format
+        state.requirements.forEach((req: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          switch (req.type) {
+            // UP (LUKSO) requirements
+            case 'lyx_balance':
+              upRequirements.minLyxBalance = req.config.minAmount;
+              break;
+            case 'lsp7_token':
+              upRequirements.requiredTokens.push({
+                name: req.config.name || 'Unknown Token',
+                symbol: req.config.symbol || 'UNK',
+                minAmount: req.config.minAmount,
+                tokenType: 'LSP7',
+                contractAddress: req.config.contractAddress
+              });
+              break;
+            case 'lsp8_nft':
+              upRequirements.requiredTokens.push({
+                name: req.config.name || 'Unknown Token',
+                symbol: req.config.symbol || 'UNK',
+                minAmount: req.config.minAmount || '1',
+                tokenType: 'LSP8',
+                contractAddress: req.config.contractAddress,
+                tokenId: req.config.tokenId
+              });
+              break;
+            case 'up_follower_count':
+              upRequirements.followerRequirements.push({
+                type: 'minimum_followers',
+                value: req.config.minCount.toString()
+              });
+              break;
+            case 'up_must_follow':
+              upRequirements.followerRequirements.push({
+                type: 'following',
+                value: req.config.address,
+                description: req.config.profileName || req.config.username
+              });
+              break;
+            case 'up_must_be_followed_by':
+              upRequirements.followerRequirements.push({
+                type: 'followed_by',
+                value: req.config.address,
+                description: req.config.profileName || req.config.username
+              });
+              break;
+
+            // Ethereum requirements
+            case 'eth_balance':
+              ethRequirements.minimumETHBalance = req.config.minAmount;
+              break;
+            case 'erc20_token':
+              ethRequirements.requiredERC20Tokens.push({
+                contractAddress: req.config.contractAddress,
+                minimum: req.config.minAmount,
+                name: req.config.name,
+                symbol: req.config.symbol,
+                decimals: req.config.decimals
+              });
+              break;
+            case 'erc721_nft':
+              ethRequirements.requiredERC721Collections.push({
+                contractAddress: req.config.contractAddress,
+                minimumCount: req.config.minCount || 1,
+                name: req.config.name,
+                symbol: req.config.symbol
+              });
+              break;
+            case 'erc1155_token':
+              ethRequirements.requiredERC1155Tokens.push({
+                contractAddress: req.config.contractAddress,
+                tokenId: req.config.tokenId,
+                minimum: req.config.minAmount,
+                name: req.config.name
+              });
+              break;
+            case 'ens_domain':
+              ethRequirements.requiresENS = req.config.requiresENS;
+              break;
+            case 'ens_pattern':
+              ethRequirements.ensDomainPatterns = req.config.patterns || [];
+              break;
+            case 'efp_follower_count':
+              ethRequirements.efpRequirements.push({
+                type: 'minimum_followers',
+                value: req.config.minCount.toString()
+              });
+              break;
+            case 'efp_must_follow':
+              ethRequirements.efpRequirements.push({
+                type: 'must_follow',
+                value: req.config.address,
+                description: req.config.ensName || req.config.displayName
+              });
+              break;
+            case 'efp_must_be_followed_by':
+              ethRequirements.efpRequirements.push({
+                type: 'must_be_followed_by',
+                value: req.config.address,
+                description: req.config.ensName || req.config.displayName
+              });
+              break;
+          }
+        });
+
+        // Build categories array - only include categories that have requirements
+        const categories = [];
+        
+        // Check if UP category has any requirements
+        const hasUPRequirements = upRequirements.minLyxBalance || 
+                                  upRequirements.requiredTokens.length > 0 || 
+                                  upRequirements.followerRequirements.length > 0;
+        
+        if (hasUPRequirements) {
+          categories.push({
+            type: 'universal_profile',
+            enabled: true,
+            requirements: upRequirements
+          });
+        }
+
+        // Check if Ethereum category has any requirements
+        const hasEthRequirements = ethRequirements.requiresENS ||
+                                  ethRequirements.ensDomainPatterns.length > 0 ||
+                                  ethRequirements.minimumETHBalance ||
+                                  ethRequirements.requiredERC20Tokens.length > 0 ||
+                                  ethRequirements.requiredERC721Collections.length > 0 ||
+                                  ethRequirements.requiredERC1155Tokens.length > 0 ||
+                                  ethRequirements.efpRequirements.length > 0;
+
+        if (hasEthRequirements) {
+          categories.push({
+            type: 'ethereum_profile',
+            enabled: true,
+            requirements: ethRequirements
+          });
+        }
+
+        return {
+          name: state.metadata.name?.trim() || '',
+          description: state.metadata.description?.trim() || '',
+          icon: state.metadata.icon || '🔒',
+          color: state.metadata.color || '#3b82f6',
+          gatingConfig: {
+            categories,
+            requireAny: true
+          },
+          tags: state.metadata.tags || [],
+          isPublic: state.metadata.isPublic || false
+        };
+      };
+
+      const createRequest = convertStateToCreateRequest();
+      
+      // Validate required fields
+      if (!createRequest.name?.trim()) {
+        throw new Error('Lock name is required');
+      }
+      
+      if (!createRequest.gatingConfig.categories.length) {
+        throw new Error('At least one requirement must be configured');
+      }
+
+      console.log('[LockCreationModal] Saving lock:', createRequest);
+
+      // Make API request to save the lock
+      const response = await fetch('/api/locks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(createRequest),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to save lock`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to save lock');
+      }
+
+      console.log('[LockCreationModal] Lock saved successfully:', result.data);
+      
+      // Call success callback with the real lock ID
+      onSave(result.data.id);
+      
     } catch (error) {
-      console.error('Failed to save lock:', error);
+      console.error('[LockCreationModal] Failed to save lock:', error);
+      // TODO: Show error toast/notification to user
+      alert(error instanceof Error ? error.message : 'Failed to save lock');
     } finally {
       setIsSaving(false);
     }
-  }, [onSave]);
+  }, [state, onSave]);
 
   // Handle cancel with confirmation
   const handleCancel = useCallback(() => {
@@ -791,10 +1068,9 @@ export const LockCreationModal: React.FC<LockCreationModalProps> = ({
   onClose,
   onSave
 }) => {
-  const handleSave = useCallback(() => {
-    // TODO: Return actual lock ID from save operation
-    const mockLockId = Date.now(); // Temporary mock ID
-    onSave?.(mockLockId);
+  const handleSave = useCallback((lockId: number) => {
+    console.log(`[LockCreationModal] Lock saved with ID: ${lockId}`);
+    onSave?.(lockId);
     onClose();
   }, [onSave, onClose]);
 
