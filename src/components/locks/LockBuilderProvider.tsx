@@ -1,7 +1,15 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
-import { LockBuilderState, LockBuilderStep, CreateLockRequest, LockGatingConfig, LockValidationResult } from '@/types/locks';
+import { 
+  LockBuilderState, 
+  LockBuilderStep, 
+  CreateLockRequest, 
+  GatingRequirement, 
+  LockValidationResult,
+  RequirementBuilderScreen,
+  RequirementType
+} from '@/types/locks';
 
 // Initial state for the lock builder
 const initialState: LockBuilderState = {
@@ -15,16 +23,16 @@ const initialState: LockBuilderState = {
     tags: [],
     isPublic: true
   },
-  requirements: {
-    categories: [],
-    requireAny: true
-  },
+  requirements: [],
   validation: {
     isValid: false,
     errors: [],
     warnings: []
   },
-  previewMode: false
+  previewMode: false,
+  currentScreen: 'requirements',
+  selectedRequirementType: undefined,
+  editingRequirementId: undefined
 };
 
 // Context type
@@ -32,11 +40,20 @@ interface LockBuilderContextType {
   state: LockBuilderState;
   setState: React.Dispatch<React.SetStateAction<LockBuilderState>>;
   updateMetadata: (metadata: Partial<CreateLockRequest>) => void;
-  updateRequirements: (requirements: Partial<LockGatingConfig>) => void;
+  updateRequirements: (requirements: GatingRequirement[]) => void;
+  addRequirement: (requirement: GatingRequirement) => void;
+  updateRequirement: (id: string, requirement: Partial<GatingRequirement>) => void;
+  removeRequirement: (id: string) => void;
   updateValidation: (validation: Partial<LockValidationResult>) => void;
   setStep: (step: LockBuilderStep) => void;
   setPreviewMode: (enabled: boolean) => void;
   resetState: () => void;
+  
+  // Navigation functions for requirement configuration screens
+  navigateToScreen: (screen: RequirementBuilderScreen) => void;
+  navigateToRequirementPicker: () => void;
+  navigateToRequirementConfig: (requirementType: RequirementType, editingId?: string) => void;
+  navigateBackToRequirements: () => void;
 }
 
 // Create the context
@@ -78,13 +95,33 @@ export const LockBuilderProvider: React.FC<LockBuilderProviderProps> = ({
     }));
   }, []);
 
-  const updateRequirements = useCallback((requirements: Partial<LockGatingConfig>) => {
+  const updateRequirements = useCallback((requirements: GatingRequirement[]) => {
     setState(prev => ({
       ...prev,
-      requirements: {
-        ...prev.requirements,
-        ...requirements
-      }
+      requirements
+    }));
+  }, []);
+
+  const addRequirement = useCallback((requirement: GatingRequirement) => {
+    setState(prev => ({
+      ...prev,
+      requirements: [...prev.requirements, requirement]
+    }));
+  }, []);
+
+  const updateRequirement = useCallback((id: string, requirement: Partial<GatingRequirement>) => {
+    setState(prev => ({
+      ...prev,
+      requirements: prev.requirements.map(req => 
+        req.id === id ? { ...req, ...requirement } : req
+      )
+    }));
+  }, []);
+
+  const removeRequirement = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      requirements: prev.requirements.filter(req => req.id !== id)
     }));
   }, []);
 
@@ -116,15 +153,57 @@ export const LockBuilderProvider: React.FC<LockBuilderProviderProps> = ({
     setState(initialState);
   }, []);
 
+  // Navigation functions for requirement configuration screens
+  const navigateToScreen = useCallback((screen: RequirementBuilderScreen) => {
+    setState(prev => ({
+      ...prev,
+      currentScreen: screen
+    }));
+  }, []);
+
+  const navigateToRequirementPicker = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      currentScreen: 'picker',
+      selectedRequirementType: undefined,
+      editingRequirementId: undefined
+    }));
+  }, []);
+
+  const navigateToRequirementConfig = useCallback((requirementType: RequirementType, editingId?: string) => {
+    setState(prev => ({
+      ...prev,
+      currentScreen: 'configure',
+      selectedRequirementType: requirementType,
+      editingRequirementId: editingId
+    }));
+  }, []);
+
+  const navigateBackToRequirements = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      currentScreen: 'requirements',
+      selectedRequirementType: undefined,
+      editingRequirementId: undefined
+    }));
+  }, []);
+
   const contextValue: LockBuilderContextType = {
     state,
     setState,
     updateMetadata,
     updateRequirements,
+    addRequirement,
+    updateRequirement,
+    removeRequirement,
     updateValidation,
     setStep,
     setPreviewMode,
-    resetState
+    resetState,
+    navigateToScreen,
+    navigateToRequirementPicker,
+    navigateToRequirementConfig,
+    navigateBackToRequirements
   };
 
   return (

@@ -20,6 +20,9 @@ export interface LockTemplate {
     icon?: string;
   };
   
+  // Pre-filled requirements for templates
+  prefilledRequirements?: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any -- Will be GatingRequirement[] but avoiding circular dependency
+  
   // Pre-selected categories and basic configuration (optional for basic templates)
   prefilledCategories?: {
     universalProfile?: {

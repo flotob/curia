@@ -1,4 +1,33 @@
 import { LockTemplate } from '@/types/templates';
+import { GatingRequirement } from '@/types/locks';
+
+// Sample requirements for templates
+const createLyxBalanceRequirement = (amount: string): GatingRequirement => ({
+  id: `lyx-${Date.now()}`,
+  type: 'lyx_balance',
+  category: 'token',
+  config: { minAmount: amount },
+  isValid: true,
+  displayName: `LYX Balance: ≥ ${parseInt(amount) / 1e18} LYX`
+});
+
+const createEthBalanceRequirement = (amount: string): GatingRequirement => ({
+  id: `eth-${Date.now()}`,
+  type: 'eth_balance', 
+  category: 'token',
+  config: { minAmount: amount },
+  isValid: true,
+  displayName: `ETH Balance: ≥ ${parseInt(amount) / 1e18} ETH`
+});
+
+const createUPFollowerRequirement = (minCount: number): GatingRequirement => ({
+  id: `up-followers-${Date.now()}`,
+  type: 'up_follower_count',
+  category: 'social',
+  config: { minCount },
+  isValid: true,
+  displayName: `UP Followers: ≥ ${minCount} followers`
+});
 
 export const LOCK_TEMPLATES: LockTemplate[] = [
   // Beginner Templates
@@ -13,7 +42,8 @@ export const LOCK_TEMPLATES: LockTemplate[] = [
     usageCount: 1250,
     tags: ['lyx', 'basic', 'token'],
     isOfficial: true,
-    createdAt: '2024-01-15T10:00:00Z'
+    createdAt: '2024-01-15T10:00:00Z',
+    prefilledRequirements: [createLyxBalanceRequirement('50000000000000000000')] // 50 LYX
   },
   {
     id: 'eth-holders-basic',
@@ -26,7 +56,8 @@ export const LOCK_TEMPLATES: LockTemplate[] = [
     usageCount: 890,
     tags: ['eth', 'ethereum', 'basic'],
     isOfficial: true,
-    createdAt: '2024-01-16T10:00:00Z'
+    createdAt: '2024-01-16T10:00:00Z',
+    prefilledRequirements: [createEthBalanceRequirement('100000000000000000')] // 0.1 ETH
   },
   {
     id: 'social-followers',
@@ -39,7 +70,8 @@ export const LOCK_TEMPLATES: LockTemplate[] = [
     usageCount: 650,
     tags: ['social', 'followers', 'community'],
     isOfficial: true,
-    createdAt: '2024-01-17T10:00:00Z'
+    createdAt: '2024-01-17T10:00:00Z',
+    prefilledRequirements: [createUPFollowerRequirement(100)]
   },
 
   // Intermediate Templates

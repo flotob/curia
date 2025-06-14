@@ -187,10 +187,20 @@ export interface LockBuilderState {
   step: LockBuilderStep;
   selectedTemplate: any | null; // eslint-disable-line @typescript-eslint/no-explicit-any -- Template from template system (Phase 2) - TODO: proper type after integration
   metadata: Partial<CreateLockRequest>;
-  requirements: Partial<LockGatingConfig>;
+  requirements: GatingRequirement[]; // Flat list of all requirements
   validation: LockValidationResult;
   previewMode: boolean;
+  
+  // Navigation state for requirement configuration screens
+  currentScreen: RequirementBuilderScreen;
+  selectedRequirementType?: RequirementType;
+  editingRequirementId?: string;
 }
+
+export type RequirementBuilderScreen = 
+  | 'requirements'  // Main requirements list
+  | 'picker'        // Requirement type picker  
+  | 'configure';    // Configure specific requirement
 
 export type LockBuilderStep = 
   | 'metadata' // Name, description, icon, color
@@ -279,4 +289,142 @@ export interface LockMigrationResult {
   locksCreated: number;
   postsLinked: number;
   errors: string[];
+}
+
+/**
+ * Individual gating requirement structure
+ */
+export interface GatingRequirement {
+  id: string;
+  type: RequirementType;
+  category: RequirementCategory;
+  config: RequirementConfig;
+  isValid: boolean;
+  displayName: string; // Human-readable name for the requirement
+}
+
+export type RequirementCategory = 'token' | 'social' | 'identity';
+
+export type RequirementType = 
+  // Token requirements
+  | 'lyx_balance'
+  | 'lsp7_token'
+  | 'lsp8_nft'
+  | 'eth_balance'
+  | 'erc20_token'
+  | 'erc721_nft'
+  | 'erc1155_token'
+  // Social requirements
+  | 'up_follower_count'
+  | 'up_must_follow'
+  | 'up_must_be_followed_by'
+  | 'efp_follower_count'
+  | 'efp_must_follow'
+  | 'efp_must_be_followed_by'
+  // Identity requirements
+  | 'ens_domain'
+  | 'ens_pattern';
+
+/**
+ * Requirement configuration (type-specific)
+ */
+export type RequirementConfig = 
+  | LyxBalanceConfig
+  | LSP7TokenConfig
+  | LSP8NFTConfig
+  | EthBalanceConfig
+  | ERC20TokenConfig
+  | ERC721NFTConfig
+  | ERC1155TokenConfig
+  | UPFollowerCountConfig
+  | UPMustFollowConfig
+  | UPMustBeFollowedByConfig
+  | EFPFollowerCountConfig
+  | EFPMustFollowConfig
+  | EFPMustBeFollowedByConfig
+  | ENSDomainConfig
+  | ENSPatternConfig;
+
+// Token requirement configs
+export interface LyxBalanceConfig {
+  minAmount: string; // Wei amount
+}
+
+export interface LSP7TokenConfig {
+  contractAddress: string;
+  minAmount: string;
+  name?: string;
+  symbol?: string;
+}
+
+export interface LSP8NFTConfig {
+  contractAddress: string;
+  minAmount?: string;
+  tokenId?: string;
+  name?: string;
+  symbol?: string;
+}
+
+export interface EthBalanceConfig {
+  minAmount: string; // Wei amount
+}
+
+export interface ERC20TokenConfig {
+  contractAddress: string;
+  minAmount: string;
+  decimals?: number;
+  name?: string;
+  symbol?: string;
+}
+
+export interface ERC721NFTConfig {
+  contractAddress: string;
+  minCount?: number;
+  name?: string;
+  symbol?: string;
+}
+
+export interface ERC1155TokenConfig {
+  contractAddress: string;
+  tokenId: string;
+  minAmount: string;
+  name?: string;
+}
+
+// Social requirement configs
+export interface UPFollowerCountConfig {
+  minCount: number;
+}
+
+export interface UPMustFollowConfig {
+  address: string;
+  profileName?: string;
+}
+
+export interface UPMustBeFollowedByConfig {
+  address: string;
+  profileName?: string;
+}
+
+export interface EFPFollowerCountConfig {
+  minCount: number;
+}
+
+export interface EFPMustFollowConfig {
+  address: string;
+  ensName?: string;
+}
+
+export interface EFPMustBeFollowedByConfig {
+  address: string;
+  ensName?: string;
+}
+
+// Identity requirement configs
+export interface ENSDomainConfig {
+  requiresENS: boolean;
+}
+
+export interface ENSPatternConfig {
+  patterns: string[]; // e.g., ["*.eth", "vitalik.eth"]
 } 

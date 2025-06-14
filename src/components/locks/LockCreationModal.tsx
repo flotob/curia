@@ -35,7 +35,8 @@ const MetadataStep = () => {
         name: template.prefilledMetadata?.title || template.name,
         description: template.prefilledMetadata?.description || template.description,
         icon: template.prefilledMetadata?.icon || template.icon
-      }
+      },
+      requirements: template.prefilledRequirements || []
     }));
   }, [setState]);
   
@@ -47,7 +48,8 @@ const MetadataStep = () => {
         name: '',
         description: '',
         icon: '🔐'
-      }
+      },
+      requirements: []
     }));
   }, [setState]);
   
@@ -60,15 +62,107 @@ const MetadataStep = () => {
   );
 };
 
-const CategorySelectionStep = () => (
-  <div className="text-center py-8">
-    <div className="h-12 w-12 mx-auto bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-      <span className="text-2xl">🏗️</span>
-    </div>
-    <h3 className="text-lg font-semibold mb-2">Select Categories</h3>
-    <p className="text-muted-foreground">Choose requirement types - UP, Ethereum, etc. (Phase 3)</p>
-  </div>
-);
+import { RequirementsList } from './RequirementsList';
+import { RequirementTypePicker } from './RequirementTypePicker';
+import { LyxBalanceConfigurator } from './configurators/LyxBalanceConfigurator';
+import { EthBalanceConfigurator } from './configurators/EthBalanceConfigurator';
+import { UPFollowerCountConfigurator } from './configurators/UPFollowerCountConfigurator';
+import { RequirementType } from '@/types/locks';
+
+const CategorySelectionStep = () => {
+  const { state, addRequirement, updateRequirement, navigateBackToRequirements, navigateToRequirementConfig } = useLockBuilder();
+
+  const handleSelectRequirementType = (requirementType: RequirementType) => {
+    // Navigate to configuration screen for the selected type
+    navigateToRequirementConfig(requirementType);
+  };
+
+  const handleBackToRequirements = () => {
+    navigateBackToRequirements();
+  };
+
+  const handleSaveRequirement = (requirement: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (state.editingRequirementId) {
+      // Update existing requirement
+      updateRequirement(state.editingRequirementId, requirement);
+    } else {
+      // Add new requirement
+      addRequirement(requirement);
+    }
+    // Navigate back to requirements list
+    navigateBackToRequirements();
+  };
+
+  // Get the requirement being edited (if any)
+  const editingRequirement = state.editingRequirementId 
+    ? state.requirements.find((req: any) => req.id === state.editingRequirementId) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : undefined;
+
+  // Render the appropriate screen based on currentScreen state
+  switch (state.currentScreen) {
+    case 'picker':
+      return (
+        <RequirementTypePicker
+          onSelectType={handleSelectRequirementType}
+          onBack={handleBackToRequirements}
+        />
+      );
+    
+    case 'configure':
+      // Individual requirement configurators
+      switch (state.selectedRequirementType) {
+        case 'lyx_balance':
+          return (
+            <LyxBalanceConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'eth_balance':
+          return (
+            <EthBalanceConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        case 'up_follower_count':
+          return (
+            <UPFollowerCountConfigurator
+              editingRequirement={editingRequirement}
+              onSave={handleSaveRequirement}
+              onCancel={handleBackToRequirements}
+            />
+          );
+        
+        default:
+          // Placeholder for other requirement types
+          return (
+            <div className="text-center py-8">
+              <div className="h-12 w-12 mx-auto bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+                <span className="text-2xl">🚧</span>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
+              <p className="text-muted-foreground mb-4">
+                The configurator for <strong>{state.selectedRequirementType}</strong> is not yet implemented.
+              </p>
+              <div className="mt-6">
+                <Button onClick={handleBackToRequirements} variant="outline">
+                  Back to Requirements
+                </Button>
+              </div>
+            </div>
+          );
+      }
+    
+    case 'requirements':
+    default:
+      return <RequirementsList />;
+  }
+};
 
 const ConfigurationStep = () => (
   <div className="text-center py-8">
@@ -114,8 +208,8 @@ const STEP_CONFIG: Record<LockBuilderStep, {
     isRequired: true
   },
   categories: {
-    title: 'Select Categories',
-    description: 'Choose requirement types (UP, Ethereum, etc.)',
+    title: 'Requirements',
+    description: 'Add and configure gating requirements',
     component: CategorySelectionStep,
     isRequired: true
   },
