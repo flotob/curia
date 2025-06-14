@@ -636,6 +636,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
         onDisconnect={onDisconnect}
         disabled={disabled || isVerifying}
         className="border-0"
+        isPreviewMode={isPreviewMode}
       />
       
       {/* Manual verification button */}
@@ -643,7 +644,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
         <div className="border-t pt-4">
           <Button 
             onClick={() => handleVerify()}
-            disabled={isVerifying || (!allRequirementsMet && verificationState === 'idle') || (isPreviewMode && allRequirementsMet)}
+            disabled={isVerifying || (!allRequirementsMet && verificationState === 'idle')}
             className="w-full"
             size="sm"
             variant={

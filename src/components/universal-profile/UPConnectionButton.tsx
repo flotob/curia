@@ -51,7 +51,12 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
     }
   }, [isConnected, isCorrectChain, getLyxBalance]);
 
-  const handleConnect = async () => {
+  const handleConnect = async (event?: React.MouseEvent) => {
+    // Prevent modal closing when clicking wallet connection buttons
+    if (event) {
+      event.stopPropagation();
+    }
+    
     try {
       await connect();
     } catch (error) {

@@ -62,6 +62,7 @@ export interface RichRequirementsDisplayProps {
   onDisconnect?: () => void;
   disabled?: boolean;
   className?: string;
+  isPreviewMode?: boolean;
 }
 
 interface RequirementVerificationState {
@@ -111,8 +112,12 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   onConnect,
   onDisconnect,
   disabled = false,
-  className = ''
+  className = '',
+  isPreviewMode = false
 }) => {
+  
+  // Debug logging removed - issue resolved
+  
   // ===== STATE =====
   
   const [verificationState, setVerificationState] = useState<RequirementVerificationState>({
@@ -599,22 +604,50 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         </div>
 
         {/* Connection Actions */}
-        {!userStatus.connected && (
-          <div className="space-y-3">
-            <div className="text-xs text-muted-foreground">
-              Connect your {metadata.name} to verify requirements and comment.
-            </div>
-            <Button
-              onClick={onConnect}
-              disabled={disabled}
-              className="w-full"
-              size="sm"
-            >
-              <Wallet className="h-4 w-4 mr-2" />
-              Connect {metadata.name}
-            </Button>
-          </div>
-        )}
+        {(() => {
+          const shouldShowConnectButton = !userStatus.connected;
+          const shouldShowPreviewComplete = userStatus.connected && isPreviewMode;
+          
+          if (shouldShowConnectButton) {
+            return (
+              <div className="space-y-3">
+                <div className="text-xs text-muted-foreground">
+                  Connect your {metadata.name} to verify requirements and comment.
+                </div>
+                <Button
+                  onClick={onConnect}
+                  disabled={disabled}
+                  className="w-full"
+                  size="sm"
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Connect {metadata.name}
+                </Button>
+              </div>
+            );
+          }
+          
+          if (shouldShowPreviewComplete) {
+            return (
+              <div className="space-y-3">
+                <div className="text-xs text-muted-foreground">
+                  {metadata.name} connected successfully in preview mode.
+                </div>
+                <Button
+                  disabled={true}
+                  className="w-full"
+                  size="sm"
+                  variant="secondary"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Preview Complete ✓
+                </Button>
+              </div>
+            );
+          }
+          
+          return null;
+        })()}
 
         {/* Overall Status */}
         {userStatus.connected && (

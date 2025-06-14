@@ -1,8 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { init, useConnectWallet, useSetChain } from '@web3-onboard/react';
-import injectedModule from '@web3-onboard/injected-wallets';
 import { ethers } from 'ethers';
 import { PostSettings, TokenRequirement, SettingsUtils, FollowerRequirement } from '@/types/settings';
 import { VerificationResult } from '@/types/gating';
@@ -10,39 +8,7 @@ import { ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
 import { lsp26Registry } from '@/lib/lsp26';
 
 // LUKSO network configuration
-const luksoMainnet = {
-  id: '0x2a', // 42 in hex
-  token: 'LYX',
-  label: 'LUKSO Mainnet',
-  rpcUrl: process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network'
-};
-
-// Web3-Onboard configuration
-const injected = injectedModule();
-
-const initOnboard = () => {
-  return init({
-    wallets: [injected],
-    chains: [luksoMainnet],
-    appMetadata: {
-      name: 'Curia',
-      icon: '<svg>...</svg>', // Your app icon
-      description: 'Community governance and discussions'
-    },
-    connect: {
-      autoConnectLastWallet: false,
-      showSidebar: false,
-    },
-    accountCenter: {
-      desktop: {
-        enabled: false
-      },
-      mobile: {
-        enabled: false
-      }
-    }
-  });
-};
+const LUKSO_MAINNET_CHAIN_ID = '0x2a'; // 42 in hex
 
 // Token balance information
 export interface TokenBalance {
@@ -71,6 +37,7 @@ export interface UniversalProfileContextType {
   connect: () => Promise<void>;
   disconnect: () => void;
   switchToLukso: () => Promise<void>;
+  checkConnectionState: () => Promise<void>;
   
   // Verification methods
   verifyLyxBalance: (minBalance: string) => Promise<boolean>;
@@ -120,16 +87,20 @@ interface UniversalProfileProviderProps {
 }
 
 export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> = ({ children }) => {
+  return <InternalUniversalProfileProvider>{children}</InternalUniversalProfileProvider>;
+};
+
+const InternalUniversalProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Initialize Web3-Onboard before using hooks
+  // Initialize wagmi before using hooks
   useEffect(() => {
     if (typeof window !== 'undefined' && !isInitialized) {
       try {
-        initOnboard();
+        // Wagmi config is already created globally, just mark as initialized
         setIsInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize Web3-Onboard:', error);
+        console.error('Failed to initialize wagmi:', error);
       }
     }
   }, [isInitialized]);
@@ -146,6 +117,7 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
       connect: async () => { throw new Error('Still initializing...'); },
       disconnect: () => {},
       switchToLukso: async () => {},
+      checkConnectionState: async () => {},
       verifyLyxBalance: async () => false,
       verifyTokenRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['Still initializing'] }),
       verifyPostRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['Still initializing'] }),
@@ -172,49 +144,169 @@ export const UniversalProfileProvider: React.FC<UniversalProfileProviderProps> =
 };
 
 const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [{ wallet, connecting }, connect, disconnect] = useConnectWallet();
-  const [{ connectedChain }, setChain] = useSetChain();
-  
+  // Manual state management (replacing wagmi hooks)
+  const [upAddress, setUpAddress] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  
-  const isConnected = !!wallet?.accounts?.[0];
-  const upAddress = wallet?.accounts?.[0]?.address || null;
-  const isCorrectChain = connectedChain?.id === luksoMainnet.id;
-  
-  // Get provider instance
-  const getProvider = useCallback((): ethers.providers.Web3Provider | null => {
-    if (!wallet?.provider) return null;
-    return new ethers.providers.Web3Provider(wallet.provider);
-  }, [wallet]);
+  const [chainId, setChainId] = useState<string | null>(null);
 
-  // Connect to Universal Profile
+  const isCorrectChain = chainId === LUKSO_MAINNET_CHAIN_ID;
+
+  // Check for existing connection on mount and expose as function
+  const checkConnectionState = useCallback(async () => {
+    if (!window.lukso) return;
+    
+    try {
+      // Check if already connected
+      const accounts = await window.lukso.request({ method: 'eth_accounts' });
+      if (accounts && accounts.length > 0) {
+        console.log('[UP Context] Connection detected:', accounts[0]);
+        setUpAddress(accounts[0]);
+        setIsConnected(true);
+        
+        // Get current chain ID
+        const currentChainId = await window.lukso.request({ method: 'eth_chainId' });
+        setChainId(currentChainId);
+      } else {
+        console.log('[UP Context] No active connection found');
+        setUpAddress(null);
+        setIsConnected(false);
+      }
+    } catch {
+      console.log('[UP Context] No existing connection found');
+    }
+  }, []);
+
+  // Check connection on mount and set initialized
+  useEffect(() => {
+    const initialize = async () => {
+      await checkConnectionState();
+    };
+    initialize();
+  }, [checkConnectionState]);
+
+  // Listen for account changes
+  useEffect(() => {
+    if (!window.lukso) return;
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        setUpAddress(null);
+        setIsConnected(false);
+      } else {
+        setUpAddress(accounts[0]);
+        setIsConnected(true);
+      }
+    };
+
+    const handleChainChanged = (newChainId: string) => {
+      setChainId(newChainId);
+    };
+
+    window.lukso.on('accountsChanged', handleAccountsChanged);
+    window.lukso.on('chainChanged', handleChainChanged);
+
+    return () => {
+      window.lukso?.removeListener('accountsChanged', handleAccountsChanged);
+      window.lukso?.removeListener('chainChanged', handleChainChanged);
+    };
+  }, []);
+
+  // Get provider instance for UP extension
+  const getProvider = useCallback((): ethers.providers.Web3Provider | null => {
+    if (typeof window === 'undefined' || !window.lukso) return null;
+    return new ethers.providers.Web3Provider(window.lukso);
+  }, []);
+
+  // Connect to Universal Profile using direct window.lukso
   const handleConnect = useCallback(async () => {
     try {
       setConnectionError(null);
-      await connect();
-    } catch (error) {
+      setIsConnecting(true);
+      
+      // Check if UP extension is installed
+      if (!window.lukso) {
+        throw new Error('Universal Profile extension not installed');
+      }
+      
+      // Call eth_requestAccounts on window.lukso specifically
+      console.log('[UP Context] Calling window.lukso.request...');
+      const accounts = await window.lukso.request({ 
+        method: 'eth_requestAccounts' 
+      });
+      
+              if (accounts && accounts.length > 0) {
+          console.log('[UP Context] UP extension connection successful:', accounts[0]);
+          
+          // Update state
+          setUpAddress(accounts[0]);
+          setIsConnected(true);
+          setIsConnecting(false);
+          
+          // Check if we're on the correct network (LUKSO mainnet = 42)
+          const currentChainId = await window.lukso.request({ method: 'eth_chainId' });
+          console.log('[UP Context] Current chain ID:', currentChainId);
+          setChainId(currentChainId);
+          
+          if (currentChainId !== LUKSO_MAINNET_CHAIN_ID) {
+            console.log('[UP Context] Requesting switch to LUKSO mainnet...');
+            try {
+              await window.lukso.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: LUKSO_MAINNET_CHAIN_ID }],
+              });
+            } catch (switchError) {
+              console.warn('[UP Context] Failed to switch network:', switchError);
+            }
+          }
+          
+          // Force a connection state re-check after a short delay 
+          // in case event listeners don't fire immediately
+          setTimeout(async () => {
+            await checkConnectionState();
+            console.log('[UP Context] Post-connection state verified');
+          }, 1000);
+        } else {
+          throw new Error('No accounts returned from UP extension');
+        }
+    } catch (error: unknown) {
+      const err = error as { code?: number; message?: string };
       console.error('Failed to connect to Universal Profile:', error);
-      setConnectionError('Failed to connect to Universal Profile. Please try again.');
+      setIsConnecting(false);
+      if (err?.code === 4001) {
+        setConnectionError('Connection rejected by user.');
+      } else {
+        setConnectionError(err?.message || 'Failed to connect to Universal Profile. Please try again.');
+      }
     }
-  }, [connect]);
+  }, [checkConnectionState]);
 
   // Disconnect from Universal Profile
   const handleDisconnect = useCallback(() => {
-    if (wallet) {
-      disconnect(wallet);
-    }
+    setUpAddress(null);
+    setIsConnected(false);
     setConnectionError(null);
-  }, [disconnect, wallet]);
+    console.log('[UP Context] Disconnected from Universal Profile');
+  }, []);
 
   // Switch to LUKSO network
   const switchToLukso = useCallback(async () => {
+    if (!window.lukso) {
+      setConnectionError('Universal Profile extension not available.');
+      return;
+    }
+
     try {
-      await setChain({ chainId: luksoMainnet.id });
+      await window.lukso.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: LUKSO_MAINNET_CHAIN_ID }],
+      });
     } catch (error) {
       console.error('Failed to switch to LUKSO network:', error);
       setConnectionError('Failed to switch to LUKSO network. Please switch manually in your wallet.');
     }
-  }, [setChain]);
+  }, []);
 
   // Get LYX balance
   const getLyxBalance = useCallback(async (): Promise<string> => {
@@ -817,7 +909,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     // Connection state
     isConnected,
     upAddress,
-    isConnecting: connecting,
+    isConnecting,
     connectionError,
     
     // Chain state
@@ -827,6 +919,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     connect: handleConnect,
     disconnect: handleDisconnect,
     switchToLukso,
+    checkConnectionState,
     
     // Verification methods
     verifyLyxBalance,

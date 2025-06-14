@@ -43,6 +43,7 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
   
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isConnectingUP, setIsConnectingUP] = useState(false);
   
   // ===== DERIVED DATA =====
   
@@ -62,20 +63,8 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
   // Auto-expand first category that needs verification (accordion pattern)
   React.useEffect(() => {
     if (enabledCategories.length > 0 && expandedCategory === null) {
-      const needsVerification = enabledCategories
-        .filter(cat => cat.enabled && cat.verificationStatus === 'not_started')
-        .sort((a, b) => {
-          // Priority: UP > Ethereum > Others
-          const priority: Record<string, number> = { 
-            universal_profile: 0, 
-            ethereum_profile: 1 
-          };
-          return (priority[a.type] ?? 99) - (priority[b.type] ?? 99);
-        });
-      
-      if (needsVerification.length > 0) {
-        setExpandedCategory(needsVerification[0].type);
-      }
+      // SIMPLIFIED: Always expand first enabled category to show connection UI
+      setExpandedCategory(enabledCategories[0].type);
     }
   }, [enabledCategories, expandedCategory]);
   
@@ -86,24 +75,28 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
     const hasUPCategory = enabledCategories.some(cat => cat.type === 'universal_profile');
     
     if (hasUPCategory) {
-      console.log('[GatingRequirementsPreview] UP gating detected, activating UP functionality');
       upActivation.activateUP();
     }
   }, [enabledCategories, upActivation]);
-  
-  // Auto-trigger UP connection once Web3-Onboard is initialized
-  React.useEffect(() => {
-    if (upActivation.hasUserTriggeredConnection && 
-        universalProfile?.isInitialized && 
-        !universalProfile?.isConnected && 
-        !universalProfile?.isConnecting) {
-      console.log('[GatingRequirementsPreview] Web3-Onboard initialized, auto-triggering UP connection');
-      universalProfile.connect().catch((error) => {
-        console.error('[GatingRequirementsPreview] Auto-connection failed:', error);
-      });
-    }
-  }, [upActivation.hasUserTriggeredConnection, universalProfile?.isInitialized, universalProfile?.isConnected, universalProfile?.isConnecting, universalProfile]);
 
+  // Effect to handle the connection process for UP after initialization
+  React.useEffect(() => {
+    // Check if we are in the process of connecting and if the UP context is now initialized
+    if (isConnectingUP && universalProfile.isInitialized) {
+      const performConnect = async () => {
+        try {
+          await universalProfile.connect();
+        } catch (error) {
+          console.error("Failed to connect Universal Profile:", error);
+        } finally {
+          // Reset the connecting flag regardless of outcome
+          setIsConnectingUP(false);
+        }
+      };
+      performConnect();
+    }
+  }, [isConnectingUP, universalProfile.isInitialized, universalProfile.connect]);
+  
   // ===== HANDLERS =====
 
   const toggleCategoryExpanded = useCallback((categoryType: string) => {
@@ -148,61 +141,71 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                 // Create VerificationStatus based on actual connection state
                 const mockUserStatus: VerificationStatus = (() => {
                   if (category.type === 'universal_profile') {
-                    return {
+                    const status = {
                       connected: universalProfile?.isConnected || false,
-                      verified: false, // Always false in preview
-                      requirements: []
+                      verified: false,
+                      requirements: [],
+                      address: universalProfile?.upAddress,
+                      lyxBalance: 0, // This is a placeholder, renderer will show real data
+                      upAddress: universalProfile?.upAddress
                     };
+                    return status;
                   } else if (category.type === 'ethereum_profile') {
-                    return {
+                    const status = {
                       connected: ethereumProfile?.isConnected || false,
                       verified: false, // Always false in preview
                       requirements: []
                     };
+                    return status;
                   } else {
-                    return {
+                    const status = {
                       connected: false,
                       verified: false,
                       requirements: []
                     };
+                    return status;
                   }
                 })();
 
                 // Real connection handlers based on category type (same as GatingRequirementsPanel)
-                const handleConnect = async () => {
-                  console.log(`[GatingRequirementsPreview] Connect triggered for ${category.type}`);
+                const handleConnect = async (event?: React.MouseEvent) => {
+                  // Prevent modal closing when clicking wallet connection buttons
+                  if (event) {
+                    event.stopPropagation();
+                    event.preventDefault();
+                  }
                   
                   try {
                     if (category.type === 'universal_profile') {
-                      // Only initialize UP context - actual connection handled by effect
-                      console.log('[GatingRequirementsPreview] Initializing Universal Profile connection...');
-                      upActivation.initializeConnection();
+                      // First, initialize the connection context
+                      if (!upActivation.hasUserTriggeredConnection) {
+                        upActivation.initializeConnection();
+                      }
+                      // Then, set the flag to trigger the connection effect
+                      setIsConnectingUP(true);
                     } else if (category.type === 'ethereum_profile') {
-                      // Use Ethereum Profile connection directly (no timing issues)
                       if (ethereumProfile?.connect) {
                         await ethereumProfile.connect();
-                      } else {
-                        console.warn('[GatingRequirementsPreview] Ethereum Profile context not available');
                       }
                     } else {
                       console.warn(`[GatingRequirementsPreview] Unknown category type: ${category.type}`);
                     }
                   } catch (error) {
                     console.error(`[GatingRequirementsPreview] Connection failed for ${category.type}:`, error);
+                    // Ensure the connecting flag is reset on error
+                    if (category.type === 'universal_profile') {
+                      setIsConnectingUP(false);
+                    }
                   }
                 };
 
                 const handleDisconnect = () => {
-                  console.log(`[GatingRequirementsPreview] Disconnect triggered for ${category.type}`);
-                  
                   try {
                     if (category.type === 'universal_profile') {
-                      // Use Universal Profile disconnection
                       if (universalProfile?.disconnect) {
                         universalProfile.disconnect();
                       }
                     } else if (category.type === 'ethereum_profile') {
-                      // Use Ethereum Profile disconnection
                       if (ethereumProfile?.disconnect) {
                         ethereumProfile.disconnect();
                       }
@@ -211,7 +214,7 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                     console.error(`[GatingRequirementsPreview] Disconnection failed for ${category.type}:`, error);
                   }
                 };
-
+                
                 // Render the connection component with preview data
                 return renderer.renderConnection({
                   requirements: category.requirements,
@@ -220,7 +223,7 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                   userStatus: mockUserStatus,
                   disabled: false,
                   postId: -1, // Preview mode indicator (legacy)
-                  isPreviewMode: true // Explicit preview mode flag
+                  isPreviewMode: true 
                 });
               })()}
             </div>

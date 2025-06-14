@@ -65,7 +65,8 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
     getFollowerCount: async () => { throw new Error('Universal Profile not activated'); },
     isFollowedBy: async () => { throw new Error('Universal Profile not activated'); },
     isFollowing: async () => { throw new Error('Universal Profile not activated'); },
-    verifyFollowerRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['UP not activated'] })
+    verifyFollowerRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['UP not activated'] }),
+    checkConnectionState: async () => {}
   }), []);
   
   return (isActive && context) ? context : defaultContext;

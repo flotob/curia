@@ -22,6 +22,8 @@ import { LockBuilderStep, LockBuilderState } from '@/types/locks';
 import { LockTemplateSelector } from './LockTemplateSelector';
 import { LockTemplate } from '@/types/templates';
 import { GatingRequirementsPreview } from './GatingRequirementsPreview';
+import { authFetchJson } from '@/utils/authFetch';
+import { FocusScope } from '@radix-ui/react-focus-scope';
 
 // Step content components
 const MetadataStep = () => {
@@ -585,7 +587,7 @@ const SaveStep = () => {
               {state.requirements.map((req: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                 <div key={index} className="text-xs text-gray-700 flex items-center">
                   <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2 flex-shrink-0" />
-                  {req.description || `${req.type} requirement`}
+                  {req.description || `${String(req.type)} requirement`}
                 </div>
               ))}
             </div>
@@ -881,20 +883,10 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
       console.log('[LockCreationModal] Saving lock:', createRequest);
 
       // Make API request to save the lock
-      const response = await fetch('/api/locks', {
+      const result = await authFetchJson<{ success: boolean; data?: { id: number }; error?: string }>('/api/locks', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(createRequest),
+        body: createRequest,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to save lock`);
-      }
-
-      const result = await response.json();
       
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to save lock');
@@ -1068,21 +1060,89 @@ export const LockCreationModal: React.FC<LockCreationModalProps> = ({
   onClose,
   onSave
 }) => {
+  const [isWeb3OnboardOpen, setIsWeb3OnboardOpen] = useState(false);
+
   const handleSave = useCallback((lockId: number) => {
     console.log(`[LockCreationModal] Lock saved with ID: ${lockId}`);
     onSave?.(lockId);
     onClose();
   }, [onSave, onClose]);
 
+  // Listen for web3-onboard modal state changes
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    // Function to detect if web3-onboard modal is open
+    const checkWeb3OnboardModal = () => {
+      // Web3-onboard creates elements with specific classes/attributes
+      const onboardModal = document.querySelector('.onboard-modal, [data-onboard], .bn-onboard-modal');
+      const onboardBackdrop = document.querySelector('.onboard-backdrop, [data-onboard-backdrop]');
+      
+      const isOnboardOpen = !!(onboardModal || onboardBackdrop);
+      setIsWeb3OnboardOpen(isOnboardOpen);
+    };
+
+    // Check immediately
+    checkWeb3OnboardModal();
+
+    // Set up mutation observer to watch for DOM changes
+    const observer = new MutationObserver(() => {
+      checkWeb3OnboardModal();
+    });
+
+    // Watch for changes in the document body
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-onboard']
+    });
+
+    // Also listen for specific web3-onboard events if they exist
+    const handleWeb3OnboardOpen = () => setIsWeb3OnboardOpen(true);
+    const handleWeb3OnboardClose = () => setIsWeb3OnboardOpen(false);
+
+    // Try to listen for web3-onboard specific events
+    window.addEventListener('onboard:modal:open', handleWeb3OnboardOpen);
+    window.addEventListener('onboard:modal:close', handleWeb3OnboardClose);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('onboard:modal:open', handleWeb3OnboardOpen);
+      window.removeEventListener('onboard:modal:close', handleWeb3OnboardClose);
+    };
+  }, [isOpen]);
+
+  // Handle dialog close - don't close if web3-onboard is open
+  const handleDialogChange = useCallback((open: boolean) => {
+    if (!open && !isWeb3OnboardOpen) {
+      onClose();
+    }
+  }, [onClose, isWeb3OnboardOpen]);
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <LockBuilderProvider>
-          <LockCreationModalContent 
-            onSave={handleSave}
-            onCancel={onClose}
-          />
-        </LockBuilderProvider>
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={handleDialogChange}
+      // Disable modal behavior when web3-onboard is open
+      modal={!isWeb3OnboardOpen}
+    >
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0" onInteractOutside={(e) => {
+          // Allow interaction with web3-onboard modal
+          if ((e.target as HTMLElement)?.closest('[id^=w3o-], [id^=rk-]')) {
+            e.preventDefault();
+          }
+        }}>
+        <FocusScope trapped={false} onMountAutoFocus={(e) => e.preventDefault()}>
+          <div className="flex-grow flex flex-col overflow-hidden">
+            <LockBuilderProvider>
+              <LockCreationModalContent 
+                onSave={handleSave}
+                onCancel={onClose}
+              />
+            </LockBuilderProvider>
+          </div>
+        </FocusScope>
       </DialogContent>
     </Dialog>
   );
