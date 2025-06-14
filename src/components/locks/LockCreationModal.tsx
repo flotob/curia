@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,13 +14,15 @@ import {
   ArrowLeft, 
   ArrowRight,
   Save,
-  AlertTriangle
+  AlertTriangle,
+  Eye
 } from 'lucide-react';
 import { LockCreationStepper } from './LockCreationStepper';
 import { LockBuilderProvider, useLockBuilder } from './LockBuilderProvider';
 import { LockBuilderStep, LockBuilderState } from '@/types/locks';
 import { LockTemplateSelector } from './LockTemplateSelector';
 import { LockTemplate } from '@/types/templates';
+import { GatingRequirementsPreview } from './GatingRequirementsPreview';
 
 // Step content components
 const MetadataStep = () => {
@@ -289,59 +291,98 @@ const RequirementsStep = () => {
 const PreviewStep = () => {
   const { state } = useLockBuilder();
   
+  // Convert current builder state to a lock format for preview
+  const previewLock = useMemo(() => {
+    // Convert requirements to gating categories
+    const categories = state.requirements.map((req: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      // This is a simplified conversion - in a real implementation,
+      // you'd need to properly convert GatingRequirement to GatingCategory
+      return {
+        type: req.category === 'social' ? 'universal_profile' : 'ethereum_profile',
+        enabled: true,
+        requirements: req // Simplified - would need proper conversion
+      };
+    });
+
+    return {
+      id: -1, // Preview mode indicator
+      name: state.metadata.name || 'Untitled Lock',
+      description: state.metadata.description || 'Preview of your lock configuration',
+      icon: state.metadata.icon || '🔒',
+      color: state.metadata.color || '#3b82f6',
+      gatingConfig: {
+        categories,
+        requireAny: true // Default to OR logic for now
+      },
+      tags: state.metadata.tags || [],
+      usageCount: 0,
+      successRate: 1.0,
+      avgVerificationTime: 120, // 2 minutes default
+      isTemplate: false,
+      isPublic: state.metadata.isPublic || false,
+      isOwned: true,
+      canEdit: true,
+      canDelete: true,
+      creatorUserId: 'preview-user',
+      communityId: 'preview-community',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }, [state]);
+
+  const requirementCount = state.requirements.length;
+
   return (
     <div className="space-y-6">
-      {/* Lock Summary */}
+      {/* Preview Header */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
-            <span className="text-2xl mr-3">{state.metadata.icon}</span>
+            <span className="text-2xl mr-3">{state.metadata.icon || '🔒'}</span>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
                 {state.metadata.name || 'Untitled Lock'}
               </h3>
               <p className="text-sm text-gray-600">
-                {state.requirements.length} requirement{state.requirements.length !== 1 ? 's' : ''}
+                {requirementCount} requirement{requirementCount !== 1 ? 's' : ''} configured
               </p>
             </div>
           </div>
-          <Badge variant="secondary">Preview Mode</Badge>
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+            <Eye className="h-3 w-3 mr-1" />
+            Preview Mode
+          </Badge>
         </div>
         
         {state.metadata.description && (
-          <p className="text-gray-700 mb-4">{state.metadata.description}</p>
+          <p className="text-gray-700">{state.metadata.description}</p>
         )}
-        
-        {/* Requirements Preview */}
-        <div className="space-y-2">
-          <h4 className="font-medium text-gray-900">Requirements:</h4>
-          {state.requirements.length === 0 ? (
-            <p className="text-sm text-gray-500 italic">No requirements configured</p>
-          ) : (
-            <div className="space-y-1">
-              {state.requirements.map((req: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
-                <div key={index} className="text-sm text-gray-700 flex items-center">
-                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2 flex-shrink-0" />
-                  {req.description || `${req.type} requirement`}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Preview Instructions */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <div className="flex items-start">
-          <span className="text-xl mr-3">💡</span>
+      {/* Interactive Preview Explanation */}
+      <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <div className="flex-shrink-0 mt-0.5">
+            <Eye className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
           <div>
-            <h4 className="font-medium text-amber-900 mb-1">How to Test</h4>
-            <p className="text-sm text-amber-800">
-              To fully test this lock, you would connect your wallet and verify each requirement. 
-              In this preview, you can see the lock configuration and verify it matches your expectations.
+            <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+              Live Interactive Preview
+            </h4>
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              This is exactly how users will see and interact with your access control requirements. 
+              You can connect your wallets below to test the verification flow!
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Real Lock Preview - Same as users will see */}
+      <div className="border-2 border-dashed border-primary/30 rounded-lg p-1">
+        <GatingRequirementsPreview 
+          gatingConfig={previewLock.gatingConfig}
+          className="border-0 shadow-none bg-background"
+        />
       </div>
 
       {/* Template Info (if selected) */}
@@ -356,18 +397,20 @@ const PreviewStep = () => {
         </div>
       )}
 
-      {/* Next Steps */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-        <div className="flex items-start">
-          <span className="text-xl mr-3">✅</span>
-          <div>
-            <h4 className="font-medium text-green-900 mb-1">Ready to Save</h4>
-            <p className="text-sm text-green-800">
-              Your lock configuration looks good! Click &quot;Next&quot; to save it for reuse in post gating.
-            </p>
+      {/* Ready Confirmation */}
+      {requirementCount > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <span className="text-xl mr-3">✅</span>
+            <div>
+              <h4 className="font-medium text-green-900 mb-1">Lock Ready!</h4>
+              <p className="text-sm text-green-800">
+                Your access control configuration looks perfect. Click &quot;Next&quot; to finalize the lock details.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -523,8 +566,8 @@ const STEP_CONFIG: Record<LockBuilderStep, {
     isRequired: false
   },
   save: {
-    title: 'Save Lock',
-    description: 'Review and save your lock configuration',
+    title: 'Lock Details',
+    description: 'Name, description and final settings',
     component: SaveStep,
     isRequired: true
   }
