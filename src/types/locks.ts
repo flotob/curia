@@ -398,11 +398,19 @@ export interface UPFollowerCountConfig {
 export interface UPMustFollowConfig {
   address: string;
   profileName?: string;
+  profileImage?: string;
+  username?: string;
+  bio?: string;
+  isVerified?: boolean;
 }
 
 export interface UPMustBeFollowedByConfig {
   address: string;
   profileName?: string;
+  profileImage?: string;
+  username?: string;
+  bio?: string;
+  isVerified?: boolean;
 }
 
 export interface EFPFollowerCountConfig {
@@ -412,11 +420,21 @@ export interface EFPFollowerCountConfig {
 export interface EFPMustFollowConfig {
   address: string;
   ensName?: string;
+  displayName?: string;
+  avatar?: string;
+  followers?: number;
+  following?: number;
+  isVerified?: boolean;
 }
 
 export interface EFPMustBeFollowedByConfig {
   address: string;
   ensName?: string;
+  displayName?: string;
+  avatar?: string;
+  followers?: number;
+  following?: number;
+  isVerified?: boolean;
 }
 
 // Identity requirement configs

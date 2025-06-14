@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, DollarSign } from 'lucide-react';
+import { ethers } from 'ethers';
 
 import { GatingRequirement, ERC20TokenConfig } from '@/types/locks';
 import { validateEthereumAddress } from '@/lib/requirements/validation';
@@ -122,13 +123,43 @@ export const ERC20TokenConfigurator: React.FC<ERC20TokenConfiguratorProps> = ({
     
     setIsLoadingMetadata(true);
     try {
-      // TODO: Implement actual ERC20 metadata fetching
-      // For now, use placeholder values
+      console.log(`[ERC20 Configurator] Fetching metadata for contract: ${contractAddress}`);
+
+      // Setup Ethereum provider
+      const provider = new ethers.providers.JsonRpcProvider(
+        process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL || 'https://eth.llamarpc.com'
+      );
+
+      // Standard ERC20 ABI
+      const ERC20_ABI = [
+        'function name() view returns (string)',
+        'function symbol() view returns (string)',
+        'function decimals() view returns (uint8)',
+        'function totalSupply() view returns (uint256)'
+      ];
+
+      const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
+
+      // Fetch metadata in parallel
+      const [name, symbol, decimals] = await Promise.all([
+        contract.name().catch(() => 'Unknown Token'),
+        contract.symbol().catch(() => 'UNK'),
+        contract.decimals().catch(() => 18)
+      ]);
+
+      console.log(`[ERC20 Configurator] ✅ ERC20 metadata: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+
+      // Update state with fetched metadata
+      setTokenName(name);
+      setTokenSymbol(symbol);
+      setDecimals(decimals);
+
+    } catch (error) {
+      console.error('[ERC20 Configurator] Failed to fetch token metadata:', error);
+      // Keep placeholder values for user feedback
       setTokenName('Unknown Token');
       setTokenSymbol('UNK');
       setDecimals(18);
-    } catch (error) {
-      console.error('Failed to fetch token metadata:', error);
     } finally {
       setIsLoadingMetadata(false);
     }

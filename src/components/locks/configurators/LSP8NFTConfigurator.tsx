@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Image, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ethers } from 'ethers';
 
 import { GatingRequirement, LSP8NFTConfig } from '@/types/locks';
 import { validateEthereumAddress, validateTokenId } from '@/lib/requirements/validation';
@@ -136,12 +137,101 @@ export const LSP8NFTConfigurator: React.FC<LSP8NFTConfiguratorProps> = ({
     
     setIsLoadingMetadata(true);
     try {
-      // TODO: Implement actual LSP8 metadata fetching
-      // For now, use placeholder values
+      console.log(`[LSP8 Configurator] Fetching metadata for contract: ${contractAddress}`);
+
+      // Setup provider
+      const rpcUrl = process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+      // First verify it's an LSP8 contract
+      const contract = new ethers.Contract(contractAddress, [
+        'function supportsInterface(bytes4) view returns (bool)',
+        'function getData(bytes32) view returns (bytes)',
+        'function getDataBatch(bytes32[]) view returns (bytes[])'
+      ], provider);
+
+      // Check LSP8 interface ID
+      const LSP8_INTERFACE_ID = '0x3a271706';
+      let isLSP8 = false;
+      
+      try {
+        isLSP8 = await contract.supportsInterface(LSP8_INTERFACE_ID);
+        console.log(`[LSP8 Configurator] Interface check: LSP8=${isLSP8}`);
+      } catch (error) {
+        console.log(`[LSP8 Configurator] Interface check failed:`, error);
+        // Try proxy detection
+        try {
+          const implSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+          const slotValue = await provider.getStorageAt(contractAddress, implSlot);
+          if (slotValue && slotValue !== ethers.constants.HashZero) {
+            const implementationAddress = ethers.utils.getAddress('0x' + slotValue.slice(-40));
+            console.log(`[LSP8 Configurator] Found EIP-1967 proxy, implementation: ${implementationAddress}`);
+            const implContract = new ethers.Contract(implementationAddress, [
+              'function supportsInterface(bytes4) view returns (bool)'
+            ], provider);
+            isLSP8 = await implContract.supportsInterface(LSP8_INTERFACE_ID);
+          }
+        } catch (proxyError) {
+          console.log(`[LSP8 Configurator] Proxy detection failed:`, proxyError);
+        }
+      }
+
+      if (!isLSP8) {
+        throw new Error('Contract does not appear to be a valid LUKSO LSP8 NFT collection.');
+      }
+
+      // Fetch LSP4 metadata using ERC725Y data keys
+      let name = 'Unknown Collection';
+      let symbol = 'UNK';
+
+      try {
+        // LSP4 metadata data keys
+        const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
+        const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+        
+        const dataKeys = [LSP4_TOKEN_NAME_KEY, LSP4_TOKEN_SYMBOL_KEY];
+        const [nameBytes, symbolBytes] = await contract.getDataBatch(dataKeys);
+        
+        // Decode the bytes data
+        if (nameBytes && nameBytes !== '0x') {
+          name = ethers.utils.toUtf8String(nameBytes);
+        }
+        if (symbolBytes && symbolBytes !== '0x') {
+          symbol = ethers.utils.toUtf8String(symbolBytes);
+        }
+        
+        console.log(`[LSP8 Configurator] ✅ LSP8 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
+      } catch (lsp8Error) {
+        console.log(`[LSP8 Configurator] ❌ LSP8 ERC725Y metadata failed:`, lsp8Error);
+        
+        // Fallback: try standard name()/symbol() functions
+        try {
+          const fallbackContract = new ethers.Contract(contractAddress, [
+            'function name() view returns (string)',
+            'function symbol() view returns (string)'
+          ], provider);
+          
+          [name, symbol] = await Promise.all([
+            fallbackContract.name().catch(() => 'Unknown Collection'),
+            fallbackContract.symbol().catch(() => 'UNK')
+          ]);
+          console.log(`[LSP8 Configurator] ⚠️ LSP8 fallback to standard functions: name=${name}, symbol=${symbol}`);
+        } catch (fallbackError) {
+          console.log(`[LSP8 Configurator] ❌ LSP8 fallback also failed:`, fallbackError);
+        }
+      }
+
+      // Update state with fetched metadata
+      setCollectionName(name);
+      setCollectionSymbol(symbol);
+
+      console.log(`[LSP8 Configurator] ✅ Successfully fetched LSP8 metadata`);
+
+    } catch (error) {
+      console.error('[LSP8 Configurator] Failed to fetch collection metadata:', error);
+      // Keep placeholder values for user feedback
       setCollectionName('Unknown Collection');
       setCollectionSymbol('UNK');
-    } catch (error) {
-      console.error('Failed to fetch collection metadata:', error);
     } finally {
       setIsLoadingMetadata(false);
     }

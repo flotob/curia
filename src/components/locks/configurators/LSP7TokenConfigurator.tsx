@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Coins } from 'lucide-react';
+import { ethers } from 'ethers';
 
 import { GatingRequirement, LSP7TokenConfig } from '@/types/locks';
 import { validateEthereumAddress } from '@/lib/requirements/validation';
@@ -118,12 +119,113 @@ export const LSP7TokenConfigurator: React.FC<LSP7TokenConfiguratorProps> = ({
     
     setIsLoadingMetadata(true);
     try {
-      // TODO: Implement actual LSP7 metadata fetching
-      // For now, use placeholder values
+      console.log(`[LSP7 Configurator] Fetching metadata for contract: ${contractAddress}`);
+
+      // Setup provider
+      const rpcUrl = process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+      // First verify it's an LSP7 contract
+      const contract = new ethers.Contract(contractAddress, [
+        'function supportsInterface(bytes4) view returns (bool)',
+        'function getData(bytes32) view returns (bytes)',
+        'function getDataBatch(bytes32[]) view returns (bytes[])',
+        'function decimals() view returns (uint8)'
+      ], provider);
+
+      // Check LSP7 interface IDs (both new and legacy)
+      const LSP7_INTERFACE_ID_NEW = '0xc52d6008';
+      const LSP7_INTERFACE_ID_LEGACY = '0xb3c4928f';
+      let isLSP7 = false;
+      
+      try {
+        const [newLSP7, legacyLSP7] = await Promise.all([
+          contract.supportsInterface(LSP7_INTERFACE_ID_NEW).catch(() => false),
+          contract.supportsInterface(LSP7_INTERFACE_ID_LEGACY).catch(() => false)
+        ]);
+        
+        isLSP7 = newLSP7 || legacyLSP7;
+        console.log(`[LSP7 Configurator] Interface check: LSP7=${isLSP7} (new=${newLSP7}, legacy=${legacyLSP7})`);
+      } catch (error) {
+        console.log(`[LSP7 Configurator] Interface check failed:`, error);
+        // Try proxy detection
+        try {
+          const implSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+          const slotValue = await provider.getStorageAt(contractAddress, implSlot);
+          if (slotValue && slotValue !== ethers.constants.HashZero) {
+            const implementationAddress = ethers.utils.getAddress('0x' + slotValue.slice(-40));
+            console.log(`[LSP7 Configurator] Found EIP-1967 proxy, implementation: ${implementationAddress}`);
+            const implContract = new ethers.Contract(implementationAddress, [
+              'function supportsInterface(bytes4) view returns (bool)'
+            ], provider);
+            const [newLSP7, legacyLSP7] = await Promise.all([
+              implContract.supportsInterface(LSP7_INTERFACE_ID_NEW).catch(() => false),
+              implContract.supportsInterface(LSP7_INTERFACE_ID_LEGACY).catch(() => false)
+            ]);
+            isLSP7 = newLSP7 || legacyLSP7;
+          }
+        } catch (proxyError) {
+          console.log(`[LSP7 Configurator] Proxy detection failed:`, proxyError);
+        }
+      }
+
+      if (!isLSP7) {
+        throw new Error('Contract does not appear to be a valid LUKSO LSP7 token.');
+      }
+
+      // Fetch LSP4 metadata using ERC725Y data keys
+      let name = 'Unknown Token';
+      let symbol = 'UNK';
+
+      try {
+        // First try ERC725Y data keys
+        const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
+        const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+        
+        const dataKeys = [LSP4_TOKEN_NAME_KEY, LSP4_TOKEN_SYMBOL_KEY];
+        const [nameBytes, symbolBytes] = await contract.getDataBatch(dataKeys);
+        
+        // Decode the bytes data
+        if (nameBytes && nameBytes !== '0x') {
+          name = ethers.utils.toUtf8String(nameBytes);
+        }
+        if (symbolBytes && symbolBytes !== '0x') {
+          symbol = ethers.utils.toUtf8String(symbolBytes);
+        }
+        
+        console.log(`[LSP7 Configurator] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
+      } catch (erc725yError) {
+        console.log(`[LSP7 Configurator] ⚠️ LSP7 ERC725Y metadata failed, trying fallback:`, erc725yError);
+        
+        // Fallback: try standard ERC20-like functions
+        try {
+          const fallbackContract = new ethers.Contract(contractAddress, [
+            'function name() view returns (string)',
+            'function symbol() view returns (string)'
+          ], provider);
+          
+          [name, symbol] = await Promise.all([
+            fallbackContract.name().catch(() => 'Unknown Token'),
+            fallbackContract.symbol().catch(() => 'UNK')
+          ]);
+          
+          console.log(`[LSP7 Configurator] ⚠️ LSP7 fallback to standard functions: name=${name}, symbol=${symbol}`);
+        } catch (metadataError) {
+          console.log(`[LSP7 Configurator] ❌ LSP7 standard functions also failed:`, metadataError);
+        }
+      }
+
+      // Update state with fetched metadata
+      setTokenName(name);
+      setTokenSymbol(symbol);
+
+      console.log(`[LSP7 Configurator] ✅ Successfully fetched LSP7 metadata`);
+
+    } catch (error) {
+      console.error('[LSP7 Configurator] Failed to fetch token metadata:', error);
+      // Keep placeholder values for user feedback
       setTokenName('Unknown Token');
       setTokenSymbol('UNK');
-    } catch (error) {
-      console.error('Failed to fetch token metadata:', error);
     } finally {
       setIsLoadingMetadata(false);
     }

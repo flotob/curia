@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Package } from 'lucide-react';
+import { ethers } from 'ethers';
 
 import { GatingRequirement, ERC1155TokenConfig } from '@/types/locks';
 import { validateEthereumAddress, validateTokenId } from '@/lib/requirements/validation';
@@ -120,11 +121,47 @@ export const ERC1155TokenConfigurator: React.FC<ERC1155TokenConfiguratorProps> =
     
     setIsLoadingMetadata(true);
     try {
-      // TODO: Implement actual ERC1155 metadata fetching
-      // For now, use placeholder values
-      setTokenName('Unknown Token');
+      console.log(`[ERC1155 Configurator] Fetching metadata for contract: ${contractAddress}`);
+
+      // Setup Ethereum provider
+      const provider = new ethers.providers.JsonRpcProvider(
+        process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL || 'https://eth.llamarpc.com'
+      );
+
+      // Standard ERC1155 ABI (name/symbol are optional extensions)
+      const ERC1155_ABI = [
+        'function name() view returns (string)',
+        'function symbol() view returns (string)',
+        'function supportsInterface(bytes4) view returns (bool)',
+        'function balanceOf(address, uint256) view returns (uint256)'
+      ];
+
+      const contract = new ethers.Contract(contractAddress, ERC1155_ABI, provider);
+
+      // Verify it's an ERC1155 contract
+      const ERC1155_INTERFACE_ID = '0xd9b67a26';
+      let isERC1155 = false;
+      
+      try {
+        isERC1155 = await contract.supportsInterface(ERC1155_INTERFACE_ID);
+        console.log(`[ERC1155 Configurator] Interface check: ERC1155=${isERC1155}`);
+      } catch (error) {
+        console.log(`[ERC1155 Configurator] Interface check failed, assuming ERC1155:`, error);
+        // Continue anyway - some contracts don't implement supportsInterface
+      }
+
+      // Fetch metadata in parallel (note: name/symbol are optional for ERC1155)
+      const name = await contract.name().catch(() => 'Unknown Token');
+
+      console.log(`[ERC1155 Configurator] ✅ ERC1155 metadata: name=${name}`);
+
+      // Update state with fetched metadata
+      setTokenName(name);
+
     } catch (error) {
-      console.error('Failed to fetch token metadata:', error);
+      console.error('[ERC1155 Configurator] Failed to fetch token metadata:', error);
+      // Keep placeholder values for user feedback
+      setTokenName('Unknown Token');
     } finally {
       setIsLoadingMetadata(false);
     }

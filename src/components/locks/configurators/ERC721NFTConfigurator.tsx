@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Gem } from 'lucide-react';
+import { ethers } from 'ethers';
 
 import { GatingRequirement, ERC721NFTConfig } from '@/types/locks';
 import { validateEthereumAddress } from '@/lib/requirements/validation';
@@ -112,12 +113,52 @@ export const ERC721NFTConfigurator: React.FC<ERC721NFTConfiguratorProps> = ({
     
     setIsLoadingMetadata(true);
     try {
-      // TODO: Implement actual ERC721 metadata fetching
-      // For now, use placeholder values
+      console.log(`[ERC721 Configurator] Fetching metadata for contract: ${contractAddress}`);
+
+      // Setup Ethereum provider
+      const provider = new ethers.providers.JsonRpcProvider(
+        process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL || 'https://eth.llamarpc.com'
+      );
+
+      // Standard ERC721 ABI
+      const ERC721_ABI = [
+        'function name() view returns (string)',
+        'function symbol() view returns (string)',
+        'function totalSupply() view returns (uint256)',
+        'function supportsInterface(bytes4) view returns (bool)'
+      ];
+
+      const contract = new ethers.Contract(contractAddress, ERC721_ABI, provider);
+
+      // Verify it's an ERC721 contract
+      const ERC721_INTERFACE_ID = '0x80ac58cd';
+      let isERC721 = false;
+      
+      try {
+        isERC721 = await contract.supportsInterface(ERC721_INTERFACE_ID);
+        console.log(`[ERC721 Configurator] Interface check: ERC721=${isERC721}`);
+      } catch (error) {
+        console.log(`[ERC721 Configurator] Interface check failed, assuming ERC721:`, error);
+        // Continue anyway - some contracts don't implement supportsInterface
+      }
+
+      // Fetch metadata in parallel
+      const [name, symbol] = await Promise.all([
+        contract.name().catch(() => 'Unknown Collection'),
+        contract.symbol().catch(() => 'UNK')
+      ]);
+
+      console.log(`[ERC721 Configurator] ✅ ERC721 metadata: name=${name}, symbol=${symbol}`);
+
+      // Update state with fetched metadata
+      setCollectionName(name);
+      setCollectionSymbol(symbol);
+
+    } catch (error) {
+      console.error('[ERC721 Configurator] Failed to fetch collection metadata:', error);
+      // Keep placeholder values for user feedback
       setCollectionName('Unknown Collection');
       setCollectionSymbol('UNK');
-    } catch (error) {
-      console.error('Failed to fetch collection metadata:', error);
     } finally {
       setIsLoadingMetadata(false);
     }
