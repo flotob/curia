@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,11 @@ import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { RichCategoryHeader } from '@/components/gating/RichCategoryHeader';
 import { cn } from '@/lib/utils';
 import { UPGatingRequirements } from '@/types/gating';
+import { lsp26Registry } from '@/lib/lsp26/lsp26Registry';
+import { erc20Abi, erc721Abi } from 'viem';
 
 // Wagmi and viem imports for isolated UP connection
-import { WagmiProvider, createConfig, http, useAccount, useBalance, useConnect, useDisconnect } from 'wagmi';
+import { WagmiProvider, createConfig, http, useAccount, useBalance, useConnect, useDisconnect, useReadContracts } from 'wagmi';
 import { lukso, luksoTestnet } from 'viem/chains';
 import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
 
@@ -48,6 +50,61 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
   const { address, isConnected, status } = useAccount();
   const { data: balance } = useBalance({ address });
 
+  // Batch-read all token contracts (LSP7/ERC20 and LSP8/ERC721)
+  const { data: tokenResults, isLoading: isLoadingTokens } = useReadContracts({
+    contracts: requirements.requiredTokens?.flatMap(token => [
+      {
+        address: token.contractAddress as `0x{string}`,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address!],
+      },
+      {
+        address: token.contractAddress as `0x{string}`,
+        abi: erc721Abi,
+        functionName: 'balanceOf',
+        args: [address!],
+      }
+    ]) ?? [],
+    query: {
+      enabled: isConnected && !!address && (requirements.requiredTokens?.length ?? 0) > 0,
+    }
+  });
+
+  // Fetch follower statuses
+  const [followerStatus, setFollowerStatus] = useState<Record<string, boolean>>({});
+  const [isLoadingFollowers, setIsLoadingFollowers] = useState(false);
+
+  useEffect(() => {
+    const fetchFollowers = async () => {
+      if (!isConnected || !address || !requirements.followerRequirements?.length) {
+        setFollowerStatus({});
+        return;
+      }
+      setIsLoadingFollowers(true);
+      const newStatus: Record<string, boolean> = {};
+      for (const req of requirements.followerRequirements) {
+        const key = `${req.type}-${req.value}`;
+        try {
+          if (req.type === 'minimum_followers') {
+            const count = await lsp26Registry.getFollowerCount(address);
+            newStatus[key] = count >= parseInt(req.value);
+          } else if (req.type === 'followed_by') {
+            newStatus[key] = await lsp26Registry.isFollowing(req.value, address);
+          } else if (req.type === 'following') {
+            newStatus[key] = await lsp26Registry.isFollowing(address, req.value);
+          }
+        } catch (e) {
+          console.error(`Failed to check follower status for ${key}`, e);
+          newStatus[key] = false;
+        }
+      }
+      setFollowerStatus(newStatus);
+      setIsLoadingFollowers(false);
+    };
+    fetchFollowers();
+  }, [isConnected, address, requirements.followerRequirements]);
+
   const renderer = ensureRegistered('universal_profile');
 
   const handleConnect = async (event?: React.MouseEvent) => {
@@ -72,6 +129,8 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
     address: address,
     upAddress: address,
     lyxBalance: balance?.value,
+    tokenBalances: tokenResults, // Pass raw wagmi results
+    followerStatus: followerStatus, // Pass fetched follower status
   };
 
   return renderer.renderConnection({
@@ -79,7 +138,7 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
     onConnect: handleConnect,
     onDisconnect: handleDisconnect,
     userStatus,
-    disabled: status === 'connecting',
+    disabled: status === 'connecting' || isLoadingTokens || isLoadingFollowers,
     postId: -1, // Preview mode indicator
     isPreviewMode: true,
   });

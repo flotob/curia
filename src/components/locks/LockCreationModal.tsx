@@ -924,24 +924,24 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
 
   return (
     <>
-      <DialogHeader className="flex-shrink-0 border-b pb-4">
+      <DialogHeader className="flex-shrink-0 border-b px-6 pt-6 pb-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <DialogTitle className="flex items-center text-xl">
-              <span className="text-2xl mr-3">🔐</span>
+            <DialogTitle className="flex items-center text-2xl font-bold">
+              <span className="text-3xl mr-3">🔐</span>
               Create New Lock
-              <Badge variant="secondary" className="ml-2 text-xs">
+              <Badge variant="secondary" className="ml-3 text-xs font-medium">
                 Step {currentStepIndex + 1} of {STEP_ORDER.length}
               </Badge>
             </DialogTitle>
-            <DialogDescription className="text-base mt-2">
+            <DialogDescription className="text-base mt-3 text-muted-foreground leading-relaxed">
               {currentStepConfig.description}
             </DialogDescription>
           </div>
         </div>
 
         {/* Progress Stepper */}
-        <div className="mt-4">
+        <div className="mt-6">
           <LockCreationStepper
             steps={STEP_ORDER.map(step => ({
               key: step,
@@ -956,16 +956,16 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
       </DialogHeader>
 
       {/* Step Content */}
-      <div className="flex-1 overflow-y-auto min-h-0 py-6">
-        <div className="container max-w-2xl mx-auto px-4">
+      <div className="flex-1 overflow-y-auto min-h-0 px-6 py-8">
+        <div className="max-w-4xl mx-auto">
           <CurrentStepComponent />
         </div>
       </div>
 
       {/* Footer Actions */}
-      <div className="flex-shrink-0 border-t pt-4">
+      <div className="flex-shrink-0 border-t px-6 pt-6 pb-6 bg-muted/20">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             {canGoPrevious && (
               <Button 
                 variant="outline" 
@@ -978,9 +978,9 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <Button 
-              variant="outline" 
+              variant="ghost" 
               onClick={handleCancel}
             >
               Cancel
@@ -990,7 +990,8 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
               <Button 
                 onClick={handleSave}
                 disabled={isSaving}
-                className="flex items-center"
+                className="flex items-center px-6"
+                size="lg"
               >
                 {isSaving ? (
                   <div className="h-4 w-4 mr-2 animate-spin border-2 border-current border-t-transparent rounded-full" />
@@ -1003,7 +1004,8 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
               <Button 
                 onClick={handleNext}
                 disabled={!canGoNext}
-                className="flex items-center"
+                className="flex items-center px-6"
+                size="lg"
               >
                 Next
                 <ArrowRight className="h-4 w-4 ml-2" />
@@ -1126,7 +1128,7 @@ export const LockCreationModal: React.FC<LockCreationModalProps> = ({
       // Disable modal behavior when web3-onboard is open
       modal={!isWeb3OnboardOpen}
     >
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0" onInteractOutside={(e) => {
+      <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0" onInteractOutside={(e) => {
           // Allow interaction with web3-onboard modal
           if ((e.target as HTMLElement)?.closest('[id^=w3o-], [id^=rk-]')) {
             e.preventDefault();

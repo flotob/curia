@@ -68,6 +68,8 @@ export interface VerificationStatus {
   upAddress?: string | null;
   lyxBalance?: bigint;
   ethBalance?: bigint;
+  tokenBalances?: readonly unknown[] | null;
+  followerStatus?: Record<string, boolean>;
   error?: string;
 }
 
