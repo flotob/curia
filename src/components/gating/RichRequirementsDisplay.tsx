@@ -38,7 +38,8 @@ import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 export interface ExtendedVerificationStatus extends VerificationStatus {
   address?: string; // User's wallet address when connected
   balances?: {
-    lyx?: string; // Raw balance for LYX (wei)
+    lyx?: bigint; // Use bigint for precision
+    eth?: bigint;
     tokens?: Record<string, {
       raw: string;        // Raw balance for BigNumber comparisons 
       formatted: string;  // Formatted balance for display
@@ -201,8 +202,9 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
 
   // ===== HELPER FUNCTIONS =====
   
-  const formatBalance = (balance: string): string => {
-    const num = parseFloat(balance);
+  const formatBalance = (balance: string | bigint): string => {
+    const balanceStr = typeof balance === 'bigint' ? ethers.utils.formatEther(balance) : balance;
+    const num = parseFloat(balanceStr);
     return num < 0.001 ? '< 0.001' : num.toFixed(3);
   };
 
@@ -249,7 +251,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   
   // LYX balance verification with real data
   const lyxVerification = requirements.minLyxBalance ? {
-    userBalance: userStatus.balances?.lyx || '0',
+    userBalance: userStatus.balances?.lyx?.toString() || '0',
     formattedBalance: userStatus.balances?.lyx ? formatBalance(userStatus.balances.lyx) : '0',
     meetsRequirement: userStatus.balances?.lyx ? 
       ethers.BigNumber.from(userStatus.balances.lyx).gte(ethers.BigNumber.from(requirements.minLyxBalance)) : false,

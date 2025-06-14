@@ -4,15 +4,15 @@
  */
 
 interface LuksoProvider {
-  // EIP-1193 methods
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  request(args: { method: string; params?: any[] }): Promise<any>;
+  // Overloads for common methods with precise return types
+  request(args: { method: 'eth_requestAccounts' | 'eth_accounts' }): Promise<string[]>;
+  request(args: { method: 'eth_chainId' }): Promise<string>;
+  // Fallback overload for any other methods
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
   
   // Event handling
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  on(event: string, handler: (...args: any[]) => void): void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  removeListener(event: string, handler: (...args: any[]) => void): void;
+  on?(event: string, handler: (...args: unknown[]) => void): void;
+  removeListener?(event: string, handler: (...args: unknown[]) => void): void;
   
   // Provider identification
   isUniversalProfile?: boolean;

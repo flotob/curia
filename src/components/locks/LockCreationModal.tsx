@@ -23,7 +23,6 @@ import { LockTemplateSelector } from './LockTemplateSelector';
 import { LockTemplate } from '@/types/templates';
 import { GatingRequirementsPreview } from './GatingRequirementsPreview';
 import { authFetchJson } from '@/utils/authFetch';
-import { FocusScope } from '@radix-ui/react-focus-scope';
 
 // Step content components
 const MetadataStep = () => {
@@ -1133,16 +1132,12 @@ export const LockCreationModal: React.FC<LockCreationModalProps> = ({
             e.preventDefault();
           }
         }}>
-        <FocusScope trapped={false} onMountAutoFocus={(e) => e.preventDefault()}>
-          <div className="flex-grow flex flex-col overflow-hidden">
-            <LockBuilderProvider>
-              <LockCreationModalContent 
-                onSave={handleSave}
-                onCancel={onClose}
-              />
-            </LockBuilderProvider>
-          </div>
-        </FocusScope>
+        <LockBuilderProvider>
+          <LockCreationModalContent 
+            onSave={handleSave}
+            onCancel={onClose}
+          />
+        </LockBuilderProvider>
       </DialogContent>
     </Dialog>
   );

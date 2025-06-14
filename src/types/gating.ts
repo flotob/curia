@@ -58,7 +58,16 @@ export interface VerificationResult {
 export interface VerificationStatus {
   connected: boolean;
   verified: boolean;
-  requirements: RequirementStatus[];
+  requirements: {
+    name: string;
+    isMet: boolean;
+    currentValue?: string | number;
+    requiredValue?: string | number;
+  }[];
+  address?: string | null;
+  upAddress?: string | null;
+  lyxBalance?: bigint;
+  ethBalance?: bigint;
   error?: string;
 }
 

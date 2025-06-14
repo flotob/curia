@@ -204,12 +204,12 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       setChainId(newChainId);
     };
 
-    window.lukso.on('accountsChanged', handleAccountsChanged);
-    window.lukso.on('chainChanged', handleChainChanged);
+    window.lukso?.on?.('accountsChanged', handleAccountsChanged as (...args: unknown[]) => void);
+    window.lukso?.on?.('chainChanged', handleChainChanged as (...args: unknown[]) => void);
 
     return () => {
-      window.lukso?.removeListener('accountsChanged', handleAccountsChanged);
-      window.lukso?.removeListener('chainChanged', handleChainChanged);
+      window.lukso?.removeListener?.('accountsChanged', handleAccountsChanged as (...args: unknown[]) => void);
+      window.lukso?.removeListener?.('chainChanged', handleChainChanged as (...args: unknown[]) => void);
     };
   }, []);
 
