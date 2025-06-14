@@ -185,6 +185,7 @@ export interface QuickLock {
  */
 export interface LockBuilderState {
   step: LockBuilderStep;
+  selectedTemplate: any | null; // eslint-disable-line @typescript-eslint/no-explicit-any -- Template from template system (Phase 2) - TODO: proper type after integration
   metadata: Partial<CreateLockRequest>;
   requirements: Partial<LockGatingConfig>;
   validation: LockValidationResult;

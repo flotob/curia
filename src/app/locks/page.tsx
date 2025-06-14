@@ -1,9 +1,32 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { LockBrowser } from '@/components/locks/LockBrowser';
+import { LockCreationModal } from '@/components/locks/LockCreationModal';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function LocksPage() {
+  const [isCreationModalOpen, setIsCreationModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleCreateNewLock = useCallback(() => {
+    setIsCreationModalOpen(true);
+  }, []);
+
+  const handleModalClose = useCallback(() => {
+    setIsCreationModalOpen(false);
+  }, []);
+
+  const handleLockSaved = useCallback((lockId: number) => {
+    console.log(`[LocksPage] New lock created with ID: ${lockId}`);
+    
+    // Invalidate locks query to refresh the browser
+    queryClient.invalidateQueries({ queryKey: ['locks'] });
+    
+    // TODO: Could show a success toast notification here
+    // TODO: Could highlight the newly created lock in the browser
+  }, [queryClient]);
+
   return (
     <div className="container mx-auto py-8">
       <div className="mb-6">
@@ -15,7 +38,13 @@ export default function LocksPage() {
         </p>
       </div>
       
-      <LockBrowser />
+      <LockBrowser onCreateNew={handleCreateNewLock} />
+      
+      <LockCreationModal
+        isOpen={isCreationModalOpen}
+        onClose={handleModalClose}
+        onSave={handleLockSaved}
+      />
     </div>
   );
 } 
