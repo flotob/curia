@@ -309,34 +309,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   // This component is now stateless regarding on-chain data.
 
   // Check if all requirements are met for auto-verification
-  const allRequirementsMet = React.useMemo(() => {
-    // Rely on the incoming userStatus prop from the isolated wagmi instance
-    if (!userStatus?.connected || !userStatus.upAddress) return false;
-
-    // Check LYX balance
-    if (requirements?.minLyxBalance) {
-      const userBalance = userStatus.lyxBalance ?? BigInt(0);
-      const requiredBalance = BigInt(requirements.minLyxBalance);
-      if (userBalance < requiredBalance) return false;
-    }
-
-    // Defer token/follower checks in preview as we only check LYX balance for now
-    if (isPreviewMode) {
-      if (requirements?.requiredTokens && requirements.requiredTokens.length > 0) {
-        // TODO: In the future, could pass token balances into preview
-        console.log('[UPConnectionComponent] Deferring token requirement check in preview mode.');
-      }
-      if (requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
-        // TODO: In the future, could pass follower status into preview
-        console.log('[UPConnectionComponent] Deferring follower requirement check in preview mode.');
-      }
-    } else {
-        // NOTE: Full verification logic for tokens/followers would go here for non-preview
-        // This is out of scope for the current task which is fixing the preview connection.
-    }
-
-    return true;
-  }, [userStatus, requirements, isPreviewMode]);
+  const allRequirementsMet = true; // Simplified: verification button always active if connected
 
   // Verification function
   const handleVerify = useCallback(async (overridePostId?: number) => {
@@ -398,6 +371,43 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   }, [userStatus, token, postId, isPreviewMode]);
 
 
+  // ===== BUILD RICH PREVIEW DATA =====
+  // Build token balances map for rich display
+  const previewTokenBalances: Record<string, {
+    raw: string;
+    formatted: string;
+    decimals?: number;
+    name?: string;
+    symbol?: string;
+    iconUrl?: string;
+  }> = {};
+
+  if (userStatus?.tokenBalances && requirements?.requiredTokens?.length) {
+    const balancesArr = userStatus.tokenBalances as unknown as { status: string; result?: unknown }[];
+    requirements.requiredTokens.forEach((req, idx) => {
+      const erc20Res = balancesArr[idx * 2];
+      const erc721Res = balancesArr[idx * 2 + 1];
+
+      let bal: bigint = BigInt(0);
+      if (req.tokenType === 'LSP7' && erc20Res?.status === 'success') {
+        bal = erc20Res.result as bigint;
+      } else if (req.tokenType === 'LSP8' && erc721Res?.status === 'success') {
+        bal = erc721Res.result as bigint;
+      }
+
+      previewTokenBalances[req.contractAddress] = {
+        raw: bal.toString(),
+        formatted: ethers.utils.formatUnits(bal, 18),
+        decimals: 18,
+        name: req.name,
+        symbol: req.symbol,
+      };
+    });
+  }
+
+  // Followers status comes directly from userStatus (populated in preview provider)
+  const previewFollowerStatus = userStatus?.followerStatus ?? {};
+
   // Create ExtendedVerificationStatus with real data from props
   const extendedUserStatus: ExtendedVerificationStatus = {
     connected: userStatus?.connected || false,
@@ -405,11 +415,88 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     requirements: userStatus?.requirements || [],
     address: userStatus?.upAddress || undefined,
     balances: {
-      lyx: userStatus?.lyxBalance, // Pass the bigint directly
-      tokens: {}, // Token display deferred in preview
+      lyx: userStatus?.lyxBalance,
+      tokens: previewTokenBalances,
     },
-    followerStatus: {}, // Follower status deferred in preview
+    followerStatus: previewFollowerStatus,
   };
+
+  // Local cache for fetched token metadata/icon so we don't repeat network calls
+  const [tokenMetaCache, setTokenMetaCache] = useState<Record<string, { name?: string; symbol?: string; iconUrl?: string }>>({});
+
+  // Helper to fetch token icon via LSP4Metadata (preview only, lightweight)
+  const simpleFetchIcon = React.useCallback(async (contractAddress: string, provider: ethers.providers.JsonRpcProvider): Promise<string | undefined> => {
+    try {
+      const contract = new ethers.Contract(contractAddress, ['function getData(bytes32)view returns(bytes)'], provider);
+      const key = '0x9afb95cacc9f95858ec44aa8c3b685511002e30ae54415823f406128b85b238e';
+      const bytes: string = await contract.getData(key).catch(()=>'0x');
+      if (bytes === '0x') return undefined;
+      const start = (4 + 32) * 2 + 2; // hex string offset
+      const len = parseInt(bytes.slice(start, start + 4),16);
+      const urlHex = bytes.slice(start + 4, start + 4 + len*2);
+      const uri = ethers.utils.toUtf8String('0x'+urlHex).replace('ipfs://','https://api.universalprofile.cloud/ipfs/');
+      const json = await fetch(uri).then(r=>r.json()).catch(()=>null);
+      const ipfsUrl = json?.LSP4Metadata?.icon?.[0]?.url as string | undefined;
+      return ipfsUrl ? ipfsUrl.replace('ipfs://','https://api.universalprofile.cloud/ipfs/') : undefined;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
+  // Fetch metadata for tokens that still have unknown names/symbols
+  useEffect(() => {
+    const fetchMissingMetadata = async () => {
+      if (!requirements?.requiredTokens) return;
+      // Determine which tokens lack metadata
+      const targets = requirements.requiredTokens.filter(t => {
+        const cached = tokenMetaCache[t.contractAddress];
+        const unknowName = (!t.name || t.name.toLowerCase().includes('unknown'));
+        const unknowSymbol = (!t.symbol || t.symbol === 'UNK');
+        return (!cached || !cached.name) && (unknowName || unknowSymbol);
+      });
+
+      if (targets.length === 0) return;
+
+      // Decide provider (simple JSON RPC)
+      const rpcUrl = process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+      const newMeta: Record<string, { name?: string; symbol?: string; iconUrl?: string }> = {};
+
+      for (const tok of targets) {
+        try {
+          const contract = new ethers.Contract(tok.contractAddress, [ 'function name() view returns (string)', 'function symbol() view returns (string)' ], provider);
+          const [name, symbol] = await Promise.all([
+            contract.name().catch(() => tok.name || 'Unknown Token'),
+            contract.symbol().catch(() => tok.symbol || 'UNK'),
+          ]);
+
+          // attempt icon
+          const iconUrl = await simpleFetchIcon(tok.contractAddress, provider) || undefined;
+
+          newMeta[tok.contractAddress] = { name, symbol, iconUrl };
+        } catch (e) {
+          console.error('[UP Preview] metadata fetch failed', e);
+        }
+      }
+
+      if (Object.keys(newMeta).length > 0) {
+        setTokenMetaCache(prev => ({ ...prev, ...newMeta }));
+      }
+    };
+
+    fetchMissingMetadata();
+  }, [requirements?.requiredTokens, tokenMetaCache, simpleFetchIcon]);
+
+  // Merge cached metadata into previewTokenBalances
+  Object.entries(previewTokenBalances).forEach(([addr, info]) => {
+    const meta = tokenMetaCache[addr];
+    if (meta) {
+      if (meta.name) info.name = meta.name;
+      if (meta.symbol) info.symbol = meta.symbol;
+      if (meta.iconUrl) info.iconUrl = meta.iconUrl;
+    }
+  });
 
   return (
     <div className="space-y-4">

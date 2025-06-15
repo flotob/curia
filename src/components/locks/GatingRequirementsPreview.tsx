@@ -19,18 +19,42 @@ import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { RichCategoryHeader } from '@/components/gating/RichCategoryHeader';
 import { cn } from '@/lib/utils';
 import { UPGatingRequirements } from '@/types/gating';
-import { lsp26Registry } from '@/lib/lsp26/lsp26Registry';
+import { lsp26Registry } from '@/lib/lsp26';
 import { erc20Abi, erc721Abi } from 'viem';
 
 // Wagmi and viem imports for isolated UP connection
-import { WagmiProvider, createConfig, http, useAccount, useBalance, useConnect, useDisconnect, useReadContracts } from 'wagmi';
+import {
+  WagmiProvider,
+  createConfig,
+  http,
+  useAccount,
+  useBalance,
+  useConnect,
+  useDisconnect,
+  useReadContracts,
+  createStorage,
+} from 'wagmi';
+import { reconnect } from 'wagmi/actions';
 import { lukso, luksoTestnet } from 'viem/chains';
 import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
+
+const noopStorage = {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getItem: (_key: string): string | null => null,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setItem: (_key: string, _value: string): void => {},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  removeItem: (_key: string): void => {},
+};
 
 // Create a local, isolated wagmi config for the UP connector
 const upConfig = createConfig({
   chains: [lukso, luksoTestnet],
   connectors: [universalProfileConnector()],
+  storage: createStorage({
+    storage: typeof window !== 'undefined' ? window.localStorage : noopStorage,
+    key: 'wagmi_up_preview',
+  }),
   transports: {
     [lukso.id]: http(),
     [luksoTestnet.id]: http(),
@@ -49,6 +73,11 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
   const { disconnect } = useDisconnect();
   const { address, isConnected, status } = useAccount();
   const { data: balance } = useBalance({ address });
+
+  // Try to reconnect on mount
+  useEffect(() => {
+    reconnect(upConfig);
+  }, []);
 
   // Batch-read all token contracts (LSP7/ERC20 and LSP8/ERC721)
   const { data: tokenResults, isLoading: isLoadingTokens } = useReadContracts({
@@ -112,6 +141,10 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
       event.stopPropagation();
       event.preventDefault();
     }
+    // Do not reconnect if already connected or in the process of connecting
+    if (isConnected || status === 'connecting' || status === 'reconnecting') {
+      return;
+    }
     const upConnector = connectors.find(c => c.id === 'universalProfile');
     if (upConnector) {
       connect({ connector: upConnector });
@@ -138,7 +171,7 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
     onConnect: handleConnect,
     onDisconnect: handleDisconnect,
     userStatus,
-    disabled: status === 'connecting' || isLoadingTokens || isLoadingFollowers,
+    disabled: status === 'connecting' || status === 'reconnecting' || isLoadingTokens || isLoadingFollowers,
     postId: -1, // Preview mode indicator
     isPreviewMode: true,
   });
@@ -228,7 +261,9 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                   return (
                     <WagmiProvider config={upConfig}>
                       <UniversalProfileConnectionManager
-                        requirements={category.requirements as UPGatingRequirements}
+                        requirements={
+                          category.requirements as UPGatingRequirements
+                        }
                       />
                     </WagmiProvider>
                   );

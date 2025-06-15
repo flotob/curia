@@ -1,5 +1,6 @@
 import { ERC725 } from '@erc725/erc725.js';
 import LSP3ProfileSchema from '@erc725/erc725.js/schemas/LSP3ProfileMetadata.json';
+import { ethers } from 'ethers';
 
 // LUKSO RPC endpoint
 const getLuksoRpcUrl = (): string => {
@@ -158,11 +159,18 @@ export class UPProfileFetcher {
 
       console.log(`[UPProfileFetcher] Fetching profile info for ${upAddress}`);
 
-      // Create ERC725 instance for the Universal Profile
+      // Create a configured provider to prevent ENS lookups on LUKSO
+      const provider = new ethers.providers.JsonRpcProvider(this.rpcUrl, {
+        name: 'lukso',
+        chainId: 42,
+        ensAddress: undefined, // Explicitly disable ENS
+      });
+
+      // Create ERC725 instance with the configured provider
       const erc725 = new ERC725(
         LSP3ProfileSchema,
         upAddress,
-        this.rpcUrl,
+        provider,
         {
           ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
         }

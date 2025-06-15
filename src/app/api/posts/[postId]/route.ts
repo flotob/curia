@@ -43,11 +43,14 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
         COALESCE(share_stats.total_access_count, 0) as share_access_count,
         COALESCE(share_stats.share_count, 0) as share_count,
         share_stats.last_shared_at,
-        share_stats.most_recent_access_at
+        share_stats.most_recent_access_at,
+        p.lock_id,
+        l.gating_config
       FROM posts p
       JOIN boards b ON p.board_id = b.id  
       JOIN users u ON p.author_user_id = u.user_id
       LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $2
+      LEFT JOIN locks l ON p.lock_id = l.id
       LEFT JOIN (
         SELECT 
           post_id,
@@ -85,6 +88,21 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
       return NextResponse.json({ error: 'You do not have permission to view this post' }, { status: 403 });
     }
 
+    // Prepare settings object, parsing if necessary
+    const settings = typeof postData.settings === 'string' 
+      ? JSON.parse(postData.settings) 
+      : (postData.settings || {});
+
+    // Overwrite gating config from lock if it exists
+    if (postData.lock_id && postData.gating_config) {
+      console.log(`[API GET /api/posts/${postId}] Post is using Lock ${postData.lock_id}. Overwriting gating config.`);
+      const lockConfig = typeof postData.gating_config === 'string'
+        ? JSON.parse(postData.gating_config)
+        : postData.gating_config;
+      
+      settings.responsePermissions = lockConfig;
+    }
+
     // Format the response as ApiPost
     const post: ApiPost = {
       id: postData.id,
@@ -92,7 +110,7 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
       title: postData.title,
       content: postData.content,
       tags: postData.tags,
-      settings: typeof postData.settings === 'string' ? JSON.parse(postData.settings) : (postData.settings || {}),
+      settings: settings,
       upvote_count: postData.upvote_count,
       comment_count: postData.comment_count,
       created_at: postData.created_at,
@@ -102,6 +120,7 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
       user_has_upvoted: postData.user_has_upvoted,
       board_id: postData.board_id,
       board_name: postData.board_name,
+      lock_id: postData.lock_id,
       // Add share statistics fields with proper defaults
       share_access_count: postData.share_access_count || 0,
       share_count: postData.share_count || 0,

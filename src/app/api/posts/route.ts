@@ -23,6 +23,7 @@ export interface ApiPost {
   board_id: number; // Board ID
   board_name: string; // Board name from boards table
   settings: PostSettings; // Post-level settings including UP gating
+  lock_id?: number; // The ID of the lock, if one is applied
   
   // 🆕 Share analytics fields from links table
   share_access_count: number;      // Total clicks on all shared URLs for this post

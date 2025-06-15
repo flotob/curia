@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,12 +22,148 @@ import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
 import { VerificationStatus } from '@/types/gating';
 import { useGatingRequirements, useVerificationStatus, useInvalidateVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
-import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { RichCategoryHeader } from './RichCategoryHeader';
 
+// --- NEW WAGMI IMPORTS FOR LIVE COMPONENT ---
+import {
+  WagmiProvider,
+  createConfig,
+  http,
+  useAccount,
+  useBalance,
+  useConnect,
+  useDisconnect,
+  useReadContracts,
+  createStorage,
+} from 'wagmi';
+import { reconnect } from 'wagmi/actions';
+import { lukso, luksoTestnet } from 'viem/chains';
+import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
+import { UPGatingRequirements } from '@/types/gating';
+import { lsp26Registry } from '@/lib/lsp26';
+import { erc20Abi, erc721Abi } from 'viem';
+// --- END NEW WAGMI IMPORTS ---
+
 // Ensure categories are registered when this module loads
 ensureCategoriesRegistered();
+
+// --- START NEW WAGMI CONFIG & MANAGER ---
+const noopStorage = {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getItem: (_key: string): string | null => null,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setItem: (_key: string, _value: string): void => {},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  removeItem: (_key: string): void => {},
+};
+
+const upConfig = createConfig({
+  chains: [lukso, luksoTestnet],
+  connectors: [universalProfileConnector()],
+  storage: createStorage({
+    storage: typeof window !== 'undefined' ? window.localStorage : noopStorage,
+    key: 'wagmi_up_live', // Use a different key than preview
+  }),
+  transports: {
+    [lukso.id]: http(),
+    [luksoTestnet.id]: http(),
+  },
+});
+
+interface UPConnectionManagerForPanelProps {
+  requirements: UPGatingRequirements;
+  onVerificationComplete: () => void;
+  postId: number;
+}
+
+const UPConnectionManagerForPanel: React.FC<UPConnectionManagerForPanelProps> = ({ requirements, postId, onVerificationComplete }) => {
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { address, isConnected, status } = useAccount();
+  const { data: balance } = useBalance({ address });
+
+  // Reconnect on mount
+  useEffect(() => {
+    reconnect(upConfig);
+  }, []);
+
+  // Fetch token balances
+  const { data: tokenResults, isLoading: isLoadingTokens } = useReadContracts({
+    contracts: requirements.requiredTokens?.flatMap(token => [
+      { address: token.contractAddress as `0x{string}`, abi: erc20Abi, functionName: 'balanceOf', args: [address!] },
+      { address: token.contractAddress as `0x{string}`, abi: erc721Abi, functionName: 'balanceOf', args: [address!] }
+    ]) ?? [],
+    query: { enabled: isConnected && !!address && (requirements.requiredTokens?.length ?? 0) > 0 }
+  });
+
+  // Fetch follower statuses
+  const [followerStatus, setFollowerStatus] = useState<Record<string, boolean>>({});
+  const [isLoadingFollowers, setIsLoadingFollowers] = useState(false);
+
+  useEffect(() => {
+    const fetchFollowers = async () => {
+      if (!isConnected || !address || !requirements.followerRequirements?.length) {
+        setFollowerStatus({});
+        return;
+      }
+      setIsLoadingFollowers(true);
+      const newStatus: Record<string, boolean> = {};
+      for (const req of requirements.followerRequirements) {
+        const key = `${req.type}-${req.value}`;
+        try {
+          if (req.type === 'minimum_followers') {
+            const count = await lsp26Registry.getFollowerCount(address);
+            newStatus[key] = count >= parseInt(req.value);
+          } else if (req.type === 'followed_by') {
+            newStatus[key] = await lsp26Registry.isFollowing(req.value, address);
+          } else if (req.type === 'following') {
+            newStatus[key] = await lsp26Registry.isFollowing(address, req.value);
+          }
+        } catch (e) {
+          console.error(`Failed to check follower status for ${key}`, e);
+          newStatus[key] = false;
+        }
+      }
+      setFollowerStatus(newStatus);
+      setIsLoadingFollowers(false);
+    };
+    fetchFollowers();
+  }, [isConnected, address, requirements.followerRequirements]);
+
+  const renderer = ensureRegistered('universal_profile');
+
+  const handleConnect = async (event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (isConnected || status === 'connecting' || status === 'reconnecting') return;
+    const upConnector = connectors.find(c => c.id === 'universalProfile');
+    if (upConnector) connect({ connector: upConnector });
+  };
+
+  const userStatus: VerificationStatus = {
+    connected: isConnected,
+    verified: false,
+    requirements: [],
+    address: address,
+    upAddress: address,
+    lyxBalance: balance?.value,
+    tokenBalances: tokenResults,
+    followerStatus: followerStatus,
+  };
+
+  return renderer.renderConnection({
+    requirements,
+    onConnect: handleConnect,
+    onDisconnect: disconnect,
+    userStatus,
+    disabled: status === 'connecting' || status === 'reconnecting' || isLoadingTokens || isLoadingFollowers,
+    postId: postId,
+    isPreviewMode: false,
+    onVerificationComplete: onVerificationComplete,
+  });
+};
+// --- END NEW WAGMI CONFIG & MANAGER ---
 
 interface GatingRequirementsPanelProps {
   postId: number;
@@ -62,8 +198,6 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   
   // ===== PROFILE CONTEXTS =====
   
-  const universalProfile = useConditionalUniversalProfile();
-  const upActivation = useUPActivation();
   const ethereumProfile = useEthereumProfile();
   
   // ===== LOCAL STATE =====
@@ -91,35 +225,6 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
       }
     }
   }, [gatingData?.categories, expandedCategory]);
-  
-  // ===== UP ACTIVATION LOGIC =====
-  
-  // Activate Universal Profile when UP gating is detected
-  React.useEffect(() => {
-    if (gatingData?.categories) {
-      const hasUPCategory = gatingData.categories.some(cat => 
-        cat.enabled && cat.type === 'universal_profile'
-      );
-      
-      if (hasUPCategory) {
-        console.log('[GatingRequirementsPanel] UP gating detected, activating UP functionality');
-        upActivation.activateUP();
-      }
-    }
-  }, [gatingData?.categories, upActivation]);
-  
-  // Auto-trigger UP connection once Web3-Onboard is initialized
-  React.useEffect(() => {
-    if (upActivation.hasUserTriggeredConnection && 
-        universalProfile?.isInitialized && 
-        !universalProfile?.isConnected && 
-        !universalProfile?.isConnecting) {
-      console.log('[GatingRequirementsPanel] Web3-Onboard initialized, auto-triggering UP connection');
-      universalProfile.connect().catch((error) => {
-        console.error('[GatingRequirementsPanel] Auto-connection failed:', error);
-      });
-    }
-  }, [upActivation.hasUserTriggeredConnection, universalProfile?.isInitialized, universalProfile?.isConnected, universalProfile?.isConnecting, universalProfile]);
   
   // ===== PARENT NOTIFICATION =====
   
@@ -170,88 +275,41 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
           <div className="border-t bg-muted/20">
             <div className="p-4">
               {(() => {
-                const renderer = ensureRegistered(category.type);
-                
-                // Create VerificationStatus based on actual connection state
-                const mockUserStatus: VerificationStatus = (() => {
-                  if (category.type === 'universal_profile') {
-                    return {
-                      connected: universalProfile?.isConnected || false,
-                      verified: category.verificationStatus === 'verified',
-                      requirements: []
-                    };
-                  } else if (category.type === 'ethereum_profile') {
-                    return {
+                if (category.type === 'universal_profile') {
+                  return (
+                    <WagmiProvider config={upConfig}>
+                      <UPConnectionManagerForPanel
+                        requirements={category.requirements as UPGatingRequirements}
+                        postId={postId}
+                        onVerificationComplete={() => invalidateVerificationStatus(postId)}
+                      />
+                    </WagmiProvider>
+                  );
+                }
+
+                if (category.type === 'ethereum_profile') {
+                  const renderer = ensureRegistered(category.type);
+                  return renderer.renderConnection({
+                    requirements: category.requirements,
+                    onConnect: ethereumProfile?.connect,
+                    onDisconnect: ethereumProfile?.disconnect,
+                    userStatus: {
                       connected: ethereumProfile?.isConnected || false,
                       verified: category.verificationStatus === 'verified',
-                      requirements: []
-                    };
-                  } else {
-                    return {
-                      connected: category.verificationStatus !== 'not_started',
-                      verified: category.verificationStatus === 'verified',
-                      requirements: []
-                    };
-                  }
-                })();
+                      requirements: [],
+                    },
+                    disabled: false,
+                    postId: postId,
+                    onVerificationComplete: () => invalidateVerificationStatus(postId),
+                  });
+                }
 
-                // Real connection handlers based on category type
-                const handleConnect = async () => {
-                  console.log(`[GatingRequirementsPanel] Connect triggered for ${category.type}`);
-                  
-                  try {
-                    if (category.type === 'universal_profile') {
-                      // Only initialize UP context - actual connection handled by effect
-                      console.log('[GatingRequirementsPanel] Initializing Universal Profile connection...');
-                      upActivation.initializeConnection();
-                    } else if (category.type === 'ethereum_profile') {
-                      // Use Ethereum Profile connection directly (no timing issues)
-                      if (ethereumProfile?.connect) {
-                        await ethereumProfile.connect();
-                      } else {
-                        console.warn('[GatingRequirementsPanel] Ethereum Profile context not available');
-                      }
-                    } else {
-                      console.warn(`[GatingRequirementsPanel] Unknown category type: ${category.type}`);
-                    }
-                  } catch (error) {
-                    console.error(`[GatingRequirementsPanel] Connection failed for ${category.type}:`, error);
-                  }
-                };
-
-                const handleDisconnect = () => {
-                  console.log(`[GatingRequirementsPanel] Disconnect triggered for ${category.type}`);
-                  
-                  try {
-                    if (category.type === 'universal_profile') {
-                      // Use Universal Profile disconnection
-                      if (universalProfile?.disconnect) {
-                        universalProfile.disconnect();
-                      }
-                    } else if (category.type === 'ethereum_profile') {
-                      // Use Ethereum Profile disconnection
-                      if (ethereumProfile?.disconnect) {
-                        ethereumProfile.disconnect();
-                      }
-                    }
-                  } catch (error) {
-                    console.error(`[GatingRequirementsPanel] Disconnection failed for ${category.type}:`, error);
-                  }
-                };
-
-                // Use the category renderer for connection UI
-                return renderer.renderConnection({
-                  requirements: category.requirements,
-                  onConnect: handleConnect,
-                  onDisconnect: handleDisconnect,
-                  userStatus: mockUserStatus,
-                  disabled: false,
-                  postId: postId,
-                  onVerificationComplete: () => {
-                    console.log(`[GatingRequirementsPanel] Verification completed for ${category.type}, invalidating cache`);
-                    invalidateVerificationStatus(postId);
-                  }
-                });
+                // Fallback for other category types if any
+                return (
+                  <div className="text-sm text-muted-foreground">
+                    Live verification for this category type is not available.
+                  </div>
+                );
               })()}
             </div>
           </div>
