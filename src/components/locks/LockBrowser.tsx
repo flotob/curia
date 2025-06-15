@@ -7,13 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Search, 
-  Plus, 
+  Clock, 
+  Users, 
+  TrendingUp,
   Grid3X3, 
   List, 
-  Users, 
   Star,
-  Clock,
-  TrendingUp,
   Loader2
 } from 'lucide-react';
 import { LockWithStats } from '@/types/locks';
@@ -23,7 +22,6 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface LockBrowserProps {
   onSelectLock?: (lock: LockWithStats) => void; // Optional - if provided, uses callback mode
-  onCreateNew?: () => void;
   selectedLockId?: number; // For highlighting selected lock in callback mode
   className?: string;
 }
@@ -41,7 +39,6 @@ interface LockFilters {
 
 export const LockBrowser: React.FC<LockBrowserProps> = ({
   onSelectLock,
-  onCreateNew,
   selectedLockId,
   className = ''
 }) => {
@@ -210,13 +207,6 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
             Choose an existing lock or create a new one
           </p>
         </div>
-        
-        {onCreateNew && (
-          <Button onClick={onCreateNew} className="flex items-center space-x-2">
-            <Plus className="h-4 w-4" />
-            <span>Create New Lock</span>
-          </Button>
-        )}
       </div>
       
       {/* Search and Controls */}
@@ -342,13 +332,25 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
             <p className="text-sm text-muted-foreground text-center mb-4">
               {filters.search.trim() || filters.filter !== 'all' 
                 ? 'Try adjusting your search or filters' 
-                : 'Create your first lock to get started'}
+                : 'No locks available yet'}
             </p>
-            {onCreateNew && (
-              <Button onClick={onCreateNew} variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Lock
-              </Button>
+            {(!filters.search.trim() && filters.filter === 'all') && (
+              <div className="text-center space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Create reusable locks on the dedicated{' '}
+                  <a 
+                    href="/locks" 
+                    className="text-primary hover:underline font-medium"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Locks page
+                  </a>
+                </p>
+                <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 max-w-sm">
+                  💡 <strong>Tip:</strong> Create locks once, reuse them across multiple posts for consistent gating
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

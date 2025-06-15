@@ -7,18 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Lock, 
   Unlock, 
-  Settings, 
   Sparkles, 
   Clock,
-  ChevronDown,
-  ChevronUp,
   X,
   Check
 } from 'lucide-react';
 import { LockWithStats } from '@/types/locks';
 import { LockBrowser } from './LockBrowser';
 import { PostSettings } from '@/types/settings';
-import { PostGatingControls } from '@/components/posting/PostGatingControls';
 import { cn } from '@/lib/utils';
 
 interface PostGatingSelectorProps {
@@ -28,7 +24,7 @@ interface PostGatingSelectorProps {
   className?: string;
 }
 
-type SelectionMode = 'none' | 'browse_locks' | 'create_custom';
+type SelectionMode = 'none' | 'browse_locks';
 
 export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
   settings,
@@ -38,7 +34,6 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
 }) => {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('none');
   const [selectedLock, setSelectedLock] = useState<LockWithStats | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   
   // Determine current gating state
   const hasGating = settings.responsePermissions?.categories && 
@@ -46,10 +41,7 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
   const currentLockId = (settings as unknown as { lockId?: number }).lockId; // From potential lock_id field
   
   useEffect(() => {
-    // If we have gating but no lock ID, we're in custom mode
-    if (hasGating && !currentLockId) {
-      setSelectionMode('create_custom');
-    } else if (currentLockId) {
+    if (currentLockId) {
       setSelectionMode('browse_locks');
     } else {
       setSelectionMode('none');
@@ -71,7 +63,6 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
     
     onChange(newSettings);
     setSelectionMode('browse_locks');
-    setIsExpanded(false);
   };
   
   // Handle removing gating
@@ -88,58 +79,7 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
     onChange(newSettings);
     setSelectedLock(null);
     setSelectionMode('none');
-    setIsExpanded(false);
   };
-  
-  // Handle creating custom gating
-  const handleCreateCustom = () => {
-    setSelectionMode('create_custom');
-    setSelectedLock(null);
-    
-    // Remove lock ID since we're creating custom gating
-    const newSettings = { ...settings };
-    const extendedNewSettings = newSettings as unknown as { lockId?: number };
-    delete extendedNewSettings.lockId;
-    onChange(newSettings);
-    
-    setIsExpanded(true);
-  };
-  
-  // Save current gating as a new lock
-  const handleSaveAsLock = async () => {
-    if (!hasGating || !settings.responsePermissions) return;
-    
-    // TODO: Implement lock creation API call
-    // This would open a dialog to name and save the lock
-    console.log('[PostGatingSelector] Save as lock feature coming soon...');
-  };
-  
-  // Get current gating summary for display
-  const getGatingSummary = () => {
-    if (!hasGating || !settings.responsePermissions?.categories) {
-      return null;
-    }
-    
-    const categories = settings.responsePermissions.categories;
-    const categoryTypes = categories.map(cat => {
-      switch (cat.type) {
-        case 'universal_profile':
-          return 'Universal Profile';
-        case 'ethereum_profile':
-          return 'Ethereum';
-        default:
-          return 'Custom';
-      }
-    });
-    
-    return {
-      count: categories.length,
-      types: categoryTypes,
-      isMultiple: categories.length > 1
-    };
-  };
-  
-  const gatingSummary = getGatingSummary();
   
   return (
     <div className={cn('space-y-4', className)}>
@@ -174,15 +114,6 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
                 >
                   <Lock className="h-4 w-4 mr-2" />
                   Choose Lock
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleCreateCustom}
-                  disabled={disabled}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Custom Gating
                 </Button>
               </div>
             </div>
@@ -250,83 +181,6 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
               </div>
             </div>
           )}
-          
-          {/* Custom Gating State */}
-          {selectionMode === 'create_custom' && gatingSummary && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
-                    <Settings className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Custom Gating</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {gatingSummary.count} requirement{gatingSummary.count !== 1 ? 's' : ''} 
-                      ({gatingSummary.types.join(', ')})
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleSaveAsLock}
-                    disabled={disabled}
-                  >
-                    Save as Lock
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    disabled={disabled}
-                  >
-                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={handleRemoveGating}
-                    disabled={disabled}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Expandable Custom Configuration */}
-              {isExpanded && (
-                <div className="pt-3 border-t">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium">Configure Custom Gating</h4>
-                      <div className="text-xs text-muted-foreground">
-                        Create your own gating rules
-                      </div>
-                    </div>
-                    
-                    {/* Integrate existing PostGatingControls for backward compatibility */}
-                    <PostGatingControls
-                      value={settings.responsePermissions}
-                      onChange={(responsePermissions) => {
-                        const newSettings = {
-                          ...settings,
-                          responsePermissions
-                        };
-                        // Remove lockId when using custom gating
-                        const extendedSettings = newSettings as unknown as { lockId?: number };
-                        delete extendedSettings.lockId;
-                        onChange(newSettings);
-                      }}
-                      disabled={disabled}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
       
@@ -349,7 +203,6 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
           <CardContent>
             <LockBrowser
               onSelectLock={handleLockSelect}
-              onCreateNew={handleCreateCustom}
               selectedLockId={currentLockId}
             />
           </CardContent>
