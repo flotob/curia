@@ -638,7 +638,33 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         {userStatus.connected && (
           <div className="text-xs">
             {(() => {
-              const allMet = userStatus.verified;
+              // Calculate if all requirements are actually met based on individual checks
+              const requirementChecks = [];
+              
+              // Check LYX balance requirement
+              if (lyxVerification) {
+                requirementChecks.push(lyxVerification.meetsRequirement);
+              }
+              
+              // Check token requirements
+              if (requirements.requiredTokens) {
+                requirements.requiredTokens.forEach(token => {
+                  const tokenData = tokenVerifications[token.contractAddress];
+                  requirementChecks.push(tokenData?.meetsRequirement || false);
+                });
+              }
+              
+              // Check follower requirements
+              if (requirements.followerRequirements) {
+                requirements.followerRequirements.forEach(follower => {
+                  const key = `${follower.type}-${follower.value}`;
+                  const reqData = followerVerifications[key];
+                  requirementChecks.push(reqData?.status || false);
+                });
+              }
+              
+              // All requirements must be met
+              const allMet = requirementChecks.length > 0 && requirementChecks.every(met => met === true);
               
               if (allMet) {
                 return (
