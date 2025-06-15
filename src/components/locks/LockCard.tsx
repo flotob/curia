@@ -127,7 +127,7 @@ export const LockCard: React.FC<LockCardProps> = ({
     return (
       <Card 
         className={cn(
-          'cursor-pointer transition-all hover:shadow-md',
+          'cursor-pointer transition-all hover:shadow-md min-w-0',
           isSelected && 'ring-2 ring-primary bg-primary/5',
           className
         )}
@@ -150,7 +150,7 @@ export const LockCard: React.FC<LockCardProps> = ({
               {/* Main Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2 mb-1">
-                  <h3 className="font-medium truncate flex-1 min-w-0" title={lock.name}>{lock.name}</h3>
+                  <h3 className="font-semibold tracking-tight truncate" title={lock.name}>{lock.name}</h3>
                   <div className="flex items-center space-x-1 flex-shrink-0">
                     {lock.isTemplate && <Star className="h-3 w-3 text-yellow-500" />}
                     {lock.isPublic && <Globe className="h-3 w-3 text-green-500" />}
@@ -158,7 +158,7 @@ export const LockCard: React.FC<LockCardProps> = ({
                   </div>
                 </div>
                 
-                <p className="text-sm text-muted-foreground truncate">{requirementsSummary}</p>
+                <p className="text-sm text-muted-foreground truncate" title={requirementsSummary}>{requirementsSummary}</p>
                 
                 <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
                   <div className="flex items-center space-x-1">
@@ -201,7 +201,7 @@ export const LockCard: React.FC<LockCardProps> = ({
   return (
     <Card 
       className={cn(
-        'cursor-pointer transition-all hover:shadow-md',
+        'cursor-pointer transition-all hover:shadow-md min-w-0',
         isSelected && 'ring-2 ring-primary bg-primary/5',
         className
       )}
@@ -209,7 +209,7 @@ export const LockCard: React.FC<LockCardProps> = ({
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 min-w-0">
             <div 
               className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0',
@@ -222,7 +222,7 @@ export const LockCard: React.FC<LockCardProps> = ({
             
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-2">
-                <CardTitle className="text-sm truncate flex-1 min-w-0" title={lock.name}>{lock.name}</CardTitle>
+                <CardTitle className="text-sm font-semibold tracking-tight truncate" title={lock.name}>{lock.name}</CardTitle>
                 {isSelected && <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />}
               </div>
               
@@ -256,7 +256,7 @@ export const LockCard: React.FC<LockCardProps> = ({
         {/* Requirements Summary */}
         <div className="mb-3">
           <p className="text-sm font-medium mb-1">Requirements:</p>
-          <p className="text-xs text-muted-foreground">{requirementsSummary}</p>
+          <p className="text-xs text-muted-foreground truncate" title={requirementsSummary}>{requirementsSummary}</p>
         </div>
         
         {/* Category Types */}
