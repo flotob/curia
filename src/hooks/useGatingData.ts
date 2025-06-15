@@ -119,9 +119,15 @@ export function useInvalidateVerificationStatus() {
   const queryClient = useQueryClient();
   
   return (postId: number) => {
-    queryClient.invalidateQueries({ 
+    // Invalidate both verification-status and gating-requirements to ensure
+    // rich headers refresh immediately with verifiedAt / expiresAt values.
+    queryClient.invalidateQueries({
       queryKey: ['verification-status', postId],
-      exact: true 
+      exact: true,
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['gating-requirements', postId],
+      exact: true,
     });
   };
 } 

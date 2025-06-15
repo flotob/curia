@@ -20,8 +20,9 @@ import {
 } from '@/types/gating';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { authFetchJson } from '@/utils/authFetch';
-import { VerificationChallenge } from '@/lib/verification/types';
+import { authFetch } from '@/utils/authFetch';
+import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
+// import { VerificationChallenge } from '@/lib/verification/types';
 import { Loader2, CheckCircle, AlertTriangle, Coins, Users, UserCheck, ChevronDown, ChevronUp, Shield, Plus, X, Search } from 'lucide-react';
 
 import { ethers } from 'ethers';
@@ -295,7 +296,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   // ===== HOOKS =====
 
   const { token } = useAuth();
-  // const invalidateVerificationStatus = useInvalidateVerificationStatus();
+  const invalidateVerificationStatus = useInvalidateVerificationStatus();
   // Removed useConditionalUniversalProfile as wagmi hooks now provide the state
 
   // ===== STATE =====
@@ -336,22 +337,79 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     try {
       console.log(`[UPConnectionComponent] Starting verification for post ${targetPostId}`);
 
-      // Generate challenge
-      await authFetchJson<{
-        challenge: VerificationChallenge;
-        message: string;
-      }>(`/api/posts/${targetPostId}/challenge`, {
-        method: 'POST',
-        token,
-        body: JSON.stringify({ upAddress: userStatus.upAddress }),
+      // Create challenge for Universal Profile
+      const challenge = {
+        type: 'universal_profile' as const,
+        nonce: crypto.randomUUID().replace(/-/g, ''),
+        timestamp: Date.now(),
+        postId: targetPostId,
+        upAddress: userStatus.upAddress,
+        address: userStatus.upAddress,
+        chainId: 42, // LUKSO mainnet
+      };
+
+      // Create signing message
+      const message = `Verify access to post ${targetPostId} on LUKSO mainnet
+
+Universal Profile: ${userStatus.upAddress}
+Chain ID: 42
+Timestamp: ${challenge.timestamp}
+Nonce: ${challenge.nonce}
+
+This signature proves you control this Universal Profile and grants access to comment on this gated post.`;
+
+      // Sign the message using window.lukso directly
+      if (!window.lukso) {
+        throw new Error('Universal Profile extension not available');
+      }
+
+      console.log('[UPConnectionComponent] Requesting signature from UP extension...');
+      const signature = await window.lukso.request({
+        method: 'personal_sign',
+        params: [message, userStatus.upAddress],
       });
 
-      // Signing is now handled by the wagmi connector, but we need a provider instance
-      // to call it. This part of the logic needs to be revisited if full verification
-      // is to be triggered from here. For now, we focus on the preview display.
-      // const signature = await ...;
+      // Add signature to challenge
+      const signedChallenge = {
+        ...challenge,
+        signature,
+        message
+      };
 
-      throw new Error('Signing and backend verification from here is not yet implemented with the new connector.');
+      console.log('[UPConnectionComponent] Signature received, submitting to server...');
+
+      // Submit to pre-verification API
+      const response = await authFetch(`/api/posts/${targetPostId}/pre-verify/universal_profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          challenge: signedChallenge
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server returned ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('[UPConnectionComponent] Server verification result:', result);
+
+      if (result.success) {
+        console.log('[UPConnectionComponent] ✅ Verification successful!');
+        setVerificationState('success_pending');
+        
+        // Add small delay to ensure database transaction is committed before invalidating cache
+        setTimeout(() => {
+          invalidateVerificationStatus(targetPostId);
+        }, 100);
+        
+        return true;
+      } else {
+        throw new Error(result.error || 'Verification failed');
+      }
 
     } catch (err) {
       console.error('[UPConnectionComponent] Verification error:', err);
@@ -368,7 +426,7 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     } finally {
       setIsVerifying(false);
     }
-  }, [userStatus, token, postId, isPreviewMode]);
+  }, [userStatus, token, postId, isPreviewMode, invalidateVerificationStatus]);
 
 
   // ===== BUILD RICH PREVIEW DATA =====
