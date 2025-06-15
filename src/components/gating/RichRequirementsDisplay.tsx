@@ -11,7 +11,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,8 +30,9 @@ import {
 import { ethers } from 'ethers';
 
 import { UPGatingRequirements, VerificationStatus } from '@/types/gating';
-import { getUPTokenMetadata, batchGetUPSocialProfiles, UPSocialProfile, UPTokenMetadata } from '@/lib/upProfile';
 import { lsp26Registry } from '@/lib/lsp26';
+import { useUPSocialProfiles } from '@/hooks/useUPSocialProfiles';
+import { useUPTokenMetadata } from '@/hooks/useUPTokenMetadata';
 
 // ===== TYPES =====
 
@@ -67,30 +68,8 @@ export interface RichRequirementsDisplayProps {
   isPreviewMode?: boolean;
 }
 
-interface RequirementVerificationState {
-  // LYX Balance
-  lyxBalance?: {
-    userBalance: string;
-    formattedBalance: string;
-    meetsRequirement: boolean;
-    isLoading: boolean;
-    error?: string;
-  };
-  
-  // Token Requirements
-  tokenBalances: Record<string, {
-    balance: string;
-    formattedBalance: string;
-    decimals?: number;
-    name?: string;
-    symbol?: string;
-    iconUrl?: string;
-    meetsRequirement: boolean;
-    isLoading: boolean;
-    error?: string;
-  }>;
-  
-  // Follower Requirements
+// Simplified state - only for follower counts (user-specific data)
+interface FollowerVerificationState {
   followerVerifications: Record<string, {
     type: 'minimum_followers' | 'followed_by' | 'following';
     value: string;
@@ -99,14 +78,6 @@ interface RequirementVerificationState {
     isLoading: boolean;
     error?: string;
   }>;
-  
-  // Social Profiles (for display)
-  socialProfiles: Record<string, UPSocialProfile>;
-  isLoadingSocialProfiles: boolean;
-
-  // Token Metadata (for display)
-  tokenMetadata: Record<string, UPTokenMetadata>;
-  isLoadingTokenMetadata: boolean;
 }
 
 // ===== MAIN COMPONENT =====
@@ -122,86 +93,41 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   isPreviewMode = false
 }) => {
   
-  // Debug logging removed - issue resolved
+  // ===== REACT QUERY DATA FETCHING =====
   
-  // ===== STATE =====
-  
-  const [verificationState, setVerificationState] = useState<RequirementVerificationState>({
-    tokenBalances: {},
-    followerVerifications: {},
-    socialProfiles: {},
-    isLoadingSocialProfiles: false,
-    tokenMetadata: {},
-    isLoadingTokenMetadata: false,
-  });
-
-  // ===== METADATA FETCHING =====
-  
-  const fetchMetadata = useCallback(async (requirements: UPGatingRequirements, userAddress?: string) => {
-    const addressesToFetch: string[] = [];
-    const tokensToFetch: string[] = [];
-
-    // Use a Set to avoid duplicate fetches
-    const seenAddresses = new Set(Object.keys(verificationState.socialProfiles));
-    const seenTokens = new Set(Object.keys(verificationState.tokenMetadata));
-
-    // Gather follower profile addresses
+  // Get all addresses we need profiles for
+  const profileAddresses = useMemo(() => {
+    const addresses: string[] = [];
+    
+    // Add follower requirement addresses (except minimum_followers which are just counts)
     if (requirements.followerRequirements) {
       requirements.followerRequirements
-        .filter(req => req.type !== 'minimum_followers' && !seenAddresses.has(req.value))
-        .forEach(req => {
-          addressesToFetch.push(req.value);
-          seenAddresses.add(req.value); // Add to set to prevent re-adding
-        });
-    }
-    if (userAddress && !seenAddresses.has(userAddress)) {
-      addressesToFetch.push(userAddress);
+        .filter(req => req.type !== 'minimum_followers')
+        .forEach(req => addresses.push(req.value));
     }
     
-    // Gather token contract addresses
-    if (requirements.requiredTokens) {
-      requirements.requiredTokens
-        .filter(token => !seenTokens.has(token.contractAddress))
-        .forEach(token => tokensToFetch.push(token.contractAddress));
+    // Add connected user address
+    if (userStatus.address) {
+      addresses.push(userStatus.address);
     }
-
-    if (addressesToFetch.length === 0 && tokensToFetch.length === 0) return;
-
-    setVerificationState(prev => ({ 
-      ...prev, 
-      isLoadingSocialProfiles: addressesToFetch.length > 0,
-      isLoadingTokenMetadata: tokensToFetch.length > 0
-    }));
-
-    // Perform fetches in parallel
-    const [profileResults, tokenResults] = await Promise.all([
-      addressesToFetch.length > 0 ? batchGetUPSocialProfiles(addressesToFetch) : Promise.resolve({}),
-      tokensToFetch.length > 0 ? Promise.all(tokensToFetch.map(async addr => ({
-        address: addr,
-        meta: await getUPTokenMetadata(addr)
-      }))) : Promise.resolve([])
-    ]);
     
-    const newProfiles: Record<string, UPSocialProfile> = profileResults;
-    const newTokens: Record<string, UPTokenMetadata> = {};
-    tokenResults.forEach((res: { address: string; meta: UPTokenMetadata }) => {
-      newTokens[res.address] = res.meta;
-    });
+    return [...new Set(addresses)]; // Remove duplicates
+  }, [requirements.followerRequirements, userStatus.address]);
 
-    setVerificationState(prev => ({
-      ...prev,
-      socialProfiles: { ...prev.socialProfiles, ...newProfiles },
-      tokenMetadata: { ...prev.tokenMetadata, ...newTokens },
-      isLoadingSocialProfiles: false,
-      isLoadingTokenMetadata: false,
-    }));
+  // Get all token addresses we need metadata for
+  const tokenAddresses = useMemo(() => 
+    requirements.requiredTokens?.map(t => t.contractAddress) || []
+  , [requirements.requiredTokens]);
 
-  }, [verificationState.socialProfiles, verificationState.tokenMetadata]);
+  // Fetch profiles & token metadata with custom hooks
+  const { data: socialProfiles = {}, isLoading: isLoadingSocialProfiles } = useUPSocialProfiles(profileAddresses);
 
-  // Trigger metadata fetch when requirements or user changes
-  useEffect(() => {
-    fetchMetadata(requirements, userStatus.address);
-  }, [requirements, userStatus.address, fetchMetadata]);
+  const { data: tokenMetadata = {}, isLoading: isLoadingTokenMetadata } = useUPTokenMetadata(tokenAddresses);
+
+  // ===== FOLLOWER COUNT STATE (user-specific, can't be cached globally) =====
+  const [followerState, setFollowerState] = useState<FollowerVerificationState>({
+    followerVerifications: {},
+  });
 
   // ===== FOLLOWER COUNT FETCHING =====
   useEffect(() => {
@@ -214,7 +140,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
 
       try {
         const count = await lsp26Registry.getFollowerCount(userStatus.address);
-        setVerificationState(prev => {
+        setFollowerState(prev => {
           const updatedFollowerVerifications = { ...prev.followerVerifications };
           minFollowerReqs.forEach(r => {
             const key = `${r.type}-${r.value}`;
@@ -322,7 +248,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   if (requirements.requiredTokens) {
     requirements.requiredTokens.forEach(token => {
       const tokenData = userStatus.balances?.tokens?.[token.contractAddress];
-      const metadata = verificationState.tokenMetadata[token.contractAddress];
+      const metadata = tokenMetadata[token.contractAddress.toLowerCase()];
       tokenVerifications[token.contractAddress] = {
         balance: tokenData?.raw || '0',
         formattedBalance: tokenData?.formatted || '0',
@@ -332,7 +258,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         iconUrl: metadata?.iconUrl,
         meetsRequirement: tokenData ? 
           ethers.BigNumber.from(tokenData.raw).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
-        isLoading: verificationState.isLoadingTokenMetadata && !metadata
+        isLoading: isLoadingTokenMetadata && !metadata
       };
     });
   }
@@ -350,7 +276,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
     requirements.followerRequirements.forEach(follower => {
       const key = `${follower.type}-${follower.value}`;
       // Prefer locally fetched verification state (e.g., follower counts) if available
-      const localData = verificationState.followerVerifications[key];
+      const localData = followerState.followerVerifications[key];
       followerVerifications[key] = {
         type: follower.type,
         value: follower.value,
@@ -382,7 +308,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
           {userStatus.connected && userStatus.address && (
             <div className="flex items-center space-x-2">
               {(() => {
-                const connectedProfile = verificationState.socialProfiles[userStatus.address!];
+                const connectedProfile = socialProfiles[userStatus.address!.toLowerCase()];
                 return connectedProfile ? (
                   <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                     {/* Profile Picture */}
@@ -430,7 +356,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                 ) : (
                   <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                     {/* Loading or fallback */}
-                    {verificationState.isLoadingSocialProfiles ? (
+                    {isLoadingSocialProfiles ? (
                       <>
                         <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
                         <div className="flex-1">
@@ -591,7 +517,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                   );
                 } else {
                   // Address-based requirement with social profile
-                  const socialProfile = verificationState.socialProfiles[followerReq.value];
+                  const socialProfile = socialProfiles[followerReq.value.toLowerCase()];
                   const iconClass = followerReq.type === 'followed_by'
                     ? 'text-green-600 dark:text-green-400'
                     : 'text-blue-600 dark:text-blue-400';
@@ -638,7 +564,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                                   </span>
                                 </div>
                               </div>
-                            ) : verificationState.isLoadingSocialProfiles ? (
+                            ) : isLoadingSocialProfiles ? (
                               <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
                                 <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />

@@ -3,8 +3,9 @@ import LSP3ProfileSchema from '@erc725/erc725.js/schemas/LSP3ProfileMetadata.jso
 import { ethers } from 'ethers';
 
 // LUKSO RPC endpoint
-const getLuksoRpcUrl = (): string => {
-  return process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+const getLuksoRpcUrls = (): string[] => {
+  const urls = (process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network,https://rpc.lukso.gateway.fm,https://42.rpc.thirdweb.com').split(',');
+  return urls.map(url => url.trim());
 };
 
 export interface LSP3Image {
@@ -78,12 +79,65 @@ const resolveIpfsUrl = (url: string): string => {
  * Enhanced with social profile features and caching
  */
 export class UPProfileFetcher {
-  private rpcUrl: string;
+  private rpcUrls: string[];
   private profileCache = new Map<string, { profile: UPSocialProfile; expiry: number }>();
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+  private sharedProvider: ethers.providers.JsonRpcProvider | null = null;
+  private providerPromise: Promise<ethers.providers.JsonRpcProvider> | null = null;
 
   constructor() {
-    this.rpcUrl = getLuksoRpcUrl();
+    this.rpcUrls = getLuksoRpcUrls();
+    console.log(`[UPProfileFetcher] Initialized with ${this.rpcUrls.length} RPC endpoints.`);
+  }
+
+  /**
+   * Create a provider with retry logic across multiple RPC endpoints
+   * Now shared across all requests to prevent provider creation storms
+   */
+  private async createProviderWithRetry(): Promise<ethers.providers.JsonRpcProvider> {
+    // If we already have a working provider, return it
+    if (this.sharedProvider) {
+      return this.sharedProvider;
+    }
+
+    // If a provider creation is already in progress, wait for it
+    if (this.providerPromise) {
+      return this.providerPromise;
+    }
+
+    // Start provider creation
+    this.providerPromise = this.doCreateProvider();
+    
+    try {
+      this.sharedProvider = await this.providerPromise;
+      return this.sharedProvider;
+    } finally {
+      this.providerPromise = null;
+    }
+  }
+
+  private async doCreateProvider(): Promise<ethers.providers.JsonRpcProvider> {
+    for (const rpcUrl of this.rpcUrls) {
+      try {
+        // Simpler provider creation to let ethers auto-detect network, fixes request issue
+        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+        // Disable batching (LUKSO RPC rejects batched eth_call). See README "LUKSO RPC quirks".
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (provider as any)._maxBatchSize = 1;
+        
+        // Test the provider
+        await provider.getNetwork();
+        console.log(`[UPProfileFetcher] Successfully connected to RPC: ${rpcUrl}`);
+        return provider;
+      } catch (error) {
+        console.warn(`[UPProfileFetcher] Failed to connect to RPC ${rpcUrl}:`, error);
+        continue;
+      }
+    }
+    
+    // Fallback to first URL if all fail
+    console.warn(`[UPProfileFetcher] All RPC endpoints failed, using fallback: ${this.rpcUrls[0]}`);
+    return new ethers.providers.JsonRpcProvider(this.rpcUrls[0]);
   }
 
   /**
@@ -159,68 +213,93 @@ export class UPProfileFetcher {
 
       console.log(`[UPProfileFetcher] Fetching profile info for ${upAddress}`);
 
-      // Create a configured provider to prevent ENS lookups on LUKSO
-      const provider = new ethers.providers.JsonRpcProvider(this.rpcUrl, {
-        name: 'lukso',
-        chainId: 42,
-        ensAddress: undefined, // Explicitly disable ENS
-      });
-
-      // Create ERC725 instance with the configured provider
-      const erc725 = new ERC725(
-        LSP3ProfileSchema,
-        upAddress,
-        provider,
-        {
-          ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
-        }
-      );
+      // Create a robust provider with retry logic
+      const provider = await this.createProviderWithRetry();
 
       try {
-        // Fetch LSP3Profile metadata piece by piece for robustness
-        const [nameData, descriptionData, profileImageData, backgroundImageData, tagsData, linksData] = await erc725.getData([
-          'LSP3ProfileName',
-          'LSP3ProfileDescription',
-          'LSP3ProfileImage',
-          'LSP3ProfileBackgroundImage',
-          'LSP3ProfileTags',
-          'LSP3ProfileLinks',
-        ]);
+        // --- DIRECT ERC725Y getData CALL (avoids RPC batch) ---
+        const ER725Y_ABI = ['function getData(bytes32) view returns (bytes)'];
+        const upContract = new ethers.Contract(upAddress, ER725Y_ABI, provider);
+        const LSP3_PROFILE_KEY = '0x5ef83ad9559033e6e941db7d7c495acdce616347d28e90c7ce47cbfcfcad3bc5';
 
-        const metadata: UPProfileMetadata = {
-          name: typeof nameData?.value === 'string' ? nameData.value : undefined,
-          description: typeof descriptionData?.value === 'string' ? descriptionData.value : undefined,
-          profileImage: Array.isArray(profileImageData?.value) ? profileImageData.value as unknown as LSP3Image[] : undefined,
-          backgroundImage: Array.isArray(backgroundImageData?.value) ? backgroundImageData.value as unknown as LSP3Image[] : undefined,
-          tags: Array.isArray(tagsData?.value) ? tagsData.value as unknown as string[] : undefined,
-          links: Array.isArray(linksData?.value) ? linksData.value as unknown as LSP3Link[] : undefined,
-        };
-        
-        console.log(`[UPProfileFetcher] Successfully fetched profile data for ${upAddress}:`, metadata);
+        const rawBytes: string = await upContract.getData(LSP3_PROFILE_KEY).catch(() => '0x');
+        if (rawBytes === '0x') {
+          console.log(`[UPProfileFetcher] LSP3Profile empty for ${upAddress}`);
+          return {
+            address: upAddress,
+            name: undefined,
+            description: undefined,
+            profileImage: undefined,
+          };
+        }
 
-        // Handle profileImage array - get the first valid image URL and resolve IPFS
+        // Decode JSONURL bytes via ERC725 utils to get the actual URL
+        let metadataUrl: string | undefined;
+        try {
+          const erc725Decoder = new ERC725(LSP3ProfileSchema, undefined, {
+            ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const decodedArr = (erc725Decoder as any).decodeData([
+            { key: LSP3_PROFILE_KEY, value: rawBytes },
+          ]);
+          metadataUrl = decodedArr?.[0]?.value?.url as string | undefined;
+        } catch (decodeErr) {
+          console.warn('[UPProfileFetcher] ERC725 decodeData failed, falling back to heuristic', decodeErr);
+          try {
+            const ascii = ethers.utils.toUtf8String(rawBytes).replace(/\u0000/g, '');
+            const ipfsIndex = ascii.indexOf('ipfs://');
+            const httpIndex = ascii.indexOf('https://');
+            if (ipfsIndex !== -1) {
+              metadataUrl = ascii.slice(ipfsIndex).split('\u0000')[0];
+            } else if (httpIndex !== -1) {
+              metadataUrl = ascii.slice(httpIndex).split('\u0000')[0];
+            }
+          } catch {/* ignore */}
+        }
+
+        let metadata: UPProfileMetadata = {};
+        if (metadataUrl) {
+          const resolved = resolveIpfsUrl(metadataUrl);
+          const json = await fetch(resolved).then(r => r.json()).catch(() => null);
+          if (json && json.LSP3Profile) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const lsp3 = json.LSP3Profile as any;
+            metadata = {
+              name: lsp3.name,
+              description: lsp3.description,
+              profileImage: lsp3.profileImage,
+              backgroundImage: lsp3.backgroundImage,
+              tags: lsp3.tags,
+              links: lsp3.links,
+            };
+          }
+        }
+
+        console.log(`[UPProfileFetcher] Parsed LSP3 metadata for ${upAddress}:`, metadata);
+
+        // Handle profileImage array
         let profileImageUrl: string | undefined;
         if (metadata.profileImage && Array.isArray(metadata.profileImage) && metadata.profileImage.length > 0) {
-          const profileImg = metadata.profileImage.find((img: LSP3Image) => img.url);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const profileImg = (metadata.profileImage as any[]).find((img) => img.url);
           if (profileImg) {
             profileImageUrl = resolveIpfsUrl(profileImg.url);
-            console.log(`[UPProfileFetcher] Resolved profile image URL: ${profileImageUrl}`);
           }
         }
 
-        // Handle backgroundImage array - get the first valid image URL and resolve IPFS
+        // Handle backgroundImage array
         let backgroundImageUrl: string | undefined;
         if (metadata.backgroundImage && Array.isArray(metadata.backgroundImage) && metadata.backgroundImage.length > 0) {
-          const backgroundImg = metadata.backgroundImage.find((img: LSP3Image) => img.url);
-          if (backgroundImg) {
-            backgroundImageUrl = resolveIpfsUrl(backgroundImg.url);
-            console.log(`[UPProfileFetcher] Resolved background image URL: ${backgroundImageUrl}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bgImg = (metadata.backgroundImage as any[]).find((img) => img.url);
+          if (bgImg) {
+            backgroundImageUrl = resolveIpfsUrl(bgImg.url);
           }
         }
 
-        // Generate username and display name
         const username = this.generateUsername(metadata.name, upAddress);
-        const displayName = metadata.name || `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`;
+        const displayName = metadata.name || username || `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`;
 
         return {
           address: upAddress,
@@ -233,21 +312,20 @@ export class UPProfileFetcher {
           username,
           displayName
         };
-
-      } catch (fetchError) {
-        console.log(`[UPProfileFetcher] Failed to fetch LSP3Profile data for ${upAddress}:`, fetchError);
-        
-        // Return empty profile data instead of throwing
-        return {
-          address: upAddress,
-          name: undefined,
-          description: undefined,
-          profileImage: undefined
-        };
+      } catch (err) {
+        console.log(`[UPProfileFetcher] LSP3Profile fetch failed for ${upAddress}:`, err);
       }
 
+      // Fallback: empty info
+      return {
+        address: upAddress,
+        name: undefined,
+        description: undefined,
+        profileImage: undefined
+      };
+
     } catch (error) {
-      console.error(`[UPProfileFetcher] Error fetching profile info for ${upAddress}:`, error);
+      console.error(`[UPProfileFetcher] CRITICAL: Error fetching profile info for ${upAddress}:`, error);
       return {
         address: upAddress,
         error: error instanceof Error ? error.message : 'Failed to fetch profile'
@@ -286,7 +364,7 @@ export class UPProfileFetcher {
       // Transform to social profile format
       const socialProfile: UPSocialProfile = {
         address: upAddress,
-        displayName: profileInfo.displayName || `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`,
+        displayName: profileInfo.displayName || profileInfo.username || `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`,
         username: profileInfo.username || this.generateUsername(profileInfo.name, upAddress),
         profileImage: profileInfo.profileImage,
         backgroundImage: profileInfo.backgroundImage,
@@ -346,6 +424,7 @@ export class UPProfileFetcher {
 
   /**
    * Batch fetch social profiles for multiple addresses with smart caching
+   * Now uses sequential fetching to prevent React setState conflicts
    */
   async batchGetSocialProfiles(addresses: string[]): Promise<Record<string, UPSocialProfile>> {
     try {
@@ -366,19 +445,21 @@ export class UPProfileFetcher {
       
       console.log(`[UPProfileFetcher] Found ${Object.keys(cachedProfiles).length} cached, fetching ${addressesToFetch.length} new profiles`);
       
-      // Fetch uncached profiles in parallel
-      const newProfilePromises = addressesToFetch.map(async (address) => {
-        const profile = await this.getSocialProfile(address);
-        return { address, profile };
-      });
+      // Create shared provider once for all requests
+      const provider = await this.createProviderWithRetry();
       
-      const newProfileResults = await Promise.all(newProfilePromises);
-      
-      // Combine cached and new results
+      // Fetch uncached profiles sequentially to prevent React conflicts
       const allProfiles: Record<string, UPSocialProfile> = { ...cachedProfiles };
-      newProfileResults.forEach(({ address, profile }) => {
-        allProfiles[address] = profile;
-      });
+      
+      for (const address of addressesToFetch) {
+        try {
+          const profile = await this.getSocialProfileWithProvider(address, provider);
+          allProfiles[address] = profile;
+        } catch (error) {
+          console.warn(`[UPProfileFetcher] Failed to fetch profile for ${address}:`, error);
+          allProfiles[address] = this.createFallbackProfile(address, 'Fetch failed');
+        }
+      }
 
       return allProfiles;
       
@@ -392,6 +473,167 @@ export class UPProfileFetcher {
       });
       
       return fallbackMap;
+    }
+  }
+
+  /**
+   * Get social profile using a pre-created provider (for batch operations)
+   */
+  private async getSocialProfileWithProvider(upAddress: string, provider: ethers.providers.JsonRpcProvider): Promise<UPSocialProfile> {
+    try {
+      // Basic address validation
+      if (!upAddress || !/^0x[a-fA-F0-9]{40}$/.test(upAddress)) {
+        return this.createFallbackProfile(upAddress, 'Invalid address format');
+      }
+
+      // Check cache first
+      const cachedProfile = this.getCachedProfile(upAddress);
+      if (cachedProfile) {
+        return cachedProfile;
+      }
+
+      console.log(`[UPProfileFetcher] Fetching social profile for ${upAddress} with shared provider`);
+
+      // Get basic profile info using the shared provider
+      const profileInfo = await this.getProfileInfoWithProvider(upAddress, provider);
+      
+      if (profileInfo.error) {
+        const fallbackProfile = this.createFallbackProfile(upAddress, profileInfo.error);
+        this.cacheProfile(upAddress, fallbackProfile);
+        return fallbackProfile;
+      }
+
+      // Transform to social profile format
+      const socialProfile: UPSocialProfile = {
+        address: upAddress,
+        displayName: profileInfo.displayName || profileInfo.username || `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`,
+        username: profileInfo.username || this.generateUsername(profileInfo.name, upAddress),
+        profileImage: profileInfo.profileImage,
+        backgroundImage: profileInfo.backgroundImage,
+        bio: profileInfo.description,
+        tags: profileInfo.tags,
+        socialLinks: profileInfo.links?.map(link => ({
+          title: link.title,
+          url: link.url,
+          type: this.detectLinkType(link.url)
+        })),
+        isVerified: !!(profileInfo.name || profileInfo.description || profileInfo.profileImage),
+        lastFetched: new Date()
+      };
+
+      // Cache the result
+      this.cacheProfile(upAddress, socialProfile);
+      
+      console.log(`[UPProfileFetcher] Successfully created social profile for ${upAddress}:`, socialProfile);
+      return socialProfile;
+
+    } catch (error) {
+      console.error(`[UPProfileFetcher] Error fetching social profile for ${upAddress}:`, error);
+      const fallbackProfile = this.createFallbackProfile(upAddress, error instanceof Error ? error.message : 'Unknown error');
+      this.cacheProfile(upAddress, fallbackProfile);
+      return fallbackProfile;
+    }
+  }
+
+  /**
+   * Get profile info using a pre-created provider (for batch operations)
+   */
+  private async getProfileInfoWithProvider(upAddress: string, provider: ethers.providers.JsonRpcProvider): Promise<UPProfileInfo> {
+    try {
+      console.log(`[UPProfileFetcher] Fetching profile info for ${upAddress} with shared provider`);
+
+      // Use ERC725.js with the RPC URL directly (not the ethers provider object)
+      const erc725 = new ERC725(
+        LSP3ProfileSchema,
+        upAddress,
+        provider.connection.url, // Pass the RPC URL string, not the provider object
+        {
+          ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+        }
+      );
+
+      try {
+        // Use ERC725.js to fetch profile data (this works!)
+        const profileData = await erc725.fetchData('LSP3Profile');
+        console.log(`[UPProfileFetcher] ERC725 fetchData result for ${upAddress}:`, profileData);
+        
+        if (!profileData || !profileData.value) {
+          console.log(`[UPProfileFetcher] No LSP3Profile data for ${upAddress}`);
+          return {
+            address: upAddress,
+            name: undefined,
+            description: undefined,
+            profileImage: undefined,
+          };
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const lsp3Profile = profileData.value as any;
+        
+        // ERC725.js already resolved the IPFS URLs and parsed the JSON for us!
+        const metadata: UPProfileMetadata = {
+          name: lsp3Profile?.LSP3Profile?.name,
+          description: lsp3Profile?.LSP3Profile?.description,
+          profileImage: lsp3Profile?.LSP3Profile?.profileImage,
+          backgroundImage: lsp3Profile?.LSP3Profile?.backgroundImage,
+          tags: lsp3Profile?.LSP3Profile?.tags,
+          links: lsp3Profile?.LSP3Profile?.links,
+        };
+
+        console.log(`[UPProfileFetcher] Parsed LSP3 metadata for ${upAddress}:`, metadata);
+
+        // Handle profileImage array
+        let profileImageUrl: string | undefined;
+        if (metadata.profileImage && Array.isArray(metadata.profileImage) && metadata.profileImage.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const profileImg = (metadata.profileImage as any[]).find((img) => img.url);
+          if (profileImg) {
+            profileImageUrl = resolveIpfsUrl(profileImg.url);
+          }
+        }
+
+        // Handle backgroundImage array
+        let backgroundImageUrl: string | undefined;
+        if (metadata.backgroundImage && Array.isArray(metadata.backgroundImage) && metadata.backgroundImage.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bgImg = (metadata.backgroundImage as any[]).find((img) => img.url);
+          if (bgImg) {
+            backgroundImageUrl = resolveIpfsUrl(bgImg.url);
+          }
+        }
+
+        const username = this.generateUsername(metadata.name, upAddress);
+        const displayName = metadata.name || username || `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`;
+
+        return {
+          address: upAddress,
+          name: metadata.name,
+          description: metadata.description,
+          profileImage: profileImageUrl,
+          backgroundImage: backgroundImageUrl,
+          tags: metadata.tags,
+          links: metadata.links,
+          username,
+          displayName
+        };
+      } catch (err) {
+        console.log(`[UPProfileFetcher] LSP3Profile fetch failed for ${upAddress}:`, err);
+      }
+
+      // Fallback: empty info
+      return {
+        address: upAddress,
+        name: undefined,
+        description: undefined,
+        profileImage: undefined
+      };
+
+    } catch (error) {
+      console.error(`[UPProfileFetcher] CRITICAL: Error fetching profile info for ${upAddress}:`, error);
+      return {
+        address: upAddress,
+        error: error instanceof Error ? error.message : 'Failed to fetch profile'
+      };
     }
   }
 
@@ -513,7 +755,7 @@ export const getUPTokenMetadata = async (contractAddress: string): Promise<UPTok
   }
 
   console.log(`[getUPTokenMetadata] Fetching metadata for ${contractAddress}`);
-  const rpcUrl = getLuksoRpcUrl();
+  const rpcUrl = getLuksoRpcUrls()[0];
   const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
   // ----- DEFAULT FALLBACKS -----
@@ -606,24 +848,62 @@ export const getUPTokenMetadata = async (contractAddress: string): Promise<UPTok
   if (!symbol) symbol = 'UNK';
   if (decimals === undefined) decimals = 18;
 
-  // ===== ICON FETCH (best effort, non-critical) =====
+  // ----- ICON URL FETCHING -----
   try {
+    console.log(`[getUPTokenMetadata] Fetching icon for ${contractAddress}`);
     const erc725YIcon = new ethers.Contract(contractAddress, ['function getData(bytes32) view returns (bytes)'], provider);
     const LSP4_METADATA_KEY = '0x9afb95cacc9f95858ec44aa8c3b685511002e30ae54415823f406128b85b238e';
     const metadataBytes: string = await erc725YIcon.getData(LSP4_METADATA_KEY).catch(() => '0x');
     if (metadataBytes && metadataBytes !== '0x') {
-      const urlStart = 4 + 32;
-      const urlLen = parseInt(metadataBytes.slice(2 + urlStart * 2, 2 + urlStart * 2 + 4), 16);
-      const urlHex = metadataBytes.slice(2 + urlStart * 2 + 4, 2 + urlStart * 2 + 4 + urlLen * 2);
-      const metadataUrl = ethers.utils.toUtf8String('0x' + urlHex).replace('ipfs://', 'https://api.universalprofile.cloud/ipfs/');
-      const json = await fetch(metadataUrl).then(r => r.json()).catch(() => null);
-      const ipfsPath = json?.LSP4Metadata?.icon?.[0]?.url;
-      if (ipfsPath) {
-        iconUrl = resolveIpfsUrl(ipfsPath);
+      try {
+        const urlStart = 4 + 32;
+        const urlLen = parseInt(metadataBytes.slice(2 + urlStart * 2, 2 + urlStart * 2 + 4), 16);
+        const urlHex = metadataBytes.slice(2 + urlStart * 2 + 4, 2 + urlStart * 2 + 4 + urlLen * 2);
+        
+        // Try to decode as UTF-8, but handle errors gracefully
+        let metadataUrl: string;
+        try {
+          metadataUrl = ethers.utils.toUtf8String('0x' + urlHex);
+        } catch {
+          // If UTF-8 decoding fails, try to extract IPFS hash from hex
+          console.log(`[getUPTokenMetadata] UTF-8 decode failed, trying hex pattern extraction for ${contractAddress}`);
+          const hexStr = urlHex;
+          // Look for IPFS patterns in the hex data (ipfs:// = 697066733a2f2f)
+          const ipfsPattern = /697066733a2f2f([a-fA-F0-9]+)/;
+          const match = hexStr.match(ipfsPattern);
+          if (match) {
+            const ipfsHashHex = match[1];
+            // Convert hex to ASCII
+            let ipfsHash = '';
+            for (let i = 0; i < ipfsHashHex.length; i += 2) {
+              const byte = parseInt(ipfsHashHex.substr(i, 2), 16);
+              if (byte >= 32 && byte <= 126) { // Printable ASCII
+                ipfsHash += String.fromCharCode(byte);
+              }
+            }
+            if (ipfsHash.length > 10) { // Reasonable IPFS hash length
+              metadataUrl = `ipfs://${ipfsHash}`;
+            } else {
+              throw new Error('Could not extract valid IPFS hash');
+            }
+          } else {
+            throw new Error('No IPFS pattern found in hex data');
+          }
+        }
+        
+        // Resolve IPFS URL and fetch metadata
+        const resolvedUrl = metadataUrl.replace('ipfs://', 'https://api.universalprofile.cloud/ipfs/');
+        const json = await fetch(resolvedUrl).then(r => r.json()).catch(() => null);
+        const ipfsPath = json?.LSP4Metadata?.icon?.[0]?.url;
+        if (ipfsPath) {
+          iconUrl = resolveIpfsUrl(ipfsPath);
+        }
+      } catch (parseError) {
+        console.log(`[getUPTokenMetadata] Could not parse metadata URL for ${contractAddress}:`, parseError);
       }
     }
   } catch (iconError) {
-    console.warn(`[getUPTokenMetadata] Could not fetch icon for ${contractAddress}:`, iconError);
+    console.log(`[getUPTokenMetadata] Could not fetch icon for ${contractAddress}:`, iconError);
   }
 
   const metadata: UPTokenMetadata = { name, symbol, iconUrl, decimals };

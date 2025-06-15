@@ -927,3 +927,27 @@ This plugin demonstrates a comprehensive full-stack architecture with real-time 
 ## Next steps
 
 For details on how the Plugin Library works and more, be sure to check [the repo for the Plugin Library](https://github.com/Common-Ground-DAO/CGPluginLib)
+
+## LUKSO RPC quirks
+
+### Why we disable JSON-RPC batching
+
+The `erc725.js` library makes two back-to-back `eth_call`s (`supportsInterface` + `getData`) whenever we load profile metadata.  When those calls are executed through an **ethers.js** `JsonRpcProvider` the provider will, by default, bundle them into a single JSON-RPC *batch* request.
+
+Unfortunately the public LUKSO RPC (`https://rpc.mainnet.lukso.network`) rejects batched calls that contain an `eth_call` targeting a Universal-Profile **EOA** or proxy. The response looks like this:
+
+```jsonc
+{"error": {"code": -32600, "message": "invalid request"}}
+```
+
+Because of this, profile loading failed with *"LSP3Profile fetch failed … invalid request"* even though manual single-call `eth_call` invocations worked fine.
+
+**Fix:** we disable batching globally for the provider used by `UPProfileFetcher`:
+
+```ts
+const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+// LUKSO doesn't like batched eth_call, so force single requests
+(provider as any)._maxBatchSize = 1;
+```
+
+This keeps everything 100 % standards-compliant, avoids private properties of the provider in production code elsewhere, and has zero performance impact for our modest request volume.
