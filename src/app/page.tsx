@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
 import { SearchFirstPostInput } from '@/components/voting/SearchFirstPostInput';
-import { ExpandedNewPostForm } from '@/components/voting/ExpandedNewPostForm';
+import { ModalContainer } from '@/components/modals/ModalContainer';
 import { TelegramSetupBanner } from '@/components/banners/TelegramSetupBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
@@ -207,10 +207,9 @@ export default function HomePage() {
           {/* Search-First Post Creation */}
           <section className="max-w-2xl mx-auto">
             {showExpandedForm ? (
-              <ExpandedNewPostForm 
-                boardId={boardId} 
-                initialTitle={initialPostTitle}
-                onCancel={() => {
+              <ModalContainer
+                isPostModalOpen={showExpandedForm}
+                onPostModalClose={() => {
                   setShowExpandedForm(false);
                   setInitialPostTitle('');
                 }}
@@ -220,6 +219,8 @@ export default function HomePage() {
                   console.log(`[HomePage] Navigating to new post: ${postUrl}`);
                   router.push(postUrl);
                 }}
+                boardId={boardId}
+                initialTitle={initialPostTitle}
               />
             ) : (
               <SearchFirstPostInput 

@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { VoteButton } from '@/components/voting/VoteButton';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTimeSince } from '@/utils/timeUtils';
-import { ExpandedNewPostForm } from '@/components/voting/ExpandedNewPostForm';
+import { ModalContainer } from '@/components/modals/ModalContainer';
 
 
 
@@ -532,15 +532,17 @@ export function GlobalSearchModal() {
                           )}
                         </h3>
                       </div>
-                      <ExpandedNewPostForm 
-                        boardId={currentSearchScope}
-                        initialTitle={(currentInput || searchQuery).trim()}
-                        onCancel={() => setShowInlineForm(false)}
+                      <ModalContainer
+                        isPostModalOpen={showInlineForm}
+                        onPostModalClose={() => setShowInlineForm(false)}
                         onPostCreated={(newPost) => {
                           const postUrl = buildInternalUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
                           router.push(postUrl);
                           handleClose();
                         }}
+                        boardId={currentSearchScope}
+                        initialTitle={(currentInput || searchQuery).trim()}
+                        inline={true}
                       />
                     </div>
                   </div>
@@ -581,15 +583,17 @@ export function GlobalSearchModal() {
                             )}
                           </h3>
                         </div>
-                        <ExpandedNewPostForm 
-                          boardId={currentSearchScope}
-                          initialTitle={(currentInput || searchQuery).trim()}
-                          onCancel={() => setShowInlineForm(false)}
+                        <ModalContainer
+                          isPostModalOpen={showInlineForm}
+                          onPostModalClose={() => setShowInlineForm(false)}
                           onPostCreated={(newPost) => {
                             const postUrl = buildInternalUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
                             router.push(postUrl);
                             handleClose();
                           }}
+                          boardId={currentSearchScope}
+                          initialTitle={(currentInput || searchQuery).trim()}
+                          inline={true}
                         />
                       </div>
                     </div>

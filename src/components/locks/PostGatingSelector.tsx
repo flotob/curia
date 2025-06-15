@@ -10,7 +10,8 @@ import {
   Sparkles, 
   Clock,
   X,
-  Check
+  Check,
+  Plus
 } from 'lucide-react';
 import { LockWithStats } from '@/types/locks';
 import { LockBrowser } from './LockBrowser';
@@ -22,6 +23,7 @@ interface PostGatingSelectorProps {
   onChange: (settings: PostSettings) => void;
   disabled?: boolean;
   className?: string;
+  onCreateLockRequested?: () => void;
 }
 
 type SelectionMode = 'none' | 'browse_locks';
@@ -30,7 +32,8 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
   settings,
   onChange,
   disabled = false,
-  className = ''
+  className = '',
+  onCreateLockRequested
 }) => {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('none');
   const [selectedLock, setSelectedLock] = useState<LockWithStats | null>(null);
@@ -115,6 +118,19 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
                   <Lock className="h-4 w-4 mr-2" />
                   Choose Lock
                 </Button>
+                {onCreateLockRequested && (
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm"
+                    onClick={onCreateLockRequested}
+                    disabled={disabled}
+                    className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Lock
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -201,6 +217,29 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
             </div>
           </CardHeader>
           <CardContent>
+            {onCreateLockRequested && (
+              <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Plus className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Need a custom lock?</span>
+                  </div>
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm"
+                    onClick={onCreateLockRequested}
+                    disabled={disabled}
+                    className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                  >
+                    Create New Lock
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Create a reusable lock for this and future posts
+                </p>
+              </div>
+            )}
             <LockBrowser
               onSelectLock={handleLockSelect}
               selectedLockId={currentLockId}

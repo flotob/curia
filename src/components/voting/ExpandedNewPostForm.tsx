@@ -34,6 +34,8 @@ interface ExpandedNewPostFormProps {
   onCancel: () => void;
   boardId?: string | null;
   initialTitle?: string; // Pre-fill title from search query
+  onCreateLockRequested?: () => void; // Callback for creating new locks
+  preSelectedLockId?: number | null; // Lock to pre-select after creation
 }
 
 interface CreatePostMutationPayload {
@@ -58,7 +60,9 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   onPostCreated, 
   onCancel,
   boardId,
-  initialTitle = ''
+  initialTitle = '',
+  onCreateLockRequested,
+  preSelectedLockId
 }) => {
   const { token, isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
@@ -68,6 +72,19 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   const [selectedBoardId, setSelectedBoardId] = useState<string>(boardId || '');
   const [error, setError] = useState<string | null>(null);
   const [postSettings, setPostSettings] = useState<PostSettings>({});
+
+  // Handle pre-selected lock from lock creation flow
+  useEffect(() => {
+    if (preSelectedLockId) {
+      // Set the lock ID in post settings
+      setPostSettings(prevSettings => {
+        const newSettings = { ...prevSettings };
+        (newSettings as unknown as { lockId: number }).lockId = preSelectedLockId;
+        return newSettings;
+      });
+      console.log(`[ExpandedNewPostForm] Pre-selected lock ID: ${preSelectedLockId}`);
+    }
+  }, [preSelectedLockId]);
 
   // Fetch available boards for the user's community
   const { data: boardsList, isLoading: isLoadingBoards } = useQuery<ApiBoard[]>({
@@ -341,6 +358,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
             settings={postSettings}
             onChange={setPostSettings}
             disabled={createPostMutation.isPending}
+            onCreateLockRequested={onCreateLockRequested}
           />
           
           {error && <p className="text-xs sm:text-sm text-red-500">{error}</p>}
