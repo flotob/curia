@@ -512,12 +512,12 @@ const SaveStep = () => {
   return (
     <div className="space-y-6">
       {/* Final Configuration Review */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-lg p-6 border border-green-200 dark:border-green-800">
         <div className="flex items-center mb-4">
           <span className="text-2xl mr-3">✨</span>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Lock Ready to Save</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className="text-lg font-semibold text-foreground">Lock Ready to Save</h3>
+            <p className="text-sm text-muted-foreground">
               Add final details and save your lock for reuse
             </p>
           </div>
@@ -527,8 +527,8 @@ const SaveStep = () => {
       {/* Lock Details Form */}
       <div className="space-y-4">
         <div>
-          <label htmlFor="lock-name" className="block text-sm font-medium text-gray-700 mb-2">
-            Lock Name <span className="text-red-500">*</span>
+          <label htmlFor="lock-name" className="block text-sm font-medium text-foreground mb-2">
+            Lock Name <span className="text-red-500 dark:text-red-400">*</span>
           </label>
           <input
             id="lock-name"
@@ -536,15 +536,15 @@ const SaveStep = () => {
             value={lockName}
             onChange={handleNameChange}
             placeholder="Enter a name for this lock..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             This name will help you identify the lock when applying it to posts
           </p>
         </div>
 
         <div>
-          <label htmlFor="lock-description" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="lock-description" className="block text-sm font-medium text-foreground mb-2">
             Description (Optional)
           </label>
           <textarea
@@ -553,39 +553,39 @@ const SaveStep = () => {
             onChange={handleDescriptionChange}
             placeholder="Describe what this lock is for..."
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Optional description to explain the purpose of this lock
           </p>
         </div>
       </div>
 
       {/* Configuration Summary */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-3">Configuration Summary</h4>
+      <div className="bg-muted/50 border border-border rounded-lg p-4">
+        <h4 className="font-medium text-foreground mb-3">Configuration Summary</h4>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-600">Requirements:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-muted-foreground">Requirements:</span>
+            <span className="ml-2 font-medium text-foreground">
               {state.requirements.length} configured
             </span>
           </div>
           <div>
-            <span className="text-gray-600">Template:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-muted-foreground">Template:</span>
+            <span className="ml-2 font-medium text-foreground">
               {state.selectedTemplate?.name || 'Custom'}
             </span>
           </div>
         </div>
         
         {state.requirements.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <span className="text-gray-600 text-sm">Requirements:</span>
+          <div className="mt-3 pt-3 border-t border-border">
+            <span className="text-muted-foreground text-sm">Requirements:</span>
             <div className="mt-1 space-y-1">
               {state.requirements.map((req: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
-                <div key={index} className="text-xs text-gray-700 flex items-center">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2 flex-shrink-0" />
+                <div key={index} className="text-xs text-muted-foreground flex items-center">
+                  <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full mr-2 flex-shrink-0" />
                   {req.description || `${String(req.type)} requirement`}
                 </div>
               ))}
@@ -595,12 +595,12 @@ const SaveStep = () => {
       </div>
 
       {/* Save Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start">
           <span className="text-xl mr-3">📋</span>
           <div>
-            <h4 className="font-medium text-blue-900 mb-1">After Saving</h4>
-            <p className="text-sm text-blue-800">
+            <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-1">After Saving</h4>
+            <p className="text-sm text-blue-800 dark:text-blue-200">
               Your lock will be saved and available for use when creating gated posts. 
               You can apply it to control who can view or respond to your content.
             </p>
