@@ -74,9 +74,26 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
   const { address, isConnected, status } = useAccount();
   const { data: balance } = useBalance({ address });
 
-  // Try to reconnect on mount
+  // Check for existing UP connection before triggering reconnect
   useEffect(() => {
-    reconnect(upConfig);
+    const timeoutId = setTimeout(() => {
+      if (typeof window === 'undefined') return;
+
+      // Look for persisted wagmi connection state in localStorage
+      try {
+        const persisted = window.localStorage.getItem('wagmi_up_live') || window.localStorage.getItem('wagmi_up_preview');
+        if (persisted && persisted !== '{}') {
+          console.log('[GatingRequirementsPreview] Persisted wagmi connection detected, triggering reconnect');
+          reconnect(upConfig);
+        } else {
+          console.log('[GatingRequirementsPreview] No persisted wagmi connection – skipping auto-reconnect');
+        }
+      } catch (err) {
+        console.warn('[GatingRequirementsPreview] Error checking persisted wagmi state:', err);
+      }
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
   // Batch-read all token contracts (LSP7/ERC20 and LSP8/ERC721)
