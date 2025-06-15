@@ -260,7 +260,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
   try {
     const body = await req.json();
-    const { title, content, tags, boardId, settings } = body;
+    const { title, content, tags, boardId, settings, lockId } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
@@ -303,12 +303,76 @@ async function createPostHandler(req: AuthenticatedRequest) {
     }
 
     const validBoardId = board.id;
-    const postSettings = settings || {};
+    let postSettings = settings || {};
+    let validLockId: number | null = null;
+
+    // Handle lock application if lockId is provided
+    if (lockId) {
+      const lockIdNum = parseInt(lockId, 10);
+      if (isNaN(lockIdNum)) {
+        return NextResponse.json({ error: 'Invalid lock ID' }, { status: 400 });
+      }
+
+      // Get the lock and verify permissions
+      const lockResult = await query(`
+        SELECT l.*, ls.posts_using_lock
+        FROM locks l
+        LEFT JOIN lock_stats ls ON l.id = ls.id
+        WHERE l.id = $1
+      `, [lockIdNum]);
+
+      if (lockResult.rows.length === 0) {
+        return NextResponse.json({ error: 'Lock not found' }, { status: 404 });
+      }
+
+      const lock = lockResult.rows[0];
+
+      // Verify lock belongs to user's community
+      if (lock.community_id !== currentCommunityId) {
+        console.warn(`[API POST /api/posts] User ${user.sub} from community ${currentCommunityId} attempted to use lock from community ${lock.community_id}`);
+        return NextResponse.json({ error: 'Lock not found' }, { status: 404 });
+      }
+
+      // Check if user can use this lock
+      const canUseLock = 
+        lock.creator_user_id === user.sub || // Owner
+        lock.is_public ||                    // Public
+        lock.is_template ||                  // Template
+        isAdmin;                             // Admin
+
+      if (!canUseLock) {
+        console.warn(`[API POST /api/posts] User ${user.sub} attempted to use private lock ${lockIdNum}`);
+        return NextResponse.json({ error: 'You do not have permission to use this lock' }, { status: 403 });
+      }
+
+      // Apply the lock's gating configuration to post settings
+      const lockGatingConfig = typeof lock.gating_config === 'string' 
+        ? JSON.parse(lock.gating_config) 
+        : lock.gating_config;
+
+      postSettings = {
+        ...postSettings,
+        responsePermissions: lockGatingConfig
+      };
+
+      validLockId = lockIdNum;
+      console.log(`[API POST /api/posts] Applying lock "${lock.name}" (ID: ${lockIdNum}) to new post`);
+    }
     
     const result = await query(
-      'INSERT INTO posts (author_user_id, title, content, tags, board_id, settings, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, $6, 0, 0) RETURNING *',
-      [user.sub, title, content, tags || [], validBoardId, JSON.stringify(postSettings)]
+      'INSERT INTO posts (author_user_id, title, content, tags, board_id, settings, lock_id, upvote_count, comment_count) VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0) RETURNING *',
+      [user.sub, title, content, tags || [], validBoardId, JSON.stringify(postSettings), validLockId]
     );
+
+    // Update lock usage count if a lock was applied
+    if (validLockId) {
+      await query(`
+        UPDATE locks 
+        SET usage_count = usage_count + 1, updated_at = NOW()
+        WHERE id = $1
+      `, [validLockId]);
+    }
+
     const newPost: ApiPost = {
       ...result.rows[0],
       author_name: user.name || null,
@@ -316,6 +380,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
       user_has_upvoted: false,
       board_name: '',
       settings: postSettings,
+      lock_id: validLockId || undefined,
       // New posts have no shares yet
       share_access_count: 0,
       share_count: 0,
@@ -341,6 +406,7 @@ async function createPostHandler(req: AuthenticatedRequest) {
           upvote_count: newPost.upvote_count,
           comment_count: newPost.comment_count,
           board_id: validBoardId,
+          lock_id: validLockId,
           // Add community context for Telegram notifications
           communityShortId: user.communityShortId,
           pluginId: user.pluginId

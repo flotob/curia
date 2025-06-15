@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Loader2, X } from 'lucide-react';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 import { PostSettings } from '@/types/settings';
-import { PostGatingControls } from '@/components/posting/PostGatingControls';
+import { PostGatingSelector } from '@/components/locks/PostGatingSelector';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -42,6 +42,7 @@ interface CreatePostMutationPayload {
   tags?: string[]; 
   boardId: string;
   settings?: PostSettings;
+  lockId?: number; // Add lockId for lock-based gating
 }
 
 interface CreatePostApiPayload {
@@ -50,6 +51,7 @@ interface CreatePostApiPayload {
   tags?: string[];
   boardId: string;
   settings?: PostSettings;
+  lockId?: number; // Add lockId for API payload
 }
 
 export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({ 
@@ -65,7 +67,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   const [tags, setTags] = useState(''); 
   const [selectedBoardId, setSelectedBoardId] = useState<string>(boardId || '');
   const [error, setError] = useState<string | null>(null);
-  const [postSettings, setPostSettings] = useState<PostSettings['responsePermissions']>();
+  const [postSettings, setPostSettings] = useState<PostSettings>({});
 
   // Fetch available boards for the user's community
   const { data: boardsList, isLoading: isLoadingBoards } = useQuery<ApiBoard[]>({
@@ -150,6 +152,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         tags: postData.tags,
         boardId: postData.boardId,
         settings: postData.settings,
+        lockId: postData.lockId,
       };
       return authFetchJson<ApiPost>(`/api/posts`, {
         method: 'POST',
@@ -169,7 +172,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       setTitle('');
       contentEditor?.commands.clearContent();
       setTags('');
-      setPostSettings(undefined);
+      setPostSettings({});
       setError(null);
       
       if (onPostCreated) {
@@ -204,8 +207,19 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         return;
     }
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-    const settings = postSettings ? { responsePermissions: postSettings } : undefined;
-    createPostMutation.mutate({ title, content: currentContentJson, tags: tagsArray, boardId: selectedBoardId, settings });
+    
+    // Extract lockId from postSettings if it exists
+    const lockId = (postSettings as unknown as { lockId?: number }).lockId;
+    const settings = postSettings.responsePermissions ? postSettings : undefined;
+    
+    createPostMutation.mutate({ 
+      title, 
+      content: currentContentJson, 
+      tags: tagsArray, 
+      boardId: selectedBoardId, 
+      settings,
+      lockId 
+    });
   };
 
   if (!isAuthenticated) {
@@ -323,8 +337,8 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
           </div>
 
           {/* Post Gating Controls */}
-          <PostGatingControls
-            value={postSettings}
+          <PostGatingSelector
+            settings={postSettings}
             onChange={setPostSettings}
             disabled={createPostMutation.isPending}
           />

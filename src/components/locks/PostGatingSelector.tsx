@@ -18,6 +18,7 @@ import {
 import { LockWithStats } from '@/types/locks';
 import { LockBrowser } from './LockBrowser';
 import { PostSettings } from '@/types/settings';
+import { PostGatingControls } from '@/components/posting/PostGatingControls';
 import { cn } from '@/lib/utils';
 
 interface PostGatingSelectorProps {
@@ -298,12 +299,29 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
               {/* Expandable Custom Configuration */}
               {isExpanded && (
                 <div className="pt-3 border-t">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    ⚙️ Custom gating configuration interface will be displayed here
-                  </p>
-                  <div className="text-xs text-muted-foreground">
-                    This will integrate with the existing PostGatingControls component
-                    or a simplified version for backward compatibility.
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">Configure Custom Gating</h4>
+                      <div className="text-xs text-muted-foreground">
+                        Create your own gating rules
+                      </div>
+                    </div>
+                    
+                    {/* Integrate existing PostGatingControls for backward compatibility */}
+                    <PostGatingControls
+                      value={settings.responsePermissions}
+                      onChange={(responsePermissions) => {
+                        const newSettings = {
+                          ...settings,
+                          responsePermissions
+                        };
+                        // Remove lockId when using custom gating
+                        const extendedSettings = newSettings as unknown as { lockId?: number };
+                        delete extendedSettings.lockId;
+                        onChange(newSettings);
+                      }}
+                      disabled={disabled}
+                    />
                   </div>
                 </div>
               )}
