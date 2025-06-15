@@ -30,7 +30,8 @@ import {
 import { ethers } from 'ethers';
 
 import { UPGatingRequirements, VerificationStatus } from '@/types/gating';
-import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
+import { getUPTokenMetadata, batchGetUPSocialProfiles, UPSocialProfile, UPTokenMetadata } from '@/lib/upProfile';
+import { lsp26Registry } from '@/lib/lsp26';
 
 // ===== TYPES =====
 
@@ -102,6 +103,10 @@ interface RequirementVerificationState {
   // Social Profiles (for display)
   socialProfiles: Record<string, UPSocialProfile>;
   isLoadingSocialProfiles: boolean;
+
+  // Token Metadata (for display)
+  tokenMetadata: Record<string, UPTokenMetadata>;
+  isLoadingTokenMetadata: boolean;
 }
 
 // ===== MAIN COMPONENT =====
@@ -125,80 +130,124 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
     tokenBalances: {},
     followerVerifications: {},
     socialProfiles: {},
-    isLoadingSocialProfiles: false
+    isLoadingSocialProfiles: false,
+    tokenMetadata: {},
+    isLoadingTokenMetadata: false,
   });
 
-  // ===== SOCIAL PROFILE FETCHING =====
+  // ===== METADATA FETCHING =====
   
-  const fetchSocialProfiles = useCallback(async (addresses: string[]) => {
-    if (addresses.length === 0) return;
-    
-    setVerificationState(prev => ({ ...prev, isLoadingSocialProfiles: true }));
-    
-    try {
-      console.log(`[RichRequirementsDisplay] Fetching social profiles for ${addresses.length} addresses`);
-      
-      const profilePromises = addresses.map(async (address) => {
-        try {
-          const profile = await getUPSocialProfile(address);
-          return { address, profile };
-        } catch (error) {
-          console.error(`Failed to fetch social profile for ${address}:`, error);
-          // Create fallback profile
-          return { 
-            address, 
-            profile: {
-              address,
-              displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
-              username: `@${address.slice(2, 6)}${address.slice(-4)}.lukso`,
-              isVerified: false,
-              lastFetched: new Date()
-            } as UPSocialProfile
-          };
-        }
-      });
-
-      const profileResults = await Promise.all(profilePromises);
-      const newProfiles: Record<string, UPSocialProfile> = {};
-      
-      profileResults.forEach(({ address, profile }) => {
-        newProfiles[address] = profile;
-      });
-
-      setVerificationState(prev => ({ 
-        ...prev, 
-        socialProfiles: { ...prev.socialProfiles, ...newProfiles },
-        isLoadingSocialProfiles: false
-      }));
-    } catch (error) {
-      console.error('[RichRequirementsDisplay] Error fetching social profiles:', error);
-      setVerificationState(prev => ({ ...prev, isLoadingSocialProfiles: false }));
-    }
-  }, []);
-
-  // Load social profiles when requirements change
-  useEffect(() => {
+  const fetchMetadata = useCallback(async (requirements: UPGatingRequirements, userAddress?: string) => {
     const addressesToFetch: string[] = [];
-    
-    // Add follower requirement addresses
+    const tokensToFetch: string[] = [];
+
+    // Use a Set to avoid duplicate fetches
+    const seenAddresses = new Set(Object.keys(verificationState.socialProfiles));
+    const seenTokens = new Set(Object.keys(verificationState.tokenMetadata));
+
+    // Gather follower profile addresses
     if (requirements.followerRequirements) {
-      const followerAddresses = requirements.followerRequirements
-        .filter(req => req.type !== 'minimum_followers')
-        .map(req => req.value)
-        .filter(address => !verificationState.socialProfiles[address]);
-      
-      addressesToFetch.push(...followerAddresses);
+      requirements.followerRequirements
+        .filter(req => req.type !== 'minimum_followers' && !seenAddresses.has(req.value))
+        .forEach(req => {
+          addressesToFetch.push(req.value);
+          seenAddresses.add(req.value); // Add to set to prevent re-adding
+        });
+    }
+    if (userAddress && !seenAddresses.has(userAddress)) {
+      addressesToFetch.push(userAddress);
     }
     
-    // Add connected user address if available
-    if (userStatus.connected && userStatus.address && !verificationState.socialProfiles[userStatus.address]) {
-      addressesToFetch.push(userStatus.address);
+    // Gather token contract addresses
+    if (requirements.requiredTokens) {
+      requirements.requiredTokens
+        .filter(token => !seenTokens.has(token.contractAddress))
+        .forEach(token => tokensToFetch.push(token.contractAddress));
     }
+
+    if (addressesToFetch.length === 0 && tokensToFetch.length === 0) return;
+
+    setVerificationState(prev => ({ 
+      ...prev, 
+      isLoadingSocialProfiles: addressesToFetch.length > 0,
+      isLoadingTokenMetadata: tokensToFetch.length > 0
+    }));
+
+    // Perform fetches in parallel
+    const [profileResults, tokenResults] = await Promise.all([
+      addressesToFetch.length > 0 ? batchGetUPSocialProfiles(addressesToFetch) : Promise.resolve({}),
+      tokensToFetch.length > 0 ? Promise.all(tokensToFetch.map(async addr => ({
+        address: addr,
+        meta: await getUPTokenMetadata(addr)
+      }))) : Promise.resolve([])
+    ]);
     
-    if (addressesToFetch.length > 0) {
-      fetchSocialProfiles(addressesToFetch);
-    }
-  }, [requirements, userStatus.connected, userStatus.address, verificationState.socialProfiles, fetchSocialProfiles]);
+    const newProfiles: Record<string, UPSocialProfile> = profileResults;
+    const newTokens: Record<string, UPTokenMetadata> = {};
+    tokenResults.forEach((res: { address: string; meta: UPTokenMetadata }) => {
+      newTokens[res.address] = res.meta;
+    });
+
+    setVerificationState(prev => ({
+      ...prev,
+      socialProfiles: { ...prev.socialProfiles, ...newProfiles },
+      tokenMetadata: { ...prev.tokenMetadata, ...newTokens },
+      isLoadingSocialProfiles: false,
+      isLoadingTokenMetadata: false,
+    }));
+
+  }, [verificationState.socialProfiles, verificationState.tokenMetadata]);
+
+  // Trigger metadata fetch when requirements or user changes
+  useEffect(() => {
+    fetchMetadata(requirements, userStatus.address);
+  }, [requirements, userStatus.address, fetchMetadata]);
+
+  // ===== FOLLOWER COUNT FETCHING =====
+  useEffect(() => {
+    const fetchFollowerCounts = async () => {
+      if (!userStatus.connected || !userStatus.address) return;
+      if (!requirements.followerRequirements) return;
+
+      const minFollowerReqs = requirements.followerRequirements.filter(r => r.type === 'minimum_followers');
+      if (minFollowerReqs.length === 0) return;
+
+      try {
+        const count = await lsp26Registry.getFollowerCount(userStatus.address);
+        setVerificationState(prev => {
+          const updatedFollowerVerifications = { ...prev.followerVerifications };
+          minFollowerReqs.forEach(r => {
+            const key = `${r.type}-${r.value}`;
+            const meets = count >= parseInt(r.value);
+            if (!updatedFollowerVerifications[key]) {
+              updatedFollowerVerifications[key] = {
+                type: r.type,
+                value: r.value,
+                userFollowerCount: count,
+                status: meets,
+                isLoading: false,
+              };
+            } else {
+              updatedFollowerVerifications[key] = {
+                ...updatedFollowerVerifications[key],
+                userFollowerCount: count,
+                status: meets,
+                isLoading: false,
+              };
+            }
+          });
+          return {
+            ...prev,
+            followerVerifications: updatedFollowerVerifications,
+          };
+        });
+      } catch (err) {
+        console.error('[RichRequirementsDisplay] Failed to fetch follower count', err);
+      }
+    };
+
+    fetchFollowerCounts();
+  }, [userStatus.connected, userStatus.address, requirements.followerRequirements]);
 
   // ===== HELPER FUNCTIONS =====
   
@@ -273,15 +322,17 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   if (requirements.requiredTokens) {
     requirements.requiredTokens.forEach(token => {
       const tokenData = userStatus.balances?.tokens?.[token.contractAddress];
+      const metadata = verificationState.tokenMetadata[token.contractAddress];
       tokenVerifications[token.contractAddress] = {
         balance: tokenData?.raw || '0',
         formattedBalance: tokenData?.formatted || '0',
-        name: tokenData?.name || token.name,
-        symbol: tokenData?.symbol || token.symbol,
-        decimals: tokenData?.decimals,
+        name: metadata?.name || token.name,
+        symbol: metadata?.symbol || token.symbol,
+        decimals: metadata?.decimals || tokenData?.decimals,
+        iconUrl: metadata?.iconUrl,
         meetsRequirement: tokenData ? 
           ethers.BigNumber.from(tokenData.raw).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
-        isLoading: false
+        isLoading: verificationState.isLoadingTokenMetadata && !metadata
       };
     });
   }
@@ -298,11 +349,15 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   if (requirements.followerRequirements) {
     requirements.followerRequirements.forEach(follower => {
       const key = `${follower.type}-${follower.value}`;
+      // Prefer locally fetched verification state (e.g., follower counts) if available
+      const localData = verificationState.followerVerifications[key];
       followerVerifications[key] = {
         type: follower.type,
         value: follower.value,
-        status: userStatus.followerStatus?.[key] || false,
-        isLoading: false
+        userFollowerCount: localData?.userFollowerCount,
+        status: localData?.status ?? userStatus.followerStatus?.[key] ?? false,
+        isLoading: localData ? localData.isLoading : false,
+        error: localData?.error,
       };
     });
   }
@@ -476,6 +531,8 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
                         />
+                      ) : tokenData?.isLoading ? (
+                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                           {tokenReq.tokenType === 'LSP8' ? '🎨' : '🪙'}
@@ -490,7 +547,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                         </div>
                         <div className="text-xs text-muted-foreground">
                           Required: {displayAmount} {tokenData?.symbol || tokenReq.symbol || 'tokens'}
-                          {tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`}
+                          {userStatus.connected && tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`}
                         </div>
                       </div>
                     </div>

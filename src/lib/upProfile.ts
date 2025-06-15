@@ -177,33 +177,25 @@ export class UPProfileFetcher {
       );
 
       try {
-        // Fetch LSP3Profile metadata using ERC725.js
-        const profileData = await erc725.fetchData('LSP3Profile');
-        
-        // Log the actual structure for debugging
-        console.log(`[UPProfileFetcher] Raw profile data structure:`, profileData);
-        
-        if (!profileData || !profileData.value) {
-          console.log(`[UPProfileFetcher] No LSP3Profile data found for ${upAddress}`);
-          return {
-            address: upAddress,
-            name: undefined,
-            description: undefined,
-            profileImage: undefined
-          };
-        }
+        // Fetch LSP3Profile metadata piece by piece for robustness
+        const [nameData, descriptionData, profileImageData, backgroundImageData, tagsData, linksData] = await erc725.getData([
+          'LSP3ProfileName',
+          'LSP3ProfileDescription',
+          'LSP3ProfileImage',
+          'LSP3ProfileBackgroundImage',
+          'LSP3ProfileTags',
+          'LSP3ProfileLinks',
+        ]);
 
-        // Extract profile metadata from the fetched data
-        // The data is nested under LSP3Profile key based on the console output
-        let metadata: UPProfileMetadata;
-        if (typeof profileData.value === 'object' && profileData.value !== null && !Array.isArray(profileData.value)) {
-          // Check if data is nested under LSP3Profile key
-          const valueObj = profileData.value as Record<string, unknown>;
-          metadata = (valueObj.LSP3Profile as UPProfileMetadata) || (profileData.value as UPProfileMetadata);
-        } else {
-          metadata = profileData.value as UPProfileMetadata;
-        }
-
+        const metadata: UPProfileMetadata = {
+          name: typeof nameData?.value === 'string' ? nameData.value : undefined,
+          description: typeof descriptionData?.value === 'string' ? descriptionData.value : undefined,
+          profileImage: Array.isArray(profileImageData?.value) ? profileImageData.value as unknown as LSP3Image[] : undefined,
+          backgroundImage: Array.isArray(backgroundImageData?.value) ? backgroundImageData.value as unknown as LSP3Image[] : undefined,
+          tags: Array.isArray(tagsData?.value) ? tagsData.value as unknown as string[] : undefined,
+          links: Array.isArray(linksData?.value) ? linksData.value as unknown as LSP3Link[] : undefined,
+        };
+        
         console.log(`[UPProfileFetcher] Successfully fetched profile data for ${upAddress}:`, metadata);
 
         // Handle profileImage array - get the first valid image URL and resolve IPFS
@@ -498,6 +490,152 @@ export const getUPProfileCacheStats = () =>
  * Resolve IPFS URLs to use LUKSO gateway (exported utility)
  */
 export const resolveUPImageUrl = resolveIpfsUrl;
+
+// ===== NEW TOKEN METADATA UTILITY =====
+
+export interface UPTokenMetadata {
+  name: string;
+  symbol: string;
+  iconUrl?: string;
+  decimals?: number;
+}
+
+const tokenMetadataCache = new Map<string, { meta: UPTokenMetadata; expiry: number }>();
+const TOKEN_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+export const getUPTokenMetadata = async (contractAddress: string): Promise<UPTokenMetadata> => {
+  const lowerCaseAddress = contractAddress.toLowerCase();
+  // Check cache first
+  const cached = tokenMetadataCache.get(lowerCaseAddress);
+  if (cached && Date.now() < cached.expiry) {
+    console.log(`[getUPTokenMetadata] Using cached metadata for ${contractAddress}`);
+    return cached.meta;
+  }
+
+  console.log(`[getUPTokenMetadata] Fetching metadata for ${contractAddress}`);
+  const rpcUrl = getLuksoRpcUrl();
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+  // ----- DEFAULT FALLBACKS -----
+  let name: string | undefined;
+  let symbol: string | undefined;
+  let iconUrl: string | undefined;
+  let decimals: number | undefined;
+
+  // ===== 1) TRY STANDARD ERC20/LSP7 FUNCTIONS FIRST =====
+  try {
+    const erc20Like = new ethers.Contract(contractAddress, [
+      'function name() view returns (string)',
+      'function symbol() view returns (string)',
+      'function decimals() view returns (uint8)'
+    ], provider);
+
+    const [rawName, rawSymbol, rawDecimals] = await Promise.all([
+      erc20Like.name().catch(() => undefined),
+      erc20Like.symbol().catch(() => undefined),
+      erc20Like.decimals().catch(() => undefined),
+    ]);
+
+    name = typeof rawName === 'string' && rawName.trim() !== '' ? rawName : undefined;
+    symbol = typeof rawSymbol === 'string' && rawSymbol.trim() !== '' ? rawSymbol : undefined;
+    decimals = typeof rawDecimals === 'number' ? rawDecimals : undefined;
+  } catch (erc20PrimaryError) {
+    console.warn(`[getUPTokenMetadata] Standard ERC20 calls failed for ${contractAddress}:`, erc20PrimaryError);
+  }
+
+  // ===== 2) IF STILL MISSING, TRY BYTES32 VARIANTS =====
+  if (!name || !symbol) {
+    try {
+      const erc20Bytes32 = new ethers.Contract(contractAddress, [
+        'function name() view returns (bytes32)',
+        'function symbol() view returns (bytes32)'
+      ], provider);
+
+      const [nameBytes, symbolBytes] = await Promise.all([
+        erc20Bytes32.name().catch(() => undefined),
+        erc20Bytes32.symbol().catch(() => undefined),
+      ]);
+
+      if (!name && nameBytes && nameBytes !== ethers.constants.HashZero) {
+        try {
+          name = ethers.utils.parseBytes32String(nameBytes);
+        } catch {}
+      }
+      if (!symbol && symbolBytes && symbolBytes !== ethers.constants.HashZero) {
+        try {
+          symbol = ethers.utils.parseBytes32String(symbolBytes);
+        } catch {}
+      }
+    } catch (erc20Bytes32Error) {
+      console.warn(`[getUPTokenMetadata] ERC20 bytes32 calls failed for ${contractAddress}:`, erc20Bytes32Error);
+    }
+  }
+
+  // ===== 3) TRY ERC725Y KEYS (LSP4) IF STILL UNRESOLVED =====
+  if (!name || !symbol) {
+    try {
+      const erc725Y = new ethers.Contract(contractAddress, [
+        'function getData(bytes32) view returns (bytes)',
+      ], provider);
+
+      const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
+      const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+
+      const [nameBytesLSP4, symbolBytesLSP4] = await Promise.all([
+        erc725Y.getData(LSP4_TOKEN_NAME_KEY).catch(() => '0x'),
+        erc725Y.getData(LSP4_TOKEN_SYMBOL_KEY).catch(() => '0x'),
+      ]);
+
+      if (!name && nameBytesLSP4 && nameBytesLSP4 !== '0x') {
+        try {
+          name = ethers.utils.toUtf8String(nameBytesLSP4);
+        } catch {}
+      }
+      if (!symbol && symbolBytesLSP4 && symbolBytesLSP4 !== '0x') {
+        try {
+          symbol = ethers.utils.toUtf8String(symbolBytesLSP4);
+        } catch {}
+      }
+    } catch (lsp4Error) {
+      console.warn(`[getUPTokenMetadata] ERC725Y fetch failed for ${contractAddress}:`, lsp4Error);
+    }
+  }
+
+  // ----- DEFAULT FALLBACKS IF STILL UNDEFINED -----
+  if (!name) name = 'Unknown Token';
+  if (!symbol) symbol = 'UNK';
+  if (decimals === undefined) decimals = 18;
+
+  // ===== ICON FETCH (best effort, non-critical) =====
+  try {
+    const erc725YIcon = new ethers.Contract(contractAddress, ['function getData(bytes32) view returns (bytes)'], provider);
+    const LSP4_METADATA_KEY = '0x9afb95cacc9f95858ec44aa8c3b685511002e30ae54415823f406128b85b238e';
+    const metadataBytes: string = await erc725YIcon.getData(LSP4_METADATA_KEY).catch(() => '0x');
+    if (metadataBytes && metadataBytes !== '0x') {
+      const urlStart = 4 + 32;
+      const urlLen = parseInt(metadataBytes.slice(2 + urlStart * 2, 2 + urlStart * 2 + 4), 16);
+      const urlHex = metadataBytes.slice(2 + urlStart * 2 + 4, 2 + urlStart * 2 + 4 + urlLen * 2);
+      const metadataUrl = ethers.utils.toUtf8String('0x' + urlHex).replace('ipfs://', 'https://api.universalprofile.cloud/ipfs/');
+      const json = await fetch(metadataUrl).then(r => r.json()).catch(() => null);
+      const ipfsPath = json?.LSP4Metadata?.icon?.[0]?.url;
+      if (ipfsPath) {
+        iconUrl = resolveIpfsUrl(ipfsPath);
+      }
+    }
+  } catch (iconError) {
+    console.warn(`[getUPTokenMetadata] Could not fetch icon for ${contractAddress}:`, iconError);
+  }
+
+  const metadata: UPTokenMetadata = { name, symbol, iconUrl, decimals };
+
+  // Cache result
+  tokenMetadataCache.set(lowerCaseAddress, {
+    meta: metadata,
+    expiry: Date.now() + TOKEN_CACHE_DURATION,
+  });
+
+  return metadata;
+};
 
 // ===== LEGACY UTILITIES (deprecated but maintained for compatibility) =====
 

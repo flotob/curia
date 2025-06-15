@@ -37,7 +37,6 @@ import {
   useReadContracts,
   createStorage,
 } from 'wagmi';
-import { reconnect } from 'wagmi/actions';
 import { lukso, luksoTestnet } from 'viem/chains';
 import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
 import { UPGatingRequirements } from '@/types/gating';
@@ -82,11 +81,6 @@ const UPConnectionManagerForPanel: React.FC<UPConnectionManagerForPanelProps> = 
   const { disconnect } = useDisconnect();
   const { address, isConnected, status } = useAccount();
   const { data: balance } = useBalance({ address });
-
-  // Reconnect on mount
-  useEffect(() => {
-    reconnect(upConfig);
-  }, []);
 
   // Fetch token balances
   const { data: tokenResults, isLoading: isLoadingTokens } = useReadContracts({
