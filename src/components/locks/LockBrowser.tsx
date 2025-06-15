@@ -13,7 +13,8 @@ import {
   Grid3X3, 
   List, 
   Star,
-  Loader2
+  Loader2,
+  SortAsc
 } from 'lucide-react';
 import { LockWithStats } from '@/types/locks';
 import { LockCard } from './LockCard';
@@ -210,9 +211,9 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
       </div>
       
       {/* Search and Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3">
         {/* Search */}
-        <div className="relative flex-1">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search locks by name or description..."
@@ -222,31 +223,38 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
           />
         </div>
         
-        {/* View Mode Toggle */}
-        <div className="flex border rounded-md">
-          <Button
-            variant={viewMode === 'grid' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('grid')}
-            className="rounded-r-none"
-          >
-            <Grid3X3 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-            className="rounded-l-none"
-          >
-            <List className="h-4 w-4" />
-          </Button>
+        {/* View Mode Toggle - moved to filters row */}
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium text-muted-foreground">View</span>
+          <div className="flex border rounded-md">
+            <Button
+              type="button"
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="rounded-r-none"
+            >
+              <Grid3X3 className="h-4 w-4" />
+              <span className="ml-1 hidden sm:inline">Grid</span>
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="rounded-l-none"
+            >
+              <List className="h-4 w-4" />
+              <span className="ml-1 hidden sm:inline">List</span>
+            </Button>
+          </div>
         </div>
       </div>
       
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col sm:flex-row gap-3">
         {/* Filter Tabs */}
-        <div className="flex border rounded-md">
+        <div className="grid grid-cols-2 sm:flex sm:border sm:rounded-md gap-1 sm:gap-0">
           {[
             { key: 'all' as FilterMode, label: 'All', count: filterCounts.total, icon: null },
             { key: 'mine' as FilterMode, label: 'Mine', count: filterCounts.mine, icon: Users },
@@ -254,14 +262,17 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
             { key: 'public' as FilterMode, label: 'Public', count: filterCounts.public, icon: null }
           ].map((tab, index) => (
             <Button
+              type="button"
               key={tab.key}
               variant={filters.filter === tab.key ? 'default' : 'ghost'}
               size="sm"
               onClick={() => updateFilter('filter', tab.key)}
               className={`
-                ${index === 0 ? '' : 'border-l rounded-l-none'}
-                ${index === 3 ? '' : 'rounded-r-none'}
-                flex items-center space-x-1
+                flex items-center space-x-1 justify-center
+                sm:flex-none sm:border-0
+                ${index === 0 ? 'sm:rounded-r-none' : ''}
+                ${index > 0 && index < 3 ? 'sm:border-l sm:rounded-none' : ''}
+                ${index === 3 ? 'sm:border-l sm:rounded-l-none' : ''}
               `}
             >
               {tab.icon && <tab.icon className="h-3 w-3" />}
@@ -276,13 +287,14 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
         </div>
         
         {/* Sort */}
-        <div className="flex border rounded-md">
+        <div className="flex border rounded-md sm:flex-shrink-0">
           {[
             { key: 'recent' as SortMode, label: 'Recent', icon: Clock },
             { key: 'popular' as SortMode, label: 'Popular', icon: TrendingUp },
-            { key: 'name' as SortMode, label: 'Name', icon: null }
+            { key: 'name' as SortMode, label: 'Name', icon: SortAsc }
           ].map((sort, index) => (
             <Button
+              type="button"
               key={sort.key}
               variant={filters.sort === sort.key ? 'default' : 'ghost'}
               size="sm"
@@ -290,11 +302,11 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
               className={`
                 ${index === 0 ? '' : 'border-l rounded-l-none'}
                 ${index === 2 ? '' : 'rounded-r-none'}
-                flex items-center space-x-1
+                flex items-center space-x-1 flex-1 sm:flex-none justify-center
               `}
             >
               {sort.icon && <sort.icon className="h-3 w-3" />}
-              <span>{sort.label}</span>
+              <span className="hidden sm:inline">{sort.label}</span>
             </Button>
           ))}
         </div>
@@ -306,6 +318,7 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
           <CardContent className="pt-4">
             <p className="text-red-600 text-sm">{error}</p>
             <Button 
+              type="button"
               variant="outline" 
               size="sm" 
               onClick={loadLocks}

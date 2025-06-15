@@ -95,7 +95,7 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
         <CardContent className="p-4">
           {/* No Gating State */}
           {selectionMode === 'none' && (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-muted rounded-lg">
                   <Unlock className="h-4 w-4" />
@@ -108,10 +108,12 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
                 </div>
               </div>
               
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <Button 
+                  type="button"
                   variant="outline" 
                   size="sm"
+                  className="w-full sm:w-auto"
                   onClick={() => setSelectionMode('browse_locks')}
                   disabled={disabled}
                 >
@@ -123,9 +125,9 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
                     type="button"
                     variant="outline" 
                     size="sm"
+                    className="w-full sm:w-auto text-primary border-primary hover:bg-primary hover:text-primary-foreground"
                     onClick={onCreateLockRequested}
                     disabled={disabled}
-                    className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Create Lock
@@ -138,7 +140,7 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
           {/* Lock Selected State */}
           {selectionMode === 'browse_locks' && selectedLock && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center space-x-3">
                   <div 
                     className="p-2 rounded-lg text-white"
@@ -162,22 +164,17 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-2">
+                <div className="flex gap-2 sm:items-center">
                   <Button 
+                    type="button"
                     variant="ghost" 
                     size="sm"
-                    onClick={() => setSelectionMode('browse_locks')}
-                    disabled={disabled}
-                  >
-                    Change
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
+                    className="flex-shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={handleRemoveGating}
                     disabled={disabled}
                   >
                     <X className="h-4 w-4" />
+                    <span className="ml-1 hidden sm:inline">Remove</span>
                   </Button>
                 </div>
               </div>
@@ -207,6 +204,7 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Choose a Lock</CardTitle>
               <Button 
+                type="button"
                 variant="ghost" 
                 size="sm"
                 onClick={() => setSelectionMode('none')}
@@ -219,7 +217,7 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
           <CardContent>
             {onCreateLockRequested && (
               <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center space-x-2">
                     <Plus className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium">Need a custom lock?</span>
@@ -228,9 +226,9 @@ export const PostGatingSelector: React.FC<PostGatingSelectorProps> = ({
                     type="button"
                     variant="outline" 
                     size="sm"
+                    className="w-full sm:w-auto text-primary border-primary hover:bg-primary hover:text-primary-foreground"
                     onClick={onCreateLockRequested}
                     disabled={disabled}
-                    className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
                   >
                     Create New Lock
                   </Button>

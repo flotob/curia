@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ExpandedNewPostForm } from '@/components/voting/ExpandedNewPostForm';
 import { LockCreationModal } from '@/components/locks/LockCreationModal';
@@ -30,6 +30,22 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
   // Lock creation modal state
   const [isLockCreationOpen, setIsLockCreationOpen] = useState(false);
   const [selectedLockId, setSelectedLockId] = useState<number | null>(null);
+
+  // Lock body scroll when modal is open (only in full modal mode)
+  useEffect(() => {
+    if (!inline && isPostModalOpen) {
+      // Store original overflow style
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      
+      // Lock scroll
+      document.body.style.overflow = 'hidden';
+      
+      // Cleanup function to restore scroll
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [inline, isPostModalOpen]);
 
   // Handle lock creation request from post modal
   const handleCreateLockRequested = useCallback(() => {
@@ -103,14 +119,34 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
           isLockCreationOpen && 'transform scale-95 translate-y-2 opacity-70 blur-sm'
         )}
       >
-        <ExpandedNewPostForm
-          onPostCreated={onPostCreated}
-          onCancel={onPostModalClose}
-          boardId={boardId}
-          initialTitle={initialTitle}
-          onCreateLockRequested={handleCreateLockRequested}
-          preSelectedLockId={selectedLockId}
+        {/* Modal Backdrop */}
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={onPostModalClose}
         />
+        
+        {/* Modal Content Container */}
+        <div 
+          className="fixed inset-0 overflow-y-auto overscroll-contain"
+          onTouchMove={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div 
+              className="w-full max-w-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExpandedNewPostForm
+                onPostCreated={onPostCreated}
+                onCancel={onPostModalClose}
+                boardId={boardId}
+                initialTitle={initialTitle}
+                onCreateLockRequested={handleCreateLockRequested}
+                preSelectedLockId={selectedLockId}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Lock Creation Modal - appears on top */}
