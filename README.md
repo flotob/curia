@@ -951,3 +951,24 @@ const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 ```
 
 This keeps everything 100 % standards-compliant, avoids private properties of the provider in production code elsewhere, and has zero performance impact for our modest request volume.
+
+### Silent Re-connect for Universal Profile extension
+
+Historically the LUKSO Universal Profile browser extension always popped its permission window—even when the user had already connected—because our custom Wagmi connector **always** called `eth_requestAccounts`.
+
+**Fix (2025-06):** `src/lib/wagmi/connectors/universalProfile.ts` now:
+
+1. Calls `eth_accounts` first (silent probe).
+2. Falls back to `eth_requestAccounts` *only if* the probe returns an empty array.
+
+```ts
+// simplified
+let accounts = await provider.request({ method: 'eth_accounts' });
+if (accounts.length === 0) {
+  accounts = await provider.request({ method: 'eth_requestAccounts' });
+}
+```
+
+Because the extension returns the already-authorised address for `eth_accounts`, users no longer see the confirmation popup on page reloads or repeat clicks—matching the convenient MetaMask-style behaviour we already had for Ethereum.
+
+No other logic changed; existing event listeners and state handling remain intact.
