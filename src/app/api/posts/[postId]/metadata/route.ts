@@ -21,8 +21,20 @@ export interface EnhancedPostMetadata extends PostMetadata {
     communityGated: boolean;
     boardGated: boolean;
     postGated: boolean;
+    lockGated: boolean; // NEW: Lock-based gating
     communityRoles?: string[]; // Role names, not IDs
     boardRoles?: string[]; // Role names, not IDs
+    lockInfo?: {
+      id: number;
+      name: string;
+      description?: string;
+      categories: Array<{
+        type: string;
+        enabled: boolean;
+        requirements: unknown;
+      }>;
+      requireAll: boolean;
+    };
     postRequirements?: {
       lyxRequired?: string; // Formatted amount (e.g., "100 LYX")
       tokensRequired?: Array<{
@@ -145,7 +157,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
   try {
     console.log(`[API] GET /api/posts/${postId}/metadata - Enhanced metadata request`);
 
-    // Get post metadata WITH gating context
+    // Get post metadata WITH gating context and lock information
     const result = await query(`
       SELECT 
         p.id,
@@ -156,6 +168,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
         p.created_at,
         p.tags,
         p.settings as post_settings,
+        p.lock_id,
+        l.name as lock_name,
+        l.description as lock_description,
+        l.gating_config,
         b.name as board_name,
         b.settings as board_settings,
         b.community_id,
@@ -165,6 +181,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       JOIN boards b ON p.board_id = b.id  
       JOIN communities c ON b.community_id = c.id
       JOIN users u ON p.author_user_id = u.user_id
+      LEFT JOIN locks l ON p.lock_id = l.id
       WHERE p.id = $1
     `, [postId]);
 
@@ -191,6 +208,20 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const communityGated = SettingsUtils.hasPermissionRestrictions(communitySettings);
     const boardGated = SettingsUtils.hasPermissionRestrictions(boardSettings);
     const postGated = SettingsUtils.hasUPGating(postSettings);
+    const lockGated = !!postData.lock_id;
+
+    // Parse lock information if present
+    const lockInfo = lockGated && postData.gating_config ? {
+      id: postData.lock_id,
+      name: postData.lock_name || 'Unnamed Lock',
+      description: postData.lock_description,
+      categories: typeof postData.gating_config === 'string' 
+        ? JSON.parse(postData.gating_config).categories || []
+        : postData.gating_config.categories || [],
+      requireAll: typeof postData.gating_config === 'string'
+        ? JSON.parse(postData.gating_config).requireAll || false
+        : postData.gating_config.requireAll || false
+    } : undefined;
 
     // Resolve role names if needed
     const communityRoles = communityGated && communitySettings.permissions?.allowedRoles
@@ -221,13 +252,15 @@ export async function GET(req: NextRequest, context: RouteContext) {
         communityGated,
         boardGated,
         postGated,
+        lockGated,
         communityRoles,
         boardRoles,
+        lockInfo,
         postRequirements,
       }
     };
 
-    console.log(`[API] Successfully retrieved enhanced metadata for post ${postId} - Community: ${communityGated}, Board: ${boardGated}, Post: ${postGated}`);
+    console.log(`[API] Successfully retrieved enhanced metadata for post ${postId} - Community: ${communityGated}, Board: ${boardGated}, Post: ${postGated}, Lock: ${lockGated}${lockInfo ? ` (${lockInfo.name})` : ''}`);
     return NextResponse.json(metadata);
 
   } catch (error) {

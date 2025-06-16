@@ -64,6 +64,20 @@ export function extractDescription(content: string, maxLength: number = 160): st
 }
 
 /**
+ * Gets display name for a gating category
+ */
+function getCategoryDisplayName(category: { type: string }): string {
+  switch (category.type) {
+    case 'universal_profile':
+      return 'Universal Profile required';
+    case 'ethereum_profile':
+      return 'Ethereum wallet required';
+    default:
+      return 'Verification required';
+  }
+}
+
+/**
  * Generates gating description for meta tags
  * @param gatingContext - The gating context from enhanced metadata
  * @returns Human-readable gating requirements string
@@ -79,6 +93,23 @@ export function generateGatingDescription(gatingContext: EnhancedPostMetadata['g
     requirements.push('Board access required');
   }
   
+  // NEW: Handle lock-based gating
+  if (gatingContext.lockGated && gatingContext.lockInfo) {
+    const lock = gatingContext.lockInfo;
+    const categoryCount = lock.categories.length;
+    
+    if (categoryCount === 1) {
+      const category = lock.categories[0];
+      requirements.push(getCategoryDisplayName(category));
+    } else if (categoryCount > 1) {
+      const logic = lock.requireAll ? 'all' : 'any';
+      requirements.push(`${logic} of ${categoryCount} requirements`);
+    } else {
+      requirements.push(`Lock: ${lock.name}`);
+    }
+  }
+  
+  // Legacy: Handle direct post gating
   if (gatingContext.postGated && gatingContext.postRequirements) {
     const { postRequirements } = gatingContext;
     const postReqs: string[] = [];
@@ -101,7 +132,7 @@ export function generateGatingDescription(gatingContext: EnhancedPostMetadata['g
     }
   }
   
-  return requirements.length > 0 ? requirements.join(' • ') : '';
+  return requirements.length > 0 ? `🔒 ${requirements.join(' • ')}` : '';
 }
 
 /**
@@ -120,7 +151,8 @@ export function generatePrivacyAwareDescription(
   let description = '';
   if (!gatingContext.communityGated && !gatingContext.boardGated) {
     // Content is visible - extract description normally but shorter to make room for gating info
-    description = extractDescription(postData.content, gatingContext.postGated ? 60 : 80);
+    const hasGating = gatingContext.postGated || gatingContext.lockGated;
+    description = extractDescription(postData.content, hasGating ? 60 : 80);
   } else {
     // Content is private - use generic description
     description = "This discussion is part of a private community.";
@@ -171,6 +203,20 @@ export function generateEnhancedOGImageUrl(postData: EnhancedPostMetadata): stri
     params.set('boardGated', 'true');
   }
   
+  // NEW: Add lock-based gating parameters
+  if (postData.gatingContext.lockGated && postData.gatingContext.lockInfo) {
+    params.set('lockGated', 'true');
+    params.set('lockName', postData.gatingContext.lockInfo.name);
+    params.set('lockCategoryCount', postData.gatingContext.lockInfo.categories.length.toString());
+    params.set('lockRequireAll', postData.gatingContext.lockInfo.requireAll.toString());
+    
+    // Add primary category type for icon selection
+    if (postData.gatingContext.lockInfo.categories.length > 0) {
+      params.set('primaryCategory', postData.gatingContext.lockInfo.categories[0].type);
+    }
+  }
+  
+  // Legacy: Handle direct post gating
   if (postData.gatingContext.postGated) {
     params.set('postGated', 'true');
     

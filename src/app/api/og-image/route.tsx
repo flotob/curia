@@ -4,12 +4,28 @@ import { NextRequest } from 'next/server';
 export const runtime = 'edge';
 
 // Helper function to determine gating status and labels
-function getGatingInfo(communityGated: boolean, boardGated: boolean, postGated: boolean) {
-  const isGated = communityGated || boardGated || postGated;
+function getGatingInfo(
+  communityGated: boolean, 
+  boardGated: boolean, 
+  postGated: boolean,
+  lockGated: boolean,
+  lockName?: string,
+  lockCategoryCount?: number,
+  lockRequireAll?: boolean
+) {
+  const isGated = communityGated || boardGated || postGated || lockGated;
   
   let gatingLabel = '';
   if (communityGated) gatingLabel = 'Community Access';
   else if (boardGated) gatingLabel = 'Board Access';
+  else if (lockGated && lockName) {
+    if (lockCategoryCount && lockCategoryCount > 1) {
+      const logic = lockRequireAll ? 'All' : 'Any';
+      gatingLabel = `${logic} of ${lockCategoryCount}`;
+    } else {
+      gatingLabel = lockName.length > 20 ? lockName.substring(0, 17) + '...' : lockName;
+    }
+  }
   else if (postGated) gatingLabel = 'UP Required';
   
   return { isGated, gatingLabel };
@@ -20,7 +36,12 @@ function getRequirementIcons(
   lyxRequired?: string,
   tokenCount?: number,
   followerCount?: number,
-  roleRequired?: string
+  roleRequired?: string,
+  lockGated?: boolean,
+  lockName?: string,
+  lockCategoryCount?: number,
+  lockRequireAll?: boolean,
+  primaryCategory?: string
 ): Array<{ icon: string; text: string }> {
   const icons: Array<{ icon: string; text: string }> = [];
   
@@ -28,6 +49,31 @@ function getRequirementIcons(
     icons.push({ icon: '👥', text: 'Role Required' });
   }
   
+  // NEW: Handle lock-based requirements
+  if (lockGated && lockName) {
+    if (lockCategoryCount && lockCategoryCount > 1) {
+      const logic = lockRequireAll ? 'All' : 'Any';
+      icons.push({ 
+        icon: '🔐', 
+        text: `${logic} of ${lockCategoryCount} requirements` 
+      });
+    } else if (primaryCategory) {
+      // Show category-specific icon
+      const categoryIcon = primaryCategory === 'universal_profile' ? '🆙' : 
+                          primaryCategory === 'ethereum_profile' ? '⟠' : '🔐';
+      icons.push({ 
+        icon: categoryIcon, 
+        text: lockName.length > 25 ? lockName.substring(0, 22) + '...' : lockName 
+      });
+    } else {
+      icons.push({ 
+        icon: '🔐', 
+        text: lockName.length > 25 ? lockName.substring(0, 22) + '...' : lockName 
+      });
+    }
+  }
+  
+  // Legacy: Handle direct post requirements
   if (lyxRequired) {
     icons.push({ icon: '💰', text: lyxRequired });
   }
@@ -57,6 +103,13 @@ export async function GET(request: NextRequest) {
     const communityGated = searchParams.get('communityGated') === 'true';
     const boardGated = searchParams.get('boardGated') === 'true';
     const postGated = searchParams.get('postGated') === 'true';
+    const lockGated = searchParams.get('lockGated') === 'true';
+    
+    // Extract lock details
+    const lockName = searchParams.get('lockName') || undefined;
+    const lockCategoryCount = searchParams.get('lockCategoryCount') ? parseInt(searchParams.get('lockCategoryCount')!, 10) : undefined;
+    const lockRequireAll = searchParams.get('lockRequireAll') === 'true';
+    const primaryCategory = searchParams.get('primaryCategory') || undefined;
     
     // Extract requirement details
     const lyxRequired = searchParams.get('lyxRequired') || undefined;
@@ -65,11 +118,29 @@ export async function GET(request: NextRequest) {
     const roleRequired = searchParams.get('roleRequired') || undefined;
 
     // Determine gating status
-    const { isGated, gatingLabel } = getGatingInfo(communityGated, boardGated, postGated);
+    const { isGated, gatingLabel } = getGatingInfo(
+      communityGated, 
+      boardGated, 
+      postGated, 
+      lockGated, 
+      lockName, 
+      lockCategoryCount, 
+      lockRequireAll
+    );
     const isContentPrivate = communityGated || boardGated;
     
     // Get requirement icons
-    const requirements = getRequirementIcons(lyxRequired, tokenCount, followerCount, roleRequired);
+    const requirements = getRequirementIcons(
+      lyxRequired, 
+      tokenCount, 
+      followerCount, 
+      roleRequired,
+      lockGated,
+      lockName,
+      lockCategoryCount,
+      lockRequireAll,
+      primaryCategory
+    );
 
     // Adjust title length based on requirements presence
     const maxTitleLength = requirements.length > 0 ? 65 : 80;
