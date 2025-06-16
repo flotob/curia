@@ -65,14 +65,16 @@ export async function fetchPostMetadataDirect(postId: number): Promise<EnhancedP
     const result = await query(`
       SELECT 
         p.id, p.title, p.content, p.upvote_count, p.comment_count, 
-        p.created_at, p.tags, p.settings as post_settings,
+        p.created_at, p.tags, p.settings as post_settings, p.lock_id,
         b.name as board_name, b.settings as board_settings, b.community_id,
         c.settings as community_settings,
-        u.name as author_name
+        u.name as author_name,
+        l.gating_config as lock_gating_config
       FROM posts p
       JOIN boards b ON p.board_id = b.id  
       JOIN communities c ON b.community_id = c.id
       JOIN users u ON p.author_user_id = u.user_id
+      LEFT JOIN locks l ON p.lock_id = l.id
       WHERE p.id = $1
     `, [postId]);
     
@@ -154,6 +156,8 @@ interface PostDataRow {
   created_at: string;
   tags: string[];
   post_settings: string | object;
+  lock_id: number | null;
+  lock_gating_config: string | object | null;
   board_name: string;
   board_settings: string | object;
   community_id: string;
@@ -182,7 +186,11 @@ async function processGatingContext(postData: PostDataRow): Promise<EnhancedPost
   // Detect gating
   const communityGated = SettingsUtils.hasPermissionRestrictions(communitySettings);
   const boardGated = SettingsUtils.hasPermissionRestrictions(boardSettings);
-  const postGated = SettingsUtils.hasUPGating(postSettings);
+  
+  // Check for post gating (legacy OR lock-based)
+  const hasLegacyPostGating = SettingsUtils.hasUPGating(postSettings);
+  const hasLockGating = !!postData.lock_id && !!postData.lock_gating_config;
+  const postGated = hasLegacyPostGating || hasLockGating;
 
   // Resolve role names if needed
   const communityRoles = communityGated && communitySettings.permissions?.allowedRoles
@@ -193,10 +201,22 @@ async function processGatingContext(postData: PostDataRow): Promise<EnhancedPost
     ? await resolveRoleNames(boardSettings.permissions.allowedRoles, postData.community_id)
     : undefined;
 
-  // Format UP requirements if needed
-  const postRequirements = postGated 
-    ? formatUPRequirements(SettingsUtils.getUPGatingRequirements(postSettings))
-    : undefined;
+  // Format gating requirements if needed
+  let postRequirements: EnhancedPostMetadata['gatingContext']['postRequirements'];
+  
+  if (postGated) {
+    if (hasLockGating) {
+      // Format lock-based gating requirements
+      const lockConfig = typeof postData.lock_gating_config === 'string' 
+        ? JSON.parse(postData.lock_gating_config) 
+        : postData.lock_gating_config;
+      
+      postRequirements = formatLockGatingRequirements(lockConfig);
+    } else {
+      // Format legacy UP requirements
+      postRequirements = formatUPRequirements(SettingsUtils.getUPGatingRequirements(postSettings));
+    }
+  }
   
   // Format the enhanced response
   const metadata: EnhancedPostMetadata = {
@@ -307,6 +327,131 @@ function formatUPRequirements(requirements: RawUPRequirements | null | undefined
         ? `${follower.value} followers`
         : `${follower.value.substring(0, 6)}...${follower.value.substring(-4)}`,
     }));
+  }
+  
+  return Object.keys(formatted).length > 0 ? formatted : undefined;
+}
+
+// Type interfaces for lock configuration parsing
+interface LockCategoryRequirements {
+  // Universal Profile requirements
+  minLyxBalance?: string;
+  requiredTokens?: RawTokenRequirement[];
+  followerRequirements?: RawFollowerRequirement[];
+  
+  // Ethereum Profile requirements
+  requiresENS?: boolean;
+  minimumETHBalance?: string;
+  requiredERC20Tokens?: Array<{ contractAddress: string; name?: string; symbol?: string; decimals?: number }>;
+  requiredERC721Collections?: Array<{ contractAddress: string; name?: string; symbol?: string }>;
+  requiredERC1155Tokens?: Array<{ contractAddress: string; name?: string; symbol?: string }>;
+}
+
+interface LockCategory {
+  type: string;
+  enabled?: boolean;
+  requirements?: LockCategoryRequirements;
+}
+
+interface LockConfiguration {
+  categories?: LockCategory[];
+}
+
+/**
+ * Formats lock-based gating requirements for display
+ * Handles multiple categories (universal_profile, ethereum_profile) in lock config
+ */
+function formatLockGatingRequirements(lockConfig: LockConfiguration | null): EnhancedPostMetadata['gatingContext']['postRequirements'] {
+  if (!lockConfig?.categories || !Array.isArray(lockConfig.categories)) {
+    return undefined;
+  }
+  
+  const formatted: NonNullable<EnhancedPostMetadata['gatingContext']['postRequirements']> = {};
+  
+  // Process each category in the lock config
+  for (const category of lockConfig.categories) {
+    if (category.enabled === false) continue;
+    
+    if (category.type === 'universal_profile' && category.requirements) {
+      // Format Universal Profile requirements
+      const upReqs = category.requirements;
+      
+      // LYX balance requirement
+      if (upReqs.minLyxBalance) {
+        try {
+          const lyxAmount = ethers.utils.formatEther(upReqs.minLyxBalance);
+          formatted.lyxRequired = `${parseFloat(lyxAmount).toLocaleString()} LYX`;
+        } catch (error) {
+          console.error('[DirectMetadataFetcher] Error formatting LYX amount:', error);
+          formatted.lyxRequired = 'LYX Required';
+        }
+      }
+      
+      // Token requirements
+      if (upReqs.requiredTokens && Array.isArray(upReqs.requiredTokens)) {
+        if (!formatted.tokensRequired) formatted.tokensRequired = [];
+        formatted.tokensRequired.push(...upReqs.requiredTokens.map((token: RawTokenRequirement) => ({
+          name: token.name || 'Unknown Token',
+          symbol: token.symbol || 'TOKEN',
+          amount: token.minAmount || '1',
+          type: (token.tokenType || 'LSP7') as 'LSP7' | 'LSP8',
+        })));
+      }
+      
+      // Follower requirements
+      if (upReqs.followerRequirements && Array.isArray(upReqs.followerRequirements)) {
+        if (!formatted.followersRequired) formatted.followersRequired = [];
+        formatted.followersRequired.push(...upReqs.followerRequirements.map((follower: RawFollowerRequirement) => ({
+          type: follower.type,
+          displayValue: follower.type === 'minimum_followers' 
+            ? `${follower.value} followers`
+            : `${follower.value.substring(0, 6)}...${follower.value.substring(-4)}`,
+        })));
+      }
+    }
+    
+    if (category.type === 'ethereum_profile' && category.requirements) {
+      // Format Ethereum Profile requirements
+      const ethReqs = category.requirements;
+      
+      // Add indicators for Ethereum requirements (simplified for Telegram)
+      if (ethReqs.requiresENS) {
+        if (!formatted.followersRequired) formatted.followersRequired = [];
+        formatted.followersRequired.push({
+          type: 'minimum_followers' as const,
+          displayValue: 'ENS Domain Required'
+        });
+      }
+      
+      if (ethReqs.minimumETHBalance) {
+        try {
+          const ethAmount = ethers.utils.formatEther(ethReqs.minimumETHBalance);
+          if (!formatted.lyxRequired) {
+            formatted.lyxRequired = `${parseFloat(ethAmount).toLocaleString()} ETH`;
+          } else {
+            // Append to existing requirement
+            formatted.lyxRequired += ` + ${parseFloat(ethAmount).toLocaleString()} ETH`;
+          }
+        } catch (error) {
+          console.error('[DirectMetadataFetcher] Error formatting ETH amount:', error);
+        }
+      }
+      
+      // Add token requirements from Ethereum profile
+      if ((ethReqs.requiredERC20Tokens && ethReqs.requiredERC20Tokens.length > 0) ||
+          (ethReqs.requiredERC721Collections && ethReqs.requiredERC721Collections.length > 0) ||
+          (ethReqs.requiredERC1155Tokens && ethReqs.requiredERC1155Tokens.length > 0)) {
+        if (!formatted.tokensRequired) formatted.tokensRequired = [];
+        
+        // Add simplified indicator for Ethereum tokens
+        formatted.tokensRequired.push({
+          name: 'Ethereum Tokens',
+          symbol: 'ETH-TOKENS',
+          amount: 'Various',
+          type: 'LSP7' as const,
+        });
+      }
+    }
   }
   
   return Object.keys(formatted).length > 0 ? formatted : undefined;

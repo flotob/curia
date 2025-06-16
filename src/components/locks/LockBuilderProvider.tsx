@@ -24,6 +24,7 @@ const initialState: LockBuilderState = {
     isPublic: true
   },
   requirements: [],
+  fulfillmentMode: 'any', // Default to ANY (backward compatible behavior)
   validation: {
     isValid: false,
     errors: [],
@@ -41,6 +42,7 @@ interface LockBuilderContextType {
   setState: React.Dispatch<React.SetStateAction<LockBuilderState>>;
   updateMetadata: (metadata: Partial<CreateLockRequest>) => void;
   updateRequirements: (requirements: GatingRequirement[]) => void;
+  updateFulfillmentMode: (mode: 'any' | 'all') => void;
   addRequirement: (requirement: GatingRequirement) => void;
   updateRequirement: (id: string, requirement: Partial<GatingRequirement>) => void;
   removeRequirement: (id: string) => void;
@@ -99,6 +101,13 @@ export const LockBuilderProvider: React.FC<LockBuilderProviderProps> = ({
     setState(prev => ({
       ...prev,
       requirements
+    }));
+  }, []);
+
+  const updateFulfillmentMode = useCallback((mode: 'any' | 'all') => {
+    setState(prev => ({
+      ...prev,
+      fulfillmentMode: mode
     }));
   }, []);
 
@@ -193,6 +202,7 @@ export const LockBuilderProvider: React.FC<LockBuilderProviderProps> = ({
     setState,
     updateMetadata,
     updateRequirements,
+    updateFulfillmentMode,
     addRequirement,
     updateRequirement,
     removeRequirement,

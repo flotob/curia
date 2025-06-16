@@ -139,7 +139,14 @@ async function getGatingRequirementsHandler(
         : lock_gating_config;
       
       gatingCategories = lockGatingConfig.categories || [];
-      requireAll = lockGatingConfig.requireAll || false;
+      // Backward compatibility: handle both requireAll and requireAny fields
+      if (lockGatingConfig.requireAll !== undefined) {
+        requireAll = lockGatingConfig.requireAll;
+      } else if (lockGatingConfig.requireAny !== undefined) {
+        requireAll = !lockGatingConfig.requireAny; // requireAny: false means requireAll: true
+      } else {
+        requireAll = false; // Default to requireAny behavior for backward compatibility
+      }
       
       console.log(`[API gating-requirements] Using lock-based gating for post ${postId}, lock_id: ${lock_id}`);
     } else {

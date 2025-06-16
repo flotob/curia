@@ -188,6 +188,7 @@ export interface LockBuilderState {
   selectedTemplate: any | null; // eslint-disable-line @typescript-eslint/no-explicit-any -- Template from template system (Phase 2) - TODO: proper type after integration
   metadata: Partial<CreateLockRequest>;
   requirements: GatingRequirement[]; // Flat list of all requirements
+  fulfillmentMode: 'any' | 'all'; // Whether to require ANY or ALL categories (Phase 2 enhancement)
   validation: LockValidationResult;
   previewMode: boolean;
   

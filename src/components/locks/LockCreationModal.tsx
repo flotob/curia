@@ -449,7 +449,7 @@ const PreviewStep = () => {
         });
       }
 
-      return { categories, requireAny: true };
+      return { categories, requireAll: state.fulfillmentMode === 'all' };
     };
 
     return {
@@ -861,7 +861,7 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
           color: state.metadata.color || '#3b82f6',
           gatingConfig: {
             categories,
-            requireAny: true
+            requireAll: state.fulfillmentMode === 'all'
           },
           tags: state.metadata.tags || [],
           isPublic: state.metadata.isPublic || false

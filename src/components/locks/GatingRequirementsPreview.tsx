@@ -229,7 +229,16 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
   })) || [];
   
   const enabledCategories = categories.filter(cat => cat.enabled);
-  const requireAll = gatingConfig.requireAll || false;
+  
+  // Backward compatibility: handle both requireAll and requireAny fields
+  let requireAll: boolean;
+  if (gatingConfig.requireAll !== undefined) {
+    requireAll = gatingConfig.requireAll;
+  } else if (gatingConfig.requireAny !== undefined) {
+    requireAll = !gatingConfig.requireAny; // requireAny: false means requireAll: true
+  } else {
+    requireAll = false; // Default to requireAny behavior for backward compatibility
+  }
   
   // ===== AUTO-EXPAND LOGIC =====
   

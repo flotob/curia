@@ -41,10 +41,12 @@ async function generateChallengeHandler(req: AuthenticatedRequest, context: Rout
 
     // Verify post exists and get its settings
     const postResult = await query(
-      `SELECT p.id, p.title, p.settings as post_settings, p.board_id,
-              b.settings as board_settings, b.community_id
+      `SELECT p.id, p.title, p.settings as post_settings, p.board_id, p.lock_id,
+              b.settings as board_settings, b.community_id,
+              l.gating_config as lock_gating_config
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
+       LEFT JOIN locks l ON p.lock_id = l.id
        WHERE p.id = $1`,
       [postId]
     );
@@ -56,7 +58,9 @@ async function generateChallengeHandler(req: AuthenticatedRequest, context: Rout
     const { 
       post_settings, 
       board_settings, 
-      community_id 
+      community_id,
+      lock_id,
+      lock_gating_config
     } = postResult.rows[0];
 
     // Verify post belongs to user's community
@@ -70,19 +74,37 @@ async function generateChallengeHandler(req: AuthenticatedRequest, context: Rout
       return NextResponse.json({ error: 'You do not have permission to access this post' }, { status: 403 });
     }
 
-    // Parse post settings and check if gating is enabled
+    // Parse post settings
     const postSettings: PostSettings = typeof post_settings === 'string' 
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
-    // Check for any form of gating (legacy UP or multi-category)
-    if (!SettingsUtils.hasAnyGating(postSettings)) {
+    // Check if post has any gating (legacy OR lock-based)
+    const hasLegacyGating = SettingsUtils.hasAnyGating(postSettings);
+    const hasLockGating = !!lock_id && !!lock_gating_config;
+
+    if (!hasLegacyGating && !hasLockGating) {
       return NextResponse.json({ error: 'This post does not have gating enabled' }, { status: 400 });
     }
 
-    // For UP challenge generation, ensure the post has UP gating requirements
-    const hasUpRequirements = SettingsUtils.hasUPGating(postSettings) || 
-                              SettingsUtils.getGatingCategories(postSettings).some(cat => cat.type === 'universal_profile' && cat.enabled);
+    // Check for UP gating requirements (legacy OR lock-based)
+    let hasUpRequirements = false;
+
+    if (hasLockGating) {
+      // Check lock-based gating configuration
+      const lockConfig = typeof lock_gating_config === 'string' 
+        ? JSON.parse(lock_gating_config) 
+        : lock_gating_config;
+      
+      // Check if lock has universal_profile category
+      hasUpRequirements = lockConfig?.categories?.some((cat: { type: string; enabled?: boolean }) => 
+        cat.type === 'universal_profile' && cat.enabled !== false
+      ) || false;
+    } else {
+      // Check legacy gating configuration
+      hasUpRequirements = SettingsUtils.hasUPGating(postSettings) || 
+                          SettingsUtils.getGatingCategories(postSettings).some(cat => cat.type === 'universal_profile' && cat.enabled);
+    }
     
     if (!hasUpRequirements) {
       return NextResponse.json({ error: 'This post does not have Universal Profile gating enabled' }, { status: 400 });

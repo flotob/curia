@@ -65,8 +65,8 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
   searchTerm = '',
   onSearchChange
 }) => {
-  const { state, removeRequirement, navigateToRequirementPicker, navigateToRequirementConfig } = useLockBuilder();
-  const { requirements } = state;
+  const { state, removeRequirement, updateFulfillmentMode, navigateToRequirementPicker, navigateToRequirementConfig } = useLockBuilder();
+  const { requirements, fulfillmentMode } = state;
 
   // Group requirements by category
   const groupedRequirements = requirements.reduce((groups, requirement) => {
@@ -132,6 +132,43 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
           className="pl-10"
         />
       </div>
+
+      {/* Fulfillment Mode Toggle - Only show if there are requirements */}
+      {requirements.length > 0 && (
+        <div className="bg-muted/50 border border-border rounded-lg p-4">
+          <h4 className="text-sm font-medium text-foreground mb-3">Verification Requirements</h4>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => updateFulfillmentMode('any')}
+              className={cn(
+                'px-3 py-2 text-sm rounded-md font-medium transition-colors',
+                fulfillmentMode === 'any'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              Require ANY
+            </button>
+            <button
+              onClick={() => updateFulfillmentMode('all')}
+              className={cn(
+                'px-3 py-2 text-sm rounded-md font-medium transition-colors',
+                fulfillmentMode === 'all'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              Require ALL
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {fulfillmentMode === 'any' 
+              ? 'Users need to satisfy ANY ONE of the requirements below to gain access.'
+              : 'Users must satisfy ALL of the requirements below to gain access.'
+            }
+          </p>
+        </div>
+      )}
 
       {/* Requirements List */}
       <div className="space-y-4">
