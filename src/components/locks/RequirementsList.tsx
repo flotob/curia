@@ -136,7 +136,7 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
       {/* Fulfillment Mode Toggle - Only show if there are requirements */}
       {requirements.length > 0 && (
         <div className="bg-muted/50 border border-border rounded-lg p-4">
-          <h4 className="text-sm font-medium text-foreground mb-3">Verification Requirements</h4>
+          <h4 className="text-sm font-medium text-foreground mb-3">Ecosystem Fulfillment Logic</h4>
           <div className="flex items-center space-x-1">
             <button
               onClick={() => updateFulfillmentMode('any')}
@@ -163,8 +163,8 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
           </div>
           <p className="text-xs text-muted-foreground mt-2">
             {fulfillmentMode === 'any' 
-              ? 'Users need to satisfy ANY ONE of the requirements below to gain access.'
-              : 'Users must satisfy ALL of the requirements below to gain access.'
+              ? 'Users need to satisfy ANY ONE ecosystem (e.g., Universal Profile OR Ethereum Profile).'
+              : 'Users must satisfy ALL ecosystems (e.g., Universal Profile AND Ethereum Profile).'
             }
           </p>
         </div>
