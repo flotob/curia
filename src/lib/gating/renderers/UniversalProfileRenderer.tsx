@@ -96,7 +96,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
    * Uses the rich requirements display with real UP context data
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode } = props;
+    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode, onVerificationComplete } = props;
     const metadata = this.getMetadata();
     
     // This will be rendered within GatingRequirementsPanel which has UP context
@@ -110,6 +110,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
         disabled={disabled}
         postId={postId}
         isPreviewMode={isPreviewMode}
+        onVerificationComplete={onVerificationComplete}
       />
     );
   }
@@ -281,6 +282,7 @@ interface UPConnectionComponentProps {
   disabled?: boolean;
   postId?: number;
   isPreviewMode?: boolean;
+  onVerificationComplete?: () => void;
 }
 
 const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
@@ -291,7 +293,8 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   onDisconnect,
   disabled,
   postId,
-  isPreviewMode = false
+  isPreviewMode = false,
+  onVerificationComplete
 }) => {
   // ===== HOOKS =====
 
@@ -430,6 +433,7 @@ This signature proves you control this Universal Profile and grants access to co
           invalidateVerificationStatus(targetPostId);
         }, 100);
         
+        onVerificationComplete?.();
         return true;
       } else {
         throw new Error(result.error || 'Verification failed');
@@ -450,7 +454,7 @@ This signature proves you control this Universal Profile and grants access to co
     } finally {
       setIsVerifying(false);
     }
-  }, [userStatus, token, postId, isPreviewMode, invalidateVerificationStatus]);
+  }, [userStatus, token, postId, isPreviewMode, onVerificationComplete]); // Removed invalidateVerificationStatus to prevent infinite loop
 
 
   // ===== BUILD RICH PREVIEW DATA =====

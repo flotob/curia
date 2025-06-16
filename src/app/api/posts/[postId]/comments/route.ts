@@ -17,7 +17,7 @@ import {
 } from '@/lib/verification';
 import { SettingsUtils, PostSettings } from '@/types/settings';
 import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
-import { EthereumGatingRequirements, UPGatingRequirements } from '@/types/gating';
+import { EthereumGatingRequirements, UPGatingRequirements, GatingCategory } from '@/types/gating';
 
 // Initialize nonce store
 NonceStore.initialize();
@@ -478,12 +478,14 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
   }
 
   try {
-    // SECURITY: First, check if user can access the board where this post belongs and get post settings
+    // SECURITY: First, check if user can access the board where this post belongs and get post settings + lock data
     const postBoardResult = await query(
-      `SELECT p.board_id, p.title as post_title, p.settings as post_settings, 
-              b.settings as board_settings, b.community_id, b.name as board_name
+      `SELECT p.board_id, p.title as post_title, p.settings as post_settings, p.lock_id,
+              b.settings as board_settings, b.community_id, b.name as board_name,
+              l.gating_config as lock_gating_config
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
+       LEFT JOIN locks l ON p.lock_id = l.id
        WHERE p.id = $1`,
       [postId]
     );
@@ -496,6 +498,8 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       board_id, 
       post_title, 
       post_settings, 
+      lock_id,
+      lock_gating_config,
       board_settings, 
       community_id, 
       board_name 
@@ -525,19 +529,42 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       return NextResponse.json({ error: 'Comment content cannot be empty' }, { status: 400 });
     }
 
-    // Parse post settings and check for gating
+    // Parse post settings and check for gating (legacy OR lock-based)
     const postSettings: PostSettings = typeof post_settings === 'string' 
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
+    // Check if post has any gating (legacy OR lock-based)
+    const hasLegacyGating = SettingsUtils.hasAnyGating(postSettings);
+    const hasLockGating = !!lock_id && !!lock_gating_config;
+
     // ⭐ PRE-VERIFICATION SLOT-BASED GATING ⭐
-    if (SettingsUtils.hasAnyGating(postSettings)) {
-      console.log(`[API POST /api/posts/${postId}/comments] Post has gating enabled, checking pre-verifications...`);
+    if (hasLegacyGating || hasLockGating) {
+      console.log(`[API POST /api/posts/${postId}/comments] Post has gating enabled (${hasLockGating ? 'lock-based' : 'legacy'}), checking pre-verifications...`);
       
-      // Get gating categories
-      const categories = SettingsUtils.getGatingCategories(postSettings);
-      const requireAll = postSettings.responsePermissions?.requireAll || false;
-      const enabledCategories = categories.filter(cat => cat.enabled);
+      // Determine which gating configuration to use
+      let gatingCategories: GatingCategory[];
+      let requireAll: boolean;
+      
+      if (hasLockGating) {
+        // Use lock-based gating configuration
+        const lockGatingConfig = typeof lock_gating_config === 'string' 
+          ? JSON.parse(lock_gating_config) 
+          : lock_gating_config;
+        
+        gatingCategories = lockGatingConfig.categories || [];
+        requireAll = lockGatingConfig.requireAll || false;
+        
+        console.log(`[API POST /api/posts/${postId}/comments] Using lock-based gating, lock_id: ${lock_id}`);
+      } else {
+        // Use legacy post settings gating
+        gatingCategories = SettingsUtils.getGatingCategories(postSettings);
+        requireAll = postSettings.responsePermissions?.requireAll || false;
+        
+        console.log(`[API POST /api/posts/${postId}/comments] Using legacy gating`);
+      }
+
+      const enabledCategories = gatingCategories.filter((cat: GatingCategory) => cat.enabled);
 
       if (enabledCategories.length === 0) {
         console.log(`[API POST /api/posts/${postId}/comments] No enabled gating categories found`);
@@ -563,8 +590,8 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         if (requireAll) {
           // Need all categories verified
           const unverifiedCategories = enabledCategories
-            .filter(cat => !verifiedCategories.has(cat.type))
-            .map(cat => cat.type);
+            .filter((cat: GatingCategory) => !verifiedCategories.has(cat.type))
+            .map((cat: GatingCategory) => cat.type);
           
           canComment = unverifiedCategories.length === 0;
           
@@ -576,7 +603,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
           canComment = verifiedCount > 0;
           
           if (!canComment) {
-            const availableCategories = enabledCategories.map(cat => cat.type).join(', ');
+            const availableCategories = enabledCategories.map((cat: GatingCategory) => cat.type).join(', ');
             errorMessage = `At least one verification requirement must be met. Available options: ${availableCategories}. Please complete verification before commenting.`;
           }
         }
@@ -586,7 +613,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
           return NextResponse.json({ 
             error: errorMessage,
             requiresVerification: true,
-            availableCategories: enabledCategories.map(cat => cat.type),
+            availableCategories: enabledCategories.map((cat: GatingCategory) => cat.type),
             requireAll
           }, { status: 403 });
         }

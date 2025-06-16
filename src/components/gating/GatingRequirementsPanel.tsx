@@ -252,6 +252,20 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   }, [verificationStatus?.canComment, onVerificationComplete]);
 
   // ===== HANDLERS =====
+  
+  // Create a combined verification complete handler that calls both React Query invalidation AND parent callback
+  const handleVerificationComplete = useCallback(() => {
+    console.log('[GatingRequirementsPanel] Verification completed - triggering both invalidation and parent callback');
+    
+    // 1. Invalidate React Query cache to refetch verification status
+    invalidateVerificationStatus(postId);
+    
+    // 2. IMMEDIATELY notify parent component (don't wait for React Query)
+    if (onVerificationComplete) {
+      console.log('[GatingRequirementsPanel] Calling parent onVerificationComplete with true');
+      onVerificationComplete(true);
+    }
+  }, [invalidateVerificationStatus, postId, onVerificationComplete]);
 
   const toggleCategoryExpanded = useCallback((categoryType: string) => {
     setExpandedCategory(prev => {
@@ -297,7 +311,7 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                       <UPConnectionManagerForPanel
                         requirements={category.requirements as UPGatingRequirements}
                         postId={postId}
-                        onVerificationComplete={() => invalidateVerificationStatus(postId)}
+                        onVerificationComplete={handleVerificationComplete}
                       />
                     </WagmiProvider>
                   );
@@ -316,7 +330,7 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                     },
                     disabled: false,
                     postId: postId,
-                    onVerificationComplete: () => invalidateVerificationStatus(postId),
+                    onVerificationComplete: handleVerificationComplete,
                   });
                 }
 

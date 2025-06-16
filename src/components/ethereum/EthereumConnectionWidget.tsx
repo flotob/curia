@@ -230,7 +230,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     } finally {
       setIsVerifying(false);
     }
-  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, invalidateVerificationStatus, isPreviewMode]);
+  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, isPreviewMode]);
 
   // Local verification function to check if requirements are met (for UI only)
   const performLocalVerification = useCallback(async () => {

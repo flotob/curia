@@ -59,41 +59,11 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   const { activateUP } = useUPActivation();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [canComment, setCanComment] = useState(true); // Tracks if user can comment based on verification status
 
-  // Check if this post has gating enabled (supports both old and new formats + locks)
+  // Calculate gating booleans before state initialization
   const hasSettingsGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
   const hasLockGating = post ? !!post.lock_id : false;
   const hasGating = hasSettingsGating || hasLockGating;
-  
-  // Determine gating types - need to check what's actually enabled, not just the format
-  const hasUPGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
-  const hasEthereumGating = post ? SettingsUtils.hasEthereumGating(post.settings) : false;
-  const usesMultiCategoryFormat = post ? SettingsUtils.hasMultiCategoryGating(post.settings) : false;
-  
-  // Determine actual gating behavior
-  const hasUPOnlyGating = hasUPGating && !hasEthereumGating;
-  const hasEthereumOnlyGating = hasEthereumGating && !hasUPGating;
-  const hasMultiCategoryGating = hasUPGating && hasEthereumGating;
-
-  // Debug logging for gating detection
-  useEffect(() => {
-    if (post) {
-      console.log('[NewCommentForm] Gating detection for post', postId, {
-        hasGating,
-        hasSettingsGating,
-        hasLockGating,
-        lockId: post.lock_id,
-        hasUPGating,
-        hasEthereumGating,
-        usesMultiCategoryFormat,
-        hasUPOnlyGating,
-        hasEthereumOnlyGating,
-        hasMultiCategoryGating,
-        postSettings: post.settings
-      });
-    }
-  }, [postId, hasGating, hasSettingsGating, hasLockGating, hasUPGating, hasEthereumGating, usesMultiCategoryFormat, hasUPOnlyGating, hasEthereumOnlyGating, hasMultiCategoryGating, post]);
 
   // Set up typing events for real-time indicators
   const typingEvents = useTypingEvents({
@@ -107,7 +77,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   // Activate UP functionality when gating is detected (but don't initialize yet)
   useEffect(() => {
     if (hasGating) {
-      console.log('[NewCommentForm] Gating detected, marking UP as needed');
       activateUP();
     }
   }, [hasGating, activateUP]);
@@ -162,12 +131,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     },
   });
 
-  // Handle verification status changes from GatingRequirementsPanel
-  const handleVerificationStatusChange = (canCommentStatus: boolean) => {
-    setCanComment(canCommentStatus);
-    console.log('[NewCommentForm] Verification status changed:', canCommentStatus);
-  };
-
   const addCommentMutation = useMutation<ApiComment, Error, CreateCommentMutationPayload>({
     mutationFn: async (commentData) => {
       if (!token) throw new Error('Authentication required to comment.');
@@ -217,13 +180,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     setError(null);
 
     try {
-      // Check if this post requires gating verification
-      if (hasGating && !canComment) {
-        setError('Please complete the required verification above before commenting.');
-        return;
-      }
-
-      // Submit comment (verification handled by pre-verification system)
+      // Submit comment (backend handles all gating verification)
       addCommentMutation.mutate({ 
         content: editorContentJson, 
         parent_comment_id: parentCommentId
@@ -254,7 +211,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       {hasGating && (
         <GatingRequirementsPanel 
           postId={postId}
-          onVerificationComplete={handleVerificationStatusChange}
         />
       )}
       
@@ -289,18 +245,28 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
             <div className="space-y-1.5">
               <Label htmlFor="comment-content" className="text-sm font-medium">Your Comment</Label>
               <div className="relative group">
-                <div className="border-2 border-input rounded-xl overflow-hidden transition-all duration-200 group-focus-within:border-primary group-focus-within:shadow-lg group-focus-within:shadow-primary/10 bg-background">
+                <div 
+                  className="border-2 border-input rounded-xl overflow-hidden transition-all duration-200 group-focus-within:border-primary group-focus-within:shadow-lg group-focus-within:shadow-primary/10 bg-background cursor-text"
+                  onClick={() => {
+                    // Manually focus the editor when clicking the container
+                    editor?.commands.focus();
+                  }}
+                >
                   <EditorContent 
                     editor={editor} 
                     id="comment-content"
                     className="prose-headings:font-semibold prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground"
                   />
-                  <div className="border-t border-border/50 bg-muted/30">
+                  <div 
+                    className="border-t border-border/50 bg-muted/30"
+                    onClick={(e) => {
+                      // Prevent toolbar clicks from interfering with editor focus
+                      e.stopPropagation();
+                    }}
+                  >
                     <EditorToolbar editor={editor} />
                   </div>
                 </div>
-                {/* Focus ring for better accessibility */}
-                <div className="absolute inset-0 rounded-xl ring-2 ring-transparent group-focus-within:ring-primary/20 transition-all duration-200 pointer-events-none" />
               </div>
             </div>
             
@@ -315,8 +281,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
                 type="submit" 
                 disabled={
                   addCommentMutation.isPending || 
-                  editor?.isEmpty || 
-                  (hasGating && !canComment) // Disable if gating is enabled but user can't comment
+                  editor?.isEmpty
                 }
                 className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
               >

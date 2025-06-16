@@ -12,7 +12,7 @@ import { SettingsUtils, PostSettings } from '@/types/settings';
 import { VerificationChallenge } from '@/lib/verification/types';
 import { ChallengeUtils, verifyPostGatingRequirements } from '@/lib/verification';
 import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
-import { EthereumGatingRequirements, UPGatingRequirements } from '@/types/gating';
+import { EthereumGatingRequirements, UPGatingRequirements, GatingCategory } from '@/types/gating';
 
 interface PreVerifyRequest {
   challenge: VerificationChallenge;
@@ -57,11 +57,13 @@ async function preVerifyHandler(
 
     console.log(`[API] Pre-verifying ${categoryType} for user ${user.sub} on post ${postId}`);
 
-    // Get post settings and verify access
+    // Get post settings, lock data and verify access
     const postResult = await query(
-      `SELECT p.settings as post_settings, p.board_id, b.community_id
+      `SELECT p.settings as post_settings, p.board_id, p.lock_id, b.community_id,
+              l.gating_config as lock_gating_config
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
+       LEFT JOIN locks l ON p.lock_id = l.id
        WHERE p.id = $1`,
       [postId]
     );
@@ -70,7 +72,7 @@ async function preVerifyHandler(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { post_settings, community_id } = postResult.rows[0];
+    const { post_settings, lock_id, lock_gating_config, community_id } = postResult.rows[0];
 
     // Verify user has access to this community
     if (community_id !== user.cid) {
@@ -82,9 +84,37 @@ async function preVerifyHandler(
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
-    // Get gating categories and verify this category is enabled
-    const categories = SettingsUtils.getGatingCategories(postSettings);
-    const targetCategory = categories.find(cat => cat.type === categoryType && cat.enabled);
+    // Check if post has any gating (legacy OR lock-based)
+    const hasLegacyGating = SettingsUtils.hasAnyGating(postSettings);
+    const hasLockGating = !!lock_id && !!lock_gating_config;
+
+    if (!hasLegacyGating && !hasLockGating) {
+      return NextResponse.json({ 
+        error: 'No gating requirements found for this post' 
+      }, { status: 400 });
+    }
+
+    // Determine which gating configuration to use
+    let gatingCategories: GatingCategory[];
+
+    if (hasLockGating) {
+      // Use lock-based gating configuration
+      const lockGatingConfig = typeof lock_gating_config === 'string' 
+        ? JSON.parse(lock_gating_config) 
+        : lock_gating_config;
+      
+      gatingCategories = lockGatingConfig.categories || [];
+      
+      console.log(`[API] Using lock-based gating for pre-verification, lock_id: ${lock_id}`);
+    } else {
+      // Use legacy post settings gating
+      gatingCategories = SettingsUtils.getGatingCategories(postSettings);
+      
+      console.log(`[API] Using legacy gating for pre-verification`);
+    }
+
+    // Find and verify this category is enabled
+    const targetCategory = gatingCategories.find((cat: GatingCategory) => cat.type === categoryType && cat.enabled);
 
     if (!targetCategory) {
       return NextResponse.json({ 

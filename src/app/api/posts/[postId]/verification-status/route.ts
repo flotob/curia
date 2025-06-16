@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { SettingsUtils, PostSettings } from '@/types/settings';
+import { GatingCategory } from '@/types/gating';
 
 interface VerificationStatusResponse {
   canComment: boolean;
@@ -59,11 +60,13 @@ async function getVerificationStatusHandler(
   }
 
   try {
-    // Get post settings and verify access
+    // Get post settings, lock data and verify access
     const postResult = await query(
-      `SELECT p.settings as post_settings, p.board_id, b.community_id
+      `SELECT p.settings as post_settings, p.board_id, p.lock_id, b.community_id,
+              l.gating_config as lock_gating_config
        FROM posts p 
        JOIN boards b ON p.board_id = b.id 
+       LEFT JOIN locks l ON p.lock_id = l.id
        WHERE p.id = $1`,
       [postId]
     );
@@ -72,7 +75,7 @@ async function getVerificationStatusHandler(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { post_settings, community_id } = postResult.rows[0];
+    const { post_settings, community_id, lock_id, lock_gating_config } = postResult.rows[0];
 
     // Verify user has access to this community
     if (community_id !== user.cid) {
@@ -84,8 +87,11 @@ async function getVerificationStatusHandler(
       ? JSON.parse(post_settings) 
       : (post_settings || {});
 
-    // Check if post has any gating
-    if (!SettingsUtils.hasAnyGating(postSettings)) {
+    // Check if post has any gating (legacy OR lock-based)
+    const hasLegacyGating = SettingsUtils.hasAnyGating(postSettings);
+    const hasLockGating = !!lock_id && !!lock_gating_config;
+    
+    if (!hasLegacyGating && !hasLockGating) {
       return NextResponse.json({
         canComment: true,
         requireAll: false,
@@ -96,9 +102,27 @@ async function getVerificationStatusHandler(
       } as VerificationStatusResponse);
     }
 
-    // Get gating categories
-    const categories = SettingsUtils.getGatingCategories(postSettings);
-    const requireAll = postSettings.responsePermissions?.requireAll || false;
+    // Determine which gating configuration to use
+    let gatingCategories: GatingCategory[];
+    let requireAll: boolean;
+    
+    if (hasLockGating) {
+      // Use lock-based gating configuration
+      const lockGatingConfig = typeof lock_gating_config === 'string' 
+        ? JSON.parse(lock_gating_config) 
+        : lock_gating_config;
+      
+      gatingCategories = lockGatingConfig.categories || [];
+      requireAll = lockGatingConfig.requireAll || false;
+      
+      console.log(`[API verification-status] Using lock-based gating for post ${postId}, lock_id: ${lock_id}`);
+    } else {
+      // Use legacy post settings gating
+      gatingCategories = SettingsUtils.getGatingCategories(postSettings);
+      requireAll = postSettings.responsePermissions?.requireAll || false;
+      
+      console.log(`[API verification-status] Using legacy gating for post ${postId}`);
+    }
 
     // Get current verification statuses for this user (only non-expired)
     const verificationResult = await query(
@@ -114,7 +138,7 @@ async function getVerificationStatusHandler(
     });
 
     // Build category status array
-    const categoryStatuses: CategoryVerificationStatus[] = categories.map(category => {
+    const categoryStatuses: CategoryVerificationStatus[] = gatingCategories.map((category: GatingCategory) => {
       const verification = verifiedCategoryMap.get(category.type);
       
       return {
@@ -127,7 +151,7 @@ async function getVerificationStatusHandler(
     });
 
     // Calculate verification status
-    const enabledCategories = categories.filter(cat => cat.enabled);
+    const enabledCategories = gatingCategories.filter((cat: GatingCategory) => cat.enabled);
     const verifiedCount = categoryStatuses.filter(cat => cat.required && cat.verified).length;
     const totalRequired = enabledCategories.length;
 
@@ -148,6 +172,8 @@ async function getVerificationStatusHandler(
         ? 'Requirements satisfied - you can comment' 
         : `Need to verify at least 1 of ${totalRequired} requirements`;
     }
+
+    console.log(`[API verification-status] Post ${postId}: ${verifiedCount}/${totalRequired} verified, requireAll: ${requireAll}, canComment: ${canComment}`);
 
     const response: VerificationStatusResponse = {
       canComment,
