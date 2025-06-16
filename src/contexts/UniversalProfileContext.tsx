@@ -178,17 +178,21 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     }
   }, []);
 
-  // Check connection on mount and set initialized
+  // Check connection on mount only (no dependencies to prevent loops)
   useEffect(() => {
     const initialize = async () => {
       await checkConnectionState();
     };
     initialize();
-  }, [checkConnectionState]);
+  }, []); // Empty dependency array - only run on mount
 
-  // Listen for account changes
+  // Listen for account & chain changes (only register once per Provider lifetime)
+  const listenerAttachedRef = React.useRef(false);
+
   useEffect(() => {
-    if (!window.lukso) return;
+    if (!window.lukso || listenerAttachedRef.current) return;
+
+    listenerAttachedRef.current = true;
 
     const handleAccountsChanged = (accounts: string[]) => {
       if (accounts.length === 0) {
@@ -236,40 +240,37 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
         method: 'eth_requestAccounts' 
       });
       
-              if (accounts && accounts.length > 0) {
-          console.log('[UP Context] UP extension connection successful:', accounts[0]);
-          
-          // Update state
-          setUpAddress(accounts[0]);
-          setIsConnected(true);
-          setIsConnecting(false);
-          
-          // Check if we're on the correct network (LUKSO mainnet = 42)
-          const currentChainId = await window.lukso.request({ method: 'eth_chainId' });
-          console.log('[UP Context] Current chain ID:', currentChainId);
-          setChainId(currentChainId);
-          
-          if (currentChainId !== LUKSO_MAINNET_CHAIN_ID) {
-            console.log('[UP Context] Requesting switch to LUKSO mainnet...');
-            try {
-              await window.lukso.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: LUKSO_MAINNET_CHAIN_ID }],
-              });
-            } catch (switchError) {
-              console.warn('[UP Context] Failed to switch network:', switchError);
-            }
+      if (accounts && accounts.length > 0) {
+        console.log('[UP Context] UP extension connection successful:', accounts[0]);
+        
+        // Update state
+        setUpAddress(accounts[0]);
+        setIsConnected(true);
+        setIsConnecting(false);
+        
+        // Check if we're on the correct network (LUKSO mainnet = 42)
+        const currentChainId = await window.lukso.request({ method: 'eth_chainId' });
+        console.log('[UP Context] Current chain ID:', currentChainId);
+        setChainId(currentChainId);
+        
+        if (currentChainId !== LUKSO_MAINNET_CHAIN_ID) {
+          console.log('[UP Context] Requesting switch to LUKSO mainnet...');
+          try {
+            await window.lukso.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: LUKSO_MAINNET_CHAIN_ID }],
+            });
+          } catch (switchError) {
+            console.warn('[UP Context] Failed to switch network:', switchError);
           }
-          
-          // Force a connection state re-check after a short delay 
-          // in case event listeners don't fire immediately
-          setTimeout(async () => {
-            await checkConnectionState();
-            console.log('[UP Context] Post-connection state verified');
-          }, 1000);
-        } else {
-          throw new Error('No accounts returned from UP extension');
         }
+        
+        // Connection successful - no need for additional state checks
+        console.log('[UP Context] Connection completed successfully');
+      } else {
+        setIsConnecting(false);
+        throw new Error('No accounts returned from UP extension');
+      }
     } catch (error: unknown) {
       const err = error as { code?: number; message?: string };
       console.error('Failed to connect to Universal Profile:', error);
@@ -280,7 +281,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
         setConnectionError(err?.message || 'Failed to connect to Universal Profile. Please try again.');
       }
     }
-  }, [checkConnectionState]);
+  }, []); // Removed checkConnectionState to prevent circular dependency
 
   // Disconnect from Universal Profile
   const handleDisconnect = useCallback(() => {

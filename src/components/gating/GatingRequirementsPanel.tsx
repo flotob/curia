@@ -68,6 +68,7 @@ const upConfig = createConfig({
     [lukso.id]: http(),
     [luksoTestnet.id]: http(),
   },
+  ssr: true, // Enable SSR support for better hydration
 });
 
 interface UPConnectionManagerForPanelProps {
@@ -130,9 +131,30 @@ const UPConnectionManagerForPanel: React.FC<UPConnectionManagerForPanelProps> = 
   const handleConnect = async (event?: React.MouseEvent) => {
     event?.stopPropagation();
     event?.preventDefault();
-    if (isConnected || status === 'connecting' || status === 'reconnecting') return;
+    
+    // Enhanced connection state checks
+    if (isConnected) {
+      console.log('[GatingRequirementsPanel] Already connected to:', address);
+      return;
+    }
+    
+    if (status === 'connecting' || status === 'reconnecting') {
+      console.log('[GatingRequirementsPanel] Connection already in progress:', status);
+      return;
+    }
+    
     const upConnector = connectors.find(c => c.id === 'universalProfile');
-    if (upConnector) connect({ connector: upConnector });
+    if (!upConnector) {
+      console.error('[GatingRequirementsPanel] Universal Profile connector not found');
+      return;
+    }
+    
+    try {
+      console.log('[GatingRequirementsPanel] Initiating UP connection...');
+      await connect({ connector: upConnector });
+    } catch (error) {
+      console.error('[GatingRequirementsPanel] Connection failed:', error);
+    }
   };
 
   const userStatus: VerificationStatus = {

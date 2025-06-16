@@ -34,7 +34,7 @@ import {
   useReadContracts,
   createStorage,
 } from 'wagmi';
-import { reconnect } from 'wagmi/actions';
+
 import { lukso, luksoTestnet } from 'viem/chains';
 import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
 
@@ -47,7 +47,7 @@ const noopStorage = {
   removeItem: (_key: string): void => {},
 };
 
-// Create a local, isolated wagmi config for the UP connector
+// Create a local, isolated wagmi config for the UP connector with proper persistence
 const upConfig = createConfig({
   chains: [lukso, luksoTestnet],
   connectors: [universalProfileConnector()],
@@ -59,6 +59,7 @@ const upConfig = createConfig({
     [lukso.id]: http(),
     [luksoTestnet.id]: http(),
   },
+  ssr: true, // Enable SSR support for better hydration
 });
 
 // Ensure categories are registered when this module loads
@@ -74,27 +75,16 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
   const { address, isConnected, status } = useAccount();
   const { data: balance } = useBalance({ address });
 
-  // Check for existing UP connection before triggering reconnect
+  // Log connection state for debugging (no automatic reconnection)
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (typeof window === 'undefined') return;
-
-      // Look for persisted wagmi connection state in localStorage
-      try {
-        const persisted = window.localStorage.getItem('wagmi_up_live') || window.localStorage.getItem('wagmi_up_preview');
-        if (persisted && persisted !== '{}') {
-          console.log('[GatingRequirementsPreview] Persisted wagmi connection detected, triggering reconnect');
-          reconnect(upConfig);
-        } else {
-          console.log('[GatingRequirementsPreview] No persisted wagmi connection – skipping auto-reconnect');
-        }
-      } catch (err) {
-        console.warn('[GatingRequirementsPreview] Error checking persisted wagmi state:', err);
-      }
-    }, 0);
-
-    return () => clearTimeout(timeoutId);
-  }, []);
+    if (typeof window === 'undefined') return;
+    
+    console.log('[GatingRequirementsPreview] Connection state:', {
+      isConnected,
+      address,
+      status
+    });
+  }, [isConnected, address, status]);
 
   // Batch-read all token contracts (LSP7/ERC20 and LSP8/ERC721)
   const { data: tokenResults, isLoading: isLoadingTokens } = useReadContracts({
@@ -158,13 +148,29 @@ const UniversalProfileConnectionManager: React.FC<UniversalProfileConnectionMana
       event.stopPropagation();
       event.preventDefault();
     }
-    // Do not reconnect if already connected or in the process of connecting
-    if (isConnected || status === 'connecting' || status === 'reconnecting') {
+    
+    // Enhanced connection state checks
+    if (isConnected) {
+      console.log('[GatingRequirementsPreview] Already connected to:', address);
       return;
     }
+    
+    if (status === 'connecting' || status === 'reconnecting') {
+      console.log('[GatingRequirementsPreview] Connection already in progress:', status);
+      return;
+    }
+    
     const upConnector = connectors.find(c => c.id === 'universalProfile');
-    if (upConnector) {
-      connect({ connector: upConnector });
+    if (!upConnector) {
+      console.error('[GatingRequirementsPreview] Universal Profile connector not found');
+      return;
+    }
+    
+    try {
+      console.log('[GatingRequirementsPreview] Initiating UP connection...');
+      await connect({ connector: upConnector });
+    } catch (error) {
+      console.error('[GatingRequirementsPreview] Connection failed:', error);
     }
   };
 

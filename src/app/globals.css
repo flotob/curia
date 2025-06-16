@@ -40,6 +40,12 @@
     --onboard-account-select-modal-z-index: 10002;
     --onboard-login-modal-z-index: 10003;
     --onboard-modal-backdrop: rgba(0, 0, 0, 0.8);
+
+    /* RainbowKit Modal Z-Index Overrides */
+    /* Ensure RainbowKit modals appear above app modals and are clickable */
+    --rk-z-index: 10005;
+    --rk-overlay-z-index: 10004;
+    --rk-modal-z-index: 10006;
   }
   .dark {
     --background: 240 10% 3.9%;
@@ -75,6 +81,12 @@
     --onboard-account-select-modal-z-index: 10002;
     --onboard-login-modal-z-index: 10003;
     --onboard-modal-backdrop: rgba(0, 0, 0, 0.9);
+
+    /* RainbowKit Modal Z-Index Overrides (Dark Mode) */
+    /* Ensure RainbowKit modals appear above app modals and are clickable */
+    --rk-z-index: 10005;
+    --rk-overlay-z-index: 10004;
+    --rk-modal-z-index: 10006;
   }
 }
 
@@ -89,130 +101,178 @@
   }
 }
 
-@layer utilities {
-  /* Aggressive word wrapping for problematic URLs */
-  .force-wrap {
-    word-wrap: break-word !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
-    hyphens: auto !important;
-    white-space: normal !important;
-    max-width: 100% !important;
-  }
+/* RainbowKit Modal Z-Index Fixes */
+/* Override RainbowKit's default z-index values to prevent overlay issues */
+[data-rk] {
+  /* Main modal container */
+  --rk-z-index: 10006 !important;
+}
 
-  /* Apply aggressive wrapping to all links globally */
-  a {
-    word-wrap: break-word !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
-    max-width: 100% !important;
-  }
+/* RainbowKit modal backdrop */
+div[data-rk] > div[style*="position: fixed"] {
+  z-index: 10004 !important;
+}
 
-  /* Extra protection for TipTap content */
-  .ProseMirror a {
-    word-wrap: break-word !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
-    max-width: 100% !important;
-    white-space: normal !important;
-  }
+/* RainbowKit modal content */
+div[data-rk] div[role="dialog"] {
+  z-index: 10006 !important;
+}
 
-  /* Mini Mode Utilities */
-  .mini-mode-container {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    font-size: 12px;
-    line-height: 1.2;
-  }
-  
-  .mini-mode-container * {
-    font-size: inherit !important;
-  }
-  
-  /* Mini mode scrollbar styling */
-  .mini-mode-scroll::-webkit-scrollbar {
-    width: 3px;
-  }
-  
-  .mini-mode-scroll::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  
-  .mini-mode-scroll::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-  }
-  
-  .dark .mini-mode-scroll::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-  }
+/* Ensure RainbowKit modals are always clickable */
+div[data-rk] * {
+  pointer-events: auto !important;
+}
 
-  /* Mini Mode Test Helper (for development) */
-  .test-mini-mode {
-    width: 200px !important;
-    height: 200px !important;
-    border: 2px solid red;
-    resize: both;
-    overflow: hidden;
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 9999;
-    background: white;
-  }
-  
-  .dark .test-mini-mode {
-    background: #0f172a;
-  }
+/* Fix for WalletConnect modal z-index within RainbowKit */
+div[data-rk] div[style*="z-index"] {
+  z-index: 10007 !important;
+}
 
-  /* Comment Threading Styles */
-  .comment-thread {
-    margin-bottom: 0.75rem;
-  }
+/* RainbowKit Connect Button Styling Improvements */
+/* Ensure connect buttons have proper styling and are visible */
+button[data-rk] {
+  font-family: inherit !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.2s ease-in-out !important;
+}
 
+/* Style the unstyled connect button */
+button[data-rk]:not([class*="bg-"]):not([style*="background"]) {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  padding: 0.5rem 1rem !important;
+  font-weight: 500 !important;
+}
+
+button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
+  background: hsl(var(--primary) / 0.9) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Aggressive word wrapping for problematic URLs */
+.force-wrap {
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Apply aggressive wrapping to all links globally */
+a {
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+}
+
+/* Extra protection for TipTap content */
+.ProseMirror a {
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+}
+
+/* Mini Mode Utilities */
+.mini-mode-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mini-mode-container * {
+  font-size: inherit !important;
+}
+
+/* Mini mode scrollbar styling */
+.mini-mode-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.mini-mode-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mini-mode-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.dark .mini-mode-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Mini Mode Test Helper (for development) */
+.test-mini-mode {
+  width: 200px !important;
+  height: 200px !important;
+  border: 2px solid red;
+  resize: both;
+  overflow: hidden;
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  background: white;
+}
+
+.dark .test-mini-mode {
+  background: #0f172a;
+}
+
+/* Comment Threading Styles */
+.comment-thread {
+  margin-bottom: 0.75rem;
+}
+
+.comment-children {
+  margin-left: 1rem;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.comment-children.with-thread-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: hsl(var(--border));
+  opacity: 0.3;
+}
+
+/* Comment depth-based indentation (fallback for complex scenarios) */
+.comment-depth-0 { padding-left: 0; }
+.comment-depth-1 { padding-left: 0; }
+.comment-depth-2 { padding-left: 0; }
+.comment-depth-3 { padding-left: 0; }
+.comment-depth-4 { padding-left: 0; }
+.comment-depth-5 { padding-left: 0; }
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
   .comment-children {
-    margin-left: 1rem;
-    padding-left: 1rem;
-    position: relative;
+    margin-left: 0.5rem;
+    padding-left: 0.5rem;
   }
-
+  
   .comment-children.with-thread-line::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
+    width: 1px;
+  }
+}
+
+/* Dark mode thread line */
+@media (prefers-color-scheme: dark) {
+  .comment-children.with-thread-line::before {
     background-color: hsl(var(--border));
-    opacity: 0.3;
-  }
-
-  /* Comment depth-based indentation (fallback for complex scenarios) */
-  .comment-depth-0 { padding-left: 0; }
-  .comment-depth-1 { padding-left: 0; }
-  .comment-depth-2 { padding-left: 0; }
-  .comment-depth-3 { padding-left: 0; }
-  .comment-depth-4 { padding-left: 0; }
-  .comment-depth-5 { padding-left: 0; }
-
-  /* Mobile responsive adjustments */
-  @media (max-width: 640px) {
-    .comment-children {
-      margin-left: 0.5rem;
-      padding-left: 0.5rem;
-    }
-    
-    .comment-children.with-thread-line::before {
-      width: 1px;
-    }
-  }
-
-  /* Dark mode thread line */
-  @media (prefers-color-scheme: dark) {
-    .comment-children.with-thread-line::before {
-      background-color: hsl(var(--border));
-      opacity: 0.4;
-    }
+    opacity: 0.4;
   }
 }

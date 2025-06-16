@@ -32,9 +32,9 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
   const [lyxBalance, setLyxBalance] = React.useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
 
-  // Load LYX balance when connected
+  // Load LYX balance when connected (removed getLyxBalance from deps to prevent infinite loop)
   React.useEffect(() => {
-    if (isConnected && isCorrectChain) {
+    if (isConnected && isCorrectChain && upAddress) {
       setIsLoadingBalance(true);
       getLyxBalance()
         .then(balance => {
@@ -49,7 +49,7 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
     } else {
       setLyxBalance(null);
     }
-  }, [isConnected, isCorrectChain, getLyxBalance]);
+  }, [isConnected, isCorrectChain, upAddress]); // Removed getLyxBalance to prevent infinite loop
 
   const handleConnect = async (event?: React.MouseEvent) => {
     // Prevent modal closing when clicking wallet connection buttons

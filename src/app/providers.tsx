@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider } from 'wagmi';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CgLibProvider } from '@/contexts/CgLibContext';
 import { SocketProvider } from '@/contexts/SocketContext';
@@ -12,6 +12,7 @@ import { ConditionalUniversalProfileProvider } from '@/contexts/ConditionalUnive
 import { ConditionalEthereumProvider } from '@/contexts/EthereumProfileContext';
 import { AppInitializer } from '@/components/AppInitializer';
 import { wagmiConfig } from '@/lib/wagmi';
+import { useTheme } from 'next-themes';
 // import { ReactQueryDevtools } from '@tanstack/react-query-devtools'; // Optional, for development
 
 // Import RainbowKit styles
@@ -57,6 +58,37 @@ function WalletProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Themed RainbowKit Provider with proper z-index configuration
+function ThemedRainbowKitProvider({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme();
+  
+  // Create custom theme with high z-index to prevent overlay issues
+  const customTheme = theme === 'dark' 
+    ? darkTheme({
+        accentColor: '#3b82f6', // Blue accent to match app theme
+        accentColorForeground: 'white',
+        borderRadius: 'medium',
+        fontStack: 'system',
+        overlayBlur: 'small',
+      })
+    : lightTheme({
+        accentColor: '#3b82f6', // Blue accent to match app theme
+        accentColorForeground: 'white', 
+        borderRadius: 'medium',
+        fontStack: 'system',
+        overlayBlur: 'small',
+      });
+
+  return (
+    <RainbowKitProvider 
+      theme={customTheme}
+      modalSize="compact"
+    >
+      {children}
+    </RainbowKitProvider>
+  );
+}
+
 // Conditional Wagmi Provider - only mounts when Ethereum gating is detected
 function ConditionalWagmiProvider({ children }: { children: React.ReactNode }) {
   // TODO: Detect if Ethereum gating is needed
@@ -73,11 +105,11 @@ function ConditionalWagmiProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WagmiProvider config={wagmiConfig}>
-      <RainbowKitProvider>
+      <ThemedRainbowKitProvider>
         <ConditionalEthereumProvider enabled>
           {children}
         </ConditionalEthereumProvider>
-      </RainbowKitProvider>
+      </ThemedRainbowKitProvider>
     </WagmiProvider>
   );
 }

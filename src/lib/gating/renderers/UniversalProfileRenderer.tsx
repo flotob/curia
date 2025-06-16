@@ -5,7 +5,7 @@
  * Encapsulates all UP-specific verification and UI logic
  */
 
-import React, { ReactNode, useState, useEffect, useCallback } from 'react';
+import React, { ReactNode, useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   CategoryRenderer, 
   CategoryRendererProps, 
@@ -310,7 +310,31 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   // This component is now stateless regarding on-chain data.
 
   // Check if all requirements are met for auto-verification
-  const allRequirementsMet = true; // Simplified: verification button always active if connected
+  const allRequirementsMet = useMemo(() => {
+    if (!userStatus?.connected) return false;
+    
+    // In preview mode, we need to check if we have actual data loaded
+    if (isPreviewMode) {
+      // Check if we have balance data for LYX requirements
+      if (requirements.minLyxBalance && !userStatus.lyxBalance) {
+        return false;
+      }
+      
+      // Check if we have token balance data for token requirements
+      if (requirements.requiredTokens?.length && !userStatus.tokenBalances) {
+        return false;
+      }
+      
+      // Check if we have follower data for follower requirements
+      if (requirements.followerRequirements?.length && !userStatus.followerStatus) {
+        return false;
+      }
+    }
+    
+    // If we have data, check if requirements are actually met
+    // For now, return true if connected and data is loaded (actual verification happens server-side)
+    return userStatus.connected;
+  }, [userStatus, requirements, isPreviewMode]);
 
   // Verification function
   const handleVerify = useCallback(async (overridePostId?: number) => {
