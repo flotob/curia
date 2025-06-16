@@ -58,7 +58,14 @@ export function universalProfileConnector() {
         const _provider = await this.getProvider();
         if (!_provider) throw new Error('LUKSO Universal Profile Extension not found');
 
-        const accounts = (await _provider.request({ method: 'eth_requestAccounts' })) as string[];
+        // First attempt silent auth via eth_accounts
+        let accounts = (await _provider.request({ method: 'eth_accounts' })) as string[];
+
+        if (!accounts || accounts.length === 0) {
+          // No existing permission – fall back to interactive request
+          accounts = (await _provider.request({ method: 'eth_requestAccounts' })) as string[];
+        }
+
         const firstAccount = accounts?.[0];
         if (!firstAccount) throw new Error('No accounts returned from LUKSO provider');
 
