@@ -17,6 +17,8 @@ import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
 import { Button } from '@/components/ui/button';
+import { BoardAccessStatus } from '@/components/boards/BoardAccessStatus';
+import { BoardVerificationApiResponse } from '@/types/boardVerification';
 import { 
   Settings, 
 } from 'lucide-react';
@@ -156,6 +158,26 @@ export default function HomePage() {
     enabled: !!boardId && !!communityInfo?.id && !!token,
   });
 
+  // Fetch board verification status if board has lock gating
+  const { data: boardVerificationStatus } = useQuery({
+    queryKey: ['boardVerificationStatus', boardId],
+    queryFn: async () => {
+      if (!boardId || !token || !communityInfo?.id) return null;
+      try {
+        const response = await authFetchJson<BoardVerificationApiResponse>(
+          `/api/communities/${communityInfo.id}/boards/${boardId}/verification-status`, 
+          { token }
+        );
+        return response.data;
+      } catch (error) {
+        console.error('[HomePage] Failed to fetch board verification status:', error);
+        return null;
+      }
+    },
+    enabled: !!boardId && !!token && !!communityInfo?.id && !!boardInfo && 
+             !!boardInfo.settings?.permissions?.locks?.lockIds?.length,
+  });
+
   if (isInitializing || isLoadingCommunityInfo) {
     return (
       <div className="min-h-screen">
@@ -291,6 +313,20 @@ export default function HomePage() {
               )}
             </div>
           </div>
+
+          {/* Board Access Status - Show lock gating requirements */}
+          {boardId && boardVerificationStatus && (
+            <section className="mb-6">
+              <BoardAccessStatus
+                boardId={parseInt(boardId, 10)}
+                verificationStatus={boardVerificationStatus}
+                onVerifyLock={(lockId) => {
+                  console.log(`[HomePage] Verify lock ${lockId} requested`);
+                  // TODO: Open lock verification modal/flow
+                }}
+              />
+            </section>
+          )}
                     
           <FeedList boardId={boardId} />
           </main>
