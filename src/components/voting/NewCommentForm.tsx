@@ -61,8 +61,10 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [canComment, setCanComment] = useState(true); // Tracks if user can comment based on verification status
 
-  // Check if this post has gating enabled (supports both old and new formats)
-  const hasGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
+  // Check if this post has gating enabled (supports both old and new formats + locks)
+  const hasSettingsGating = post ? SettingsUtils.hasAnyGating(post.settings) : false;
+  const hasLockGating = post ? !!post.lock_id : false;
+  const hasGating = hasSettingsGating || hasLockGating;
   
   // Determine gating types - need to check what's actually enabled, not just the format
   const hasUPGating = post ? SettingsUtils.hasUPGating(post.settings) : false;
@@ -79,6 +81,9 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     if (post) {
       console.log('[NewCommentForm] Gating detection for post', postId, {
         hasGating,
+        hasSettingsGating,
+        hasLockGating,
+        lockId: post.lock_id,
         hasUPGating,
         hasEthereumGating,
         usesMultiCategoryFormat,
@@ -88,7 +93,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
         postSettings: post.settings
       });
     }
-  }, [postId, hasGating, hasUPGating, hasEthereumGating, usesMultiCategoryFormat, hasUPOnlyGating, hasEthereumOnlyGating, hasMultiCategoryGating, post]);
+  }, [postId, hasGating, hasSettingsGating, hasLockGating, hasUPGating, hasEthereumGating, usesMultiCategoryFormat, hasUPOnlyGating, hasEthereumOnlyGating, hasMultiCategoryGating, post]);
 
   // Set up typing events for real-time indicators
   const typingEvents = useTypingEvents({

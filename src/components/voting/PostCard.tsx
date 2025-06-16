@@ -86,9 +86,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(post.created_at);
 
-  // Gating detection
-  const hasGating = SettingsUtils.hasUPGating(post.settings);
-  const requirements = hasGating ? SettingsUtils.getUPGatingRequirements(post.settings) : null;
+  // Gating detection - check both legacy gating and lock-based gating
+  const hasLegacyGating = SettingsUtils.hasUPGating(post.settings);
+  const hasLockGating = !!post.lock_id;
+  const hasGating = hasLegacyGating || hasLockGating;
+  const requirements = hasLegacyGating ? SettingsUtils.getUPGatingRequirements(post.settings) : null;
   
   // For gated posts, redirect to detail view instead of inline comments
   const handleCommentClick = () => {
@@ -617,7 +619,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                     Gated Post
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Universal Profile required to comment
+                    {hasLockGating 
+                      ? "Lock requirements must be met to comment"
+                      : "Universal Profile required to comment"
+                    }
                   </span>
                 </div>
               </div>
