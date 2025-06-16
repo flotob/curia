@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,13 +9,13 @@ import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
-import { BoardSettings } from '@/types/settings';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BoardSettings, SettingsUtils } from '@/types/settings';
+// Card components moved to CollapsibleSection
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save, Trash2, Settings, Shield, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Settings, Shield, AlertTriangle, Lock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { BoardAccessForm } from '@/components/BoardAccessForm';
+import { BoardLockGatingForm } from '@/components/BoardLockGatingForm';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useToast } from '@/hooks/use-toast';
 
 interface DeleteBoardResponse {
@@ -142,6 +144,54 @@ export default function BoardSettingsPage() {
       setHasChanges(hasAnyChanges);
     }
   }, [boardName, boardDescription, boardSettings, boardData]);
+
+  // Helper functions for generating section summaries - memoized to prevent re-render issues
+  const getBoardDetailsSummary = useMemo(() => {
+    if (!boardName) return 'Loading...';
+    const descPreview = boardDescription ? 
+      (boardDescription.length > 40 ? `${boardDescription.slice(0, 40)}...` : boardDescription) 
+      : 'No description';
+    return (
+      <div className="text-right">
+        <div className="font-medium">{boardName}</div>
+        <div className="text-xs opacity-75">{descPreview}</div>
+      </div>
+    );
+  }, [boardName, boardDescription]);
+
+  const getVisibilityAccessSummary = useMemo(() => {
+    const hasRoleRestrictions = SettingsUtils.hasPermissionRestrictions(boardSettings);
+    if (!hasRoleRestrictions) {
+      return <span className="text-emerald-600 dark:text-emerald-400">All members</span>;
+    }
+    
+    const roleCount = boardSettings.permissions?.allowedRoles?.length || 0;
+    return (
+      <span className="text-amber-600 dark:text-amber-400">
+        {roleCount === 1 ? '1 role only' : `${roleCount} roles only`}
+      </span>
+    );
+  }, [boardSettings]);
+
+  const getWriteAccessSummary = useMemo(() => {
+    const hasLockGating = SettingsUtils.hasBoardLockGating(boardSettings);
+    if (!hasLockGating) {
+      return <span className="text-emerald-600 dark:text-emerald-400">No restrictions</span>;
+    }
+    
+    const lockGating = SettingsUtils.getBoardLockGating(boardSettings);
+    if (!lockGating) return <span className="text-emerald-600 dark:text-emerald-400">No restrictions</span>;
+    
+    const lockCount = lockGating.lockIds.length;
+    const fulfillmentText = lockGating.fulfillment === 'any' ? 'ANY' : 'ALL';
+    const durationText = `${lockGating.verificationDuration || 4}h`;
+    
+    return (
+      <span className="text-amber-600 dark:text-amber-400">
+        {lockCount} lock{lockCount !== 1 ? 's' : ''} ({fulfillmentText}) • {durationText}
+      </span>
+    );
+  }, [boardSettings]);
 
   const updateBoardMutation = useMutation({
     mutationFn: async (data: { name: string; description: string; settings: BoardSettings }) => {
@@ -314,16 +364,16 @@ export default function BoardSettingsPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-8">
-          {/* Basic Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Settings size={20} className="mr-2" />
-                Board Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Board Details */}
+          <CollapsibleSection
+            title="Board Details"
+            subtitle="Name, description, and basic information"
+            icon={<Settings size={20} className="text-primary" />}
+            defaultExpanded={false}
+            summary={getBoardDetailsSummary}
+          >
+            <div className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="boardName">Board Name</Label>
                 <Input
@@ -347,46 +397,62 @@ export default function BoardSettingsPage() {
                   disabled={updateBoardMutation.isPending}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CollapsibleSection>
 
-          {/* Permission Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Shield size={20} className="mr-2" />
-                Board Access Permissions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {communityInfo?.roles && communitySettings ? (
-                <BoardAccessForm
-                  currentSettings={boardSettings}
-                  communitySettings={communitySettings.settings}
-                  communityRoles={communityInfo.roles}
-                  onSave={setBoardSettings}
-                  isLoading={updateBoardMutation.isPending}
-                  theme={theme}
-                  showSaveButton={false}
-                  autoSave={true}
-                />
-              ) : (
-                <div className="space-y-4">
-                  <div className={cn(
-                    "h-4 w-48 rounded animate-pulse",
-                    theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
-                  )} />
-                  <div className={cn(
-                    "h-20 w-full rounded animate-pulse",
-                    theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
-                  )} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Board Visibility & Access */}
+          <CollapsibleSection
+            title="Who Can See This Board"
+            subtitle="Control board visibility using role-based permissions"
+            icon={<Shield size={20} className="text-primary" />}
+            defaultExpanded={false}
+            summary={getVisibilityAccessSummary}
+          >
+            {communityInfo?.roles && communitySettings ? (
+              <BoardAccessForm
+                currentSettings={boardSettings}
+                communitySettings={communitySettings.settings}
+                communityRoles={communityInfo.roles}
+                onSave={setBoardSettings}
+                isLoading={updateBoardMutation.isPending}
+                theme={theme}
+                showSaveButton={false}
+                autoSave={true}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className={cn(
+                  "h-4 w-48 rounded animate-pulse",
+                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                )} />
+                <div className={cn(
+                  "h-20 w-full rounded animate-pulse",
+                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                )} />
+              </div>
+            )}
+          </CollapsibleSection>
+
+          {/* Lock-Based Write Access Requirements */}
+          <CollapsibleSection
+            title="Write Access Requirements"
+            subtitle="Control who can post and comment using blockchain verification"
+            icon={<Lock size={20} className="text-primary" />}
+            defaultExpanded={false}
+            summary={getWriteAccessSummary}
+          >
+            <BoardLockGatingForm
+              currentSettings={boardSettings}
+              onSave={setBoardSettings}
+              isLoading={updateBoardMutation.isPending}
+              theme={theme}
+              showSaveButton={false}
+              autoSave={true}
+            />
+          </CollapsibleSection>
 
           {/* Save/Delete Actions */}
-          <div className="flex justify-between items-center pt-6 border-t">
+          <div className="flex justify-between items-center pt-8 mt-8 border-t border-border/50">
             <Button
               type="button"
               variant="destructive"

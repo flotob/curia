@@ -101,6 +101,27 @@ async function createBoardHandler(req: AuthenticatedRequest, context: RouteConte
       if (settings.permissions?.allowedRoles && !Array.isArray(settings.permissions.allowedRoles)) {
         return NextResponse.json({ error: 'allowedRoles must be an array' }, { status: 400 });
       }
+
+      // Validate lock gating configuration
+      if (settings.permissions?.locks) {
+        const locks = settings.permissions.locks;
+        
+        if (!Array.isArray(locks.lockIds)) {
+          return NextResponse.json({ error: 'locks.lockIds must be an array' }, { status: 400 });
+        }
+        
+        if (!locks.lockIds.every((id: unknown) => typeof id === 'number')) {
+          return NextResponse.json({ error: 'All lock IDs must be numbers' }, { status: 400 });
+        }
+        
+        if (locks.fulfillment && !['any', 'all'].includes(locks.fulfillment)) {
+          return NextResponse.json({ error: 'locks.fulfillment must be "any" or "all"' }, { status: 400 });
+        }
+        
+        if (locks.verificationDuration && (typeof locks.verificationDuration !== 'number' || locks.verificationDuration <= 0)) {
+          return NextResponse.json({ error: 'locks.verificationDuration must be a positive number' }, { status: 400 });
+        }
+      }
     }
 
     // Check if board name already exists in this community

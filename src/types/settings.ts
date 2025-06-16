@@ -15,11 +15,21 @@ export interface CommunitySettings {
 }
 
 /**
+ * Board-level lock gating configuration for multi-lock support
+ */
+export interface BoardLockGating {
+  lockIds: number[]; // Array of lock IDs that apply to this board
+  fulfillment: 'any' | 'all'; // Whether user must pass ANY or ALL locks
+  verificationDuration?: number; // Custom verification duration in hours (default: 4)
+}
+
+/**
  * Board-level settings for access control and features
  */
 export interface BoardSettings {
   permissions?: {
     allowedRoles?: string[]; // Role IDs that can access this board (subset of community access)
+    locks?: BoardLockGating; // Lock-based gating configuration for write access
     // Future: allowedUsers?: string[]; // Individual user overrides
   };
   // Future board-specific settings:
@@ -140,6 +150,25 @@ export const SettingsUtils = {
         errors.push('All allowedRoles must be strings');
       }
     }
+
+    // Validate lock gating configuration
+    if (permissions?.locks) {
+      const locks = permissions.locks as Record<string, unknown>;
+      
+      if (!Array.isArray(locks.lockIds)) {
+        errors.push('locks.lockIds must be an array');
+      } else if (!locks.lockIds.every((id: unknown) => typeof id === 'number')) {
+        errors.push('All lock IDs must be numbers');
+      }
+      
+      if (locks.fulfillment && !['any', 'all'].includes(locks.fulfillment as string)) {
+        errors.push('locks.fulfillment must be "any" or "all"');
+      }
+      
+      if (locks.verificationDuration && (typeof locks.verificationDuration !== 'number' || locks.verificationDuration <= 0)) {
+        errors.push('locks.verificationDuration must be a positive number');
+      }
+    }
     
     return { isValid: errors.length === 0, errors };
   },
@@ -213,6 +242,41 @@ export const SettingsUtils = {
    */
   hasPermissionRestrictions: (settings: CommunitySettings | BoardSettings): boolean => {
     return !!(settings?.permissions?.allowedRoles?.length);
+  },
+
+  // ===== BOARD LOCK GATING UTILITIES =====
+
+  /**
+   * Checks if board has lock-based gating enabled
+   */
+  hasBoardLockGating: (settings: BoardSettings): boolean => {
+    return !!(settings?.permissions?.locks?.lockIds?.length);
+  },
+
+  /**
+   * Gets board lock gating configuration
+   */
+  getBoardLockGating: (settings: BoardSettings): BoardLockGating | null => {
+    if (!SettingsUtils.hasBoardLockGating(settings)) {
+      return null;
+    }
+    return settings.permissions!.locks!;
+  },
+
+  /**
+   * Gets default board lock gating configuration
+   */
+  getDefaultBoardLockGating: (): BoardLockGating => ({
+    lockIds: [],
+    fulfillment: 'any',
+    verificationDuration: 4 // 4 hours default
+  }),
+
+  /**
+   * Checks if board has any access restrictions (role or lock based)
+   */
+  hasBoardAccessRestrictions: (settings: BoardSettings): boolean => {
+    return SettingsUtils.hasPermissionRestrictions(settings) || SettingsUtils.hasBoardLockGating(settings);
   },
 
   /**
