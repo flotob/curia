@@ -161,7 +161,7 @@ async function getGatingRequirementsHandler(
     const verificationResult = await query(
       `SELECT category_type, verification_status, verified_at, expires_at, verification_data 
        FROM pre_verifications 
-       WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW()`,
+       WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND resource_type = 'post'`,
       [user.sub, postId]
     );
 

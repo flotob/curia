@@ -7,32 +7,36 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   Lock,
-  Unlock,
   ChevronDown,
   ChevronUp,
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle,
-  Zap,
-  Shield
+  AlertCircle
 } from 'lucide-react';
 import { BoardVerificationStatus, LockVerificationStatus } from '@/types/boardVerification';
+import { BoardVerificationModal } from './BoardVerificationModal';
 import { cn } from '@/lib/utils';
 
 interface BoardAccessStatusProps {
   boardId: number;
+  communityId: string;
   verificationStatus: BoardVerificationStatus;
-  onVerifyLock?: (lockId: number) => void;
   className?: string;
 }
 
 export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
+  boardId,
+  communityId,
   verificationStatus,
-  onVerifyLock,
   className = ''
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [verificationModal, setVerificationModal] = useState<{
+    isOpen: boolean;
+    lockId?: number;
+    lockName?: string;
+  }>({ isOpen: false });
 
   const {
     hasWriteAccess,
@@ -40,8 +44,7 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
     lockStatuses,
     verifiedCount,
     requiredCount,
-    expiresAt,
-    nextExpiryAt
+    expiresAt
   } = verificationStatus;
 
   // Calculate progress percentage
@@ -97,102 +100,116 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
   };
 
   // Handle lock verification
-  const handleVerifyLock = useCallback((lockId: number) => {
-    onVerifyLock?.(lockId);
-  }, [onVerifyLock]);
+  const handleVerifyLock = useCallback((lockId: number, lockName: string) => {
+    setVerificationModal({
+      isOpen: true,
+      lockId,
+      lockName
+    });
+  }, []);
 
-  // Render individual lock status
+  // Handle verification modal close
+  const handleVerificationModalClose = useCallback(() => {
+    setVerificationModal({ isOpen: false });
+    // Note: BoardVerificationModal will handle React Query invalidation internally
+  }, []);
+
+  // Get lock status visual indicator
+  const getLockStatusIndicator = (status: LockVerificationStatus['verificationStatus']) => {
+    switch (status) {
+      case 'verified':
+        return {
+          color: 'text-green-700',
+          bgColor: 'bg-green-100 border-green-300',
+          icon: CheckCircle,
+          label: 'Verified',
+          badgeVariant: 'default' as const
+        };
+      case 'in_progress':
+        return {
+          color: 'text-yellow-700',
+          bgColor: 'bg-yellow-100 border-yellow-300',
+          icon: Clock,
+          label: 'In Progress',
+          badgeVariant: 'secondary' as const
+        };
+      case 'expired':
+        return {
+          color: 'text-red-700',
+          bgColor: 'bg-red-100 border-red-300',
+          icon: XCircle,
+          label: 'Expired',
+          badgeVariant: 'destructive' as const
+        };
+      case 'failed':
+        return {
+          color: 'text-red-700',
+          bgColor: 'bg-red-100 border-red-300',
+          icon: XCircle,
+          label: 'Failed',
+          badgeVariant: 'destructive' as const
+        };
+      case 'not_started':
+      default:
+        return {
+          color: 'text-slate-700',
+          bgColor: 'bg-slate-100 border-slate-300',
+          icon: Lock,
+          label: 'Not Started',
+          badgeVariant: 'outline' as const
+        };
+    }
+  };
+
   const renderLockStatus = (lockStatus: LockVerificationStatus) => {
-    const { lock, verificationStatus: status, expiresAt, nextAction } = lockStatus;
-    
-    const getLockStatusInfo = () => {
-      switch (status) {
-        case 'verified':
-          return {
-            icon: CheckCircle,
-            color: 'text-green-600',
-            bgColor: 'bg-green-50',
-            label: 'Verified',
-            timeInfo: formatTimeRemaining(expiresAt)
-          };
-        case 'in_progress':
-          return {
-            icon: Clock,
-            color: 'text-yellow-600',
-            bgColor: 'bg-yellow-50',
-            label: 'In Progress',
-            timeInfo: null
-          };
-        case 'expired':
-          return {
-            icon: XCircle,
-            color: 'text-red-600',
-            bgColor: 'bg-red-50',
-            label: 'Expired',
-            timeInfo: 'Re-verification required'
-          };
-        case 'failed':
-          return {
-            icon: XCircle,
-            color: 'text-red-600',
-            bgColor: 'bg-red-50',
-            label: 'Failed',
-            timeInfo: 'Requirements not met'
-          };
-        default:
-          return {
-            icon: Lock,
-            color: 'text-gray-600',
-            bgColor: 'bg-gray-50',
-            label: 'Not Started',
-            timeInfo: null
-          };
-      }
-    };
-
-    const lockInfo = getLockStatusInfo();
+    const { lock, verificationStatus, expiresAt, nextAction } = lockStatus;
+    const lockInfo = getLockStatusIndicator(verificationStatus);
     const LockIcon = lockInfo.icon;
-
+    
     return (
       <div
         key={lock.id}
         className={cn(
-          'p-4 rounded-lg border flex items-center justify-between',
+          'p-4 rounded-lg border flex items-center justify-between transition-all hover:shadow-sm cursor-pointer',
           lockInfo.bgColor
         )}
+        onClick={() => handleVerifyLock(lock.id, lock.name)}
       >
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-2">
             <LockIcon className={cn('h-4 w-4', lockInfo.color)} />
             <span className="text-lg">{lock.icon || '🔒'}</span>
           </div>
-          <div>
-            <div className="font-medium">{lock.name}</div>
-            <div className="text-sm text-muted-foreground">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium truncate">{lock.name}</div>
+            <div className="text-sm text-muted-foreground truncate">
               {lock.description || 'Lock verification required'}
             </div>
           </div>
         </div>
         
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 flex-shrink-0">
           <div className="text-right">
-            <div className={cn('text-sm font-medium', lockInfo.color)}>
+            <Badge variant={lockInfo.badgeVariant} className="text-xs">
               {lockInfo.label}
-            </div>
-            {lockInfo.timeInfo && (
-              <div className="text-xs text-muted-foreground">
-                {lockInfo.timeInfo}
+            </Badge>
+            {verificationStatus === 'verified' && expiresAt && (
+              <div className="text-xs text-muted-foreground mt-1">
+                {formatTimeRemaining(expiresAt)}
               </div>
             )}
           </div>
           
-          {nextAction && status !== 'verified' && (
+          {verificationStatus !== 'verified' && (
             <Button
               size="sm"
-              onClick={() => handleVerifyLock(lock.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleVerifyLock(lock.id, lock.name);
+              }}
               className="ml-2"
             >
-              {nextAction.label}
+              {nextAction?.label || 'Verify'}
             </Button>
           )}
         </div>
@@ -201,132 +218,89 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
   };
 
   return (
-    <Card className={cn('overflow-hidden', statusInfo.bgColor, className)}>
-      {/* Collapsed Header */}
-      <div
-        className="p-4 cursor-pointer select-none"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
-            <div>
-              <div className="font-medium text-sm">
-                {statusInfo.label}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {hasWriteAccess ? (
-                  <>
-                    Access granted • {formatTimeRemaining(expiresAt) || 'Active'}
-                  </>
-                ) : (
-                  <>
-                    {verifiedCount} of {requiredCount} verified • 
-                    {fulfillmentMode === 'any' ? ' Need ANY 1' : ' Need ALL'}
-                  </>
-                )}
+    <>
+      <Card className={cn("border-l-4", statusInfo.bgColor, className)}>
+        <CardContent className="p-4">
+          {/* Header - Always visible */}
+          <div 
+            className="flex items-center justify-between cursor-pointer" 
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            <div className="flex items-center space-x-3">
+              <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
+              <div>
+                <div className="font-medium text-sm">
+                  Board Lock Requirements
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {verifiedCount} of {requiredCount} verified • Need {fulfillmentMode.toUpperCase()}
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            {!hasWriteAccess && requiredCount > 1 && (
-              <div className="text-xs text-muted-foreground">
-                {Math.round(progressPercentage)}%
-              </div>
-            )}
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
-        </div>
-        
-        {/* Progress bar for multi-lock setups */}
-        {!hasWriteAccess && requiredCount > 1 && (
-          <div className="mt-2">
-            <Progress value={progressPercentage} className="h-1" />
-          </div>
-        )}
-      </div>
-
-      {/* Expanded Content */}
-      {isExpanded && (
-        <CardContent className="pt-0 border-t border-opacity-20">
-          <div className="space-y-4">
-            {/* Requirements Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-medium text-sm">Write Access Requirements</h4>
-                <p className="text-xs text-muted-foreground">
-                  Complete{' '}
-                  <span className="font-medium">
-                    {fulfillmentMode === 'any' ? 'ANY 1' : 'ALL'} 
-                  </span>{' '}
-                  of {requiredCount} lock{requiredCount !== 1 ? 's' : ''} to post and comment
-                </p>
-              </div>
-              
-              {fulfillmentMode === 'all' ? (
-                <Badge variant="destructive" className="text-xs">
-                  <Shield className="h-3 w-3 mr-1" />
-                  Strict Mode
-                </Badge>
-              ) : (
-                <Badge variant="default" className="text-xs">
-                  <Zap className="h-3 w-3 mr-1" />
-                  Flexible Mode
+            
+            <div className="flex items-center space-x-2">
+              {hasWriteAccess && (
+                <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Access Granted
                 </Badge>
               )}
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                {isExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
             </div>
+          </div>
 
-            {/* Lock Status List */}
-            <div className="space-y-3">
-              {lockStatuses.map(lockStatus => renderLockStatus(lockStatus))}
+          {/* Progress bar */}
+          {requiredCount > 0 && (
+            <div className="mt-3">
+              <Progress 
+                value={progressPercentage} 
+                className="h-2"
+              />
             </div>
+          )}
 
-            {/* Summary Actions */}
-            <div className="pt-4 border-t">
-              {hasWriteAccess ? (
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2 text-green-600">
-                    <Unlock className="h-4 w-4" />
-                    <span className="font-medium">You can post and comment on this board</span>
-                  </div>
-                  {nextExpiryAt && (
-                    <div className="text-xs text-muted-foreground">
-                      Access expires {formatTimeRemaining(nextExpiryAt)}
-                    </div>
+          {/* Expanded details */}
+          {isExpanded && (
+            <div className="mt-4 space-y-3">
+              {/* Lock status cards */}
+              <div className="space-y-2">
+                {lockStatuses.map(renderLockStatus)}
+              </div>
+
+              {/* Additional info */}
+              <div className="text-xs text-muted-foreground pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span>
+                    Mode: {fulfillmentMode === 'any' ? 'Flexible' : 'Strict'} 
+                    ({fulfillmentMode === 'any' ? 'any one lock' : 'all locks required'})
+                  </span>
+                  {hasWriteAccess && expiresAt && (
+                    <span>
+                      Access expires in {formatTimeRemaining(expiresAt)}
+                    </span>
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Progress: {verifiedCount}/{requiredCount} requirements met
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      // Find first unverified lock and trigger verification
-                      const nextLock = lockStatuses.find(ls => 
-                        ls.verificationStatus === 'not_started' || 
-                        ls.verificationStatus === 'failed' || 
-                        ls.verificationStatus === 'expired'
-                      );
-                      if (nextLock) {
-                        handleVerifyLock(nextLock.lockId);
-                      }
-                    }}
-                  >
-                    Continue Verification
-                  </Button>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
-      )}
-    </Card>
+      </Card>
+
+      {/* Verification Modal */}
+      <BoardVerificationModal
+        isOpen={verificationModal.isOpen}
+        onClose={handleVerificationModalClose}
+        communityId={communityId}
+        boardId={boardId}
+        lockId={verificationModal.lockId}
+        lockName={verificationModal.lockName}
+      />
+    </>
   );
 }; 

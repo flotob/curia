@@ -315,15 +315,12 @@ export default function HomePage() {
           </div>
 
           {/* Board Access Status - Show lock gating requirements */}
-          {boardId && boardVerificationStatus && (
+          {boardId && boardVerificationStatus && communityInfo?.id && (
             <section className="mb-6">
               <BoardAccessStatus
                 boardId={parseInt(boardId, 10)}
+                communityId={communityInfo.id}
                 verificationStatus={boardVerificationStatus}
-                onVerifyLock={(lockId) => {
-                  console.log(`[HomePage] Verify lock ${lockId} requested`);
-                  // TODO: Open lock verification modal/flow
-                }}
               />
             </section>
           )}

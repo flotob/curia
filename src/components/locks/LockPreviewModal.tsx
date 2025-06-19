@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { GatingRequirementsPreview } from './GatingRequirementsPreview';
 import { LockWithStats } from '@/types/locks';
 import { Eye, Shield, Users, Clock, TrendingUp } from 'lucide-react';
+import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 
 interface LockPreviewModalProps {
   lock: LockWithStats | null;
@@ -102,10 +103,12 @@ export const LockPreviewModal: React.FC<LockPreviewModalProps> = ({
 
             {/* Main gating requirements panel */}
             <div className="border-2 border-dashed border-primary/30 rounded-lg p-1">
-              <GatingRequirementsPreview 
-                gatingConfig={lock.gatingConfig}
-                className="border-0 shadow-none bg-background"
-              />
+              <UniversalProfileProvider>
+                <GatingRequirementsPreview 
+                  gatingConfig={lock.gatingConfig}
+                  className="border-0 shadow-none bg-background"
+                />
+              </UniversalProfileProvider>
             </div>
 
             {/* Lock details */}

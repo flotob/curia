@@ -33,9 +33,17 @@ interface EthereumConnectionWidgetProps {
   // Add server verification status from parent
   serverVerified?: boolean;
   // Callback when verification is complete (to refresh parent data)
-  onVerificationComplete?: () => void;
+  onVerificationComplete?: (canComment?: boolean) => void;
   // Preview mode flag to disable backend verification
   isPreviewMode?: boolean;
+  // Verification context for board/post routing
+  verificationContext?: {
+    type: 'board' | 'post' | 'preview';
+    communityId?: string;
+    boardId?: number;
+    postId?: number;
+    lockId?: number;
+  };
 }
 
 export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
@@ -45,7 +53,8 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
   postId,
   serverVerified = false,
   onVerificationComplete,
-  isPreviewMode = false
+  isPreviewMode = false,
+  verificationContext
 }) => {
   const {
     isConnected,
@@ -112,8 +121,8 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
       return;
     }
 
-    // Better validation - check for empty string too
-    if (!isConnected || !isCorrectChain || !ethAddress || ethAddress.trim() === '' || !postId || !token) {
+    // Better validation - check for empty string too, but postId is optional for board verification
+    if (!isConnected || !isCorrectChain || !ethAddress || ethAddress.trim() === '' || !token) {
       console.error('[EthereumConnectionWidget] Missing required data for verification', {
         isConnected,
         isCorrectChain,
@@ -127,6 +136,83 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
 
     setIsVerifying(true);
     try {
+      // Determine if this is board verification context
+      const isBoardVerification = !postId && verificationContext?.type === 'board';
+      
+      if (isBoardVerification) {
+        console.log('[EthereumConnectionWidget] Board verification context - submitting to board endpoint');
+        
+        // For board verification, use board-specific endpoint
+        const { communityId, boardId, lockId: contextLockId } = verificationContext;
+        
+        // 1. Create challenge message for board verification
+        const challengeMessage = `Verify Ethereum profile for board access\nBoard: ${boardId}\nAddress: ${ethAddress}\nTimestamp: ${Date.now()}\nChain: Ethereum Mainnet`;
+        
+        console.log('[EthereumConnectionWidget] Requesting signature for board verification...');
+        
+        // 2. Request signature from user
+        const signature = await signMessage(challengeMessage);
+        
+        console.log('[EthereumConnectionWidget] Signature received, submitting to board endpoint...');
+
+        // 3. Submit to board pre-verification API  
+        if (!contextLockId) {
+          throw new Error('Missing lockId in verification context for board verification');
+        }
+        
+        const response = await fetch(`/api/communities/${communityId}/boards/${boardId}/locks/${contextLockId}/pre-verify/ethereum_profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ 
+            signature,
+            message: challengeMessage,
+            address: ethAddress,
+            verificationData: {
+              requirements: stableRequirements
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server returned ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('[EthereumConnectionWidget] Board verification result:', result);
+
+        if (result.success) {
+          console.log('[EthereumConnectionWidget] ✅ Board verification successful!');
+          
+          setVerificationState('success_pending');
+          setVerificationResult({
+            isValid: true,
+            missingRequirements: [],
+            errors: []
+          });
+          
+          if (onVerificationComplete) {
+            onVerificationComplete(true); // Pass canComment: true for successful verification
+          }
+          
+          setTimeout(() => {
+            setVerificationState('idle');
+          }, 2000);
+        } else {
+          throw new Error(result.message || 'Board verification failed');
+        }
+        
+        return;
+      }
+      
+      // Handle case where postId is missing but it's not board verification (shouldn't happen)
+      if (!postId) {
+        throw new Error('Missing context for verification - neither post nor board context available');
+      }
+
       console.log('[EthereumConnectionWidget] Starting server pre-verification...');
 
       // 1. Create challenge message
@@ -230,7 +316,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     } finally {
       setIsVerifying(false);
     }
-  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, isPreviewMode]);
+  }, [isConnected, isCorrectChain, ethAddress, postId, token, signMessage, stableRequirements, onVerificationComplete, isPreviewMode, verificationContext, invalidateVerificationStatus]);
 
   // Local verification function to check if requirements are met (for UI only)
   const performLocalVerification = useCallback(async () => {

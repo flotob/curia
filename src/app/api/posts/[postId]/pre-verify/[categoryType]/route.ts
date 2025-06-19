@@ -194,9 +194,9 @@ async function preVerifyHandler(
     // Store or update verification result
     await query(
       `INSERT INTO pre_verifications 
-        (user_id, post_id, category_type, verification_data, verification_status, verified_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (user_id, post_id, category_type)
+        (user_id, post_id, category_type, verification_data, verification_status, verified_at, expires_at, resource_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (user_id, post_id, category_type) WHERE resource_type = 'post' AND post_id IS NOT NULL
        DO UPDATE SET
          verification_data = EXCLUDED.verification_data,
          verification_status = EXCLUDED.verification_status,
@@ -210,7 +210,8 @@ async function preVerifyHandler(
         JSON.stringify(challenge),
         verificationStatus,
         verificationStatus === 'verified' ? new Date().toISOString() : null,
-        expiresAt.toISOString()
+        expiresAt.toISOString(),
+        'post'
       ]
     );
 

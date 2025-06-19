@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 // import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { ArrowLeft, Home, MessageSquare } from 'lucide-react';
+import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 // URL builder utilities are now handled internally with buildInternalUrl
 
 interface PostDetailPageProps {
@@ -338,12 +339,14 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           <CardContent className="space-y-6">
             {/* New Comment Form */}
             <div className="new-comment-form">
-              <NewCommentForm 
-                postId={postIdNum} 
-                post={post} 
-                parentCommentId={replyingToCommentId}
-                onCommentPosted={handleCommentPosted} 
-              />
+              <UniversalProfileProvider>
+                <NewCommentForm 
+                  postId={postIdNum} 
+                  post={post} 
+                  parentCommentId={replyingToCommentId}
+                  onCommentPosted={handleCommentPosted} 
+                />
+              </UniversalProfileProvider>
               {replyingToCommentId && (
                 <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
                   <span>Replying to comment #{replyingToCommentId}</span>

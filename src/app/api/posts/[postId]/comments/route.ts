@@ -581,7 +581,7 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         const verificationResult = await query(
           `SELECT category_type, verification_status, expires_at 
            FROM pre_verifications 
-           WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND verification_status = 'verified'`,
+           WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND verification_status = 'verified' AND resource_type = 'post'`,
           [user.sub, postId]
         );
 

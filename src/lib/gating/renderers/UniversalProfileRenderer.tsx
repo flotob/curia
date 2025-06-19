@@ -96,7 +96,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
    * Uses the rich requirements display with real UP context data
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode, onVerificationComplete } = props;
+    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode, onVerificationComplete, verificationContext } = props;
     const metadata = this.getMetadata();
     
     // This will be rendered within GatingRequirementsPanel which has UP context
@@ -111,6 +111,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
         postId={postId}
         isPreviewMode={isPreviewMode}
         onVerificationComplete={onVerificationComplete}
+        verificationContext={verificationContext}
       />
     );
   }
@@ -282,7 +283,14 @@ interface UPConnectionComponentProps {
   disabled?: boolean;
   postId?: number;
   isPreviewMode?: boolean;
-  onVerificationComplete?: () => void;
+  onVerificationComplete?: (canComment?: boolean) => void;
+  verificationContext?: {
+    type: 'board' | 'post' | 'preview';
+    communityId?: string;
+    boardId?: number;
+    postId?: number;
+    lockId?: number;
+  };
 }
 
 const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
@@ -294,7 +302,8 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   disabled,
   postId,
   isPreviewMode = false,
-  onVerificationComplete
+  onVerificationComplete,
+  verificationContext
 }) => {
   // ===== HOOKS =====
 
@@ -308,36 +317,131 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   const [verificationState, setVerificationState] = useState<'idle' | 'success_pending' | 'error_pending'>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  // NOTE: All balance/follower state is now derived from the userStatus prop
-  // which is fed by the wagmi provider in GatingRequirementsPreview.
-  // This component is now stateless regarding on-chain data.
+  // ===== LOAD REAL ON-CHAIN DATA WHEN NOT IN PREVIEW MODE =====
+  const upCtx = useUniversalProfile();
+  const [balancesState, setBalancesState] = useState<{ lyx?: bigint; tokens?: Record<string, { raw: string; formatted: string; decimals?: number }> }>({});
+
+  React.useEffect(() => {
+    const loadData = async () => {
+      if (!upCtx || !upCtx.isConnected || !upCtx.upAddress) return;
+      // Only load if we don't have data yet
+      if (balancesState.lyx || Object.keys(balancesState.tokens || {}).length > 0) return;
+
+      try {
+        // Load LYX balance if needed
+        if (requirements.minLyxBalance) {
+          const lyx = await upCtx.getLyxBalance();
+          setBalancesState(prev => ({ ...prev, lyx: BigInt(lyx) }));
+        }
+
+        // Load token balances
+        if (requirements.requiredTokens && requirements.requiredTokens.length > 0) {
+          const tokenAddresses = requirements.requiredTokens.map(t => t.contractAddress);
+          const tokenBalances = await upCtx.getTokenBalances(tokenAddresses);
+          const tokenMap: Record<string, { raw: string; formatted: string; decimals?: number }> = {};
+          tokenBalances.forEach(tb => {
+            tokenMap[tb.contractAddress.toLowerCase()] = {
+              raw: tb.balance,
+              formatted: tb.balance,
+            };
+          });
+          setBalancesState(prev => ({ ...prev, tokens: tokenMap }));
+        }
+
+        // Load follower statuses
+        if (requirements.followerRequirements && requirements.followerRequirements.length > 0) {
+          const newFollowerState: Record<string, boolean> = {};
+          for (const req of requirements.followerRequirements) {
+            if (req.type === 'minimum_followers') {
+              const count = await upCtx.getFollowerCount(upCtx.upAddress);
+              newFollowerState[`minimum_followers-${req.value}`] = count >= parseInt(req.value);
+            } else if (req.type === 'followed_by') {
+              const status = await upCtx.isFollowedBy(req.value, upCtx.upAddress);
+              newFollowerState[`followed_by-${req.value}`] = status;
+            } else if (req.type === 'following') {
+              const status = await upCtx.isFollowing(req.value, upCtx.upAddress);
+              newFollowerState[`following-${req.value}`] = status;
+            }
+          }
+          // Note: follower state is now handled through userStatus.followerStatus
+        }
+      } catch (e) {
+        console.error('[UPConnectionComponent] Failed to load on-chain data:', e);
+      }
+    };
+
+    if (!isPreviewMode) {
+      loadData();
+    }
+  }, [isPreviewMode, upCtx, requirements, balancesState]);
 
   // Check if all requirements are met for auto-verification
   const allRequirementsMet = useMemo(() => {
     if (!userStatus?.connected) return false;
     
-    // In preview mode, we need to check if we have actual data loaded
-    if (isPreviewMode) {
-      // Check if we have balance data for LYX requirements
-      if (requirements.minLyxBalance && !userStatus.lyxBalance) {
-        return false;
+    // Check LYX balance requirement
+    if (requirements.minLyxBalance) {
+      if (!userStatus.lyxBalance) {
+        return false; // No balance data loaded
       }
       
-      // Check if we have token balance data for token requirements
-      if (requirements.requiredTokens?.length && !userStatus.tokenBalances) {
-        return false;
-      }
-      
-      // Check if we have follower data for follower requirements
-      if (requirements.followerRequirements?.length && !userStatus.followerStatus) {
+      try {
+        const userBalance = ethers.BigNumber.from(userStatus.lyxBalance.toString());
+        const requiredBalance = ethers.BigNumber.from(requirements.minLyxBalance);
+        if (userBalance.lt(requiredBalance)) {
+          return false; // Insufficient LYX balance
+        }
+      } catch (error) {
+        console.error('[UPConnectionComponent] Error checking LYX balance:', error);
         return false;
       }
     }
     
-    // If we have data, check if requirements are actually met
-    // For now, return true if connected and data is loaded (actual verification happens server-side)
-    return userStatus.connected;
-  }, [userStatus, requirements, isPreviewMode]);
+    // Check token requirements
+    if (requirements.requiredTokens?.length) {
+      if (!userStatus.tokenBalances) {
+        return false; // No token data loaded
+      }
+      
+      const balancesArr = userStatus.tokenBalances as unknown as { status: string; result?: unknown }[];
+      for (let i = 0; i < requirements.requiredTokens.length; i++) {
+        const req = requirements.requiredTokens[i];
+        const erc20Res = balancesArr[i * 2];
+        const erc721Res = balancesArr[i * 2 + 1];
+
+        let bal: bigint = BigInt(0);
+        if (req.tokenType === 'LSP7' && erc20Res?.status === 'success') {
+          bal = erc20Res.result as bigint;
+        } else if (req.tokenType === 'LSP8' && erc721Res?.status === 'success') {
+          bal = erc721Res.result as bigint;
+        }
+
+        const requiredAmount = ethers.BigNumber.from(req.minAmount || '0');
+        const userAmount = ethers.BigNumber.from(bal.toString());
+        
+        if (userAmount.lt(requiredAmount)) {
+          return false; // Insufficient token balance
+        }
+      }
+    }
+    
+    // Check follower requirements
+    if (requirements.followerRequirements?.length) {
+      if (!userStatus.followerStatus) {
+        return false; // No follower data loaded
+      }
+      
+      for (const req of requirements.followerRequirements) {
+        const key = `${req.type}-${req.value}`;
+        if (!userStatus.followerStatus[key]) {
+          return false; // Follower requirement not met
+        }
+      }
+    }
+    
+    // All requirements met!
+    return true;
+  }, [userStatus, requirements]);
 
   // Verification function
   const handleVerify = useCallback(async (overridePostId?: number) => {
@@ -352,6 +456,94 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
       return false;
     }
 
+    // Determine if this is board verification
+    const isBoardVerification = !postId && verificationContext?.type === 'board';
+    
+    if (isBoardVerification) {
+      const { communityId, boardId, lockId } = verificationContext;
+      if (!lockId) {
+        setError('Missing lockId for board verification');
+        return false;
+      }
+
+      setIsVerifying(true);
+      setError(null);
+
+      try {
+        console.log(`[UPConnectionComponent] Starting board verification for lock ${lockId}`);
+
+        // Create signing message for board verification
+        const message = `Verify Universal Profile for board access
+Board: ${boardId}
+Universal Profile: ${userStatus.upAddress}
+Chain ID: 42
+Timestamp: ${Date.now()}
+
+This signature proves you control this Universal Profile and grants access to post on this board.`;
+
+        // Sign the message using window.lukso directly
+        if (!window.lukso) {
+          throw new Error('Universal Profile extension not available');
+        }
+
+        console.log('[UPConnectionComponent] Requesting signature from UP extension for board verification...');
+        const signature = await window.lukso.request({
+          method: 'personal_sign',
+          params: [message, userStatus.upAddress],
+        });
+
+        console.log('[UPConnectionComponent] Signature received, submitting to board endpoint...');
+
+        // Submit to board pre-verification API
+        const response = await authFetch(`/api/communities/${communityId}/boards/${boardId}/locks/${lockId}/pre-verify/universal_profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            signature,
+            message,
+            address: userStatus.upAddress,
+            verificationData: {
+              requirements
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server returned ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('[UPConnectionComponent] Board verification result:', result);
+
+        if (result.success) {
+          console.log('[UPConnectionComponent] ✅ Board verification successful!');
+          setVerificationState('success_pending');
+          
+          onVerificationComplete?.(true); // Pass canComment: true for successful verification
+          return true;
+        } else {
+          throw new Error(result.message || 'Board verification failed');
+        }
+
+      } catch (err) {
+        console.error('[UPConnectionComponent] Board verification error:', err);
+        setVerificationState('error_pending');
+        setError(err instanceof Error ? err.message : 'Board verification failed');
+        
+        setTimeout(() => {
+          setVerificationState('idle');
+        }, 3000);
+        
+        return false;
+      } finally {
+        setIsVerifying(false);
+      }
+    }
+
+    // Handle post verification (existing logic)
     const targetPostId = overridePostId || postId;
     if (!targetPostId) {
       setError('No post ID available for verification');
@@ -433,7 +625,7 @@ This signature proves you control this Universal Profile and grants access to co
           invalidateVerificationStatus(targetPostId);
         }, 100);
         
-        onVerificationComplete?.();
+        onVerificationComplete?.(true);
         return true;
       } else {
         throw new Error(result.error || 'Verification failed');

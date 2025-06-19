@@ -119,8 +119,16 @@ export interface CategoryConnectionProps {
   userStatus?: VerificationStatus;
   disabled?: boolean;
   postId?: number;
-  onVerificationComplete?: () => void; // Callback after successful verification
+  onVerificationComplete?: (canComment?: boolean) => void; // Callback after successful verification
   isPreviewMode?: boolean; // If true, disable backend verification and show preview-only UI
+  // NEW: Verification context for board/post routing
+  verificationContext?: {
+    type: 'board' | 'post' | 'preview';
+    communityId?: string;
+    boardId?: number;
+    postId?: number;
+    lockId?: number;
+  };
 }
 
 /**

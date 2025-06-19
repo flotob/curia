@@ -115,41 +115,82 @@ async function getBoardVerificationStatusHandler(
     }));
 
     // Check current verification status for each lock
-    // For board-level gating, we'll check against a separate table or extend pre_verifications
-    // For now, let's check if user has any recent verifications for these locks
-    const verificationLockIdsPlaceholders = lockGating.lockIds.map((_, index) => `$${index + 2}`).join(',');
+    // For board-level gating, check pre_verifications with board_id and resource_type = 'board'
     const verificationResult = await query(
       `SELECT DISTINCT 
-         pv.post_id,
          pv.category_type, 
          pv.verification_status, 
          pv.verified_at, 
-         pv.expires_at,
-         p.lock_id
+         pv.expires_at
        FROM pre_verifications pv
-       JOIN posts p ON pv.post_id = p.id
        WHERE pv.user_id = $1 
-         AND p.lock_id IN (${verificationLockIdsPlaceholders})
+         AND pv.board_id = $2
+         AND pv.resource_type = 'board'
          AND pv.verification_status = 'verified'
          AND pv.expires_at > NOW()
        ORDER BY pv.verified_at DESC`,
-      [currentUserId, ...lockGating.lockIds]
+      [currentUserId, boardId]
     );
 
     console.log(`[API] Found ${verificationResult.rows.length} recent verifications for user`);
 
+    // Create a map of verified categories
+    const verifiedCategories = new Set(
+      verificationResult.rows.map(row => row.category_type)
+    );
+
     // Build lock status array
     const lockStatuses: LockVerificationStatus[] = locks.map(lock => {
-      // Check if user has recent verification for this lock
-      const recentVerification = verificationResult.rows.find(v => v.lock_id === lock.id);
+      // Parse lock gating config to check if any categories are verified
+      let lockGatingConfig;
+      try {
+        lockGatingConfig = typeof lock.gatingConfig === 'string' 
+          ? JSON.parse(lock.gatingConfig) 
+          : lock.gatingConfig;
+      } catch (error) {
+        console.error(`[API] Failed to parse gating config for lock ${lock.id}:`, error);
+        return {
+          lockId: lock.id,
+          lock,
+          verificationStatus: 'not_started',
+          nextAction: {
+            type: 'verify_requirements',
+            label: 'Verify Requirements'
+          }
+        };
+      }
+
+      const lockCategories = lockGatingConfig.categories || [];
+      const enabledCategories = lockCategories.filter((cat: { enabled: boolean }) => cat.enabled);
       
-      if (recentVerification) {
+      // Check if lock requirements are met
+      const requireAll = lockGatingConfig.requireAll !== undefined 
+        ? lockGatingConfig.requireAll 
+        : !lockGatingConfig.requireAny; // Default to requireAny behavior
+      
+      const verifiedCategoriesInLock = enabledCategories.filter((cat: { type: string }) => 
+        verifiedCategories.has(cat.type)
+      );
+      
+      const isLockVerified = requireAll 
+        ? verifiedCategoriesInLock.length >= enabledCategories.length
+        : verifiedCategoriesInLock.length >= 1;
+      
+      if (isLockVerified && verifiedCategoriesInLock.length > 0) {
+        // Find the most recent verification for this lock
+        const lockVerifications = verificationResult.rows.filter(row => 
+          enabledCategories.some((cat: { type: string }) => cat.type === row.category_type)
+        );
+        const mostRecent = lockVerifications.sort((a, b) => 
+          new Date(b.verified_at).getTime() - new Date(a.verified_at).getTime()
+        )[0];
+        
         return {
           lockId: lock.id,
           lock,
           verificationStatus: 'verified',
-          verifiedAt: recentVerification.verified_at,
-          expiresAt: recentVerification.expires_at
+          verifiedAt: mostRecent.verified_at,
+          expiresAt: mostRecent.expires_at
         };
       } else {
         return {
