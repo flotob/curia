@@ -119,15 +119,23 @@ export const LockVerificationPanel: React.FC<LockVerificationPanelProps> = ({
   const renderCategorySlot = (category: ContextualCategoryStatus) => {
     const isExpanded = expandedCategory === category.type;
     
+    // ✨ MERGE real-time verification status with category data
+    const realTimeStatus = verificationStatus?.categories.find(cat => cat.type === category.type);
+    
     const categoryStatus = {
       type: category.type,
       enabled: category.enabled,
       requirements: category.requirements,
-      verificationStatus: category.verificationStatus,
+      // Use real-time verification status if available, otherwise fall back to category default
+      verificationStatus: realTimeStatus?.verificationStatus || category.verificationStatus,
+      verifiedAt: realTimeStatus?.verifiedAt,
+      expiresAt: realTimeStatus?.expiresAt,
       metadata: category.metadata ? {
         ...category.metadata,
         description: `${category.metadata.name} verification requirements`
       } : undefined,
+      // Preserve any verification data that might exist
+      verificationData: category.verificationData,
     };
     
     return (

@@ -186,31 +186,35 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
       <div
         key={lock.id}
         className={cn(
-          'p-5 rounded-lg border flex items-center justify-between transition-all hover:shadow-sm cursor-pointer',
+          'p-5 rounded-lg border flex items-center transition-all hover:shadow-sm cursor-pointer',
           lockInfo.bgColor
         )}
         onClick={() => handleVerifyLock(lock.id, lock.name)}
       >
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
+        {/* Left side: Lock info with constrained width */}
+        <div className="flex items-center space-x-3 flex-1 min-w-0 mr-4">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <LockIcon className={cn('h-4 w-4', lockInfo.color)} />
             <span className="text-lg">{lock.icon || '🔒'}</span>
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="font-medium truncate">{lock.name}</div>
-            <div className="text-sm text-muted-foreground truncate">
-              {lock.description || 'Lock verification required'}
+            <div className="text-sm text-muted-foreground">
+              <div className="truncate">
+                {lock.description || 'Lock verification required'}
+              </div>
             </div>
           </div>
         </div>
         
+        {/* Right side: Status and actions with guaranteed space */}
         <div className="flex items-center space-x-3 flex-shrink-0">
           <div className="text-right">
-            <Badge variant={lockInfo.badgeVariant} className="text-xs">
+            <Badge variant={lockInfo.badgeVariant} className="text-xs whitespace-nowrap">
               {lockInfo.label}
             </Badge>
             {verificationStatus === 'verified' && expiresAt && (
-              <div className="text-xs text-muted-foreground mt-1">
+              <div className="text-xs text-muted-foreground mt-1 whitespace-nowrap">
                 {formatTimeRemaining(expiresAt)}
               </div>
             )}
@@ -223,7 +227,7 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
                 e.stopPropagation();
                 handleVerifyLock(lock.id, lock.name);
               }}
-              className="ml-2"
+              className="whitespace-nowrap"
             >
               {nextAction?.label || 'Verify'}
             </Button>

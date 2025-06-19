@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LockVerificationPanel } from '../verification/LockVerificationPanel';
 import { useQueryClient } from '@tanstack/react-query';
-import { Shield, X } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 import { BoardVerificationApiResponse } from '@/types/boardVerification';
 
@@ -136,7 +136,7 @@ export const BoardVerificationModal: React.FC<BoardVerificationModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0 pb-4">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start">
             <div className="flex-1">
               <DialogTitle className="flex items-center text-xl">
                 <Shield className="h-6 w-6 mr-3 text-primary" />
@@ -147,14 +147,6 @@ export const BoardVerificationModal: React.FC<BoardVerificationModalProps> = ({
                 <span className="font-medium">{lockName}</span> to unlock posting and commenting on this board.
               </DialogDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
           </div>
 
           {/* Info Badge */}
