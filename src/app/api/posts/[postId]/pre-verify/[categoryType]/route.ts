@@ -155,7 +155,8 @@ async function preVerifyHandler(
       // Verify Ethereum requirements (we can do this part)
       const requirementsResult = await verifyEthereumGatingRequirements(
         challenge.ethAddress,
-        targetCategory.requirements as EthereumGatingRequirements
+        targetCategory.requirements as EthereumGatingRequirements,
+        targetCategory.fulfillment || 'all' // 🚀 NEW: Pass fulfillment mode from category
       );
       requirementsValid = requirementsResult.valid;
       
@@ -179,7 +180,8 @@ async function preVerifyHandler(
               requirements: targetCategory.requirements as UPGatingRequirements
             }
           }
-        }
+        },
+        targetCategory.fulfillment || 'all' // 🚀 NEW: Pass fulfillment mode from category
       );
       requirementsValid = requirementsResult.valid;
       

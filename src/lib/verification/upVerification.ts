@@ -391,10 +391,15 @@ export async function verifyTokenRequirements(
  * 
  * This is the main verification function that orchestrates all requirement checks.
  * Used by both the comments API and pre-verification API.
+ * 
+ * @param upAddress - Universal Profile address to verify
+ * @param postSettings - Post settings containing gating requirements  
+ * @param fulfillment - Fulfillment mode: "any" (OR logic) or "all" (AND logic). Defaults to "all" for backward compatibility.
  */
 export async function verifyPostGatingRequirements(
   upAddress: string,
-  postSettings: PostSettings
+  postSettings: PostSettings,
+  fulfillment: "any" | "all" = "all"
 ): Promise<{ valid: boolean; error?: string }> {
   try {
     // Check if gating is enabled
@@ -407,31 +412,65 @@ export async function verifyPostGatingRequirements(
       return { valid: true }; // No specific requirements
     }
 
+    console.log(`[verifyPostGatingRequirements] Using fulfillment mode: ${fulfillment}`);
+
+    // 🚀 NEW: Collect all requirement results instead of early returns
+    const requirementResults: Array<{ valid: boolean; error?: string }> = [];
+    
     // Verify LYX balance requirement
     if (requirements.minLyxBalance) {
       const lyxResult = await verifyLyxBalance(upAddress, requirements.minLyxBalance);
-      if (!lyxResult.valid) {
-        return lyxResult;
-      }
+      requirementResults.push(lyxResult);
+      console.log(`[verifyPostGatingRequirements] LYX balance check: ${lyxResult.valid ? '✅' : '❌'} ${lyxResult.error || ''}`);
     }
 
     // Verify token requirements (LSP7/LSP8)
     if (requirements.requiredTokens && requirements.requiredTokens.length > 0) {
       const tokenResult = await verifyTokenRequirements(upAddress, requirements.requiredTokens);
-      if (!tokenResult.valid) {
-        return tokenResult;
-      }
+      requirementResults.push(tokenResult);
+      console.log(`[verifyPostGatingRequirements] Token requirements check: ${tokenResult.valid ? '✅' : '❌'} ${tokenResult.error || ''}`);
     }
 
     // Verify follower requirements (LSP26)
     if (requirements.followerRequirements && requirements.followerRequirements.length > 0) {
       const followerResult = await verifyFollowerRequirements(upAddress, requirements.followerRequirements);
-      if (!followerResult.valid) {
-        return followerResult;
-      }
+      requirementResults.push(followerResult);
+      console.log(`[verifyPostGatingRequirements] Follower requirements check: ${followerResult.valid ? '✅' : '❌'} ${followerResult.error || ''}`);
     }
 
-    return { valid: true };
+    // 🚀 NEW: Apply fulfillment logic
+    if (requirementResults.length === 0) {
+      return { valid: true }; // No requirements to check
+    }
+
+    const validResults = requirementResults.filter(result => result.valid);
+    const failedResults = requirementResults.filter(result => !result.valid);
+
+    if (fulfillment === 'any') {
+      // ANY mode: At least one requirement must pass
+      if (validResults.length > 0) {
+        console.log(`[verifyPostGatingRequirements] ✅ ANY mode satisfied: ${validResults.length}/${requirementResults.length} requirements met`);
+        return { valid: true };
+      } else {
+        console.log(`[verifyPostGatingRequirements] ❌ ANY mode failed: 0/${requirementResults.length} requirements met`);
+        return { 
+          valid: false, 
+          error: failedResults.length > 0 ? failedResults[0].error : 'No requirements satisfied'
+        };
+      }
+    } else {
+      // ALL mode: All requirements must pass (default behavior)
+      if (validResults.length === requirementResults.length) {
+        console.log(`[verifyPostGatingRequirements] ✅ ALL mode satisfied: ${validResults.length}/${requirementResults.length} requirements met`);
+        return { valid: true };
+      } else {
+        console.log(`[verifyPostGatingRequirements] ❌ ALL mode failed: ${validResults.length}/${requirementResults.length} requirements met`);
+        return { 
+          valid: false, 
+          error: failedResults.length > 0 ? failedResults[0].error : 'Not all requirements satisfied'
+        };
+      }
+    }
 
   } catch (error) {
     console.error('[verifyPostGatingRequirements] Error verifying requirements:', error);

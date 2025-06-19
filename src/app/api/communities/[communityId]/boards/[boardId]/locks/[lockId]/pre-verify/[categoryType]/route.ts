@@ -118,7 +118,11 @@ async function submitBoardLockPreVerificationHandler(
         }
       };
 
-      verificationResult = await verifyPostGatingRequirements(address, mockPostSettings);
+      verificationResult = await verifyPostGatingRequirements(
+        address, 
+        mockPostSettings,
+        targetCategory.fulfillment || 'all' // 🚀 NEW: Pass fulfillment mode from category
+      );
     } else if (categoryType === 'ethereum_profile') {
       // Import Ethereum verification function
       const { verifyEthereumGatingRequirements } = await import('@/lib/ethereum/verification');
@@ -131,7 +135,8 @@ async function submitBoardLockPreVerificationHandler(
 
       verificationResult = await verifyEthereumGatingRequirements(
         address,
-        targetCategory.requirements
+        targetCategory.requirements,
+        targetCategory.fulfillment || 'all' // 🚀 NEW: Pass fulfillment mode from category
       );
     } else {
       return NextResponse.json({ 

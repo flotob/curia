@@ -507,20 +507,27 @@ export async function verifyEFPRequirements(
 
 /**
  * Verify all Ethereum gating requirements
+ * 
+ * @param ethAddress - Ethereum address to verify
+ * @param requirements - Ethereum gating requirements to check
+ * @param fulfillment - Fulfillment mode: "any" (OR logic) or "all" (AND logic). Defaults to "all" for backward compatibility.
  */
 export async function verifyEthereumGatingRequirements(
   ethAddress: string,
-  requirements: EthereumGatingRequirements
+  requirements: EthereumGatingRequirements,
+  fulfillment: "any" | "all" = "all"
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    console.log(`[verifyEthereumGatingRequirements] Verifying Ethereum requirements for ${ethAddress}`);
+    console.log(`[verifyEthereumGatingRequirements] Verifying Ethereum requirements for ${ethAddress} with fulfillment mode: ${fulfillment}`);
+
+    // 🚀 NEW: Collect all requirement results instead of early returns
+    const requirementResults: Array<{ valid: boolean; error?: string }> = [];
 
     // Verify ETH balance requirement
     if (requirements.minimumETHBalance) {
       const ethResult = await verifyETHBalance(ethAddress, requirements.minimumETHBalance);
-      if (!ethResult.valid) {
-        return ethResult;
-      }
+      requirementResults.push(ethResult);
+      console.log(`[verifyEthereumGatingRequirements] ETH balance check: ${ethResult.valid ? '✅' : '❌'} ${ethResult.error || ''}`);
     }
 
     // Verify ENS requirements
@@ -530,18 +537,16 @@ export async function verifyEthereumGatingRequirements(
         requirements.requiresENS || false,
         requirements.ensDomainPatterns
       );
-      if (!ensResult.valid) {
-        return ensResult;
-      }
+      requirementResults.push(ensResult);
+      console.log(`[verifyEthereumGatingRequirements] ENS check: ${ensResult.valid ? '✅' : '❌'} ${ensResult.error || ''}`);
     }
 
     // Verify ERC-20 token requirements
     if (requirements.requiredERC20Tokens && requirements.requiredERC20Tokens.length > 0) {
       for (const tokenReq of requirements.requiredERC20Tokens) {
         const tokenResult = await verifyERC20Balance(ethAddress, tokenReq);
-        if (!tokenResult.valid) {
-          return tokenResult;
-        }
+        requirementResults.push(tokenResult);
+        console.log(`[verifyEthereumGatingRequirements] ERC-20 ${tokenReq.symbol || tokenReq.contractAddress} check: ${tokenResult.valid ? '✅' : '❌'} ${tokenResult.error || ''}`);
       }
     }
 
@@ -549,9 +554,8 @@ export async function verifyEthereumGatingRequirements(
     if (requirements.requiredERC721Collections && requirements.requiredERC721Collections.length > 0) {
       for (const nftReq of requirements.requiredERC721Collections) {
         const nftResult = await verifyERC721Ownership(ethAddress, nftReq);
-        if (!nftResult.valid) {
-          return nftResult;
-        }
+        requirementResults.push(nftResult);
+        console.log(`[verifyEthereumGatingRequirements] ERC-721 ${nftReq.symbol || nftReq.contractAddress} check: ${nftResult.valid ? '✅' : '❌'} ${nftResult.error || ''}`);
       }
     }
 
@@ -559,22 +563,52 @@ export async function verifyEthereumGatingRequirements(
     if (requirements.requiredERC1155Tokens && requirements.requiredERC1155Tokens.length > 0) {
       for (const tokenReq of requirements.requiredERC1155Tokens) {
         const tokenResult = await verifyERC1155Balance(ethAddress, tokenReq);
-        if (!tokenResult.valid) {
-          return tokenResult;
-        }
+        requirementResults.push(tokenResult);
+        console.log(`[verifyEthereumGatingRequirements] ERC-1155 token ${tokenReq.tokenId} check: ${tokenResult.valid ? '✅' : '❌'} ${tokenResult.error || ''}`);
       }
     }
 
     // Verify EFP requirements
     if (requirements.efpRequirements && requirements.efpRequirements.length > 0) {
       const efpResult = await verifyEFPRequirements(ethAddress, requirements.efpRequirements);
-      if (!efpResult.valid) {
-        return efpResult;
-      }
+      requirementResults.push(efpResult);
+      console.log(`[verifyEthereumGatingRequirements] EFP requirements check: ${efpResult.valid ? '✅' : '❌'} ${efpResult.error || ''}`);
     }
 
-    console.log(`[verifyEthereumGatingRequirements] ✅ All Ethereum requirements verified for ${ethAddress}`);
-    return { valid: true };
+    // 🚀 NEW: Apply fulfillment logic
+    if (requirementResults.length === 0) {
+      console.log(`[verifyEthereumGatingRequirements] ✅ No requirements to verify - access granted`);
+      return { valid: true }; // No requirements to check
+    }
+
+    const validResults = requirementResults.filter(result => result.valid);
+    const failedResults = requirementResults.filter(result => !result.valid);
+
+    if (fulfillment === 'any') {
+      // ANY mode: At least one requirement must pass
+      if (validResults.length > 0) {
+        console.log(`[verifyEthereumGatingRequirements] ✅ ANY mode satisfied: ${validResults.length}/${requirementResults.length} requirements met`);
+        return { valid: true };
+      } else {
+        console.log(`[verifyEthereumGatingRequirements] ❌ ANY mode failed: 0/${requirementResults.length} requirements met`);
+        return { 
+          valid: false, 
+          error: failedResults.length > 0 ? failedResults[0].error : 'No requirements satisfied'
+        };
+      }
+    } else {
+      // ALL mode: All requirements must pass (default behavior)
+      if (validResults.length === requirementResults.length) {
+        console.log(`[verifyEthereumGatingRequirements] ✅ ALL mode satisfied: ${validResults.length}/${requirementResults.length} requirements met`);
+        return { valid: true };
+      } else {
+        console.log(`[verifyEthereumGatingRequirements] ❌ ALL mode failed: ${validResults.length}/${requirementResults.length} requirements met`);
+        return { 
+          valid: false, 
+          error: failedResults.length > 0 ? failedResults[0].error : 'Not all requirements satisfied'
+        };
+      }
+    }
 
   } catch (error) {
     console.error('[verifyEthereumGatingRequirements] Error:', error);
