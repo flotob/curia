@@ -27,6 +27,7 @@ import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
 
 interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   onConnect?: () => void;
   onDisconnect?: () => void;
   postId?: number;
@@ -48,6 +49,7 @@ interface EthereumConnectionWidgetProps {
 
 export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
   requirements,
+  fulfillment = 'all', // 🚀 NEW: Default to 'all' for backward compatibility (will be used in backend verification)
   onConnect,
   onDisconnect,
   postId,
@@ -56,6 +58,8 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
   isPreviewMode = false,
   verificationContext
 }) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _fulfillment = fulfillment; // TODO: Implement frontend fulfillment logic (Phase 3B)
   const {
     isConnected,
     connectionError,

@@ -19,6 +19,7 @@ interface LockGatingRequirementResponse {
 interface CategoryStatus {
   type: string;
   enabled: boolean;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   requirements: unknown;
   verificationStatus: 'not_started';
   metadata?: {
@@ -93,6 +94,7 @@ async function getLockGatingRequirementsHandler(
     const categoryStatuses: CategoryStatus[] = gatingCategories.map((category: GatingCategory) => ({
       type: category.type,
       enabled: category.enabled,
+      fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode from category
       requirements: category.requirements,
       verificationStatus: 'not_started' as const,
       metadata: CATEGORY_METADATA[category.type as keyof typeof CATEGORY_METADATA],

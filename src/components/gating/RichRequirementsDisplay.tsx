@@ -55,6 +55,7 @@ export interface ExtendedVerificationStatus extends VerificationStatus {
 
 export interface RichRequirementsDisplayProps {
   requirements: UPGatingRequirements;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   userStatus: ExtendedVerificationStatus;
   metadata: {
     icon: string;
@@ -84,6 +85,7 @@ interface FollowerVerificationState {
 
 export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = ({
   requirements,
+  fulfillment = 'all', // 🚀 NEW: Default to 'all' for backward compatibility
   userStatus,
   metadata,
   onConnect,
@@ -638,7 +640,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         {userStatus.connected && (
           <div className="text-xs">
             {(() => {
-              // Calculate if all requirements are actually met based on individual checks
+              // 🚀 NEW: Calculate if requirements are met based on fulfillment mode
               const requirementChecks = [];
               
               // Check LYX balance requirement
@@ -663,21 +665,41 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                 });
               }
               
-              // All requirements must be met
-              const allMet = requirementChecks.length > 0 && requirementChecks.every(met => met === true);
+              // 🚀 NEW: Apply fulfillment mode logic
+              let requirementsMet = false;
+              let statusMessage = '';
               
-              if (allMet) {
+              if (requirementChecks.length === 0) {
+                requirementsMet = true;
+                statusMessage = 'No requirements to verify';
+              } else if (fulfillment === 'any') {
+                // ANY mode: At least one requirement must be satisfied
+                requirementsMet = requirementChecks.some(met => met === true);
+                const metCount = requirementChecks.filter(met => met === true).length;
+                statusMessage = requirementsMet 
+                  ? `Requirements met (${metCount}/${requirementChecks.length}) - ready to comment!`
+                  : `Need any 1 of ${requirementChecks.length} requirements`;
+              } else {
+                // ALL mode: All requirements must be satisfied (default behavior)
+                requirementsMet = requirementChecks.every(met => met === true);
+                const metCount = requirementChecks.filter(met => met === true).length;
+                statusMessage = requirementsMet
+                  ? 'All requirements met - ready to comment!'
+                  : `Need all requirements (${metCount}/${requirementChecks.length} completed)`;
+              }
+              
+              if (requirementsMet) {
                 return (
                   <div className="flex items-center text-emerald-600">
                     <CheckCircle className="h-3 w-3 mr-1" />
-                    All requirements met - ready to comment!
+                    {statusMessage}
                   </div>
                 );
               } else {
                 return (
                   <div className="flex items-center text-red-600">
                     <XCircle className="h-3 w-3 mr-1" />
-                    Some requirements not met
+                    {statusMessage}
                   </div>
                 );
               }

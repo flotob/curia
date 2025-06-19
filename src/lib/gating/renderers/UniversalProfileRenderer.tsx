@@ -96,13 +96,14 @@ export class UniversalProfileRenderer implements CategoryRenderer {
    * Uses the rich requirements display with real UP context data
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode, onVerificationComplete, verificationContext } = props;
+    const { requirements, fulfillment, onConnect, onDisconnect, userStatus, disabled, postId, isPreviewMode, onVerificationComplete, verificationContext } = props;
     const metadata = this.getMetadata();
     
     // This will be rendered within GatingRequirementsPanel which has UP context
     return (
       <UPConnectionComponent
         requirements={requirements as UPGatingRequirements}
+        fulfillment={fulfillment} // 🚀 NEW: Pass fulfillment mode
         userStatus={userStatus}
         metadata={metadata}
         onConnect={onConnect}
@@ -276,6 +277,7 @@ export class UniversalProfileRenderer implements CategoryRenderer {
 
 interface UPConnectionComponentProps {
   requirements: UPGatingRequirements;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   userStatus?: VerificationStatus;
   metadata: GatingCategoryMetadata;
   onConnect: () => Promise<void>;
@@ -295,6 +297,7 @@ interface UPConnectionComponentProps {
 
 const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
   requirements,
+  fulfillment = 'all', // 🚀 NEW: Default to 'all' for backward compatibility
   userStatus,
   metadata,
   onConnect,
@@ -375,73 +378,96 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
     }
   }, [isPreviewMode, upCtx, requirements, balancesState]);
 
-  // Check if all requirements are met for auto-verification
+  // Check if requirements are met based on fulfillment mode
   const allRequirementsMet = useMemo(() => {
     if (!userStatus?.connected) return false;
+    
+    // 🚀 NEW: Dynamic ANY/ALL logic based on fulfillment mode
+    const requirementResults: boolean[] = [];
     
     // Check LYX balance requirement
     if (requirements.minLyxBalance) {
       if (!userStatus.lyxBalance) {
-        return false; // No balance data loaded
-      }
-      
-      try {
-        const userBalance = ethers.BigNumber.from(userStatus.lyxBalance.toString());
-        const requiredBalance = ethers.BigNumber.from(requirements.minLyxBalance);
-        if (userBalance.lt(requiredBalance)) {
-          return false; // Insufficient LYX balance
+        requirementResults.push(false); // No balance data loaded
+      } else {
+        try {
+          const userBalance = ethers.BigNumber.from(userStatus.lyxBalance.toString());
+          const requiredBalance = ethers.BigNumber.from(requirements.minLyxBalance);
+          requirementResults.push(userBalance.gte(requiredBalance)); // True if sufficient LYX
+        } catch (error) {
+          console.error('[UPConnectionComponent] Error checking LYX balance:', error);
+          requirementResults.push(false);
         }
-      } catch (error) {
-        console.error('[UPConnectionComponent] Error checking LYX balance:', error);
-        return false;
       }
     }
     
     // Check token requirements
     if (requirements.requiredTokens?.length) {
       if (!userStatus.tokenBalances) {
-        return false; // No token data loaded
-      }
-      
-      const balancesArr = userStatus.tokenBalances as unknown as { status: string; result?: unknown }[];
-      for (let i = 0; i < requirements.requiredTokens.length; i++) {
-        const req = requirements.requiredTokens[i];
-        const erc20Res = balancesArr[i * 2];
-        const erc721Res = balancesArr[i * 2 + 1];
-
-        let bal: bigint = BigInt(0);
-        if (req.tokenType === 'LSP7' && erc20Res?.status === 'success') {
-          bal = erc20Res.result as bigint;
-        } else if (req.tokenType === 'LSP8' && erc721Res?.status === 'success') {
-          bal = erc721Res.result as bigint;
-        }
-
-        const requiredAmount = ethers.BigNumber.from(req.minAmount || '0');
-        const userAmount = ethers.BigNumber.from(bal.toString());
+        requirementResults.push(false); // No token data loaded
+      } else {
+        const balancesArr = userStatus.tokenBalances as unknown as { status: string; result?: unknown }[];
+        let allTokensSatisfied = true;
         
-        if (userAmount.lt(requiredAmount)) {
-          return false; // Insufficient token balance
+        for (let i = 0; i < requirements.requiredTokens.length; i++) {
+          const req = requirements.requiredTokens[i];
+          const erc20Res = balancesArr[i * 2];
+          const erc721Res = balancesArr[i * 2 + 1];
+
+          let bal: bigint = BigInt(0);
+          if (req.tokenType === 'LSP7' && erc20Res?.status === 'success') {
+            bal = erc20Res.result as bigint;
+          } else if (req.tokenType === 'LSP8' && erc721Res?.status === 'success') {
+            bal = erc721Res.result as bigint;
+          }
+
+          const requiredAmount = ethers.BigNumber.from(req.minAmount || '0');
+          const userAmount = ethers.BigNumber.from(bal.toString());
+          
+          if (userAmount.lt(requiredAmount)) {
+            allTokensSatisfied = false; 
+            break;
+          }
         }
+        requirementResults.push(allTokensSatisfied);
       }
     }
     
     // Check follower requirements
     if (requirements.followerRequirements?.length) {
       if (!userStatus.followerStatus) {
-        return false; // No follower data loaded
-      }
-      
-      for (const req of requirements.followerRequirements) {
-        const key = `${req.type}-${req.value}`;
-        if (!userStatus.followerStatus[key]) {
-          return false; // Follower requirement not met
+        requirementResults.push(false); // No follower data loaded
+      } else {
+        let allFollowersSatisfied = true;
+        
+        for (const req of requirements.followerRequirements) {
+          const key = `${req.type}-${req.value}`;
+          if (!userStatus.followerStatus[key]) {
+            allFollowersSatisfied = false;
+            break;
+          }
         }
+        requirementResults.push(allFollowersSatisfied);
       }
     }
     
-    // All requirements met!
-    return true;
-  }, [userStatus, requirements]);
+    // 🚀 NEW: Apply fulfillment mode logic
+    if (requirementResults.length === 0) {
+      return true; // No requirements = no restrictions
+    }
+    
+    if (fulfillment === 'any') {
+      // ANY mode: At least one requirement must be satisfied
+      const result = requirementResults.some(req => req === true);
+      console.log(`[UPConnectionComponent] Fulfillment ANY mode: ${result} (${requirementResults.filter(r => r).length}/${requirementResults.length} requirements met)`);
+      return result;
+    } else {
+      // ALL mode: All requirements must be satisfied (default behavior)
+      const result = requirementResults.every(req => req === true);
+      console.log(`[UPConnectionComponent] Fulfillment ALL mode: ${result} (${requirementResults.filter(r => r).length}/${requirementResults.length} requirements met)`);
+      return result;
+    }
+  }, [userStatus, requirements, fulfillment]);
 
   // Verification function
   const handleVerify = useCallback(async (overridePostId?: number) => {
@@ -703,6 +729,7 @@ This signature proves you control this Universal Profile and grants access to co
     <div className="space-y-4">
       <RichRequirementsDisplay
         requirements={requirements}
+        fulfillment={fulfillment} // 🚀 NEW: Pass fulfillment mode to display component
         userStatus={extendedUserStatus}
         metadata={metadata}
         onConnect={onConnect}

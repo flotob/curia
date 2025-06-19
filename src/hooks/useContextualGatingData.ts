@@ -23,6 +23,7 @@ export interface ContextualGatingRequirementsData {
 export interface ContextualCategoryStatus {
   type: string;
   enabled: boolean;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   requirements: unknown;
   verificationStatus: 'not_started' | 'pending' | 'verified' | 'expired';
   verifiedAt?: string;
@@ -103,6 +104,7 @@ export function useContextualGatingRequirements(
         categories: Array<{
           type: string;
           enabled: boolean;
+          fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
           requirements: unknown;
           verificationStatus: 'not_started';
           metadata?: {
@@ -117,6 +119,7 @@ export function useContextualGatingRequirements(
       const categories: ContextualCategoryStatus[] = lockData.categories.map(cat => ({
         type: cat.type,
         enabled: cat.enabled,
+        fulfillment: cat.fulfillment, // 🚀 NEW: Pass through fulfillment mode
         requirements: cat.requirements,
         verificationStatus: 'not_started' as const,
         metadata: cat.metadata ? {

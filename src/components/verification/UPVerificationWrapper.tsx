@@ -52,6 +52,7 @@ export const createUPWagmiConfig = (storageKey: string = 'wagmi_up_verification'
 
 export interface UPVerificationWrapperProps {
   requirements: UPGatingRequirements;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   postId?: number;
   isPreviewMode?: boolean;
   onVerificationComplete?: () => void;
@@ -71,6 +72,7 @@ type UPVerificationInternalProps = Omit<UPVerificationWrapperProps, 'storageKey'
 
 const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
   requirements,
+  fulfillment,
   postId,
   isPreviewMode = false,
   onVerificationComplete,
@@ -111,6 +113,7 @@ const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
 
   return renderer.renderConnection({
     requirements,
+    fulfillment, // 🚀 NEW: Pass fulfillment mode
     onConnect: handleConnect,
     onDisconnect: disconnect,
     userStatus,

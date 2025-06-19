@@ -115,6 +115,7 @@ export interface CategoryConfigProps {
  */
 export interface CategoryConnectionProps {
   requirements: unknown;
+  fulfillment?: "any" | "all"; // 🚀 NEW: How to fulfill requirements within this category
   onConnect: () => Promise<void>;
   onDisconnect: () => void;
   userStatus?: VerificationStatus;

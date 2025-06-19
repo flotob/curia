@@ -103,6 +103,7 @@ const LUKSOVerificationContent: React.FC<LUKSOVerificationSlotProps> = ({
     <div className="space-y-4">
       <RichRequirementsDisplay
         requirements={upRequirements}
+        fulfillment="all" // Default to backward-compatible behavior
         userStatus={extendedUserStatus}
         metadata={upMetadata}
         onConnect={handleConnect}

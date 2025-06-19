@@ -152,6 +152,7 @@ export const LockVerificationPanel: React.FC<LockVerificationPanelProps> = ({
               {category.type === 'universal_profile' ? (
                 <UPVerificationWrapper
                   requirements={category.requirements as UPGatingRequirements}
+                  fulfillment={category.fulfillment} // 🚀 NEW: Pass fulfillment mode
                   postId={context.type === 'post' ? context.postId : undefined}
                   isPreviewMode={context.type === 'preview'}
                   onVerificationComplete={handleVerificationComplete}
@@ -166,6 +167,7 @@ export const LockVerificationPanel: React.FC<LockVerificationPanelProps> = ({
                   const renderer = ensureRegistered(category.type);
                   return renderer.renderConnection({
                     requirements: category.requirements,
+                    fulfillment: category.fulfillment, // 🚀 NEW: Pass fulfillment mode
                     onConnect: ethereumProfile?.connect || (() => Promise.resolve()),
                     onDisconnect: ethereumProfile?.disconnect || (() => {}),
                     userStatus: {
