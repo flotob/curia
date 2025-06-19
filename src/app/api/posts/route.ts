@@ -183,7 +183,7 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
 
     const postsQueryText = `
       SELECT
-        p.id, p.author_user_id, p.title, p.content, p.tags, p.settings,
+        p.id, p.author_user_id, p.title, p.content, p.tags, p.settings, p.lock_id,
         p.upvote_count, p.comment_count, p.created_at, p.updated_at,
         u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
         b.id AS board_id, b.name AS board_name,

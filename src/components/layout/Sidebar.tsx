@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useSearchParams, /* usePathname */ } from 'next/navigation';
+import { SettingsUtils } from '@/types/settings';
 
 interface SidebarProps {
   communityInfo: CommunityInfoResponsePayload | null;
@@ -104,6 +105,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
     params.set('communityId', communityInfo.id);
     
     return `/?${params.toString()}`;
+  };
+
+  // Helper component for board icon with gating indicators
+  const BoardIcon: React.FC<{ board: ApiBoard; isActive: boolean; theme: 'light' | 'dark' }> = ({ board, isActive, theme }) => {
+    const hasRoleGating = SettingsUtils.hasPermissionRestrictions(board.settings);
+    const hasLockGating = SettingsUtils.hasBoardLockGating(board.settings);
+    
+    return (
+      <div className="relative">
+        {/* Main board icon */}
+        <div className={cn(
+          'p-1.5 rounded-lg transition-all duration-200',
+          isActive
+            ? theme === 'dark'
+              ? 'bg-emerald-500/20 text-emerald-300'
+              : 'bg-emerald-500/10 text-emerald-600'
+            : theme === 'dark'
+              ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+              : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+        )}>
+          <LayoutDashboard size={16} />
+        </div>
+        
+        {/* Gating indicators - positioned as overlays */}
+        {(hasRoleGating || hasLockGating) && (
+          <div className="absolute -top-1 -right-1 flex flex-col gap-0.5">
+            {/* Role gating (visibility restricted) */}
+            {hasRoleGating && (
+              <div className={cn(
+                'flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200',
+                theme === 'dark'
+                  ? 'bg-orange-500/90 border-slate-800 text-orange-100'
+                  : 'bg-orange-500/90 border-white text-orange-100'
+              )} title="Visibility restricted to certain roles">
+                <Shield size={8} strokeWidth={2.5} />
+              </div>
+            )}
+            
+            {/* Lock gating (write access restricted) */}
+            {hasLockGating && (
+              <div className={cn(
+                'flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200',
+                theme === 'dark'
+                  ? 'bg-blue-500/90 border-slate-800 text-blue-100'
+                  : 'bg-blue-500/90 border-white text-blue-100'
+              )} title="Write access requires verification">
+                <Lock size={8} strokeWidth={2.5} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Dynamic theme styles
@@ -259,17 +313,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                       )}
                     >
-                      <div className={cn(
-                        'p-1.5 rounded-lg mr-3 transition-all duration-200',
-                        isActive
-                          ? theme === 'dark'
-                            ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-emerald-500/10 text-emerald-600'
-                          : theme === 'dark'
-                            ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                            : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
-                      )}>
-                        <LayoutDashboard size={16} />
+                      <div className="mr-3">
+                        <BoardIcon board={board} isActive={isActive} theme={theme} />
                       </div>
                       <span className="flex-1 truncate pr-8">{board.name}</span>
                       {isActive && (

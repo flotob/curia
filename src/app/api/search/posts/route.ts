@@ -77,6 +77,8 @@ async function searchPostsHandler(req: AuthenticatedRequest) {
         p.title,
         p.content,
         p.tags,
+        p.settings,
+        p.lock_id,
         p.upvote_count,
         p.comment_count,
         p.created_at,
@@ -95,7 +97,15 @@ async function searchPostsHandler(req: AuthenticatedRequest) {
       [...queryParams, limit]
     );
 
-    const suggestedPosts: Partial<ApiPost>[] = result.rows;
+    const suggestedPosts: Partial<ApiPost>[] = result.rows.map(row => ({
+      ...row,
+      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : (row.settings || {}),
+      // Add missing fields to match ApiPost interface
+      share_access_count: 0,
+      share_count: 0,
+      last_shared_at: undefined,
+      most_recent_access_at: undefined,
+    }));
 
     console.log(`[API GET /api/search/posts] User ${currentUserId} found ${suggestedPosts.length} results for "${searchQuery}" in community ${currentCommunityId}`);
     return NextResponse.json(suggestedPosts);
