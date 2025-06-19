@@ -117,23 +117,62 @@ async function getBoardVerificationStatusHandler(
     // Check current verification status for each lock
     // For board-level gating, check pre_verifications for specific locks
     const lockIdsVerificationPlaceholders = lockGating.lockIds.map((_, index) => `$${index + 2}`).join(',');
-    const verificationResult = await query(
-      `SELECT DISTINCT 
-         pv.lock_id,
-         pv.category_type, 
-         pv.verification_status, 
-         pv.verified_at, 
-         pv.expires_at
-       FROM pre_verifications pv
-       WHERE pv.user_id = $1 
-         AND pv.lock_id IN (${lockIdsVerificationPlaceholders})
-         AND pv.verification_status = 'verified'
-         AND pv.expires_at > NOW()
-       ORDER BY pv.verified_at DESC`,
-      [currentUserId, ...lockGating.lockIds]
+    
+    // ✅ DEBUG: Log the exact query being executed
+    const verificationQuery = `SELECT DISTINCT 
+       pv.lock_id,
+       pv.category_type, 
+       pv.verification_status, 
+       pv.verified_at, 
+       pv.expires_at
+     FROM pre_verifications pv
+     WHERE pv.user_id = $1 
+       AND pv.lock_id IN (${lockIdsVerificationPlaceholders})
+       AND pv.verification_status = 'verified'
+       AND pv.expires_at > NOW()
+     ORDER BY pv.verified_at DESC`;
+    
+    const verificationParams = [currentUserId, ...lockGating.lockIds];
+    console.log(`[API DEBUG] Verification query:`, {
+      query: verificationQuery,
+      params: verificationParams,
+      userId: currentUserId,
+      lockIds: lockGating.lockIds
+    });
+    
+    const verificationResult = await query(verificationQuery, verificationParams);
+
+    // ✅ DEBUG: Also check what's actually in the database for this user
+    const debugQuery = await query(
+      `SELECT id, user_id, lock_id, category_type, verification_status, verified_at, expires_at 
+       FROM pre_verifications 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [currentUserId]
+    );
+    
+    console.log(`[API DEBUG] All recent verifications for user ${currentUserId}:`, 
+      debugQuery.rows.map(row => ({
+        id: row.id,
+        user_id: row.user_id,
+        lock_id: row.lock_id,
+        category_type: row.category_type,
+        verification_status: row.verification_status,
+        verified_at: row.verified_at,
+        expires_at: row.expires_at
+      }))
     );
 
-    console.log(`[API] Found ${verificationResult.rows.length} recent verifications for user`);
+    console.log(`[API] Found ${verificationResult.rows.length} recent verifications for user:`, 
+      verificationResult.rows.map(row => ({
+        lock_id: row.lock_id,
+        category_type: row.category_type,
+        verification_status: row.verification_status,
+        verified_at: row.verified_at,
+        expires_at: row.expires_at
+      }))
+    );
 
     // Create a map of verified lock IDs
     const verifiedLockIds = new Set(

@@ -14,6 +14,7 @@ import { LockVerificationPanel } from '../verification/LockVerificationPanel';
 import { useQueryClient } from '@tanstack/react-query';
 import { Shield, X } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
+import { BoardVerificationApiResponse } from '@/types/boardVerification';
 
 interface BoardVerificationModalProps {
   isOpen: boolean;
@@ -38,12 +39,90 @@ export const BoardVerificationModal: React.FC<BoardVerificationModalProps> = ({
   const handleVerificationComplete = useCallback((canComment: boolean) => {
     console.log(`[BoardVerificationModal] Verification completed for lock ${lockId}:`, canComment);
     
-    // Invalidate board verification status after a small delay to allow DB commit
+    // INSTANT UPDATE: Directly update the cache with new verification data
+    const currentData = queryClient.getQueryData<BoardVerificationApiResponse>(['boardVerificationStatus', boardId]);
+    
+    if (currentData?.data) {
+      const now = new Date();
+      const newExpiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
+      
+      // Update the specific lock status immediately
+      const updatedLockStatuses = currentData.data.lockStatuses.map(ls => 
+        ls.lockId === lockId 
+          ? { 
+              ...ls, 
+              verificationStatus: 'verified' as const,
+              verifiedAt: now.toISOString(),
+              expiresAt: newExpiresAt.toISOString(),
+              nextAction: undefined // Remove the "Verify" button
+            }
+          : ls
+      );
+      
+      // Recalculate verification counts
+      const newVerifiedCount = updatedLockStatuses.filter(ls => ls.verificationStatus === 'verified').length;
+      
+      // Recalculate access permissions based on fulfillment mode
+      const newHasWriteAccess = currentData.data.fulfillmentMode === 'any' 
+        ? newVerifiedCount >= 1 
+        : newVerifiedCount >= currentData.data.requiredCount;
+      
+      // Calculate new expiry times
+      const verifiedStatuses = updatedLockStatuses.filter(ls => ls.verificationStatus === 'verified');
+      let newExpiresAtForAccess: string | undefined;
+      let newNextExpiryAt: string | undefined;
+      
+      if (verifiedStatuses.length > 0) {
+        const expiryTimes = verifiedStatuses
+          .map(ls => ls.expiresAt)
+          .filter(Boolean)
+          .map(time => new Date(time!).getTime())
+          .sort((a, b) => a - b);
+        
+        if (expiryTimes.length > 0) {
+          newNextExpiryAt = new Date(expiryTimes[0]).toISOString();
+          
+          if (newHasWriteAccess) {
+            if (currentData.data.fulfillmentMode === 'any') {
+              // For ANY mode, access expires when the LAST verified lock expires
+              newExpiresAtForAccess = new Date(expiryTimes[expiryTimes.length - 1]).toISOString();
+            } else {
+              // For ALL mode, access expires when the FIRST lock expires
+              newExpiresAtForAccess = newNextExpiryAt;
+            }
+          }
+        }
+      }
+      
+      const updatedData = {
+        ...currentData,
+        data: {
+          ...currentData.data,
+          lockStatuses: updatedLockStatuses,
+          verifiedCount: newVerifiedCount,
+          hasWriteAccess: newHasWriteAccess,
+          expiresAt: newExpiresAtForAccess,
+          nextExpiryAt: newNextExpiryAt
+        }
+      };
+      
+      // ✨ INSTANT UPDATE: Set new cache data immediately
+      queryClient.setQueryData(['boardVerificationStatus', boardId], updatedData);
+      
+      console.log(`[BoardVerificationModal] ✨ Instant cache update applied:`, {
+        lockId,
+        newVerifiedCount,
+        newHasWriteAccess,
+        fulfillmentMode: currentData.data.fulfillmentMode
+      });
+    }
+    
+    // Background refresh to ensure consistency with backend
     setTimeout(() => {
       queryClient.invalidateQueries({ 
         queryKey: ['boardVerificationStatus', boardId] 
       });
-    }, 300);
+    }, 1000);
     
     // Don't auto-close modal - let user see success state and close manually
     // This allows them to verify additional locks if needed

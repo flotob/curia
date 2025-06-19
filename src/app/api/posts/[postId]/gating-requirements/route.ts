@@ -158,12 +158,20 @@ async function getGatingRequirementsHandler(
     }
 
     // Get current verification statuses for this user (including verification_data)
-    const verificationResult = await query(
-      `SELECT category_type, verification_status, verified_at, expires_at, verification_data 
-       FROM pre_verifications 
-       WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND resource_type = 'post'`,
-      [user.sub, postId]
-    );
+    let verificationResult;
+    if (hasLockGating && lock_id) {
+      // For lock-based gating, query by lock_id
+      verificationResult = await query(
+        `SELECT category_type, verification_status, verified_at, expires_at, verification_data 
+         FROM pre_verifications 
+         WHERE user_id = $1 AND lock_id = $2 AND expires_at > NOW()`,
+        [user.sub, lock_id]
+      );
+    } else {
+      // For legacy posts without locks, there are no pre-verifications to check
+      // (Legacy gating used different verification mechanisms)
+      verificationResult = { rows: [] };
+    }
 
     const verificationMap = new Map<string, { 
       verification_status: string; 
