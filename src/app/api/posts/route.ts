@@ -329,7 +329,8 @@ async function createPostHandler(req: AuthenticatedRequest) {
       if (!hasAccess) {
         console.log(`[API POST /api/posts] User ${user.sub} failed board lock verification: ${verifiedCount}/${requiredCount} locks verified (${boardLockGating.fulfillment} mode)`);
         return NextResponse.json({ 
-          error: 'Board lock verification required before posting',
+          error: 'This board requires verification before you can post',
+          userMessage: 'Complete the verification requirements below to unlock posting',
           requiresVerification: true,
           verificationDetails: {
             lockIds: boardLockGating.lockIds,

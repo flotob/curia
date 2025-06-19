@@ -546,7 +546,8 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       if (!hasAccess) {
         console.log(`[API POST /api/posts/${postId}/comments] User ${user.sub} failed board lock verification: ${verifiedCount}/${requiredCount} locks verified (${boardLockGating.fulfillment} mode)`);
         return NextResponse.json({ 
-          error: 'Board lock verification required before commenting',
+          error: 'This board requires verification before you can comment',
+          userMessage: 'Complete the verification requirements below to unlock commenting',
           requiresVerification: true,
           verificationDetails: {
             lockIds: boardLockGating.lockIds,
