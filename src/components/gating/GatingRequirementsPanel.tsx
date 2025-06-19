@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,166 +20,14 @@ import {
 
 import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
-import { VerificationStatus } from '@/types/gating';
 import { useGatingRequirements, useVerificationStatus, useInvalidateVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { RichCategoryHeader } from './RichCategoryHeader';
-
-// --- NEW WAGMI IMPORTS FOR LIVE COMPONENT ---
-import {
-  WagmiProvider,
-  createConfig,
-  http,
-  useAccount,
-  useBalance,
-  useConnect,
-  useDisconnect,
-  useReadContracts,
-  createStorage,
-} from 'wagmi';
-import { lukso, luksoTestnet } from 'viem/chains';
-import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
+import { UPVerificationWrapper } from '../verification/UPVerificationWrapper';
 import { UPGatingRequirements } from '@/types/gating';
-import { lsp26Registry } from '@/lib/lsp26';
-import { erc20Abi, erc721Abi } from 'viem';
-// --- END NEW WAGMI IMPORTS ---
 
 // Ensure categories are registered when this module loads
 ensureCategoriesRegistered();
-
-// --- START NEW WAGMI CONFIG & MANAGER ---
-const noopStorage = {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getItem: (_key: string): string | null => null,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setItem: (_key: string, _value: string): void => {},
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  removeItem: (_key: string): void => {},
-};
-
-const upConfig = createConfig({
-  chains: [lukso, luksoTestnet],
-  connectors: [universalProfileConnector()],
-  storage: createStorage({
-    storage: typeof window !== 'undefined' ? window.localStorage : noopStorage,
-    key: 'wagmi_up_live', // Use a different key than preview
-  }),
-  transports: {
-    [lukso.id]: http(),
-    [luksoTestnet.id]: http(),
-  },
-  ssr: true, // Enable SSR support for better hydration
-});
-
-interface UPConnectionManagerForPanelProps {
-  requirements: UPGatingRequirements;
-  onVerificationComplete: () => void;
-  postId: number;
-}
-
-const UPConnectionManagerForPanel: React.FC<UPConnectionManagerForPanelProps> = ({ requirements, postId, onVerificationComplete }) => {
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { address, isConnected, status } = useAccount();
-  const { data: balance } = useBalance({ address });
-
-  // Fetch token balances
-  const { data: tokenResults, isLoading: isLoadingTokens } = useReadContracts({
-    contracts: requirements.requiredTokens?.flatMap(token => [
-      { address: token.contractAddress as `0x{string}`, abi: erc20Abi, functionName: 'balanceOf', args: [address!] },
-      { address: token.contractAddress as `0x{string}`, abi: erc721Abi, functionName: 'balanceOf', args: [address!] }
-    ]) ?? [],
-    query: { enabled: isConnected && !!address && (requirements.requiredTokens?.length ?? 0) > 0 }
-  });
-
-  // Fetch follower statuses
-  const [followerStatus, setFollowerStatus] = useState<Record<string, boolean>>({});
-  const [isLoadingFollowers, setIsLoadingFollowers] = useState(false);
-
-  useEffect(() => {
-    const fetchFollowers = async () => {
-      if (!isConnected || !address || !requirements.followerRequirements?.length) {
-        setFollowerStatus({});
-        return;
-      }
-      setIsLoadingFollowers(true);
-      const newStatus: Record<string, boolean> = {};
-      for (const req of requirements.followerRequirements) {
-        const key = `${req.type}-${req.value}`;
-        try {
-          if (req.type === 'minimum_followers') {
-            const count = await lsp26Registry.getFollowerCount(address);
-            newStatus[key] = count >= parseInt(req.value);
-          } else if (req.type === 'followed_by') {
-            newStatus[key] = await lsp26Registry.isFollowing(req.value, address);
-          } else if (req.type === 'following') {
-            newStatus[key] = await lsp26Registry.isFollowing(address, req.value);
-          }
-        } catch (e) {
-          console.error(`Failed to check follower status for ${key}`, e);
-          newStatus[key] = false;
-        }
-      }
-      setFollowerStatus(newStatus);
-      setIsLoadingFollowers(false);
-    };
-    fetchFollowers();
-  }, [isConnected, address, requirements.followerRequirements]);
-
-  const renderer = ensureRegistered('universal_profile');
-
-  const handleConnect = async (event?: React.MouseEvent) => {
-    event?.stopPropagation();
-    event?.preventDefault();
-    
-    // Enhanced connection state checks
-    if (isConnected) {
-      console.log('[GatingRequirementsPanel] Already connected to:', address);
-      return;
-    }
-    
-    if (status === 'connecting' || status === 'reconnecting') {
-      console.log('[GatingRequirementsPanel] Connection already in progress:', status);
-      return;
-    }
-    
-    const upConnector = connectors.find(c => c.id === 'universalProfile');
-    if (!upConnector) {
-      console.error('[GatingRequirementsPanel] Universal Profile connector not found');
-      return;
-    }
-    
-    try {
-      console.log('[GatingRequirementsPanel] Initiating UP connection...');
-      await connect({ connector: upConnector });
-    } catch (error) {
-      console.error('[GatingRequirementsPanel] Connection failed:', error);
-    }
-  };
-
-  const userStatus: VerificationStatus = {
-    connected: isConnected,
-    verified: false,
-    requirements: [],
-    address: address,
-    upAddress: address,
-    lyxBalance: balance?.value,
-    tokenBalances: tokenResults,
-    followerStatus: followerStatus,
-  };
-
-  return renderer.renderConnection({
-    requirements,
-    onConnect: handleConnect,
-    onDisconnect: disconnect,
-    userStatus,
-    disabled: status === 'connecting' || status === 'reconnecting' || isLoadingTokens || isLoadingFollowers,
-    postId: postId,
-    isPreviewMode: false,
-    onVerificationComplete: onVerificationComplete,
-  });
-};
-// --- END NEW WAGMI CONFIG & MANAGER ---
 
 interface GatingRequirementsPanelProps {
   postId: number;
@@ -307,13 +155,13 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
               {(() => {
                 if (category.type === 'universal_profile') {
                   return (
-                    <WagmiProvider config={upConfig}>
-                      <UPConnectionManagerForPanel
-                        requirements={category.requirements as UPGatingRequirements}
-                        postId={postId}
-                        onVerificationComplete={handleVerificationComplete}
-                      />
-                    </WagmiProvider>
+                    <UPVerificationWrapper
+                      requirements={category.requirements as UPGatingRequirements}
+                      postId={postId}
+                      isPreviewMode={false}
+                      onVerificationComplete={handleVerificationComplete}
+                      storageKey="wagmi_up_panel"
+                    />
                   );
                 }
 

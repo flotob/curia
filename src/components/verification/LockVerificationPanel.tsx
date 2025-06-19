@@ -18,10 +18,11 @@ import {
   useContextualInvalidateVerificationStatus,
   ContextualCategoryStatus 
 } from '@/hooks/useContextualGatingData';
+import { UPGatingRequirements } from '@/types/gating';
 import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
-import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { UPVerificationWrapper } from './UPVerificationWrapper';
 
 import { RichCategoryHeader } from '@/components/gating/RichCategoryHeader';
 
@@ -73,7 +74,6 @@ export const LockVerificationPanel: React.FC<LockVerificationPanelProps> = ({
   // ===== PROFILE CONTEXTS =====
   
   const ethereumProfile = useEthereumProfile();
-  const universalProfile = useUniversalProfile();
   
   // ===== LOCAL STATE =====
   
@@ -142,28 +142,17 @@ export const LockVerificationPanel: React.FC<LockVerificationPanelProps> = ({
           <div className="border-t bg-muted/20">
             <div className="p-4">
               {category.type === 'universal_profile' ? (
-                (() => {
-                  const renderer = ensureRegistered(category.type);
-                  return renderer.renderConnection({
-                    requirements: category.requirements,
-                    onConnect: universalProfile?.connect || (() => Promise.resolve()),
-                    onDisconnect: universalProfile?.disconnect || (() => {}),
-                    userStatus: {
-                      connected: universalProfile?.isConnected || false,
-                      verified: false,
-                      requirements: [],
-                      upAddress: universalProfile?.upAddress,
-                    },
-                    disabled: false,
-                    postId: context.type === 'post' ? context.postId : undefined,
-                    onVerificationComplete: handleVerificationComplete,
-                    isPreviewMode: context.type === 'preview',
-                    verificationContext: {
-                      ...context,
-                      lockId,
-                    },
-                  });
-                })()
+                <UPVerificationWrapper
+                  requirements={category.requirements as UPGatingRequirements}
+                  postId={context.type === 'post' ? context.postId : undefined}
+                  isPreviewMode={context.type === 'preview'}
+                  onVerificationComplete={handleVerificationComplete}
+                  storageKey={`wagmi_up_lock_${lockId}_${context.type}`}
+                  verificationContext={{
+                    ...context,
+                    lockId,
+                  }}
+                />
               ) : category.type === 'ethereum_profile' ? (
                 (() => {
                   const renderer = ensureRegistered(category.type);
