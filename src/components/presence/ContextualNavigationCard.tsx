@@ -3,6 +3,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   FileText, 
   Hash, 
@@ -11,7 +12,11 @@ import {
   Share2,
   ExternalLink,
   Copy,
-  Users2
+  Users2,
+  Shield,
+  Lock,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,6 +24,11 @@ import { toast } from 'sonner';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
 import { useActiveTypingCount } from '@/hooks/useTypingContext';
+import { SettingsUtils } from '@/types/settings';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { authFetchJson } from '@/utils/authFetch';
+import { BoardVerificationApiResponse } from '@/types/boardVerification';
 
 // Navigation context interface
 interface NavigationContext {
@@ -48,12 +58,29 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
   const router = useRouter();
   const searchParams = useSearchParams();
   const { navigationContext, currentBoard, currentPost, commentCount = 0 } = data;
+  const { token, user } = useAuth();
   
   // Get real-time typing count based on current context
   const activeTypers = useActiveTypingCount(
     navigationContext.boardId ? parseInt(navigationContext.boardId) : undefined,
     navigationContext.postId ? parseInt(navigationContext.postId) : undefined
   );
+
+  // Fetch board verification status for current board
+  const { data: boardVerificationStatus } = useQuery<BoardVerificationApiResponse>({
+    queryKey: ['boardVerificationStatus', currentBoard?.id],
+    queryFn: async () => {
+      if (!currentBoard?.id || !user?.cid || !token) {
+        throw new Error('Missing required data for board verification status');
+      }
+      return authFetchJson<BoardVerificationApiResponse>(
+        `/api/communities/${user.cid}/boards/${currentBoard.id}/verification-status`,
+        { token }
+      );
+    },
+    enabled: !!(currentBoard?.id && user?.cid && token && SettingsUtils.hasBoardLockGating(currentBoard?.settings)),
+    staleTime: 30000, // 30 seconds
+  });
 
   // Helper function to build URLs while preserving current parameters
   const buildInternalUrl = React.useCallback((path: string, additionalParams: Record<string, string> = {}) => {
@@ -262,6 +289,91 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                 )}
               </button>
             </div>
+
+            {/* Board Access Status */}
+            {currentBoard && (
+              <div className="flex flex-wrap gap-2">
+                {/* Role-based access restrictions */}
+                {SettingsUtils.hasPermissionRestrictions(currentBoard.settings) && (
+                  <Badge variant="secondary" className="text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700">
+                    <Shield className="h-3 w-3 mr-1" />
+                    Role Restricted
+                  </Badge>
+                )}
+                
+                {/* Lock-based write restrictions */}
+                {SettingsUtils.hasBoardLockGating(currentBoard.settings) && (
+                  <Badge variant="secondary" className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+                    <Lock className="h-3 w-3 mr-1" />
+                    Lock Gated
+                  </Badge>
+                )}
+                
+                {/* Open access */}
+                {!SettingsUtils.hasPermissionRestrictions(currentBoard.settings) && !SettingsUtils.hasBoardLockGating(currentBoard.settings) && (
+                  <Badge variant="secondary" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700">
+                    <Hash className="h-3 w-3 mr-1" />
+                    Open Access
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Lock Progress Indicator */}
+            {currentBoard && SettingsUtils.hasBoardLockGating(currentBoard.settings) && boardVerificationStatus?.data && (
+              <div className={cn(
+                "rounded-lg px-3 py-2 transition-colors",
+                boardVerificationStatus.data.hasWriteAccess
+                  ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700"
+                  : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-3 w-3" />
+                    <span className="text-xs font-medium">
+                      Lock Progress
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-xs font-medium",
+                      boardVerificationStatus.data.hasWriteAccess
+                        ? "text-green-700 dark:text-green-300"
+                        : "text-red-700 dark:text-red-300"
+                    )}>
+                      {boardVerificationStatus.data.verifiedCount}/{boardVerificationStatus.data.requiredCount}
+                    </span>
+                    {boardVerificationStatus.data.hasWriteAccess ? (
+                      <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                    )}
+                  </div>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="mt-2">
+                  <div className={cn(
+                    "w-full h-1.5 rounded-full",
+                    boardVerificationStatus.data.hasWriteAccess
+                      ? "bg-green-200 dark:bg-green-800"
+                      : "bg-red-200 dark:bg-red-800"
+                  )}>
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        boardVerificationStatus.data.hasWriteAccess
+                          ? "bg-green-500 dark:bg-green-400"
+                          : "bg-red-500 dark:bg-red-400"
+                      )}
+                      style={{
+                        width: `${(boardVerificationStatus.data.verifiedCount / boardVerificationStatus.data.requiredCount) * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Activity indicators */}
             {activeTypers > 0 && (
