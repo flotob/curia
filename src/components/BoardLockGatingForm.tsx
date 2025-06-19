@@ -66,12 +66,18 @@ export const BoardLockGatingForm: React.FC<BoardLockGatingFormProps> = ({
     setHasChanges(false);
   }, [currentSettings]);
 
-  // Auto-save when settings change
+  // Auto-save when settings change (debounced to prevent rapid-fire API calls)
   useEffect(() => {
     if (autoSave && hasChanges) {
-      onSave(settings);
+      const timeoutId = setTimeout(() => {
+        console.log('[BoardLockGatingForm] Auto-saving settings...');
+        onSave(settings);
+        setHasChanges(false); // Reset changes flag after save
+      }, 500); // 500ms debounce
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [settings, hasChanges, autoSave, onSave]);
+  }, [settings, hasChanges, autoSave]); // 🚀 REMOVED onSave from dependencies to prevent infinite loops
 
   const loadSelectedLockDetails = useCallback(async () => {
     if (lockGating.lockIds.length === 0) return;
@@ -172,8 +178,12 @@ export const BoardLockGatingForm: React.FC<BoardLockGatingFormProps> = ({
   }, [updateLockGating]);
 
   const handleSave = () => {
-    onSave(settings);
-    setHasChanges(false);
+    try {
+      onSave(settings);
+      setHasChanges(false);
+    } catch (error) {
+      console.error('[BoardLockGatingForm] Error saving settings:', error);
+    }
   };
 
   const handleEnableLockGating = () => {

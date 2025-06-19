@@ -217,9 +217,24 @@ export function useContextualInvalidateVerificationStatus() {
         queryKey: ['verification-status', verificationContext.postId],
       });
     } else if (verificationContext.type === 'board') {
-      // Invalidate board-level status
+      // 🚀 ENHANCED: Invalidate ALL variations of board verification status queries
       queryClient.invalidateQueries({
         queryKey: ['boardVerificationStatus', verificationContext.boardId],
+      });
+      // Also invalidate the 3-parameter version used by post creation
+      queryClient.invalidateQueries({
+        queryKey: ['boardVerificationStatus', verificationContext.boardId],
+        predicate: (query) => {
+          // Match any query that starts with ['boardVerificationStatus', boardId]
+          const queryKey = query.queryKey as unknown[];
+          return queryKey.length >= 2 && 
+                 queryKey[0] === 'boardVerificationStatus' && 
+                 queryKey[1] === verificationContext.boardId;
+        },
+      });
+      // Catch-all invalidation for partial matches
+      queryClient.invalidateQueries({
+        queryKey: ['boardVerificationStatus'],
       });
     }
   };

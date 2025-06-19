@@ -213,6 +213,11 @@ export default function BoardSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['boards', user?.cid] });
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       
+      // 🚀 NEW: Invalidate board verification status queries (all variations)
+      queryClient.invalidateQueries({ queryKey: ['boardVerificationStatus', boardId] });
+      queryClient.invalidateQueries({ queryKey: ['boardVerificationStatus', boardId, user?.cid] });
+      queryClient.invalidateQueries({ queryKey: ['boardVerificationStatus'] }); // Catch-all for partial matches
+      
       // Invalidate all access-related queries to refresh UI filtering
       queryClient.invalidateQueries({ queryKey: ['accessibleBoards'] });
       queryClient.invalidateQueries({ queryKey: ['accessibleBoardsNewPost'] });
@@ -225,6 +230,8 @@ export default function BoardSettingsPage() {
       setTimeout(() => {
         queryClient.refetchQueries({ queryKey: ['boards'] });
         queryClient.refetchQueries({ queryKey: ['accessibleBoards'] });
+        // 🚀 NEW: Also refetch board verification status
+        queryClient.refetchQueries({ queryKey: ['boardVerificationStatus'] });
       }, 100);
       
       setHasChanges(false);
