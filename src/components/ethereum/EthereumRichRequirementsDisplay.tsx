@@ -65,6 +65,7 @@ export interface EthereumExtendedVerificationStatus extends VerificationStatus {
 
 export interface EthereumRichRequirementsDisplayProps {
   requirements: EthereumGatingRequirements;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   userStatus: EthereumExtendedVerificationStatus;
   metadata: {
     icon: string;
@@ -81,6 +82,7 @@ export interface EthereumRichRequirementsDisplayProps {
 
 export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsDisplayProps> = ({
   requirements,
+  fulfillment = 'all', // 🚀 NEW: Default to 'all' for backward compatibility
   userStatus,
   metadata,
   onConnect,
@@ -629,6 +631,106 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
             </>
           )}
         </div>
+
+        {/* Overall Status */}
+        {userStatus.connected && (
+          <div className="text-xs">
+            {(() => {
+              // 🚀 NEW: Calculate if requirements are met based on fulfillment mode
+              const requirementChecks = [];
+              
+              // Check ETH balance requirement
+              if (ethVerification) {
+                requirementChecks.push(ethVerification.meetsRequirement);
+              }
+              
+              // Check ENS requirement
+              if (ensVerification) {
+                requirementChecks.push(ensVerification.hasENS);
+              }
+              
+              // Check ERC-20 token requirements
+              if (requirements.requiredERC20Tokens) {
+                requirements.requiredERC20Tokens.forEach(token => {
+                  const tokenData = tokenVerifications[token.contractAddress];
+                  requirementChecks.push(tokenData?.meetsRequirement || false);
+                });
+              }
+              
+              // Check ERC-721 NFT requirements
+              if (requirements.requiredERC721Collections) {
+                requirements.requiredERC721Collections.forEach(() => {
+                  // TODO: Add actual NFT verification logic
+                  requirementChecks.push(false);
+                });
+              }
+              
+              // Check ERC-1155 token requirements
+              if (requirements.requiredERC1155Tokens) {
+                requirements.requiredERC1155Tokens.forEach(() => {
+                  // TODO: Add actual ERC-1155 verification logic
+                  requirementChecks.push(false);
+                });
+              }
+              
+              // Check EFP requirements
+              if (requirements.efpRequirements) {
+                requirements.efpRequirements.forEach(efp => {
+                  const key = `${efp.type}-${efp.value}`;
+                  const efpData = efpVerifications[key];
+                  requirementChecks.push(efpData?.status || false);
+                });
+              }
+              
+              // Check ENS pattern requirements
+              if (requirements.ensDomainPatterns) {
+                requirements.ensDomainPatterns.forEach(() => {
+                  // TODO: Add actual ENS pattern verification logic
+                  requirementChecks.push(false);
+                });
+              }
+              
+              // 🚀 NEW: Apply fulfillment mode logic
+              let requirementsMet = false;
+              let statusMessage = '';
+              
+              if (requirementChecks.length === 0) {
+                requirementsMet = true;
+                statusMessage = 'No requirements to verify';
+              } else if (fulfillment === 'any') {
+                // ANY mode: At least one requirement must be satisfied
+                requirementsMet = requirementChecks.some(met => met === true);
+                const metCount = requirementChecks.filter(met => met === true).length;
+                statusMessage = requirementsMet 
+                  ? `Requirements met (${metCount}/${requirementChecks.length}) - ready to comment!`
+                  : `Need any 1 of ${requirementChecks.length} requirements`;
+              } else {
+                // ALL mode: All requirements must be satisfied (default behavior)
+                requirementsMet = requirementChecks.every(met => met === true);
+                const metCount = requirementChecks.filter(met => met === true).length;
+                statusMessage = requirementsMet
+                  ? 'All requirements met - ready to comment!'
+                  : `Need all requirements (${metCount}/${requirementChecks.length} completed)`;
+              }
+              
+              if (requirementsMet) {
+                return (
+                  <div className="flex items-center text-emerald-600">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    {statusMessage}
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="flex items-center text-red-600">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    {statusMessage}
+                  </div>
+                );
+              }
+            })()}
+          </div>
+        )}
 
         {/* Connection Action */}
         {!userStatus.connected && (

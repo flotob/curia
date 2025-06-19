@@ -600,6 +600,7 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
     <div className="space-y-4">
       <EthereumRichRequirementsDisplay
         requirements={stableRequirements}
+        fulfillment={fulfillment} // 🚀 NEW: Pass fulfillment mode to display component
         userStatus={extendedUserStatus}
         metadata={{
           icon: '⟠',
