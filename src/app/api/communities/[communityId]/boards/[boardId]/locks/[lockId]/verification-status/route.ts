@@ -23,6 +23,7 @@ interface BoardLockVerificationStatusResponse {
 interface CategoryVerificationStatus {
   type: string;
   verificationStatus: 'not_started' | 'verified' | 'expired';
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   verifiedAt?: string;
   expiresAt?: string;
   metadata?: {
@@ -151,6 +152,7 @@ async function getBoardLockVerificationStatusHandler(
         return {
           type: category.type,
           verificationStatus,
+          fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode from category
           verifiedAt: verification?.verified_at,
           expiresAt: verification?.expires_at,
           metadata: CATEGORY_METADATA[category.type as keyof typeof CATEGORY_METADATA],

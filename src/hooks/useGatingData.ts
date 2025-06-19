@@ -19,6 +19,7 @@ export interface GatingRequirementsData {
 export interface CategoryStatus {
   type: string;
   enabled: boolean;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   requirements: unknown;
   verificationStatus: 'not_started' | 'pending' | 'verified' | 'expired';
   verifiedAt?: string;

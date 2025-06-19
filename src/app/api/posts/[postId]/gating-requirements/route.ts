@@ -20,6 +20,7 @@ interface GatingRequirementResponse {
 interface CategoryStatus {
   type: string;
   enabled: boolean;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   requirements: unknown;
   verificationStatus: 'not_started' | 'pending' | 'verified' | 'expired';
   verifiedAt?: string;
@@ -207,6 +208,7 @@ async function getGatingRequirementsHandler(
       return {
         type: category.type,
         enabled: category.enabled,
+        fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode from category
         requirements: category.requirements,
         verificationStatus,
         verifiedAt: verification?.verified_at,

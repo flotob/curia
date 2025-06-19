@@ -48,6 +48,7 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
   const categories: CategoryStatus[] = gatingConfig.categories?.map(category => ({
     type: category.type,
     enabled: category.enabled,
+    fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode
     requirements: category.requirements,
     verificationStatus: 'not_started' as const // Always start as not started in preview
   })) || [];
@@ -117,6 +118,7 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                   return (
                     <UPVerificationWrapper
                       requirements={category.requirements as UPGatingRequirements}
+                      fulfillment={category.fulfillment} // 🚀 NEW: Pass fulfillment mode
                       postId={-1}
                       isPreviewMode={true}
                       storageKey="wagmi_up_preview"
@@ -144,6 +146,7 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
 
                   return renderer.renderConnection({
                     requirements: category.requirements,
+                    fulfillment: category.fulfillment, // 🚀 NEW: Pass fulfillment mode
                     onConnect: handleConnect,
                     onDisconnect: handleDisconnect,
                     userStatus,

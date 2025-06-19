@@ -24,6 +24,7 @@ interface CategoryVerificationStatus {
   type: string;
   required: boolean;
   verified: boolean;
+  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
   expiresAt?: string;
   metadata?: {
     name: string;
@@ -159,6 +160,7 @@ async function getVerificationStatusHandler(
         type: category.type,
         required: category.enabled,
         verified: !!verification,
+        fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode from category
         expiresAt: verification?.expires_at,
         metadata: CATEGORY_METADATA[category.type as keyof typeof CATEGORY_METADATA],
       };
