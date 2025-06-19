@@ -115,71 +115,40 @@ async function getBoardVerificationStatusHandler(
     }));
 
     // Check current verification status for each lock
-    // For board-level gating, check pre_verifications with board_id and resource_type = 'board'
+    // For board-level gating, check pre_verifications for specific locks
+    const lockIdsVerificationPlaceholders = lockGating.lockIds.map((_, index) => `$${index + 2}`).join(',');
     const verificationResult = await query(
       `SELECT DISTINCT 
+         pv.lock_id,
          pv.category_type, 
          pv.verification_status, 
          pv.verified_at, 
          pv.expires_at
        FROM pre_verifications pv
        WHERE pv.user_id = $1 
-         AND pv.board_id = $2
-         AND pv.resource_type = 'board'
+         AND pv.lock_id IN (${lockIdsVerificationPlaceholders})
          AND pv.verification_status = 'verified'
          AND pv.expires_at > NOW()
        ORDER BY pv.verified_at DESC`,
-      [currentUserId, boardId]
+      [currentUserId, ...lockGating.lockIds]
     );
 
     console.log(`[API] Found ${verificationResult.rows.length} recent verifications for user`);
 
-    // Create a map of verified categories
-    const verifiedCategories = new Set(
-      verificationResult.rows.map(row => row.category_type)
+    // Create a map of verified lock IDs
+    const verifiedLockIds = new Set(
+      verificationResult.rows.map(row => row.lock_id)
     );
 
     // Build lock status array
     const lockStatuses: LockVerificationStatus[] = locks.map(lock => {
-      // Parse lock gating config to check if any categories are verified
-      let lockGatingConfig;
-      try {
-        lockGatingConfig = typeof lock.gatingConfig === 'string' 
-          ? JSON.parse(lock.gatingConfig) 
-          : lock.gatingConfig;
-      } catch (error) {
-        console.error(`[API] Failed to parse gating config for lock ${lock.id}:`, error);
-        return {
-          lockId: lock.id,
-          lock,
-          verificationStatus: 'not_started',
-          nextAction: {
-            type: 'verify_requirements',
-            label: 'Verify Requirements'
-          }
-        };
-      }
-
-      const lockCategories = lockGatingConfig.categories || [];
-      const enabledCategories = lockCategories.filter((cat: { enabled: boolean }) => cat.enabled);
+      // Check if this specific lock is verified
+      const isLockVerified = verifiedLockIds.has(lock.id);
       
-      // Check if lock requirements are met
-      const requireAll = lockGatingConfig.requireAll !== undefined 
-        ? lockGatingConfig.requireAll 
-        : !lockGatingConfig.requireAny; // Default to requireAny behavior
-      
-      const verifiedCategoriesInLock = enabledCategories.filter((cat: { type: string }) => 
-        verifiedCategories.has(cat.type)
-      );
-      
-      const isLockVerified = requireAll 
-        ? verifiedCategoriesInLock.length >= enabledCategories.length
-        : verifiedCategoriesInLock.length >= 1;
-      
-      if (isLockVerified && verifiedCategoriesInLock.length > 0) {
+      if (isLockVerified) {
         // Find the most recent verification for this lock
         const lockVerifications = verificationResult.rows.filter(row => 
-          enabledCategories.some((cat: { type: string }) => cat.type === row.category_type)
+          row.lock_id === lock.id
         );
         const mostRecent = lockVerifications.sort((a, b) => 
           new Date(b.verified_at).getTime() - new Date(a.verified_at).getTime()
@@ -209,10 +178,42 @@ async function getBoardVerificationStatusHandler(
     const verifiedCount = lockStatuses.filter(ls => ls.verificationStatus === 'verified').length;
     const requiredCount = lockGating.lockIds.length;
 
+    // Debug logging for verification status calculation
+    console.log(`[API] Board ${boardId} verification calculation:`, {
+      userId: currentUserId,
+      fulfillmentMode: lockGating.fulfillment,
+      lockIds: lockGating.lockIds,
+      verifiedCount,
+      requiredCount,
+      lockStatusBreakdown: lockStatuses.map(ls => ({
+        lockId: ls.lockId,
+        lockName: ls.lock.name,
+        verificationStatus: ls.verificationStatus,
+        verifiedAt: ls.verifiedAt,
+        expiresAt: ls.expiresAt
+      })),
+      verificationRows: verificationResult.rows.map(row => ({
+        categoryType: row.category_type,
+        verificationStatus: row.verification_status,
+        verifiedAt: row.verified_at,
+        expiresAt: row.expires_at
+      }))
+    });
+
     // Determine if user has write access
     const hasWriteAccess = lockGating.fulfillment === 'any' 
       ? verifiedCount >= 1 
       : verifiedCount >= requiredCount;
+
+    console.log(`[API] Board ${boardId} access decision:`, {
+      hasWriteAccess,
+      fulfillmentMode: lockGating.fulfillment,
+      verifiedCount,
+      requiredCount,
+      calculation: lockGating.fulfillment === 'any' 
+        ? `${verifiedCount} >= 1 = ${verifiedCount >= 1}`
+        : `${verifiedCount} >= ${requiredCount} = ${verifiedCount >= requiredCount}`
+    });
 
     // Calculate expiry times
     const verifiedLocks = lockStatuses.filter(ls => ls.verificationStatus === 'verified');

@@ -577,13 +577,20 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
         console.log(`[API POST /api/posts/${postId}/comments] No enabled gating categories found`);
         // No enabled categories, allow comment
       } else {
-        // Check for valid pre-verifications
-        const verificationResult = await query(
-          `SELECT category_type, verification_status, expires_at 
-           FROM pre_verifications 
-           WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND verification_status = 'verified' AND resource_type = 'post'`,
-          [user.sub, postId]
-        );
+        // Check for valid pre-verifications for the specific lock
+        let verificationResult;
+        if (hasLockGating && lock_id) {
+          // Use lock-based verification (converted posts have both legacy + lock)
+          verificationResult = await query(
+            `SELECT category_type, verification_status, expires_at 
+             FROM pre_verifications 
+             WHERE user_id = $1 AND lock_id = $2 AND expires_at > NOW() AND verification_status = 'verified'`,
+            [user.sub, lock_id]
+          );
+        } else {
+          // No lock-based gating - no verifications available
+          verificationResult = { rows: [] };
+        }
 
         const verifiedCategories = new Set(verificationResult.rows.map(row => row.category_type));
         const verifiedCount = verifiedCategories.size;

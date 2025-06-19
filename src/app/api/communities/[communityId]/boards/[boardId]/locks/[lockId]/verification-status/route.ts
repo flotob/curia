@@ -116,13 +116,13 @@ async function getBoardLockVerificationStatusHandler(
       requireAll = false; // Default to requireAny behavior for backward compatibility
     }
 
-    // Get current verification statuses for this user, board, and lock (only non-expired)
+    // Get current verification statuses for this user and specific lock (only non-expired)
     const verificationResult = await query(
       `SELECT category_type, verification_status, verified_at, expires_at 
        FROM pre_verifications 
-       WHERE user_id = $1 AND board_id = $2 AND resource_type = 'board' 
+       WHERE user_id = $1 AND lock_id = $2
          AND expires_at > NOW() AND verification_status = 'verified'`,
-      [user.sub, boardId]
+      [user.sub, lockId]
     );
 
     // Create a map of verified categories

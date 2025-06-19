@@ -164,9 +164,9 @@ async function submitBoardLockPreVerificationHandler(
     // Use INSERT ... ON CONFLICT to handle race conditions
     await query(
       `INSERT INTO pre_verifications 
-       (user_id, board_id, category_type, verification_data, verification_status, expires_at, resource_type, verified_at) 
-       VALUES ($1, $2, $3, $4, 'verified', $5, 'board', NOW())
-       ON CONFLICT (user_id, board_id, category_type) WHERE resource_type = 'board' AND board_id IS NOT NULL
+       (user_id, lock_id, category_type, verification_data, verification_status, expires_at, verified_at) 
+       VALUES ($1, $2, $3, $4, 'verified', $5, NOW())
+       ON CONFLICT (user_id, lock_id, category_type)
        DO UPDATE SET 
          verification_data = EXCLUDED.verification_data,
          verification_status = 'verified',
@@ -175,7 +175,7 @@ async function submitBoardLockPreVerificationHandler(
          updated_at = NOW()`,
       [
         user.sub,
-        boardId,
+        lockId,
         categoryType,
         JSON.stringify(verificationDataToStore),
         expiresAt.toISOString()

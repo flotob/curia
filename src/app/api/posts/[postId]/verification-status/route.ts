@@ -132,12 +132,19 @@ async function getVerificationStatusHandler(
     }
 
     // Get current verification statuses for this user (only non-expired)
-    const verificationResult = await query(
-      `SELECT category_type, verification_status, expires_at 
-       FROM pre_verifications 
-       WHERE user_id = $1 AND post_id = $2 AND expires_at > NOW() AND verification_status = 'verified' AND resource_type = 'post'`,
-      [user.sub, postId]
-    );
+    let verificationResult;
+    if (hasLockGating && lock_id) {
+      // Use lock-based verification (converted posts have both legacy + lock)
+      verificationResult = await query(
+        `SELECT category_type, verification_status, expires_at 
+         FROM pre_verifications 
+         WHERE user_id = $1 AND lock_id = $2 AND expires_at > NOW() AND verification_status = 'verified'`,
+        [user.sub, lock_id]
+      );
+    } else {
+      // No lock-based gating - no verifications available
+      verificationResult = { rows: [] };
+    }
 
     const verifiedCategoryMap = new Map<string, { verification_status: string; expires_at?: string }>();
     verificationResult.rows.forEach(row => {

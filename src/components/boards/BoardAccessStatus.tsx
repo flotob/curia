@@ -47,29 +47,45 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
     expiresAt
   } = verificationStatus;
 
+  // Debug logging for verification status bugs
+  console.log(`[BoardAccessStatus] Board ${boardId} verification status:`, {
+    hasWriteAccess,
+    fulfillmentMode,
+    verifiedCount,
+    requiredCount,
+    lockStatusesCount: lockStatuses.length,
+    lockStatuses: lockStatuses.map(ls => ({
+      lockId: ls.lockId,
+      lockName: ls.lock.name,
+      verificationStatus: ls.verificationStatus,
+      verifiedAt: ls.verifiedAt,
+      expiresAt: ls.expiresAt
+    }))
+  });
+
   // Calculate progress percentage
   const progressPercentage = requiredCount > 0 ? (verifiedCount / requiredCount) * 100 : 0;
 
-  // Get status color and icon
+  // Get status color and icon - theme aware
   const getStatusInfo = () => {
     if (hasWriteAccess) {
       return {
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 border-green-200',
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bgColor: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800',
         icon: CheckCircle,
         label: 'Write Access Granted'
       };
     } else if (verifiedCount > 0) {
       return {
-        color: 'text-yellow-600', 
-        bgColor: 'bg-yellow-50 border-yellow-200',
+        color: 'text-amber-600 dark:text-amber-400', 
+        bgColor: 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800',
         icon: AlertCircle,
         label: 'Verification In Progress'
       };
     } else {
       return {
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-50 border-blue-200', 
+        color: 'text-blue-600 dark:text-blue-400',
+        bgColor: 'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800', 
         icon: Lock,
         label: 'Verification Required'
       };
@@ -114,37 +130,37 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
     // Note: BoardVerificationModal will handle React Query invalidation internally
   }, []);
 
-  // Get lock status visual indicator
+  // Get lock status visual indicator - theme aware
   const getLockStatusIndicator = (status: LockVerificationStatus['verificationStatus']) => {
     switch (status) {
       case 'verified':
         return {
-          color: 'text-green-700',
-          bgColor: 'bg-green-100 border-green-300',
+          color: 'text-emerald-700 dark:text-emerald-300',
+          bgColor: 'bg-emerald-100 border-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-700',
           icon: CheckCircle,
           label: 'Verified',
           badgeVariant: 'default' as const
         };
       case 'in_progress':
         return {
-          color: 'text-yellow-700',
-          bgColor: 'bg-yellow-100 border-yellow-300',
+          color: 'text-amber-700 dark:text-amber-300',
+          bgColor: 'bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:border-amber-700',
           icon: Clock,
           label: 'In Progress',
           badgeVariant: 'secondary' as const
         };
       case 'expired':
         return {
-          color: 'text-red-700',
-          bgColor: 'bg-red-100 border-red-300',
+          color: 'text-red-700 dark:text-red-300',
+          bgColor: 'bg-red-100 border-red-300 dark:bg-red-950/40 dark:border-red-700',
           icon: XCircle,
           label: 'Expired',
           badgeVariant: 'destructive' as const
         };
       case 'failed':
         return {
-          color: 'text-red-700',
-          bgColor: 'bg-red-100 border-red-300',
+          color: 'text-red-700 dark:text-red-300',
+          bgColor: 'bg-red-100 border-red-300 dark:bg-red-950/40 dark:border-red-700',
           icon: XCircle,
           label: 'Failed',
           badgeVariant: 'destructive' as const
@@ -152,8 +168,8 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
       case 'not_started':
       default:
         return {
-          color: 'text-slate-700',
-          bgColor: 'bg-slate-100 border-slate-300',
+          color: 'text-slate-700 dark:text-slate-300',
+          bgColor: 'bg-slate-100 border-slate-300 dark:bg-slate-800 dark:border-slate-600',
           icon: Lock,
           label: 'Not Started',
           badgeVariant: 'outline' as const
@@ -170,7 +186,7 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
       <div
         key={lock.id}
         className={cn(
-          'p-4 rounded-lg border flex items-center justify-between transition-all hover:shadow-sm cursor-pointer',
+          'p-5 rounded-lg border flex items-center justify-between transition-all hover:shadow-sm cursor-pointer',
           lockInfo.bgColor
         )}
         onClick={() => handleVerifyLock(lock.id, lock.name)}
@@ -220,7 +236,7 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
   return (
     <>
       <Card className={cn("border-l-4", statusInfo.bgColor, className)}>
-        <CardContent className="p-4">
+        <CardContent className="p-6">
           {/* Header - Always visible */}
           <div 
             className="flex items-center justify-between cursor-pointer" 
@@ -240,7 +256,7 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
             
             <div className="flex items-center space-x-2">
               {hasWriteAccess && (
-                <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">
+                <Badge variant="default" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Access Granted
                 </Badge>
@@ -267,9 +283,9 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
 
           {/* Expanded details */}
           {isExpanded && (
-            <div className="mt-4 space-y-3">
+            <div className="mt-6 space-y-4">
               {/* Lock status cards */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {lockStatuses.map(renderLockStatus)}
               </div>
 

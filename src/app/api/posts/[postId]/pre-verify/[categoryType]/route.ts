@@ -191,29 +191,41 @@ async function preVerifyHandler(
     const verificationStatus = (signatureValid && requirementsValid) ? 'verified' : 'failed';
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
 
-    // Store or update verification result
-    await query(
-      `INSERT INTO pre_verifications 
-        (user_id, post_id, category_type, verification_data, verification_status, verified_at, expires_at, resource_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (user_id, post_id, category_type) WHERE resource_type = 'post' AND post_id IS NOT NULL
-       DO UPDATE SET
-         verification_data = EXCLUDED.verification_data,
-         verification_status = EXCLUDED.verification_status,
-         verified_at = EXCLUDED.verified_at,
-         expires_at = EXCLUDED.expires_at,
-         updated_at = NOW()`,
-      [
-        user.sub,
-        postId,
-        categoryType,
-        JSON.stringify(challenge),
-        verificationStatus,
-        verificationStatus === 'verified' ? new Date().toISOString() : null,
-        expiresAt.toISOString(),
-        'post'
-      ]
-    );
+    // Store or update verification result for the specific lock
+    if (hasLockGating && lock_id) {
+      // Use lock-based verification (converted posts have both legacy + lock)
+      await query(
+        `INSERT INTO pre_verifications 
+          (user_id, lock_id, category_type, verification_data, verification_status, verified_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (user_id, lock_id, category_type)
+         DO UPDATE SET
+           verification_data = EXCLUDED.verification_data,
+           verification_status = EXCLUDED.verification_status,
+           verified_at = EXCLUDED.verified_at,
+           expires_at = EXCLUDED.expires_at,
+           updated_at = NOW()`,
+        [
+          user.sub,
+          lock_id,
+          categoryType,
+          JSON.stringify(challenge),
+          verificationStatus,
+          verificationStatus === 'verified' ? new Date().toISOString() : null,
+          expiresAt.toISOString()
+        ]
+      );
+    } else if (hasLegacyGating) {
+      // True legacy post (shouldn't exist after migration ran)
+      return NextResponse.json({ 
+        error: 'Post uses legacy gating system - verification not supported. Please contact admin.' 
+      }, { status: 400 });
+    } else {
+      // No gating at all
+      return NextResponse.json({ 
+        error: 'No gating requirements found for this post' 
+      }, { status: 400 });
+    }
 
     const response: PreVerifyResponse = {
       success: verificationStatus === 'verified',
