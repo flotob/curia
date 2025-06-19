@@ -64,6 +64,27 @@ const formatRelativeTime = (timestamp: string): string => {
   }
 };
 
+const formatTimeRemaining = (expiryTime: string): string => {
+  try {
+    const now = new Date();
+    const expiry = new Date(expiryTime);
+    const diffMs = expiry.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Expired';
+    
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 0) {
+      return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''} left`;
+    } else {
+      return `${minutes}m left`;
+    }
+  } catch {
+    return 'unknown';
+  }
+};
+
 const generateAvatarGradient = (address: string): string => {
   const colors = [
     'from-pink-400 to-purple-500',
@@ -240,7 +261,7 @@ export const UniversalProfileRichHeader: React.FC<RichCategoryHeaderProps> = ({
             <div className="text-xs text-muted-foreground">
               <div>Verified {formatRelativeTime(category.verifiedAt)}</div>
               {category.expiresAt && (
-                <div>Expires {formatRelativeTime(category.expiresAt)}</div>
+                <div>Expires {formatTimeRemaining(category.expiresAt)}</div>
               )}
             </div>
           )}
@@ -360,7 +381,7 @@ export const EthereumRichHeader: React.FC<RichCategoryHeaderProps> = ({
             <div className="text-xs text-muted-foreground">
               <div>Verified {formatRelativeTime(category.verifiedAt)}</div>
               {category.expiresAt && (
-                <div>Expires {formatRelativeTime(category.expiresAt)}</div>
+                <div>Expires {formatTimeRemaining(category.expiresAt)}</div>
               )}
             </div>
           )}
