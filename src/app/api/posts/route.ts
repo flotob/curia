@@ -302,6 +302,47 @@ async function createPostHandler(req: AuthenticatedRequest) {
       return NextResponse.json({ error: 'You do not have permission to post in this board' }, { status: 403 });
     }
 
+    // 🚀 BOARD LOCK VERIFICATION: Check if user has verified board's lock requirements
+    const { SettingsUtils } = await import('@/types/settings');
+    const boardLockGating = SettingsUtils.getBoardLockGating(boardSettings);
+    
+    if (boardLockGating && boardLockGating.lockIds.length > 0) {
+      console.log(`[API POST /api/posts] Board ${boardId} has ${boardLockGating.lockIds.length} lock requirements, checking user verification...`);
+      
+      // Check user's verification status for required locks
+      const lockIdPlaceholders = boardLockGating.lockIds.map((_, index) => `$${index + 2}`).join(', ');
+      const verificationResult = await query(`
+        SELECT lock_id FROM pre_verifications 
+        WHERE user_id = $1 AND lock_id IN (${lockIdPlaceholders})
+          AND verification_status = 'verified' AND expires_at > NOW()
+      `, [user.sub, ...boardLockGating.lockIds]);
+      
+      const verifiedLockIds = new Set(verificationResult.rows.map(row => row.lock_id));
+      const verifiedCount = verifiedLockIds.size;
+      const requiredCount = boardLockGating.lockIds.length;
+      
+      // Apply fulfillment logic (ANY vs ALL)
+      const hasAccess = boardLockGating.fulfillment === 'any'
+        ? verifiedCount >= 1
+        : verifiedCount >= requiredCount;
+        
+      if (!hasAccess) {
+        console.log(`[API POST /api/posts] User ${user.sub} failed board lock verification: ${verifiedCount}/${requiredCount} locks verified (${boardLockGating.fulfillment} mode)`);
+        return NextResponse.json({ 
+          error: 'Board lock verification required before posting',
+          requiresVerification: true,
+          verificationDetails: {
+            lockIds: boardLockGating.lockIds,
+            fulfillmentMode: boardLockGating.fulfillment,
+            verifiedCount,
+            requiredCount
+          }
+        }, { status: 403 });
+      }
+      
+      console.log(`[API POST /api/posts] ✅ User ${user.sub} passed board lock verification: ${verifiedCount}/${requiredCount} locks verified`);
+    }
+
     const validBoardId = board.id;
     let postSettings = settings || {};
     let validLockId: number | null = null;

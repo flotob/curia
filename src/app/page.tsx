@@ -1,6 +1,6 @@
 'use client'; // Marking as client component as FeedList uses client-side hooks
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
@@ -18,6 +18,7 @@ import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
 import { Button } from '@/components/ui/button';
 import { BoardAccessStatus } from '@/components/boards/BoardAccessStatus';
+import { BoardVerificationModal } from '@/components/boards/BoardVerificationModal';
 import { BoardVerificationApiResponse } from '@/types/boardVerification';
 import { 
   Settings, 
@@ -33,6 +34,7 @@ export default function HomePage() {
   const router = useRouter();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showExpandedForm, setShowExpandedForm] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [initialPostTitle, setInitialPostTitle] = useState('');
 
   // Get boardId from URL params for board-specific filtering
@@ -178,6 +180,30 @@ export default function HomePage() {
              !!boardInfo.settings?.permissions?.locks?.lockIds?.length,
   });
 
+  // 🚀 POST CREATION GATING: Check board verification before allowing post creation
+  const handleCreatePostClick = useCallback((title?: string) => {
+    setInitialPostTitle(title || '');
+    
+    // Check if board has lock requirements and user verification status
+    if (boardId && boardVerificationStatus && !boardVerificationStatus.hasWriteAccess) {
+      console.log(`[HomePage] User needs verification for board ${boardId}, showing verification modal`);
+      setShowVerificationModal(true);
+    } else {
+      console.log(`[HomePage] User has access or no verification required, showing post creation form`);
+      setShowExpandedForm(true);
+    }
+  }, [boardId, boardVerificationStatus]);
+
+  // Watch for verification completion via React Query status changes
+  useEffect(() => {
+    // If verification modal is open and user gains write access, show post creation form
+    if (showVerificationModal && boardVerificationStatus?.hasWriteAccess) {
+      console.log(`[HomePage] Verification completed, showing post creation form`);
+      setShowVerificationModal(false);
+      setShowExpandedForm(true);
+    }
+  }, [showVerificationModal, boardVerificationStatus?.hasWriteAccess]);
+
   if (isInitializing || isLoadingCommunityInfo) {
     return (
       <div className="min-h-screen">
@@ -248,10 +274,7 @@ export default function HomePage() {
               <SearchFirstPostInput 
                 boardId={boardId}
                 enableGlobalSearch={true}
-                onCreatePostClick={(title) => {
-                  setInitialPostTitle(title || '');
-                  setShowExpandedForm(true);
-                }}
+                onCreatePostClick={handleCreatePostClick}
                 onPostCreated={(newPost: ApiPost) => {
                   // Navigate to the newly created post detail page
                   const postUrl = buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
@@ -261,6 +284,19 @@ export default function HomePage() {
               />
             )}
           </section>
+
+          {/* Board Verification Modal - Show when user needs to verify before posting */}
+          {showVerificationModal && boardId && communityInfo?.id && (
+            <BoardVerificationModal
+              isOpen={showVerificationModal}
+              onClose={() => {
+                setShowVerificationModal(false);
+                setInitialPostTitle('');
+              }}
+              boardId={parseInt(boardId, 10)}
+              communityId={communityInfo.id}
+            />
+          )}
 
           {/* Telegram Setup Banner - Admin Only */}
           {communityInfo?.id && (

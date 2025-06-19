@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
+import { BoardVerificationApiResponse } from '@/types/boardVerification';
 import { ApiPost } from '@/app/api/posts/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,25 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
     }
   }, [boardId, accessibleBoardsList, selectedBoardId]);
 
+  // 🚀 BOARD VERIFICATION: Check if selected board requires lock verification
+  const { data: boardVerificationStatus } = useQuery({
+    queryKey: ['boardVerificationStatus', selectedBoardId, user?.cid],
+    queryFn: async () => {
+      if (!selectedBoardId || !token || !user?.cid) return null;
+      try {
+        const response = await authFetchJson<BoardVerificationApiResponse>(
+          `/api/communities/${user.cid}/boards/${selectedBoardId}/verification-status`, 
+          { token }
+        );
+        return response.data;
+      } catch (error) {
+        console.error('[ExpandedNewPostForm] Failed to fetch board verification status:', error);
+        return null;
+      }
+    },
+    enabled: !!selectedBoardId && !!token && !!user?.cid,
+  });
+
   const contentEditor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -223,6 +243,15 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         setError('You must be logged in to create a post.');
         return;
     }
+
+    // 🚀 BOARD LOCK VERIFICATION: Check if user can post to this board
+    if (boardVerificationStatus && !boardVerificationStatus.hasWriteAccess) {
+      const { verifiedCount, requiredCount } = boardVerificationStatus;
+      const lockText = requiredCount === 1 ? 'lock' : 'locks';
+      setError(`Board verification required: You need to verify ${requiredCount} ${lockText} before posting. Currently verified: ${verifiedCount}/${requiredCount}. Please complete verification first.`);
+      return;
+    }
+
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
     
     // Extract lockId from postSettings if it exists
@@ -360,6 +389,29 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
             disabled={createPostMutation.isPending}
             onCreateLockRequested={onCreateLockRequested}
           />
+
+          {/* Board Verification Warning */}
+          {boardVerificationStatus && !boardVerificationStatus.hasWriteAccess && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <div className="text-amber-600 dark:text-amber-400 mt-0.5">
+                  🔒
+                </div>
+                <div className="text-sm">
+                  <div className="font-medium text-amber-800 dark:text-amber-200">
+                    Board Verification Required
+                  </div>
+                  <div className="text-amber-700 dark:text-amber-300 mt-1">
+                    You need to verify {boardVerificationStatus.requiredCount} {boardVerificationStatus.requiredCount === 1 ? 'lock' : 'locks'} before posting to this board. 
+                    Currently verified: {boardVerificationStatus.verifiedCount}/{boardVerificationStatus.requiredCount}.
+                  </div>
+                  <div className="text-amber-600 dark:text-amber-400 mt-1 text-xs">
+                    Complete verification on the main board page before creating posts.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           
           {error && <p className="text-xs sm:text-sm text-red-500">{error}</p>}
         </CardContent>
@@ -373,9 +425,20 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={createPostMutation.isPending || contentEditor?.isEmpty} className="text-sm sm:text-base px-3 sm:px-4">
+          <Button 
+            type="submit" 
+            disabled={
+              createPostMutation.isPending || 
+              contentEditor?.isEmpty || 
+              (boardVerificationStatus ? !boardVerificationStatus.hasWriteAccess : false)
+            } 
+            className="text-sm sm:text-base px-3 sm:px-4"
+          >
             {createPostMutation.isPending && <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />} 
-            Submit Post
+            {boardVerificationStatus && !boardVerificationStatus.hasWriteAccess 
+              ? "🔒 Verification Required" 
+              : "Submit Post"
+            }
           </Button>
         </CardFooter>
       </form>
