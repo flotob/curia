@@ -184,6 +184,7 @@ export const SettingsUtils = {
     const settingsObj = settings as Record<string, unknown>;
     const responsePermissions = settingsObj?.responsePermissions as Record<string, unknown> | undefined;
     const upGating = responsePermissions?.upGating as Record<string, unknown> | undefined;
+    const categories = responsePermissions?.categories as unknown[] | undefined;
     
     if (upGating) {
       if (typeof upGating.enabled !== 'boolean') {
@@ -224,6 +225,44 @@ export const SettingsUtils = {
             });
           }
         }
+      }
+    }
+
+    // 🚀 NEW: Validate multi-category gating format
+    if (categories) {
+      if (!Array.isArray(categories)) {
+        errors.push('categories must be an array');
+      } else {
+        categories.forEach((category: unknown, index: number) => {
+          if (!category || typeof category !== 'object') {
+            errors.push(`categories[${index}] must be an object`);
+            return;
+          }
+          
+          const categoryObj = category as Record<string, unknown>;
+          
+          // Validate type
+          if (typeof categoryObj.type !== 'string') {
+            errors.push(`categories[${index}].type must be a string`);
+          }
+          
+          // Validate enabled
+          if (typeof categoryObj.enabled !== 'boolean') {
+            errors.push(`categories[${index}].enabled must be a boolean`);
+          }
+          
+          // 🚀 NEW: Validate fulfillment field
+          if (categoryObj.fulfillment !== undefined) {
+            if (!['any', 'all'].includes(categoryObj.fulfillment as string)) {
+              errors.push(`categories[${index}].fulfillment must be "any" or "all"`);
+            }
+          }
+          
+          // Validate requirements exist (category-specific validation could be added later)
+          if (categoryObj.requirements === undefined) {
+            errors.push(`categories[${index}].requirements is required`);
+          }
+        });
       }
     }
     

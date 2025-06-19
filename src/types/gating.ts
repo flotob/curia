@@ -15,6 +15,7 @@ import { ReactNode } from 'react';
 export interface GatingCategory {
   type: GatingCategoryType;
   enabled: boolean;
+  fulfillment?: "any" | "all"; // 🚀 NEW: How to fulfill requirements within this category (defaults to "all")
   requirements: unknown; // Category-specific requirements
   metadata?: GatingCategoryMetadata;
 }

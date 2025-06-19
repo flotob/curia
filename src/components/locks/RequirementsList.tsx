@@ -65,8 +65,8 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
   searchTerm = '',
   onSearchChange
 }) => {
-  const { state, removeRequirement, updateFulfillmentMode, navigateToRequirementPicker, navigateToRequirementConfig } = useLockBuilder();
-  const { requirements, fulfillmentMode } = state;
+  const { state, removeRequirement, updateFulfillmentMode, updateCategoryFulfillment, navigateToRequirementPicker, navigateToRequirementConfig } = useLockBuilder();
+  const { requirements, fulfillmentMode, categoryFulfillment } = state;
 
   // Group requirements by category
   const groupedRequirements = requirements.reduce((groups, requirement) => {
@@ -189,14 +189,53 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
           return (
             <div key={category} className="space-y-2">
               {/* Category Header */}
-              <div className="flex items-center space-x-2 pb-2">
-                <span className="text-lg">{categoryInfo.icon}</span>
-                <h4 className={cn('font-medium', categoryInfo.color)}>
-                  {categoryInfo.name}
-                </h4>
-                <Badge variant="outline" className="text-xs">
-                  {categoryRequirements.length}
-                </Badge>
+              <div className="space-y-3 pb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">{categoryInfo.icon}</span>
+                  <h4 className={cn('font-medium', categoryInfo.color)}>
+                    {categoryInfo.name}
+                  </h4>
+                  <Badge variant="outline" className="text-xs">
+                    {categoryRequirements.length}
+                  </Badge>
+                </div>
+
+                {/* 🚀 NEW: Per-Category Fulfillment Controls */}
+                {categoryRequirements.length > 1 && (
+                  <div className="flex items-center space-x-2 text-xs">
+                    <span className="text-muted-foreground">Within this category:</span>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => updateCategoryFulfillment(category as RequirementCategory, 'any')}
+                        className={cn(
+                          'px-2 py-1 text-xs rounded font-medium transition-colors',
+                          categoryFulfillment[category as RequirementCategory] === 'any'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
+                        )}
+                      >
+                        ANY
+                      </button>
+                      <button
+                        onClick={() => updateCategoryFulfillment(category as RequirementCategory, 'all')}
+                        className={cn(
+                          'px-2 py-1 text-xs rounded font-medium transition-colors',
+                          categoryFulfillment[category as RequirementCategory] === 'all'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
+                        )}
+                      >
+                        ALL
+                      </button>
+                    </div>
+                    <span className="text-muted-foreground">
+                      {categoryFulfillment[category as RequirementCategory] === 'any'
+                        ? `(user needs any 1 of ${categoryRequirements.length})`
+                        : `(user needs all ${categoryRequirements.length})`
+                      }
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Category Requirements */}

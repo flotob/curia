@@ -290,7 +290,6 @@ CREATE SEQUENCE pre_verifications_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483
 CREATE TABLE "public"."pre_verifications" (
     "id" integer DEFAULT nextval('pre_verifications_id_seq') NOT NULL,
     "user_id" text NOT NULL,
-    "post_id" integer,
     "category_type" text NOT NULL,
     "verification_data" jsonb NOT NULL,
     "verification_status" text DEFAULT 'pending' NOT NULL,
@@ -298,14 +297,11 @@ CREATE TABLE "public"."pre_verifications" (
     "expires_at" timestamptz NOT NULL,
     "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "resource_type" character varying(20) DEFAULT '''post''' NOT NULL,
-    "board_id" integer,
+    "lock_id" integer NOT NULL,
     CONSTRAINT "pre_verifications_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
 COMMENT ON TABLE "public"."pre_verifications" IS 'Stores pre-verification states for both post and board gating systems';
-
-COMMENT ON COLUMN "public"."pre_verifications"."post_id" IS 'Post ID for post-level verifications (NULL for board verifications)';
 
 COMMENT ON COLUMN "public"."pre_verifications"."category_type" IS 'Type of gating category: ethereum_profile, universal_profile, etc.';
 
@@ -315,27 +311,17 @@ COMMENT ON COLUMN "public"."pre_verifications"."verification_status" IS 'Status:
 
 COMMENT ON COLUMN "public"."pre_verifications"."expires_at" IS 'Verification expires after creation - 30 minutes for posts, configurable for boards';
 
-COMMENT ON COLUMN "public"."pre_verifications"."resource_type" IS 'Type of resource being verified: post or board';
-
-COMMENT ON COLUMN "public"."pre_verifications"."board_id" IS 'Board ID for board-level verifications (NULL for post verifications)';
-
 CREATE INDEX pre_verifications_user_id_index ON public.pre_verifications USING btree (user_id);
-
-CREATE INDEX pre_verifications_post_id_index ON public.pre_verifications USING btree (post_id);
 
 CREATE INDEX pre_verifications_status_index ON public.pre_verifications USING btree (verification_status);
 
 CREATE INDEX pre_verifications_expires_at_index ON public.pre_verifications USING btree (expires_at);
 
-CREATE UNIQUE INDEX pre_verifications_unique_user_post_category ON public.pre_verifications USING btree (user_id, post_id, category_type) WHERE (((resource_type)::text = 'post'::text) AND (post_id IS NOT NULL));
+CREATE UNIQUE INDEX pre_verifications_unique_user_lock_category ON public.pre_verifications USING btree (user_id, lock_id, category_type);
 
-CREATE UNIQUE INDEX pre_verifications_unique_user_board_category ON public.pre_verifications USING btree (user_id, board_id, category_type) WHERE (((resource_type)::text = 'board'::text) AND (board_id IS NOT NULL));
+CREATE INDEX idx_pre_verifications_lock_status_expiry ON public.pre_verifications USING btree (lock_id, verification_status, expires_at);
 
-CREATE INDEX pre_verifications_board_id_index ON public.pre_verifications USING btree (board_id) WHERE (board_id IS NOT NULL);
-
-CREATE INDEX pre_verifications_resource_type_index ON public.pre_verifications USING btree (resource_type);
-
-CREATE INDEX pre_verifications_board_user_status_index ON public.pre_verifications USING btree (board_id, user_id, verification_status, expires_at) WHERE ((resource_type)::text = 'board'::text);
+CREATE INDEX idx_pre_verifications_user_expiry ON public.pre_verifications USING btree (user_id, expires_at);
 
 
 DELIMITER ;;
@@ -437,8 +423,7 @@ ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_author_user_id_fkey" FOR
 ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."posts" ADD CONSTRAINT "posts_lock_id_fkey" FOREIGN KEY (lock_id) REFERENCES locks(id) ON DELETE SET NULL NOT DEFERRABLE;
 
-ALTER TABLE ONLY "public"."pre_verifications" ADD CONSTRAINT "pre_verifications_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
-ALTER TABLE ONLY "public"."pre_verifications" ADD CONSTRAINT "pre_verifications_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."pre_verifications" ADD CONSTRAINT "pre_verifications_lock_id_fkey" FOREIGN KEY (lock_id) REFERENCES locks(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."pre_verifications" ADD CONSTRAINT "pre_verifications_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."telegram_groups" ADD CONSTRAINT "telegram_groups_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
@@ -470,4 +455,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-18 18:26:09 UTC
+-- 2025-06-19 09:45:34 UTC

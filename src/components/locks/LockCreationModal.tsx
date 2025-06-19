@@ -22,6 +22,7 @@ import { LockBuilderStep, LockBuilderState } from '@/types/locks';
 import { LockTemplateSelector } from './LockTemplateSelector';
 import { LockTemplate } from '@/types/templates';
 import { GatingRequirementsPreview } from './GatingRequirementsPreview';
+import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 import { authFetchJson } from '@/utils/authFetch';
 
 // Step content components
@@ -425,9 +426,28 @@ const PreviewStep = () => {
                                 upRequirements.followerRequirements.length > 0;
       
       if (hasUPRequirements) {
+        // 🚀 NEW: Determine fulfillment based on requirement categories
+        const upRequirementCategories = state.requirements.filter(req => 
+          ['lyx_balance', 'lsp7_token', 'lsp8_nft', 'up_follower_count', 'up_must_follow', 'up_must_be_followed_by'].includes(req.type)
+        );
+        const hasTokenReqs = upRequirementCategories.some(req => req.category === 'token');
+        const hasSocialReqs = upRequirementCategories.some(req => req.category === 'social');
+        
+        // If mixed categories, use "all" by default; otherwise use the category's setting
+        let fulfillment: 'any' | 'all' = 'all';
+        if (hasTokenReqs && !hasSocialReqs) {
+          fulfillment = state.categoryFulfillment.token;
+        } else if (hasSocialReqs && !hasTokenReqs) {
+          fulfillment = state.categoryFulfillment.social;
+        } else if (hasTokenReqs && hasSocialReqs) {
+          // Mixed UP category - use "all" for now (could be enhanced later)
+          fulfillment = 'all';
+        }
+
         categories.push({
           type: 'universal_profile',
           enabled: true,
+          fulfillment, // 🚀 NEW: Use per-category fulfillment
           requirements: upRequirements
         });
       }
@@ -442,9 +462,31 @@ const PreviewStep = () => {
                                 ethRequirements.efpRequirements.length > 0;
 
       if (hasEthRequirements) {
+        // 🚀 NEW: Determine fulfillment based on requirement categories
+        const ethRequirementCategories = state.requirements.filter(req => 
+          ['eth_balance', 'erc20_token', 'erc721_nft', 'erc1155_token', 'ens_domain', 'ens_pattern', 'efp_follower_count', 'efp_must_follow', 'efp_must_be_followed_by'].includes(req.type)
+        );
+        const hasTokenReqs = ethRequirementCategories.some(req => req.category === 'token');
+        const hasSocialReqs = ethRequirementCategories.some(req => req.category === 'social');
+        const hasIdentityReqs = ethRequirementCategories.some(req => req.category === 'identity');
+        
+        // If mixed categories, use "all" by default; otherwise use the category's setting
+        let fulfillment: 'any' | 'all' = 'all';
+        if (hasTokenReqs && !hasSocialReqs && !hasIdentityReqs) {
+          fulfillment = state.categoryFulfillment.token;
+        } else if (hasSocialReqs && !hasTokenReqs && !hasIdentityReqs) {
+          fulfillment = state.categoryFulfillment.social;
+        } else if (hasIdentityReqs && !hasTokenReqs && !hasSocialReqs) {
+          fulfillment = state.categoryFulfillment.identity;
+        } else {
+          // Mixed Ethereum category - use "all" for now (could be enhanced later)
+          fulfillment = 'all';
+        }
+
         categories.push({
           type: 'ethereum_profile',
           enabled: true,
+          fulfillment, // 🚀 NEW: Use per-category fulfillment
           requirements: ethRequirements
         });
       }
@@ -478,10 +520,22 @@ const PreviewStep = () => {
   return (
     <div className="space-y-6">
       {/* Live Preview - Exactly what users will see */}
-      <GatingRequirementsPreview 
-        gatingConfig={previewLock.gatingConfig}
-        className="border shadow-sm"
-      />
+      {previewLock.gatingConfig.categories.length > 0 ? (
+        <UniversalProfileProvider>
+          <GatingRequirementsPreview 
+            gatingConfig={previewLock.gatingConfig}
+            className="border shadow-sm"
+          />
+        </UniversalProfileProvider>
+      ) : (
+        <div className="border border-dashed rounded-lg p-8 text-center">
+          <div className="text-muted-foreground">
+            <div className="text-2xl mb-2">🔒</div>
+            <h3 className="font-medium mb-1">No Requirements to Preview</h3>
+            <p className="text-sm">Add some requirements in the previous step to see the preview.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -830,9 +884,24 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
                                   upRequirements.followerRequirements.length > 0;
         
         if (hasUPRequirements) {
+          // 🚀 NEW: Use per-category fulfillment settings
+          const upRequirementCategories = state.requirements.filter(req => 
+            ['lyx_balance', 'lsp7_token', 'lsp8_nft', 'up_follower_count', 'up_must_follow', 'up_must_be_followed_by'].includes(req.type)
+          );
+          const hasTokenReqs = upRequirementCategories.some(req => req.category === 'token');
+          const hasSocialReqs = upRequirementCategories.some(req => req.category === 'social');
+          
+          let fulfillment: 'any' | 'all' = 'all';
+          if (hasTokenReqs && !hasSocialReqs) {
+            fulfillment = state.categoryFulfillment.token;
+          } else if (hasSocialReqs && !hasTokenReqs) {
+            fulfillment = state.categoryFulfillment.social;
+          }
+
           categories.push({
             type: 'universal_profile',
             enabled: true,
+            fulfillment,
             requirements: upRequirements
           });
         }
@@ -847,9 +916,27 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
                                   ethRequirements.efpRequirements.length > 0;
 
         if (hasEthRequirements) {
+          // 🚀 NEW: Use per-category fulfillment settings
+          const ethRequirementCategories = state.requirements.filter(req => 
+            ['eth_balance', 'erc20_token', 'erc721_nft', 'erc1155_token', 'ens_domain', 'ens_pattern', 'efp_follower_count', 'efp_must_follow', 'efp_must_be_followed_by'].includes(req.type)
+          );
+          const hasTokenReqs = ethRequirementCategories.some(req => req.category === 'token');
+          const hasSocialReqs = ethRequirementCategories.some(req => req.category === 'social');
+          const hasIdentityReqs = ethRequirementCategories.some(req => req.category === 'identity');
+          
+          let fulfillment: 'any' | 'all' = 'all';
+          if (hasTokenReqs && !hasSocialReqs && !hasIdentityReqs) {
+            fulfillment = state.categoryFulfillment.token;
+          } else if (hasSocialReqs && !hasTokenReqs && !hasIdentityReqs) {
+            fulfillment = state.categoryFulfillment.social;
+          } else if (hasIdentityReqs && !hasTokenReqs && !hasSocialReqs) {
+            fulfillment = state.categoryFulfillment.identity;
+          }
+
           categories.push({
             type: 'ethereum_profile',
             enabled: true,
+            fulfillment,
             requirements: ethRequirements
           });
         }

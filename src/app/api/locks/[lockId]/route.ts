@@ -97,6 +97,13 @@ function validateGatingConfig(gatingConfig: unknown): { valid: boolean; errors: 
       errors.push(`Category ${i + 1} must have enabled boolean field`);
     }
     
+    // 🚀 NEW: Validate fulfillment field
+    if (cat.fulfillment !== undefined) {
+      if (!['any', 'all'].includes(cat.fulfillment as string)) {
+        errors.push(`Category ${i + 1} fulfillment must be "any" or "all"`);
+      }
+    }
+    
     if (!cat.requirements) {
       errors.push(`Category ${i + 1} must have requirements object`);
     }
