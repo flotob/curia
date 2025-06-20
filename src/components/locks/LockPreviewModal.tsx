@@ -12,19 +12,26 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { GatingRequirementsPreview } from './GatingRequirementsPreview';
 import { LockWithStats } from '@/types/locks';
-import { Eye, Shield, Users, Clock, TrendingUp } from 'lucide-react';
+import { Eye, Shield, Users, Clock, TrendingUp, Edit2, Copy, Trash2 } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 
 interface LockPreviewModalProps {
   lock: LockWithStats | null;
   isOpen: boolean;
   onClose: () => void;
+  // Action handlers (optional)
+  onRename?: (lock: LockWithStats) => void;
+  onDuplicate?: (lock: LockWithStats) => void;
+  onDelete?: (lock: LockWithStats) => void;
 }
 
 export const LockPreviewModal: React.FC<LockPreviewModalProps> = ({
   lock,
   isOpen,
-  onClose
+  onClose,
+  onRename,
+  onDuplicate,
+  onDelete
 }) => {
   if (!lock) return null;
 
@@ -135,9 +142,47 @@ export const LockPreviewModal: React.FC<LockPreviewModalProps> = ({
               {lock.isPublic && <span className="ml-1">• Public Lock</span>}
             </div>
             
-            <Button onClick={onClose} variant="outline">
-              Close Preview
-            </Button>
+            <div className="flex items-center space-x-2">
+              {/* Action buttons for locks user can edit */}
+              {lock.canEdit && (onRename || onDuplicate || onDelete) && (
+                <>
+                  {onRename && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onRename(lock)}
+                    >
+                      <Edit2 className="h-4 w-4 mr-2" />
+                      Rename
+                    </Button>
+                  )}
+                  {onDuplicate && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onDuplicate(lock)}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Duplicate
+                    </Button>
+                  )}
+                  {onDelete && lock.canDelete && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={() => onDelete(lock)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  )}
+                </>
+              )}
+              
+              <Button onClick={onClose} variant="outline">
+                Close Preview
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

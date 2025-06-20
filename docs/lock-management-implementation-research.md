@@ -4,70 +4,183 @@
 
 This document outlines the implementation plan for adding lock management functionality to the existing lock system. The goal is to enable users to **rename**, **delete**, and **duplicate** locks from both the lock browser and lock detail modal.
 
-## Current System Assessment
+## Current System Assessment ✅ VERIFIED
 
-### ✅ Excellent Foundation Already Exists
-
-The current lock system has a robust foundation that makes this implementation straightforward:
+### ✅ Backend Infrastructure (COMPLETE)
 
 **Database Layer:**
 - ✅ Complete `locks` table schema with all necessary fields
 - ✅ Proper foreign key constraints and indexes  
 - ✅ Usage tracking via `lock_stats` view
-- ✅ Permission system (owner/admin access)
+- ✅ Permission system (owner/admin access) with `canEdit`/`canDelete`
 - ✅ Unique name constraints per community/user
 
-**API Layer:**
-- ✅ `GET /api/locks/[lockId]` - Individual lock retrieval
-- ✅ `PUT /api/locks/[lockId]` - Update lock (perfect for rename)
-- ✅ `DELETE /api/locks/[lockId]` - Delete with usage validation
-- ✅ `POST /api/locks` - Create lock (can be used for duplicate)
-- ✅ Comprehensive permission checking
-- ✅ Real-time event emission for updates
+**API Endpoints (ALL IMPLEMENTED):**
+- ✅ `GET /api/locks/[lockId]` - Get individual lock details
+- ✅ `PUT /api/locks/[lockId]` - Update lock (supports name, description, icon, color, gatingConfig, tags, isPublic)
+- ✅ `DELETE /api/locks/[lockId]` - Delete with comprehensive usage validation
+- ✅ `POST /api/locks` - Create new lock (can be reused for duplication)
+- ✅ `GET /api/locks` - List locks with filtering (search, createdBy, tags, etc.)
+- ✅ Complete permission checking (owner/admin authorization)
+- ✅ Real-time event emission (lockUpdated, lockDeleted, newLock)
+- ✅ Usage validation (prevents deletion of locks in use)
+- ✅ Name uniqueness validation
 
-**Frontend Components:**
-- ✅ `LockBrowser` - Main browsing interface
-- ✅ `LockCard` - Individual lock display
+### ✅ Frontend Components (BASIC STRUCTURE EXISTS)
+
+**Existing Components:**
+- ✅ `LockBrowser` - Main browsing interface with filtering/search
+- ✅ `LockCard` - Individual lock display (grid/list views)
 - ✅ `LockPreviewModal` - Detailed lock preview
-- ✅ Permission props (`canEdit`, `canDelete`) already available
+- ✅ Permission props (`canEdit`, `canDelete`, `isOwned`) available in lock objects
 
-### ❌ Missing Components
+**Current Data Fetching:**
+- ✅ Manual `fetch()` calls with proper auth headers
+- ✅ Loading states and error handling
+- ✅ Basic caching via component state
 
-**UI Actions:**
+### ❌ Missing Frontend Infrastructure
+
+**UI Actions (NONE IMPLEMENTED):**
 - ❌ No action buttons/menus in `LockCard`
 - ❌ No management actions in `LockPreviewModal`
 - ❌ No confirmation dialogs for destructive actions
-- ❌ No duplicate functionality
+- ❌ No inline rename functionality
+- ❌ No duplicate workflow
 
-## Implementation Plan
+**Data Management:**
+- ❌ No React Query hooks for lock operations
+- ❌ No optimistic updates
+- ❌ Manual cache invalidation (just reloads all locks)
+- ❌ No real-time updates integration
 
-### Phase 1: UI Action Infrastructure
+## Implementation Plan (REVISED AFTER INVESTIGATION)
 
-#### 1.1 LockCard Action Menu
+### Phase 1: React Query Infrastructure
+
+#### 1.1 Create Lock Management Hooks
+**Location:** `src/hooks/useLockManagement.ts` (NEW FILE)
+
+Since no React Query hooks exist yet, create proper data management layer:
+```tsx
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { authFetch, authFetchJson } from '@/utils/authFetch';
+
+// Get all locks
+export const useLocks = (filters?: LockFilters) => {
+  return useQuery({
+    queryKey: ['locks', filters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters?.search) params.append('search', filters.search);
+      if (filters?.createdBy) params.append('createdBy', filters.createdBy);
+      // ... other filters
+      
+      const response = await authFetchJson(`/api/locks?${params}`);
+      return response.data;
+    }
+  });
+};
+
+// Rename lock mutation
+export const useRenameLock = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ lockId, name }: { lockId: number; name: string }) => {
+      return authFetchJson(`/api/locks/${lockId}`, {
+        method: 'PUT',
+        body: { name }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locks'] });
+    }
+  });
+};
+
+// Delete lock mutation  
+export const useDeleteLock = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (lockId: number) => {
+      return authFetch(`/api/locks/${lockId}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locks'] });
+    }
+  });
+};
+
+// Duplicate lock mutation
+export const useDuplicateLock = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (sourceLockId: number) => {
+      // Get source lock data
+      const sourceLock = await authFetchJson(`/api/locks/${sourceLockId}`);
+      
+      // Create duplicate with modified name
+      const duplicateData = {
+        name: `${sourceLock.data.name} (Copy)`,
+        description: sourceLock.data.description,
+        icon: sourceLock.data.icon,
+        color: sourceLock.data.color,
+        gatingConfig: sourceLock.data.gatingConfig,
+        tags: [...(sourceLock.data.tags || []), 'duplicated'],
+        isPublic: false // Duplicates start as private
+      };
+      
+      return authFetchJson('/api/locks', {
+        method: 'POST',
+        body: duplicateData
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locks'] });
+    }
+  });
+};
+```
+
+#### 1.2 Update LockBrowser to Use React Query
+**Location:** `src/components/locks/LockBrowser.tsx`
+
+Replace manual fetch logic with React Query hooks:
+```tsx
+// Replace existing useState and fetch logic with:
+const { data: locks = [], isLoading, error, refetch } = useLocks(filters);
+```
+
+### Phase 2: UI Action Infrastructure
+
+#### 2.1 LockCard Action Menu
 **Location:** `src/components/locks/LockCard.tsx`
 
 Add contextual action menu that appears on hover/click:
 ```tsx
-// Add to LockCard component
+// Add to LockCard component (only show for locks user can edit)
 {lock.canEdit && (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="sm">
+      <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100">
         <MoreHorizontal className="h-4 w-4" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
-      <DropdownMenuItem onClick={() => onRename(lock)}>
+      <DropdownMenuItem onClick={() => onRename?.(lock)}>
         <Edit2 className="h-4 w-4 mr-2" />
         Rename
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => onDuplicate(lock)}>
+      <DropdownMenuItem onClick={() => onDuplicate?.(lock)}>
         <Copy className="h-4 w-4 mr-2" />
         Duplicate
       </DropdownMenuItem>
       {lock.canDelete && (
         <DropdownMenuItem 
-          onClick={() => onDelete(lock)}
+          onClick={() => onDelete?.(lock)}
           className="text-destructive"
         >
           <Trash2 className="h-4 w-4 mr-2" />
@@ -79,198 +192,135 @@ Add contextual action menu that appears on hover/click:
 )}
 ```
 
-**Design Considerations:**
-- Only show menu for locks user can edit
-- Use consistent icons and terminology
-- Color-code destructive actions (delete in red)
-- Position menu to avoid clipping
-
-#### 1.2 LockPreviewModal Action Bar
+#### 2.2 LockPreviewModal Action Bar
 **Location:** `src/components/locks/LockPreviewModal.tsx`
 
 Add action buttons in the modal footer:
 ```tsx
-// Add to LockPreviewModal footer
-<div className="flex justify-between items-center">
-  <div className="text-xs text-muted-foreground">
-    {/* Existing metadata */}
-  </div>
-  
+// Add management actions to footer
+{lock?.canEdit && (
   <div className="flex items-center space-x-2">
-    {lock.canEdit && (
-      <>
-        <Button variant="outline" size="sm" onClick={() => onRename(lock)}>
-          <Edit2 className="h-4 w-4 mr-2" />
-          Rename
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => onDuplicate(lock)}>
-          <Copy className="h-4 w-4 mr-2" />
-          Duplicate
-        </Button>
-        {lock.canDelete && (
-          <Button variant="destructive" size="sm" onClick={() => onDelete(lock)}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
-        )}
-      </>
-    )}
-    <Button onClick={onClose} variant="outline">
-      Close Preview
+    <Button variant="outline" size="sm" onClick={() => handleRename(lock)}>
+      <Edit2 className="h-4 w-4 mr-2" />
+      Rename
     </Button>
+    <Button variant="outline" size="sm" onClick={() => handleDuplicate(lock)}>
+      <Copy className="h-4 w-4 mr-2" />
+      Duplicate
+    </Button>
+    {lock.canDelete && (
+      <Button variant="destructive" size="sm" onClick={() => handleDelete(lock)}>
+        <Trash2 className="h-4 w-4 mr-2" />
+        Delete
+      </Button>
+    )}
   </div>
-</div>
+)}
 ```
 
-### Phase 2: Action Implementation
+### Phase 3: Action Implementation
 
-#### 2.1 Rename Functionality
-**API:** Use existing `PUT /api/locks/[lockId]` endpoint
+#### 3.1 Rename Functionality
+**API:** ✅ Use existing `PUT /api/locks/[lockId]` endpoint (already supports name updates)
 
-**Implementation:**
-1. **Inline Rename (Preferred):**
+**Implementation Options:**
+1. **Inline Rename (Recommended):**
    - Click rename → name becomes editable input
    - ESC to cancel, Enter to save
    - Real-time validation with existing name check
    - Optimistic updates with rollback on error
 
-2. **Modal Rename (Alternative):**
-   - Click rename → opens simple modal with input
-   - More robust for mobile/complex scenarios
-
-**Example Implementation:**
+**React Query Implementation:**
 ```tsx
-const handleRename = async (lock: LockWithStats, newName: string) => {
-  try {
-    const response = await fetch(`/api/locks/${lock.id}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ name: newName.trim() })
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to rename lock');
+const LockManagementProvider = ({ children }) => {
+  const renameMutation = useRenameLock();
+  const deleteMutation = useDeleteLock();
+  const duplicateMutation = useDuplicateLock();
+  
+  const handleRename = async (lock: LockWithStats, newName: string) => {
+    try {
+      await renameMutation.mutateAsync({ lockId: lock.id, name: newName.trim() });
+      toast.success(`Lock renamed to "${newName}"`);
+    } catch (error) {
+      toast.error(error.message);
     }
-    
-    // Refresh lock list
-    queryClient.invalidateQueries(['locks']);
-    showSuccessToast(`Lock renamed to "${newName}"`);
-    
-  } catch (error) {
-    showErrorToast(error.message);
-  }
+  };
+  
+  // Pass handlers to children
+  return (
+    <LockManagementContext.Provider value={{ handleRename, handleDelete, handleDuplicate }}>
+      {children}
+    </LockManagementContext.Provider>
+  );
 };
 ```
 
-#### 2.2 Delete Functionality
-**API:** Use existing `DELETE /api/locks/[lockId]` endpoint
+#### 3.2 Delete Functionality
+**API:** ✅ Use existing `DELETE /api/locks/[lockId]` endpoint (already handles usage validation)
 
 **Implementation:**
-1. **Confirmation Dialog:**
-   ```tsx
-   <AlertDialog>
-     <AlertDialogContent>
-       <AlertDialogHeader>
-         <AlertDialogTitle>Delete Lock</AlertDialogTitle>
-         <AlertDialogDescription>
-           Are you sure you want to delete "{lock.name}"? 
-           This action cannot be undone.
-           {lock.usageCount > 0 && (
-             <div className="mt-2 text-amber-600">
-               ⚠️ This lock is currently used by {lock.usageCount} posts.
-             </div>
-           )}
-         </AlertDialogDescription>
-       </AlertDialogHeader>
-       <AlertDialogFooter>
-         <AlertDialogCancel>Cancel</AlertDialogCancel>
-         <AlertDialogAction 
-           onClick={() => confirmDelete(lock)}
-           className="bg-destructive"
-         >
-           Delete Lock
-         </AlertDialogAction>
-       </AlertDialogFooter>
-     </AlertDialogContent>
-   </AlertDialog>
-   ```
+```tsx
+// Confirmation dialog component
+const DeleteLockDialog = ({ lock, onConfirm, onCancel }) => (
+  <AlertDialog open={!!lock} onOpenChange={onCancel}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete Lock</AlertDialogTitle>
+        <AlertDialogDescription>
+          Are you sure you want to delete "{lock?.name}"? 
+          This action cannot be undone.
+          {lock?.usageCount > 0 && (
+            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+              <div className="flex items-center text-amber-800">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                <span className="font-medium">Lock is in use</span>
+              </div>
+              <p className="text-sm text-amber-700 mt-1">
+                This lock is currently used by {lock.usageCount} post(s). 
+                Remove it from all posts before deleting.
+              </p>
+            </div>
+          )}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction 
+          onClick={() => onConfirm(lock)}
+          className="bg-destructive hover:bg-destructive/90"
+          disabled={lock?.usageCount > 0}
+        >
+          Delete Lock
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+);
+```
 
-2. **Error Handling:**
-   - Show clear error if lock is in use
-   - Suggest removing from posts first
-   - Provide links to posts using the lock
+#### 3.3 Duplicate Functionality
+**API:** ✅ Use existing `POST /api/locks` endpoint (no new endpoint needed)
 
-#### 2.3 Duplicate Functionality
-**API:** Create new `POST /api/locks/[lockId]/duplicate` endpoint
+**Implementation Strategy:**
+1. Fetch source lock data via `GET /api/locks/[lockId]`
+2. Modify name to avoid conflicts: `"Original Name (Copy)"`
+3. Create new lock via `POST /api/locks` with modified data
+4. Handle unique name generation client-side
 
-**Backend Implementation:**
-```typescript
-// POST /api/locks/[lockId]/duplicate
-async function duplicateLockHandler(req: AuthenticatedRequest, context: RouteContext) {
-  const params = await context.params;
-  const lockId = parseInt(params.lockId, 10);
-  const currentUserId = req.user?.sub;
-  const currentCommunityId = req.user?.cid;
+**Smart Name Generation:**
+```tsx
+const generateUniqueName = async (baseName: string, existingLocks: LockWithStats[]) => {
+  const existingNames = existingLocks.map(lock => lock.name.toLowerCase());
   
-  // 1. Get source lock
-  const sourceLock = await query('SELECT * FROM locks WHERE id = $1', [lockId]);
-  
-  // 2. Check permissions (can view source lock)
-  
-  // 3. Generate unique name
-  const baseName = `${sourceLock.name} (Copy)`;
-  let finalName = baseName;
+  let candidateName = `${baseName} (Copy)`;
   let counter = 1;
   
-  while (await nameExists(finalName, currentUserId, currentCommunityId)) {
-    finalName = `${baseName} ${counter}`;
+  while (existingNames.includes(candidateName.toLowerCase())) {
+    candidateName = `${baseName} (Copy ${counter})`;
     counter++;
   }
   
-  // 4. Create duplicate with new name
-  const duplicateData = {
-    name: finalName,
-    description: sourceLock.description,
-    icon: sourceLock.icon,
-    color: sourceLock.color,
-    gating_config: sourceLock.gating_config,
-    creator_user_id: currentUserId, // New owner
-    community_id: currentCommunityId,
-    is_template: false, // Duplicates are not templates
-    is_public: false, // Duplicates start as private
-    tags: [...sourceLock.tags, 'duplicated'] // Add tag for tracking
-  };
-  
-  // 5. Insert and return new lock
-}
-```
-
-**Frontend Implementation:**
-```tsx
-const handleDuplicate = async (sourceLock: LockWithStats) => {
-  try {
-    const response = await fetch(`/api/locks/${sourceLock.id}/duplicate`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    const result = await response.json();
-    if (!result.success) throw new Error(result.error);
-    
-    // Refresh and highlight new lock
-    queryClient.invalidateQueries(['locks']);
-    showSuccessToast(`Lock duplicated as "${result.data.name}"`);
-    
-    // Optional: Open rename dialog for immediate customization
-    setRenameTarget(result.data);
-    
-  } catch (error) {
-    showErrorToast(`Failed to duplicate lock: ${error.message}`);
-  }
+  return candidateName;
 };
 ```
 
@@ -414,13 +464,44 @@ const getLockPermissions = (lock: LockWithStats, user: User): LockPermissions =>
 - **> 50% reduction** in duplicate lock creation
 - **Positive user feedback** on ease of use
 
-## Conclusion
+## Conclusion ✅ UPDATED AFTER INVESTIGATION
 
-The implementation is highly feasible due to the excellent foundation already in place. The majority of the work involves UI enhancements and one new API endpoint (duplicate). The existing permission system, database schema, and API endpoints provide a robust base for adding these management features.
+The implementation is **highly feasible** with excellent backend foundation already in place. The backend APIs are 100% complete - no new endpoints needed!
 
-**Estimated Implementation Time:** 2-3 days
-- Day 1: UI actions and rename functionality
-- Day 2: Delete confirmation and duplicate API
-- Day 3: Polish, testing, and documentation
+### ✅ What's Already Done (Backend)
+- **All CRUD endpoints** implemented with full permission system
+- **Usage validation** prevents deletion of active locks
+- **Real-time events** for updates
+- **Name uniqueness** validation
+- **Comprehensive error handling**
 
-The implementation will significantly improve the user experience of lock management while maintaining the security and performance characteristics of the existing system. 
+### 🔧 What Needs Building (Frontend Only)
+1. **React Query hooks** for proper data management
+2. **Action menus** in LockCard and LockPreviewModal
+3. **Confirmation dialogs** for destructive actions
+4. **Inline rename** functionality
+5. **Smart duplicate** logic with name generation
+
+### 📅 Revised Implementation Timeline
+
+**Estimated Implementation Time:** 1-2 days (reduced from 2-3 days)
+
+**Day 1: Data Layer & Core Actions**
+- ✅ Create `useLockManagement.ts` hooks (2 hours)
+- ✅ Update LockBrowser to use React Query (1 hour)
+- ✅ Add action menus to LockCard & LockPreviewModal (2 hours)
+- ✅ Implement rename functionality (2 hours)
+
+**Day 2: Polish & Confirmation UX**
+- ✅ Create delete confirmation dialog (2 hours)
+- ✅ Implement duplicate functionality (2 hours)
+- ✅ Add optimistic updates and loading states (2 hours)
+- ✅ Testing and polish (2 hours)
+
+### 🎯 Key Implementation Benefits
+- **No backend work needed** - just UI development
+- **Leverage existing infrastructure** - auth, permissions, events
+- **Professional UX patterns** - React Query, optimistic updates
+- **Consistent with existing codebase** - same patterns as other features
+
+The implementation will provide a **significant UX improvement** with minimal development effort, leveraging the robust foundation that's already in place. 

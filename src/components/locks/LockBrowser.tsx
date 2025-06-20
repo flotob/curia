@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,11 @@ import {
 import { LockWithStats } from '@/types/locks';
 import { LockCard } from './LockCard';
 import { LockPreviewModal } from './LockPreviewModal';
+import { DeleteLockDialog } from './DeleteLockDialog';
+import { RenameLockDialog } from './RenameLockDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocks, useLockManagement } from '@/hooks/useLockManagement';
+import { toast } from '@/hooks/use-toast';
 
 interface LockBrowserProps {
   onSelectLock?: (lock: LockWithStats) => void; // Optional - if provided, uses callback mode
@@ -43,17 +47,19 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
   selectedLockId,
   className = ''
 }) => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const currentUserId = user?.userId;
   
   // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   
   // Modal State (only used when no onSelectLock callback provided)
   const [selectedLock, setSelectedLock] = useState<LockWithStats | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Dialog States
+  const [deleteDialogLock, setDeleteDialogLock] = useState<LockWithStats | null>(null);
+  const [renameDialogLock, setRenameDialogLock] = useState<LockWithStats | null>(null);
   
   // Determine if we're in callback mode or modal mode
   const useCallbackMode = Boolean(onSelectLock);
@@ -66,8 +72,28 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
     tags: []
   });
   
-  // Data State
-  const [locks, setLocks] = useState<LockWithStats[]>([]);
+  // Data fetching with React Query
+  const { 
+    data: locks = [], 
+    isLoading, 
+    error,
+    refetch 
+  } = useLocks({
+    search: filters.search,
+    createdBy: filters.filter === 'mine' ? currentUserId : undefined,
+    includeTemplates: filters.filter === 'all' || filters.filter === 'templates',
+    includePublic: filters.filter === 'all' || filters.filter === 'public',
+    tags: filters.tags.length > 0 ? filters.tags.join(',') : undefined,
+  });
+
+  // Lock management operations
+  const {
+    renameLock,
+    deleteLock,
+    duplicateLock,
+    isRenaming,
+    isDeleting
+  } = useLockManagement();
   
   // Handle lock selection (either callback or modal mode)
   const handleLockSelect = (lock: LockWithStats) => {
@@ -85,80 +111,65 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
     setIsModalOpen(false);
     setSelectedLock(null);
   };
-  
-  // Load locks from API
-  const loadLocks = useCallback(async () => {
-    if (!user?.cid) {
-      setError('Community context required');
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Build query parameters
-      const params = new URLSearchParams();
-      
-      if (filters.search.trim()) {
-        params.append('search', filters.search.trim());
-      }
-      
-      if (filters.filter === 'mine' && currentUserId) {
-        params.append('createdBy', currentUserId);
-      }
-      
-      if (filters.filter === 'templates') {
-        params.append('includePublic', 'false');
-        params.append('includeTemplates', 'true');
-      }
-      
-      if (filters.tags.length > 0) {
-        params.append('tags', filters.tags.join(','));
-      }
 
-      
-      const response = await fetch(`/api/locks?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+  // Action handlers
+  const handleRename = (lock: LockWithStats) => {
+    setRenameDialogLock(lock);
+  };
+
+  const handleRenameConfirm = async (lock: LockWithStats, newName: string) => {
+    try {
+      await renameLock({ lockId: lock.id, name: newName });
+      toast({
+        title: 'Lock renamed',
+        description: `Lock renamed to "${newName}"`,
       });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load locks: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setLocks(data.data || []);
-        
-        // Extract unique tags for filter UI (for future use)
-        // const tags = new Set<string>();
-        // data.data?.forEach((lock: LockWithStats) => {
-        //   lock.tags?.forEach(tag => {
-        //     if (tag && !['migrated', 'auto-generated'].includes(tag)) {
-        //       tags.add(tag);
-        //     }
-        //   });
-        // });
-        
-        console.log(`[LockBrowser] Loaded ${data.data?.length || 0} locks`);
-      } else {
-        throw new Error(data.error || 'Failed to load locks');
-      }
     } catch (error) {
-      console.error('[LockBrowser] Error loading locks:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load locks');
-    } finally {
-      setIsLoading(false);
+      toast({
+        title: 'Failed to rename lock',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+      throw error; // Re-throw to let dialog handle it
     }
-  }, [user?.cid, token, filters]);
-  
-  // Load locks on mount and filter changes
-  useEffect(() => {
-    loadLocks();
-  }, [loadLocks]);
+  };
+
+  const handleDuplicate = async (lock: LockWithStats) => {
+    try {
+      const newLock = await duplicateLock(lock.id);
+      toast({
+        title: 'Lock duplicated',
+        description: `Lock duplicated as "${newLock.name}"`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to duplicate lock',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = (lock: LockWithStats) => {
+    setDeleteDialogLock(lock);
+  };
+
+  const handleDeleteConfirm = async (lock: LockWithStats) => {
+    try {
+      await deleteLock(lock.id);
+      toast({
+        title: 'Lock deleted',
+        description: `Lock "${lock.name}" has been deleted`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to delete lock',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+      throw error; // Re-throw to let dialog handle it
+    }
+  };
   
   // Filter and sort locks client-side for immediate UI feedback
   const processedLocks = useMemo(() => {
@@ -316,12 +327,14 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-4">
-            <p className="text-red-600 text-sm">{error}</p>
+            <p className="text-red-600 text-sm">
+              {error instanceof Error ? error.message : 'Failed to load locks'}
+            </p>
             <Button 
               type="button"
               variant="outline" 
               size="sm" 
-              onClick={loadLocks}
+              onClick={() => refetch()}
               className="mt-2"
             >
               Try Again
@@ -383,6 +396,9 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
               onSelect={() => handleLockSelect(lock)}
               variant={viewMode}
               showCreator={filters.filter !== 'mine'}
+              onRename={handleRename}
+              onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -402,8 +418,28 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
           lock={selectedLock}
           isOpen={isModalOpen}
           onClose={handleCloseModal}
+          onRename={handleRename}
+          onDuplicate={handleDuplicate}
+          onDelete={handleDelete}
         />
       )}
+
+      {/* Management Dialogs */}
+      <DeleteLockDialog
+        lock={deleteDialogLock}
+        isOpen={!!deleteDialogLock}
+        onClose={() => setDeleteDialogLock(null)}
+        onConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+      />
+
+      <RenameLockDialog
+        lock={renameDialogLock}
+        isOpen={!!renameDialogLock}
+        onClose={() => setRenameDialogLock(null)}
+        onConfirm={handleRenameConfirm}
+        isRenaming={isRenaming}
+      />
     </div>
   );
 }; 

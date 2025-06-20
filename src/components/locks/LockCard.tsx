@@ -3,6 +3,13 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Users, 
   Clock, 
@@ -11,7 +18,11 @@ import {
   Globe, 
   User,
   TrendingUp,
-  Zap
+  Zap,
+  MoreHorizontal,
+  Edit2,
+  Copy,
+  Trash2
 } from 'lucide-react';
 import { LockWithStats } from '@/types/locks';
 import { UPGatingRequirements, EthereumGatingRequirements } from '@/types/gating';
@@ -24,6 +35,10 @@ interface LockCardProps {
   variant?: 'grid' | 'list';
   showCreator?: boolean;
   className?: string;
+  // Action handlers (optional)
+  onRename?: (lock: LockWithStats) => void;
+  onDuplicate?: (lock: LockWithStats) => void;
+  onDelete?: (lock: LockWithStats) => void;
 }
 
 export const LockCard: React.FC<LockCardProps> = ({
@@ -32,7 +47,10 @@ export const LockCard: React.FC<LockCardProps> = ({
   onSelect,
   variant = 'grid',
   showCreator = true,
-  className = ''
+  className = '',
+  onRename,
+  onDuplicate,
+  onDelete
 }) => {
   // Format timestamp for display
   const formatDate = (dateString: string) => {
@@ -123,11 +141,56 @@ export const LockCard: React.FC<LockCardProps> = ({
   const categoryTypes = getCategoryTypes();
   const requirementsSummary = getRequirementsSummary();
 
+  // Action menu component (only show if user can edit and handlers provided)
+  const ActionMenu = () => {
+    if (!lock.canEdit || (!onRename && !onDuplicate && !onDelete)) {
+      return null;
+    }
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => e.stopPropagation()} // Prevent card selection
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {onRename && (
+            <DropdownMenuItem onClick={() => onRename(lock)}>
+              <Edit2 className="h-4 w-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+          )}
+          {onDuplicate && (
+            <DropdownMenuItem onClick={() => onDuplicate(lock)}>
+              <Copy className="h-4 w-4 mr-2" />
+              Duplicate
+            </DropdownMenuItem>
+          )}
+          {onDelete && lock.canDelete && (
+            <DropdownMenuItem 
+              onClick={() => onDelete(lock)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
   if (variant === 'list') {
     return (
       <Card 
         className={cn(
-          'cursor-pointer transition-all hover:shadow-md min-w-0',
+          'group cursor-pointer transition-all hover:shadow-md min-w-0',
           isSelected && 'ring-2 ring-primary bg-primary/5',
           className
         )}
@@ -183,8 +246,9 @@ export const LockCard: React.FC<LockCardProps> = ({
               </div>
             </div>
             
-            {/* Category Badges */}
+            {/* Action Menu and Category Badges */}
             <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+              <ActionMenu />
               {categoryTypes.map((cat, index) => (
                 <Badge key={index} variant="secondary" className={cn('text-xs', cat.color)}>
                   <span className="mr-1">{cat.icon}</span>
@@ -201,7 +265,7 @@ export const LockCard: React.FC<LockCardProps> = ({
   return (
     <Card 
       className={cn(
-        'cursor-pointer transition-all hover:shadow-md min-w-0',
+        'group cursor-pointer transition-all hover:shadow-md min-w-0',
         isSelected && 'ring-2 ring-primary bg-primary/5',
         className
       )}
@@ -241,6 +305,11 @@ export const LockCard: React.FC<LockCardProps> = ({
                 )}
               </div>
             </div>
+          </div>
+          
+          {/* Action Menu */}
+          <div className="flex-shrink-0">
+            <ActionMenu />
           </div>
         </div>
       </CardHeader>
