@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { GatingRequirementsPreview } from './GatingRequirementsPreview';
+import { LockUsageSection } from './LockUsageSection';
 import { LockWithStats } from '@/types/locks';
 import { Eye, Shield, Users, Clock, TrendingUp, Edit2, Copy, Trash2 } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
@@ -90,6 +91,9 @@ export const LockPreviewModal: React.FC<LockPreviewModalProps> = ({
 
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="space-y-6">
+            {/* Lock Usage Section */}
+            <LockUsageSection lockId={lock.id} />
+
             {/* Preview explanation */}
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
               <div className="flex items-start space-x-3">
