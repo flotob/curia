@@ -15,7 +15,6 @@ import {
   Clock, 
   CheckCircle2, 
   Star, 
-  Globe, 
   User,
   TrendingUp,
   Zap,
@@ -197,7 +196,7 @@ export const LockCard: React.FC<LockCardProps> = ({
         onClick={onSelect}
       >
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center space-x-4 flex-1 min-w-0">
               {/* Icon */}
               <div 
@@ -211,19 +210,19 @@ export const LockCard: React.FC<LockCardProps> = ({
               </div>
               
               {/* Main Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-1">
-                  <h3 className="font-semibold tracking-tight truncate" title={lock.name}>{lock.name}</h3>
-                  <div className="flex items-center space-x-1 flex-shrink-0">
+              <div className="flex-1 min-w-0 max-w-48 sm:max-w-64 md:max-w-80">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold tracking-tight truncate flex-1" title={lock.name}>{lock.name}</h3>
+                  {/* Status badges - always visible on the right */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     {lock.isTemplate && <Star className="h-3 w-3 text-yellow-500" />}
-                    {lock.isPublic && <Globe className="h-3 w-3 text-green-500" />}
                     {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
                   </div>
                 </div>
                 
                 <p className="text-sm text-muted-foreground truncate" title={requirementsSummary}>{requirementsSummary}</p>
                 
-                <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
                   <div className="flex items-center space-x-1">
                     <Users className="h-3 w-3" />
                     <span>{lock.usageCount} use{lock.usageCount !== 1 ? 's' : ''}</span>
@@ -247,14 +246,21 @@ export const LockCard: React.FC<LockCardProps> = ({
             </div>
             
             {/* Action Menu and Category Badges */}
-            <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="hidden sm:flex items-center gap-1">
+                {categoryTypes.slice(0, 2).map((cat, index) => (
+                  <Badge key={index} variant="secondary" className={cn('text-xs whitespace-nowrap', cat.color)}>
+                    <span className="mr-1">{cat.icon}</span>
+                    <span className="hidden md:inline">{cat.type}</span>
+                  </Badge>
+                ))}
+                {categoryTypes.length > 2 && (
+                  <Badge variant="secondary" className="text-xs">
+                    +{categoryTypes.length - 2}
+                  </Badge>
+                )}
+              </div>
               <ActionMenu />
-              {categoryTypes.map((cat, index) => (
-                <Badge key={index} variant="secondary" className={cn('text-xs', cat.color)}>
-                  <span className="mr-1">{cat.icon}</span>
-                  {cat.type}
-                </Badge>
-              ))}
             </div>
           </div>
         </CardContent>
@@ -297,12 +303,7 @@ export const LockCard: React.FC<LockCardProps> = ({
                     Template
                   </Badge>
                 )}
-                {lock.isPublic && (
-                  <Badge variant="outline" className="text-xs">
-                    <Globe className="h-2 w-2 mr-1" />
-                    Public
-                  </Badge>
-                )}
+
               </div>
             </div>
           </div>
