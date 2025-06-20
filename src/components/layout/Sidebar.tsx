@@ -462,13 +462,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer Section - Community Settings */}
-      <div className={cn(
-        'p-3 border-t backdrop-blur-sm',
-        theme === 'dark' 
-          ? 'border-slate-700/40 bg-slate-900/50' 
-          : 'border-slate-200/60 bg-white/50'
-      )}>
-        {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+      {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+        <div className={cn(
+          'p-3 border-t backdrop-blur-sm',
+          theme === 'dark' 
+            ? 'border-slate-700/40 bg-slate-900/50' 
+            : 'border-slate-200/60 bg-white/50'
+        )}>
           <Link
             href={buildUrl('/community-settings')}
             className={cn(
@@ -488,8 +488,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <span className="flex-1 text-sm font-medium">Community Settings</span>
           </Link>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }; 
