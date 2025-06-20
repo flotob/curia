@@ -186,35 +186,40 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
       <div
         key={lock.id}
         className={cn(
-          'p-5 rounded-lg border flex items-center transition-all hover:shadow-sm cursor-pointer',
+          'p-4 sm:p-5 rounded-lg border transition-all hover:shadow-sm cursor-pointer',
+          // Responsive layout: stack on mobile, side-by-side on larger screens
+          'flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4',
+          // Critical: constrain width on mobile to prevent overflow
+          'max-w-full overflow-hidden',
           lockInfo.bgColor
         )}
         onClick={() => handleVerifyLock(lock.id, lock.name)}
       >
-        {/* Left side: Lock info with constrained width */}
-        <div className="flex items-center space-x-3 flex-1 min-w-0 mr-4">
+        {/* Lock info section */}
+        <div className="flex items-center space-x-3 flex-1 min-w-0 max-w-full overflow-hidden">
           <div className="flex items-center space-x-2 flex-shrink-0">
             <LockIcon className={cn('h-4 w-4', lockInfo.color)} />
             <span className="text-lg">{lock.icon || '🔒'}</span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-medium truncate">{lock.name}</div>
-            <div className="text-sm text-muted-foreground">
-              <div className="truncate">
+          <div className="min-w-0 flex-1 max-w-full overflow-hidden">
+            <div className="font-medium truncate text-sm sm:text-base">{lock.name}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {/* Mobile: Allow wrapping with max height, Desktop: Truncate */}
+              <div className="break-words sm:truncate overflow-hidden max-h-10 sm:max-h-none leading-5">
                 {lock.description || 'Lock verification required'}
               </div>
             </div>
           </div>
         </div>
         
-        {/* Right side: Status and actions with guaranteed space */}
-        <div className="flex items-center space-x-3 flex-shrink-0">
-          <div className="text-right">
-            <Badge variant={lockInfo.badgeVariant} className="text-xs whitespace-nowrap">
+        {/* Status and actions section - stacks on mobile */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
+          <div className="text-left sm:text-right">
+            <Badge variant={lockInfo.badgeVariant} className="text-xs">
               {lockInfo.label}
             </Badge>
             {verificationStatus === 'verified' && expiresAt && (
-              <div className="text-xs text-muted-foreground mt-1 whitespace-nowrap">
+              <div className="text-xs text-muted-foreground mt-1">
                 {formatTimeRemaining(expiresAt)}
               </div>
             )}
@@ -227,7 +232,7 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
                 e.stopPropagation();
                 handleVerifyLock(lock.id, lock.name);
               }}
-              className="whitespace-nowrap"
+              className="flex-shrink-0"
             >
               {nextAction?.label || 'Verify'}
             </Button>
@@ -239,33 +244,36 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
 
   return (
     <>
-      <Card className={cn("border-l-4", statusInfo.bgColor, className)}>
-        <CardContent className="p-6">
+      <Card className={cn("border-l-4 max-w-full overflow-hidden", statusInfo.bgColor, className)}>
+        <CardContent className="p-4 sm:p-6 max-w-full">
           {/* Header - Always visible */}
           <div 
-            className="flex items-center justify-between cursor-pointer" 
+            className="flex items-start sm:items-center justify-between cursor-pointer gap-3 max-w-full overflow-hidden" 
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            <div className="flex items-center space-x-3">
-              <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
-              <div>
-                <div className="font-medium text-sm">
+            <div className="flex items-center space-x-3 flex-1 min-w-0 max-w-full overflow-hidden">
+              <StatusIcon className={cn('h-5 w-5 flex-shrink-0', statusInfo.color)} />
+              <div className="min-w-0 flex-1 max-w-full overflow-hidden">
+                <div className="font-medium text-sm truncate">
                   Board Lock Requirements
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground truncate">
                   {verifiedCount} of {requiredCount} verified • Need {fulfillmentMode.toUpperCase()}
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {hasWriteAccess && (
-                <Badge variant="default" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700">
+                <Badge variant="default" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700 hidden sm:flex">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Access Granted
                 </Badge>
               )}
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              {hasWriteAccess && (
+                <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 sm:hidden" />
+              )}
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
                 {isExpanded ? (
                   <ChevronUp className="h-4 w-4" />
                 ) : (
@@ -287,21 +295,21 @@ export const BoardAccessStatus: React.FC<BoardAccessStatusProps> = ({
 
           {/* Expanded details */}
           {isExpanded && (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4 max-w-full overflow-hidden">
               {/* Lock status cards */}
-              <div className="space-y-3">
+              <div className="space-y-3 max-w-full">
                 {lockStatuses.map(renderLockStatus)}
               </div>
 
               {/* Additional info */}
               <div className="text-xs text-muted-foreground pt-2 border-t">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0">
                   <span>
                     Mode: {fulfillmentMode === 'any' ? 'Flexible' : 'Strict'} 
                     ({fulfillmentMode === 'any' ? 'any one lock' : 'all locks required'})
                   </span>
                   {hasWriteAccess && expiresAt && (
-                    <span>
+                    <span className="text-emerald-600 dark:text-emerald-400">
                       Access expires in {formatTimeRemaining(expiresAt)}
                     </span>
                   )}
