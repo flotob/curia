@@ -9,7 +9,7 @@ import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { useSearchParams, /* usePathname */ } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
 
 interface SidebarProps {
@@ -29,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  // const pathname = usePathname();
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   // const [bgColor, setBgColor] = useState('#ffffff');
@@ -67,7 +67,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   const currentBoardId = searchParams?.get('boardId');
-  const isHome = !currentBoardId;
+  const isLocksPage = pathname === '/locks';
+  const isCreateBoardPage = pathname === '/create-board';
+  const isHome = !currentBoardId && !isLocksPage && !isCreateBoardPage;
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
@@ -352,21 +354,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Link
                   href={buildUrl('/create-board')}
                   className={cn(
-                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2',
-                    theme === 'dark'
-                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2 relative overflow-hidden',
+                    isCreateBoardPage
+                      ? theme === 'dark'
+                        ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 shadow-lg shadow-green-500/10'
+                        : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 shadow-lg shadow-green-500/10'
+                      : theme === 'dark'
+                        ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                   )}
                 >
                   <div className={cn(
                     'p-1.5 rounded-lg mr-3 transition-all duration-200',
-                    theme === 'dark'
-                      ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                      : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                    isCreateBoardPage
+                      ? theme === 'dark'
+                        ? 'bg-green-500/20 text-green-300'
+                        : 'bg-green-500/10 text-green-600'
+                      : theme === 'dark'
+                        ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                        : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
                   )}>
                     <Plus size={16} />
                   </div>
                   <span className="flex-1">Create Board</span>
+                  {isCreateBoardPage && (
+                    <ChevronRight size={14} className="opacity-60" />
+                  )}
+                  
+                  {/* Active indicator */}
+                  {isCreateBoardPage && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-500/5 rounded-xl" />
+                  )}
                 </Link>
               )}
             </div>
@@ -411,21 +429,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Link
                 href={buildUrl('/create-board')}
                 className={cn(
-                  'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-                  theme === 'dark'
-                    ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                  'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
+                  isCreateBoardPage
+                    ? theme === 'dark'
+                      ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 shadow-lg shadow-green-500/10'
+                      : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 shadow-lg shadow-green-500/10'
+                    : theme === 'dark'
+                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                 )}
               >
                 <div className={cn(
                   'p-1.5 rounded-lg mr-3 transition-all duration-200',
-                  theme === 'dark'
-                    ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                    : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                  isCreateBoardPage
+                    ? theme === 'dark'
+                      ? 'bg-green-500/20 text-green-300'
+                      : 'bg-green-500/10 text-green-600'
+                    : theme === 'dark'
+                      ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                      : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
                 )}>
                   <Plus size={16} />
                 </div>
                 <span className="flex-1">Create Board</span>
+                {isCreateBoardPage && (
+                  <ChevronRight size={14} className="opacity-60" />
+                )}
+                
+                {/* Active indicator */}
+                {isCreateBoardPage && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-500/5 rounded-xl" />
+                )}
               </Link>
             )}
           </div>
@@ -443,20 +477,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             href={buildUrl('/locks')}
             className={cn(
               'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
-              theme === 'dark'
-                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              isLocksPage
+                ? theme === 'dark'
+                  ? 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-300 shadow-lg shadow-violet-500/10'
+                  : 'bg-gradient-to-r from-violet-500/10 to-purple-500/10 text-violet-700 shadow-lg shadow-violet-500/10'
+                : theme === 'dark'
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
             )}
           >
             <div className={cn(
               'p-1.5 rounded-lg mr-3 transition-all duration-200',
-              theme === 'dark'
-                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+              isLocksPage
+                ? theme === 'dark'
+                  ? 'bg-violet-500/20 text-violet-300'
+                  : 'bg-violet-500/10 text-violet-600'
+                : theme === 'dark'
+                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
             )}>
               <Lock size={16} />
             </div>
             <span className="flex-1">Locks</span>
+            {isLocksPage && (
+              <ChevronRight size={14} className="opacity-60" />
+            )}
+            
+            {/* Active indicator */}
+            {isLocksPage && (
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-purple-500/5 rounded-xl" />
+            )}
           </Link>
         </div>
       </nav>
