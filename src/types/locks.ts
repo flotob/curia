@@ -188,8 +188,8 @@ export interface LockBuilderState {
   selectedTemplate: any | null; // eslint-disable-line @typescript-eslint/no-explicit-any -- Template from template system (Phase 2) - TODO: proper type after integration
   metadata: Partial<CreateLockRequest>;
   requirements: GatingRequirement[]; // Flat list of all requirements
-  fulfillmentMode: 'any' | 'all'; // Whether to require ANY or ALL categories (global fulfillment)
-  categoryFulfillment: Record<RequirementCategory, 'any' | 'all'>; // 🚀 NEW: Per-category fulfillment modes
+  fulfillmentMode: 'any' | 'all'; // Whether to require ANY or ALL ecosystems (global fulfillment)
+  ecosystemFulfillment: Record<EcosystemType, 'any' | 'all'>; // 🚀 NEW: Per-ecosystem fulfillment modes
   validation: LockValidationResult;
   previewMode: boolean;
   
@@ -305,6 +305,11 @@ export interface GatingRequirement {
 }
 
 export type RequirementCategory = 'token' | 'social' | 'identity';
+
+/**
+ * Ecosystem types for requirement fulfillment (actual gating categories)
+ */
+export type EcosystemType = 'universal_profile' | 'ethereum_profile';
 
 export type RequirementType = 
   // Token requirements

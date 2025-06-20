@@ -3,8 +3,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Trash2, Edit3, Plus, Search } from 'lucide-react';
+import { Trash2, Edit3, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { GatingRequirement, RequirementCategory } from '@/types/locks';
@@ -56,17 +55,33 @@ const formatRequirementDisplay = (requirement: GatingRequirement): string => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface RequirementsListProps {
-  searchTerm?: string;
-  onSearchChange?: (value: string) => void;
+  // No props needed - component manages its own state
 }
 
-export const RequirementsList: React.FC<RequirementsListProps> = ({
-  searchTerm = '',
-  onSearchChange
-}) => {
-  const { state, removeRequirement, updateFulfillmentMode, updateCategoryFulfillment, navigateToRequirementPicker, navigateToRequirementConfig } = useLockBuilder();
-  const { requirements, fulfillmentMode, categoryFulfillment } = state;
+export const RequirementsList: React.FC<RequirementsListProps> = () => {
+  const { state, removeRequirement, updateFulfillmentMode, updateEcosystemFulfillment, navigateToRequirementPicker, navigateToRequirementConfig } = useLockBuilder();
+  const { requirements, fulfillmentMode, ecosystemFulfillment } = state;
+  const [isAdvancedExpanded, setIsAdvancedExpanded] = React.useState(false);
+
+  // Helper function to determine which ecosystem a requirement belongs to
+  const getRequirementEcosystem = (requirementType: string): 'universal_profile' | 'ethereum_profile' => {
+    const upTypes = ['lyx_balance', 'lsp7_token', 'lsp8_nft', 'up_follower_count', 'up_must_follow', 'up_must_be_followed_by'];
+    const ethTypes = ['eth_balance', 'erc20_token', 'erc721_nft', 'erc1155_token', 'ens_domain', 'ens_pattern', 'efp_follower_count', 'efp_must_follow', 'efp_must_be_followed_by'];
+    
+    if (upTypes.includes(requirementType)) {
+      return 'universal_profile';
+    } else if (ethTypes.includes(requirementType)) {
+      return 'ethereum_profile';
+    } else {
+      // Default to ethereum_profile for unknown types
+      return 'ethereum_profile';
+    }
+  };
+
+  // Check what ecosystems are represented for the explanation text
+  const representedEcosystems = new Set(requirements.map(req => getRequirementEcosystem(req.type)));
 
   // Group requirements by category
   const groupedRequirements = requirements.reduce((groups, requirement) => {
@@ -77,13 +92,7 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
     return groups;
   }, {} as Record<RequirementCategory, GatingRequirement[]>);
 
-  // Filter requirements based on search term
-  const filteredRequirements = searchTerm 
-    ? requirements.filter(req => 
-        formatRequirementDisplay(req).toLowerCase().includes(searchTerm.toLowerCase()) ||
-        req.type.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : requirements;
+  // No filtering needed since search is removed
 
   const handleAddRequirement = () => {
     navigateToRequirementPicker();
@@ -122,51 +131,152 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search requirements..."
-          value={searchTerm}
-          onChange={(e) => onSearchChange?.(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Fulfillment Mode Toggle - Only show if there are requirements */}
+      {/* Advanced Gating Logic - Collapsible */}
       {requirements.length > 0 && (
-        <div className="bg-muted/50 border border-border rounded-lg p-4">
-          <h4 className="text-sm font-medium text-foreground mb-3">Ecosystem Fulfillment Logic</h4>
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={() => updateFulfillmentMode('any')}
-              className={cn(
-                'px-3 py-2 text-sm rounded-md font-medium transition-colors',
-                fulfillmentMode === 'any'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+        <div className="bg-muted/50 border border-border rounded-lg">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsAdvancedExpanded(!isAdvancedExpanded)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/70 transition-colors rounded-lg"
+          >
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-foreground">Advanced Gating Logic</span>
+              <Badge variant="outline" className="text-xs">
+                Optional
+              </Badge>
+            </div>
+            {isAdvancedExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isAdvancedExpanded && (
+            <div className="px-4 pb-4 space-y-4 border-t border-border">
+              {/* Global Ecosystem Fulfillment */}
+              <div className="pt-4">
+                <h4 className="text-sm font-medium text-foreground mb-3">Between Ecosystems</h4>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => updateFulfillmentMode('any')}
+                    className={cn(
+                      'px-3 py-2 text-sm rounded-md font-medium transition-colors',
+                      fulfillmentMode === 'any'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    Require ANY
+                  </button>
+                  <button
+                    onClick={() => updateFulfillmentMode('all')}
+                    className={cn(
+                      'px-3 py-2 text-sm rounded-md font-medium transition-colors',
+                      fulfillmentMode === 'all'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    Require ALL
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {(() => {
+                    const ecosystemNames = Array.from(representedEcosystems).map(e => 
+                      e === 'universal_profile' ? 'Lukso' : 'Ethereum'
+                    );
+                    if (ecosystemNames.length > 1) {
+                      return fulfillmentMode === 'any' 
+                        ? `Users need to satisfy ANY ONE ecosystem (${ecosystemNames.join(' OR ')}).`
+                        : `Users must satisfy ALL ecosystems (${ecosystemNames.join(' AND ')}).`;
+                    } else if (ecosystemNames.length === 1) {
+                      return `Users must satisfy ${ecosystemNames[0]} ecosystem requirements.`;
+                    } else {
+                      return fulfillmentMode === 'any' 
+                        ? 'Users need to satisfy ANY ONE ecosystem (Lukso OR Ethereum).'
+                        : 'Users must satisfy ALL ecosystems (Lukso AND Ethereum).';
+                    }
+                  })()}
+                </p>
+              </div>
+
+              {/* Per-Ecosystem Fulfillment Controls */}
+              {representedEcosystems.size > 0 && (
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-medium text-foreground mb-3">Within Each Ecosystem</h4>
+                  <div className="space-y-3">
+                    {/* Lukso Ecosystem Controls */}
+                    {representedEcosystems.has('universal_profile') && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-foreground font-medium">Within Lukso ecosystem:</span>
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => updateEcosystemFulfillment('universal_profile', 'any')}
+                            className={cn(
+                              'px-2 py-1 text-xs rounded font-medium transition-colors',
+                              ecosystemFulfillment.universal_profile === 'any'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
+                            )}
+                          >
+                            ANY
+                          </button>
+                          <button
+                            onClick={() => updateEcosystemFulfillment('universal_profile', 'all')}
+                            className={cn(
+                              'px-2 py-1 text-xs rounded font-medium transition-colors',
+                              ecosystemFulfillment.universal_profile === 'all'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
+                            )}
+                          >
+                            ALL
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ethereum Ecosystem Controls */}
+                    {representedEcosystems.has('ethereum_profile') && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-foreground font-medium">Within Ethereum ecosystem:</span>
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => updateEcosystemFulfillment('ethereum_profile', 'any')}
+                            className={cn(
+                              'px-2 py-1 text-xs rounded font-medium transition-colors',
+                              ecosystemFulfillment.ethereum_profile === 'any'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
+                            )}
+                          >
+                            ANY
+                          </button>
+                          <button
+                            onClick={() => updateEcosystemFulfillment('ethereum_profile', 'all')}
+                            className={cn(
+                              'px-2 py-1 text-xs rounded font-medium transition-colors',
+                              ecosystemFulfillment.ethereum_profile === 'all'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
+                            )}
+                          >
+                            ALL
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Fine-tune how requirements within each ecosystem are fulfilled.
+                  </p>
+                </div>
               )}
-            >
-              Require ANY
-            </button>
-            <button
-              onClick={() => updateFulfillmentMode('all')}
-              className={cn(
-                'px-3 py-2 text-sm rounded-md font-medium transition-colors',
-                fulfillmentMode === 'all'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              Require ALL
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {fulfillmentMode === 'any' 
-              ? 'Users need to satisfy ANY ONE ecosystem (e.g., Universal Profile OR Ethereum Profile).'
-              : 'Users must satisfy ALL ecosystems (e.g., Universal Profile AND Ethereum Profile).'
-            }
-          </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -200,42 +310,7 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
                   </Badge>
                 </div>
 
-                {/* 🚀 NEW: Per-Category Fulfillment Controls */}
-                {categoryRequirements.length > 1 && (
-                  <div className="flex items-center space-x-2 text-xs">
-                    <span className="text-muted-foreground">Within this category:</span>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => updateCategoryFulfillment(category as RequirementCategory, 'any')}
-                        className={cn(
-                          'px-2 py-1 text-xs rounded font-medium transition-colors',
-                          categoryFulfillment[category as RequirementCategory] === 'any'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
-                        )}
-                      >
-                        ANY
-                      </button>
-                      <button
-                        onClick={() => updateCategoryFulfillment(category as RequirementCategory, 'all')}
-                        className={cn(
-                          'px-2 py-1 text-xs rounded font-medium transition-colors',
-                          categoryFulfillment[category as RequirementCategory] === 'all'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground'
-                        )}
-                      >
-                        ALL
-                      </button>
-                    </div>
-                    <span className="text-muted-foreground">
-                      {categoryFulfillment[category as RequirementCategory] === 'any'
-                        ? `(user needs any 1 of ${categoryRequirements.length})`
-                        : `(user needs all ${categoryRequirements.length})`
-                      }
-                    </span>
-                  </div>
-                )}
+                {/* Removed per-category switchers - now using per-ecosystem switchers at top */}
               </div>
 
               {/* Category Requirements */}
@@ -284,12 +359,7 @@ export const RequirementsList: React.FC<RequirementsListProps> = ({
         })}
       </div>
 
-      {/* Filtered results message */}
-      {searchTerm && filteredRequirements.length !== requirements.length && (
-        <div className="text-sm text-muted-foreground text-center py-4">
-          Showing {filteredRequirements.length} of {requirements.length} requirements
-        </div>
-      )}
+      {/* No filtered results message needed since search is removed */}
     </div>
   );
 }; 

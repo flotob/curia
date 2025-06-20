@@ -9,7 +9,7 @@ import {
   LockValidationResult,
   RequirementBuilderScreen,
   RequirementType,
-  RequirementCategory
+  EcosystemType
 } from '@/types/locks';
 
 // Initial state for the lock builder
@@ -26,10 +26,9 @@ const initialState: LockBuilderState = {
   },
   requirements: [],
   fulfillmentMode: 'any', // Default to ANY (backward compatible behavior)
-  categoryFulfillment: { // 🚀 NEW: Default per-category fulfillment modes
-    token: 'all',
-    social: 'all', 
-    identity: 'all'
+  ecosystemFulfillment: { // 🚀 NEW: Default per-ecosystem fulfillment modes
+    universal_profile: 'all',
+    ethereum_profile: 'all'
   },
   validation: {
     isValid: false,
@@ -49,7 +48,7 @@ interface LockBuilderContextType {
   updateMetadata: (metadata: Partial<CreateLockRequest>) => void;
   updateRequirements: (requirements: GatingRequirement[]) => void;
   updateFulfillmentMode: (mode: 'any' | 'all') => void;
-  updateCategoryFulfillment: (category: RequirementCategory, mode: 'any' | 'all') => void; // 🚀 NEW
+  updateEcosystemFulfillment: (ecosystem: EcosystemType, mode: 'any' | 'all') => void; // 🚀 NEW
   addRequirement: (requirement: GatingRequirement) => void;
   updateRequirement: (id: string, requirement: Partial<GatingRequirement>) => void;
   removeRequirement: (id: string) => void;
@@ -118,12 +117,12 @@ export const LockBuilderProvider: React.FC<LockBuilderProviderProps> = ({
     }));
   }, []);
 
-  const updateCategoryFulfillment = useCallback((category: RequirementCategory, mode: 'any' | 'all') => {
+  const updateEcosystemFulfillment = useCallback((ecosystem: EcosystemType, mode: 'any' | 'all') => {
     setState(prev => ({
       ...prev,
-      categoryFulfillment: {
-        ...prev.categoryFulfillment,
-        [category]: mode
+      ecosystemFulfillment: {
+        ...prev.ecosystemFulfillment,
+        [ecosystem]: mode
       }
     }));
   }, []);
@@ -220,7 +219,7 @@ export const LockBuilderProvider: React.FC<LockBuilderProviderProps> = ({
     updateMetadata,
     updateRequirements,
     updateFulfillmentMode,
-    updateCategoryFulfillment,
+    updateEcosystemFulfillment,
     addRequirement,
     updateRequirement,
     removeRequirement,

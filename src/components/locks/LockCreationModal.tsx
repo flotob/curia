@@ -426,28 +426,10 @@ const PreviewStep = () => {
                                 upRequirements.followerRequirements.length > 0;
       
       if (hasUPRequirements) {
-        // 🚀 NEW: Determine fulfillment based on requirement categories
-        const upRequirementCategories = state.requirements.filter(req => 
-          ['lyx_balance', 'lsp7_token', 'lsp8_nft', 'up_follower_count', 'up_must_follow', 'up_must_be_followed_by'].includes(req.type)
-        );
-        const hasTokenReqs = upRequirementCategories.some(req => req.category === 'token');
-        const hasSocialReqs = upRequirementCategories.some(req => req.category === 'social');
-        
-        // If mixed categories, use "all" by default; otherwise use the category's setting
-        let fulfillment: 'any' | 'all' = 'all';
-        if (hasTokenReqs && !hasSocialReqs) {
-          fulfillment = state.categoryFulfillment.token;
-        } else if (hasSocialReqs && !hasTokenReqs) {
-          fulfillment = state.categoryFulfillment.social;
-        } else if (hasTokenReqs && hasSocialReqs) {
-          // Mixed UP category - use "all" for now (could be enhanced later)
-          fulfillment = 'all';
-        }
-
         categories.push({
           type: 'universal_profile',
           enabled: true,
-          fulfillment, // 🚀 NEW: Use per-category fulfillment
+          fulfillment: state.ecosystemFulfillment.universal_profile, // 🚀 NEW: Use per-ecosystem fulfillment
           requirements: upRequirements
         });
       }
@@ -462,31 +444,10 @@ const PreviewStep = () => {
                                 ethRequirements.efpRequirements.length > 0;
 
       if (hasEthRequirements) {
-        // 🚀 NEW: Determine fulfillment based on requirement categories
-        const ethRequirementCategories = state.requirements.filter(req => 
-          ['eth_balance', 'erc20_token', 'erc721_nft', 'erc1155_token', 'ens_domain', 'ens_pattern', 'efp_follower_count', 'efp_must_follow', 'efp_must_be_followed_by'].includes(req.type)
-        );
-        const hasTokenReqs = ethRequirementCategories.some(req => req.category === 'token');
-        const hasSocialReqs = ethRequirementCategories.some(req => req.category === 'social');
-        const hasIdentityReqs = ethRequirementCategories.some(req => req.category === 'identity');
-        
-        // If mixed categories, use "all" by default; otherwise use the category's setting
-        let fulfillment: 'any' | 'all' = 'all';
-        if (hasTokenReqs && !hasSocialReqs && !hasIdentityReqs) {
-          fulfillment = state.categoryFulfillment.token;
-        } else if (hasSocialReqs && !hasTokenReqs && !hasIdentityReqs) {
-          fulfillment = state.categoryFulfillment.social;
-        } else if (hasIdentityReqs && !hasTokenReqs && !hasSocialReqs) {
-          fulfillment = state.categoryFulfillment.identity;
-        } else {
-          // Mixed Ethereum category - use "all" for now (could be enhanced later)
-          fulfillment = 'all';
-        }
-
         categories.push({
           type: 'ethereum_profile',
           enabled: true,
-          fulfillment, // 🚀 NEW: Use per-category fulfillment
+          fulfillment: state.ecosystemFulfillment.ethereum_profile, // 🚀 NEW: Use per-ecosystem fulfillment
           requirements: ethRequirements
         });
       }
@@ -884,24 +845,10 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
                                   upRequirements.followerRequirements.length > 0;
         
         if (hasUPRequirements) {
-          // 🚀 NEW: Use per-category fulfillment settings
-          const upRequirementCategories = state.requirements.filter(req => 
-            ['lyx_balance', 'lsp7_token', 'lsp8_nft', 'up_follower_count', 'up_must_follow', 'up_must_be_followed_by'].includes(req.type)
-          );
-          const hasTokenReqs = upRequirementCategories.some(req => req.category === 'token');
-          const hasSocialReqs = upRequirementCategories.some(req => req.category === 'social');
-          
-          let fulfillment: 'any' | 'all' = 'all';
-          if (hasTokenReqs && !hasSocialReqs) {
-            fulfillment = state.categoryFulfillment.token;
-          } else if (hasSocialReqs && !hasTokenReqs) {
-            fulfillment = state.categoryFulfillment.social;
-          }
-
           categories.push({
             type: 'universal_profile',
             enabled: true,
-            fulfillment,
+            fulfillment: state.ecosystemFulfillment.universal_profile,
             requirements: upRequirements
           });
         }
@@ -916,27 +863,10 @@ const LockCreationModalContent: React.FC<LockCreationModalContentProps> = ({
                                   ethRequirements.efpRequirements.length > 0;
 
         if (hasEthRequirements) {
-          // 🚀 NEW: Use per-category fulfillment settings
-          const ethRequirementCategories = state.requirements.filter(req => 
-            ['eth_balance', 'erc20_token', 'erc721_nft', 'erc1155_token', 'ens_domain', 'ens_pattern', 'efp_follower_count', 'efp_must_follow', 'efp_must_be_followed_by'].includes(req.type)
-          );
-          const hasTokenReqs = ethRequirementCategories.some(req => req.category === 'token');
-          const hasSocialReqs = ethRequirementCategories.some(req => req.category === 'social');
-          const hasIdentityReqs = ethRequirementCategories.some(req => req.category === 'identity');
-          
-          let fulfillment: 'any' | 'all' = 'all';
-          if (hasTokenReqs && !hasSocialReqs && !hasIdentityReqs) {
-            fulfillment = state.categoryFulfillment.token;
-          } else if (hasSocialReqs && !hasTokenReqs && !hasIdentityReqs) {
-            fulfillment = state.categoryFulfillment.social;
-          } else if (hasIdentityReqs && !hasTokenReqs && !hasSocialReqs) {
-            fulfillment = state.categoryFulfillment.identity;
-          }
-
           categories.push({
             type: 'ethereum_profile',
             enabled: true,
-            fulfillment,
+            fulfillment: state.ecosystemFulfillment.ethereum_profile,
             requirements: ethRequirements
           });
         }
