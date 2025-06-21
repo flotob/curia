@@ -189,7 +189,7 @@ export const UPMustFollowConfigurator: React.FC<UPMustFollowConfiguratorProps> =
               <div className="flex space-x-2 mt-1">
                 <Input
                   type="text"
-                  placeholder="0x..."
+                  placeholder="0x1234...abcd (UP address only)"
                   value={address}
                   onChange={(e) => {
                     setAddress(e.target.value);
@@ -223,6 +223,13 @@ export const UPMustFollowConfigurator: React.FC<UPMustFollowConfiguratorProps> =
               {address.trim() && !validation.isValid && validation.error && (
                 <p className="text-sm text-red-600 mt-1">
                   {validation.error}
+                </p>
+              )}
+              
+              {/* Address Input Hint */}
+              {!address.trim() && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Enter Universal Profile address (e.g., 0x1234...abcd). Name search coming soon.
                 </p>
               )}
             </div>
@@ -278,7 +285,7 @@ export const UPMustFollowConfigurator: React.FC<UPMustFollowConfiguratorProps> =
               </Label>
               <Input
                 type="text"
-                placeholder="e.g., vitalik.up"
+                placeholder="e.g., Vitalik Buterin"
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
                 onKeyDown={handleKeyPress}
@@ -286,7 +293,7 @@ export const UPMustFollowConfigurator: React.FC<UPMustFollowConfiguratorProps> =
                 className="mt-1 text-sm"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Display name for better readability
+                Custom display name for this requirement (auto-filled from profile)
               </p>
             </div>
 
@@ -323,8 +330,8 @@ export const UPMustFollowConfigurator: React.FC<UPMustFollowConfiguratorProps> =
       {/* Help Text */}
       <div className="max-w-md mx-auto text-center">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Users must follow the specified Universal Profile address to access gated content. 
-          This creates targeted community requirements.
+          Requires users to follow a specific Universal Profile address. Currently supports address-based input only. 
+          The &quot;Fetch&quot; button will load profile metadata from LUKSO network.
         </p>
       </div>
     </div>
