@@ -31,7 +31,7 @@ interface NameFirstSearchProps {
  * Supports ENS names, EFP profiles, and Universal Profiles
  */
 export function NameFirstSearch({
-  placeholder = "Search by name or address...",
+  placeholder = "Search by full ENS name (e.g., vitalik.eth) or address...",
   onSelect,
   searchTypes = ['ens', 'efp', 'up'],
   className = "",
@@ -80,21 +80,40 @@ export function NameFirstSearch({
     }
 
     try {
-      // Try ENS first for EFP (most EFP users have ENS)
-      const ensResult = await searchENS(searchQuery);
-      if (ensResult.length > 0) {
-        // Enhance with EFP data if available
-        const efpEnhanced = await enhanceWithEFPData(ensResult[0]);
-        return efpEnhanced ? [efpEnhanced] : ensResult;
+      const results: SearchProfile[] = [];
+
+      // 1. Note: EFP API doesn't support partial name search
+      // EFP is designed for follow relationship management, not user discovery
+      // Only direct ENS name lookup works for EFP integration
+
+      // 2. Direct ENS lookup if it looks like an ENS name
+      if (searchQuery.includes('.')) {
+        try {
+          const ensResult = await searchENS(searchQuery);
+          if (ensResult.length > 0) {
+            // Always enhance with EFP data (function now always returns a result)
+            const efpEnhanced = await enhanceWithEFPData(ensResult[0]);
+            results.push(efpEnhanced);
+          }
+        } catch (error) {
+          console.log('[NameFirstSearch] ENS lookup failed:', error);
+        }
       }
 
-      // If no ENS, try direct address search with EFP
+      // 3. Direct address search with EFP
       if (ENSUtils.isValidEthereumAddress(searchQuery)) {
         const efpProfile = await fetchEFPProfile(searchQuery);
         if (efpProfile) {
-          return [efpProfile];
+          results.push(efpProfile);
         }
       }
+
+      // Remove duplicates by address
+      const uniqueResults = results.filter((result, index, array) => 
+        index === array.findIndex(r => r.address.toLowerCase() === result.address.toLowerCase())
+      );
+
+      return uniqueResults;
     } catch (error) {
       console.warn('[NameFirstSearch] EFP search failed:', error);
     }
@@ -120,25 +139,51 @@ export function NameFirstSearch({
   /**
    * Enhance ENS profile with EFP data
    */
-  const enhanceWithEFPData = async (ensProfile: SearchProfile): Promise<SearchProfile | null> => {
+  const enhanceWithEFPData = async (ensProfile: SearchProfile): Promise<SearchProfile> => {
     try {
-      const response = await fetch(`https://api.ethfollow.xyz/api/v1/users/${ensProfile.address}/stats`);
-      if (response.ok) {
-        const efpStats = await response.json();
-        return {
-          ...ensProfile,
-          source: 'efp',
-          description: `${efpStats.followers_count} followers • ${efpStats.following_count} following`,
-          metadata: {
-            ...ensProfile.metadata,
-            efpStats
-          }
-        };
+      // Fetch both details and stats like EFPUserSearch does
+      const [detailsResponse, statsResponse] = await Promise.all([
+        fetch(`https://api.ethfollow.xyz/api/v1/users/${ensProfile.address}/details`),
+        fetch(`https://api.ethfollow.xyz/api/v1/users/${ensProfile.address}/stats`)
+      ]);
+
+      let efpStats = { followers_count: 0, following_count: 0 };
+      let efpDetails = null;
+
+      // Get stats if available
+      if (statsResponse.ok) {
+        efpStats = await statsResponse.json();
       }
+
+      // Get details if available  
+      if (detailsResponse.ok) {
+        efpDetails = await detailsResponse.json();
+      }
+
+      // Always return enhanced profile with EFP data (even if 0 followers)
+      return {
+        ...ensProfile,
+        source: 'efp',
+        description: `${efpStats.followers_count} followers • ${efpStats.following_count} following`,
+        metadata: {
+          ...ensProfile.metadata,
+          efpStats,
+          efpDetails
+        }
+      };
     } catch (error) {
       console.warn('[NameFirstSearch] EFP enhancement failed:', error);
+      // Return original profile with 0 followers rather than null
+      return {
+        ...ensProfile,
+        source: 'efp',
+        description: '0 followers • 0 following',
+        metadata: {
+          ...ensProfile.metadata,
+          efpStats: { followers_count: 0, following_count: 0 }
+        }
+      };
     }
-    return null;
   };
 
   /**
@@ -162,7 +207,10 @@ export function NameFirstSearch({
           description: `${stats.followers_count} followers • ${stats.following_count} following`,
           isVerified: !!details.ens?.name,
           source: 'efp',
-          metadata: { details, stats }
+          metadata: { 
+            efpDetails: details, 
+            efpStats: stats  // ← Consistent naming with enhanceWithEFPData
+          }
         };
       }
     } catch (error) {
@@ -187,11 +235,12 @@ export function NameFirstSearch({
     try {
       const searchPromises = [];
 
-      if (searchTypes.includes('ens')) {
-        searchPromises.push(searchENS(query.trim()));
-      }
+      // Prioritize EFP search so that results with follower stats are kept when duplicates exist
       if (searchTypes.includes('efp')) {
         searchPromises.push(searchEFP(query.trim()));
+      }
+      if (searchTypes.includes('ens')) {
+        searchPromises.push(searchENS(query.trim()));
       }
       if (searchTypes.includes('up')) {
         searchPromises.push(searchUP(query.trim()));

@@ -270,7 +270,7 @@ export const EFPMustFollowConfigurator: React.FC<EFPMustFollowConfiguratorProps>
                   Search by Name or Address
                 </Label>
                 <NameFirstSearch
-                  placeholder="Search vitalik.eth, 0x123..., or ENS names"
+                  placeholder="Search full ENS names (vitalik.eth) or addresses (0x123...)"
                   onSelect={handleNameSearchSelect}
                   searchTypes={['ens', 'efp']}
                   disabled={disabled}
@@ -278,7 +278,7 @@ export const EFPMustFollowConfigurator: React.FC<EFPMustFollowConfiguratorProps>
                 />
                 
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Search for ENS names or EFP profiles by typing names or addresses
+                  Search for profiles by typing full ENS names (e.g., vitalik.eth) or addresses. Partial name search not available.
                 </p>
               </div>
             )}
