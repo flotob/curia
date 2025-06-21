@@ -236,6 +236,62 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
               )}
             </div>
 
+            {/* Lock Progress Indicator for Post Detail Pages */}
+            {currentBoard && SettingsUtils.hasBoardLockGating(currentBoard.settings) && boardVerificationStatus?.data && (
+              <div className={cn(
+                "rounded-lg px-3 py-2 transition-colors",
+                boardVerificationStatus.data.hasWriteAccess
+                  ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700"
+                  : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-3 w-3" />
+                    <span className="text-xs font-medium">
+                      Board Lock Progress
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-xs font-medium",
+                      boardVerificationStatus.data.hasWriteAccess
+                        ? "text-green-700 dark:text-green-300"
+                        : "text-red-700 dark:text-red-300"
+                    )}>
+                      {boardVerificationStatus.data.verifiedCount}/{boardVerificationStatus.data.requiredCount}
+                    </span>
+                    {boardVerificationStatus.data.hasWriteAccess ? (
+                      <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                    )}
+                  </div>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="mt-2">
+                  <div className={cn(
+                    "w-full h-1.5 rounded-full",
+                    boardVerificationStatus.data.hasWriteAccess
+                      ? "bg-green-200 dark:bg-green-800"
+                      : "bg-red-200 dark:bg-red-800"
+                  )}>
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        boardVerificationStatus.data.hasWriteAccess
+                          ? "bg-green-500 dark:bg-green-400"
+                          : "bg-red-500 dark:bg-red-400"
+                      )}
+                      style={{
+                        width: `${(boardVerificationStatus.data.verifiedCount / boardVerificationStatus.data.requiredCount) * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Quick navigation breadcrumb */}
             <div className="flex items-center space-x-1 text-xs text-muted-foreground pt-1 border-t border-border/40">
               <button 
