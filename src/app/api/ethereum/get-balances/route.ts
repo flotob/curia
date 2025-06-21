@@ -70,6 +70,56 @@ function getEthereumProvider(): ethers.providers.JsonRpcProvider {
   return new ethers.providers.JsonRpcProvider(rpcUrl);
 }
 
+/**
+ * Optimized EFP following check using pagination
+ * Instead of downloading all following data, we search in chunks
+ */
+async function checkEFPFollowing(userAddress: string, targetAddress: string): Promise<boolean> {
+  const EFP_API_BASE = 'https://api.ethfollow.xyz/api/v1';
+  const CHUNK_SIZE = 1000; // Process 1000 records at a time
+  let offset = 0;
+  let hasMore = true;
+
+  console.log(`[checkEFPFollowing] Searching if ${userAddress} follows ${targetAddress}`);
+
+  while (hasMore) {
+    try {
+      const response = await fetch(`${EFP_API_BASE}/users/${userAddress}/following?limit=${CHUNK_SIZE}&offset=${offset}`);
+      if (!response.ok) {
+        throw new Error(`EFP API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const followingList = data.following || [];
+      
+      // Check current chunk for the target address
+      const found = followingList
+        .filter((item: unknown): item is EFPFollowRecord => 
+          item != null && typeof item === 'object' && 'address' in item)
+        .some((item: EFPFollowRecord) => 
+          item.address.toLowerCase() === targetAddress.toLowerCase()
+        );
+
+      if (found) {
+        console.log(`[checkEFPFollowing] ✅ Found match in chunk ${offset}-${offset + CHUNK_SIZE}`);
+        return true;
+      }
+
+      // Check if we have more data
+      hasMore = followingList.length === CHUNK_SIZE;
+      offset += CHUNK_SIZE;
+
+      console.log(`[checkEFPFollowing] Checked ${offset} records, continuing...`);
+    } catch (error) {
+      console.error(`[checkEFPFollowing] Error in chunk ${offset}:`, error);
+      throw error;
+    }
+  }
+
+  console.log(`[checkEFPFollowing] ❌ No match found after checking ${offset} records`);
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { address, requirements }: { 
@@ -182,53 +232,23 @@ export async function POST(request: NextRequest) {
         if (statsResponse.ok) {
           const stats = await statsResponse.json();
           
-          // Get following status for each required address
+          // Get following status for each required address using optimized search
           const followingStatus: Record<string, boolean> = {};
           
           for (const efpReq of requirements.efpRequirements) {
             if (efpReq.type === 'must_follow') {
               try {
-                const followResponse = await fetch(`${EFP_API_BASE}/users/${address}/following?limit=1000000`);
-                if (followResponse.ok) {
-                  const followData = await followResponse.json();
-                  const followingList = followData.following || [];
-                  
-                  // Extract addresses from EFP objects (each has an 'address' field)
-                  const addresses = followingList
-                    .filter((item: unknown): item is EFPFollowRecord => 
-                      item != null && typeof item === 'object' && 'address' in item)
-                    .map((item: EFPFollowRecord) => item.address);
-                  
-                  followingStatus[`following-${efpReq.value}`] = addresses.some((addr: string) => 
-                    addr.toLowerCase() === efpReq.value.toLowerCase()
-                  );
-                } else {
-                  followingStatus[`following-${efpReq.value}`] = false;
-                }
+                // Use optimized pagination-based search
+                followingStatus[`following-${efpReq.value}`] = await checkEFPFollowing(address, efpReq.value);
               } catch {
                 followingStatus[`following-${efpReq.value}`] = false;
               }
             } else if (efpReq.type === 'must_be_followed_by') {
               try {
-                const followedResponse = await fetch(`${EFP_API_BASE}/users/${efpReq.value}/following?limit=1000000`);
-                if (followedResponse.ok) {
-                  const followedData = await followedResponse.json();
-                  const followingList = followedData.following || [];
-                  
-                  // Extract addresses from EFP objects (each has an 'address' field)
-                  const addresses = followingList
-                    .filter((item: unknown): item is EFPFollowRecord => 
-                      item != null && typeof item === 'object' && 'address' in item)
-                    .map((item: EFPFollowRecord) => item.address);
-                  
-                  followingStatus[`followed_by-${efpReq.value}`] = addresses.some((addr: string) => 
-                    addr.toLowerCase() === address.toLowerCase()
-                  );
-                } else {
-                  followingStatus[`followed_by-${efpReq.value}`] = false;
-                }
+                // Use optimized pagination-based search (check if efpReq.value follows address)
+                followingStatus[`followed-by-${efpReq.value}`] = await checkEFPFollowing(efpReq.value, address);
               } catch {
-                followingStatus[`followed_by-${efpReq.value}`] = false;
+                followingStatus[`followed-by-${efpReq.value}`] = false;
               }
             } else if (efpReq.type === 'minimum_followers') {
               followingStatus[`minimum_followers-${efpReq.value}`] = (stats.followers_count || 0) >= parseInt(efpReq.value, 10);

@@ -393,6 +393,56 @@ export async function verifyERC1155Balance(
 }
 
 /**
+ * Optimized EFP following check using pagination
+ * Instead of downloading all following data, we search in chunks
+ */
+async function checkEFPFollowing(userAddress: string, targetAddress: string): Promise<boolean> {
+  const EFP_API_BASE = 'https://api.ethfollow.xyz/api/v1';
+  const CHUNK_SIZE = 1000; // Process 1000 records at a time
+  let offset = 0;
+  let hasMore = true;
+
+  console.log(`[checkEFPFollowing] Searching if ${userAddress} follows ${targetAddress}`);
+
+  while (hasMore) {
+    try {
+      const response = await fetch(`${EFP_API_BASE}/users/${userAddress}/following?limit=${CHUNK_SIZE}&offset=${offset}`);
+      if (!response.ok) {
+        throw new Error(`EFP API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const followingList = data.following || [];
+      
+      // Check current chunk for the target address
+      const found = followingList
+        .filter((item: unknown): item is EFPFollowRecord => 
+          item != null && typeof item === 'object' && 'address' in item)
+        .some((item: EFPFollowRecord) => 
+          item.address.toLowerCase() === targetAddress.toLowerCase()
+        );
+
+      if (found) {
+        console.log(`[checkEFPFollowing] ✅ Found match in chunk ${offset}-${offset + CHUNK_SIZE}`);
+        return true;
+      }
+
+      // Check if we have more data
+      hasMore = followingList.length === CHUNK_SIZE;
+      offset += CHUNK_SIZE;
+
+      console.log(`[checkEFPFollowing] Checked ${offset} records, continuing...`);
+    } catch (error) {
+      console.error(`[checkEFPFollowing] Error in chunk ${offset}:`, error);
+      throw error;
+    }
+  }
+
+  console.log(`[checkEFPFollowing] ❌ No match found after checking ${offset} records`);
+  return false;
+}
+
+/**
  * Verify EFP (Ethereum Follow Protocol) requirements
  */
 export async function verifyEFPRequirements(
@@ -429,23 +479,8 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_follow': {
-          const response = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following?limit=1000000`);
-          if (!response.ok) {
-            throw new Error(`EFP API error: ${response.status}`);
-          }
-
-          const data = await response.json();
-          const followingList = data.following || [];
-          
-          // Extract addresses from EFP objects (each has an 'address' field)
-          const addresses = followingList
-            .filter((item: unknown): item is EFPFollowRecord => 
-              item != null && typeof item === 'object' && 'address' in item)
-            .map((item: EFPFollowRecord) => item.address);
-          
-          const isFollowing = addresses.some((addr: string) => 
-            addr.toLowerCase() === requirement.value.toLowerCase()
-          );
+          // Use optimized pagination-based search
+          const isFollowing = await checkEFPFollowing(ethAddress, requirement.value);
 
           if (!isFollowing) {
             return {
@@ -459,23 +494,8 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_be_followed_by': {
-          const response = await fetch(`${EFP_API_BASE}/users/${requirement.value}/following?limit=1000000`);
-          if (!response.ok) {
-            throw new Error(`EFP API error: ${response.status}`);
-          }
-
-          const data = await response.json();
-          const followingList = data.following || [];
-          
-          // Extract addresses from EFP objects (each has an 'address' field)
-          const addresses = followingList
-            .filter((item: unknown): item is EFPFollowRecord => 
-              item != null && typeof item === 'object' && 'address' in item)
-            .map((item: EFPFollowRecord) => item.address);
-          
-          const isFollowedBy = addresses.some((addr: string) => 
-            addr.toLowerCase() === ethAddress.toLowerCase()
-          );
+          // Use optimized pagination-based search (check if requirement.value follows ethAddress)
+          const isFollowedBy = await checkEFPFollowing(requirement.value, ethAddress);
 
           if (!isFollowedBy) {
             return {

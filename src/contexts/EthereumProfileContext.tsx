@@ -340,6 +340,56 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
     }
   }, [ensName]);
 
+  /**
+   * Optimized EFP following check using pagination
+   * Instead of downloading all following data, we search in chunks
+   */
+  const checkEFPFollowing = useCallback(async (userAddress: string, targetAddress: string): Promise<boolean> => {
+    const EFP_API_BASE = 'https://api.ethfollow.xyz/api/v1';
+    const CHUNK_SIZE = 1000; // Process 1000 records at a time
+    let offset = 0;
+    let hasMore = true;
+
+    console.log(`[checkEFPFollowing] Searching if ${userAddress} follows ${targetAddress}`);
+
+    while (hasMore) {
+      try {
+        const response = await fetch(`${EFP_API_BASE}/users/${userAddress}/following?limit=${CHUNK_SIZE}&offset=${offset}`);
+        if (!response.ok) {
+          throw new Error(`EFP API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const followingList = data.following || [];
+        
+        // Check current chunk for the target address
+        const found = followingList
+          .filter((item: unknown): item is EFPFollowRecord => 
+            item != null && typeof item === 'object' && 'address' in item)
+          .some((item: EFPFollowRecord) => 
+            item.address.toLowerCase() === targetAddress.toLowerCase()
+          );
+
+        if (found) {
+          console.log(`[checkEFPFollowing] ✅ Found match in chunk ${offset}-${offset + CHUNK_SIZE}`);
+          return true;
+        }
+
+        // Check if we have more data
+        hasMore = followingList.length === CHUNK_SIZE;
+        offset += CHUNK_SIZE;
+
+        console.log(`[checkEFPFollowing] Checked ${offset} records, continuing...`);
+      } catch (error) {
+        console.error(`[checkEFPFollowing] Error in chunk ${offset}:`, error);
+        throw error;
+      }
+    }
+
+    console.log(`[checkEFPFollowing] ❌ No match found after checking ${offset} records`);
+    return false;
+  }, []);
+
   const verifyEFPRequirements = useCallback(async (requirements: EFPRequirement[]): Promise<VerificationResult> => {
     try {
       // Better validation for ethAddress - check for empty string too
@@ -374,24 +424,8 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
               missingRequirements.push(`Need ${required} followers, have ${followerCount}`);
             }
           } else if (req.type === 'must_follow') {
-            // Check if current user follows the target address
-            const followResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following?limit=1000000`);
-            if (!followResponse.ok) {
-              throw new Error(`EFP API error: ${followResponse.status}`);
-            }
-            
-            const followData = await followResponse.json();
-            const followingList = followData.following || [];
-            
-            // Extract addresses from EFP objects (each has an 'address' field)
-            const addresses = followingList
-              .filter((item: unknown): item is EFPFollowRecord => 
-                item != null && typeof item === 'object' && 'address' in item)
-              .map((item: EFPFollowRecord) => item.address);
-            
-            const isFollowing = addresses.some((addr: string) => 
-              addr.toLowerCase() === req.value.toLowerCase()
-            );
+            // Use optimized pagination-based search
+            const isFollowing = await checkEFPFollowing(ethAddress, req.value);
             
             if (!isFollowing) {
               missingRequirements.push(`Must follow ${req.value}`);
@@ -404,24 +438,8 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
               continue;
             }
             
-            // Check if target address follows the current user
-            const followedResponse = await fetch(`${EFP_API_BASE}/users/${req.value}/following?limit=1000000`);
-            if (!followedResponse.ok) {
-              throw new Error(`EFP API error: ${followedResponse.status}`);
-            }
-            
-            const followedData = await followedResponse.json();
-            const followingList = followedData.following || [];
-            
-            // Extract addresses from EFP objects (each has an 'address' field)
-            const addresses = followingList
-              .filter((item: unknown): item is EFPFollowRecord => 
-                item != null && typeof item === 'object' && 'address' in item)
-              .map((item: EFPFollowRecord) => item.address);
-            
-            const isFollowedBy = addresses.some((addr: string) => 
-              addr.toLowerCase() === ethAddress.toLowerCase()
-            );
+            // Use optimized pagination-based search (check if req.value follows ethAddress)
+            const isFollowedBy = await checkEFPFollowing(req.value, ethAddress);
             
             if (!isFollowedBy) {
               missingRequirements.push(`Must be followed by ${req.value}`);
@@ -446,7 +464,7 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
         errors: [error instanceof Error ? error.message : 'Unknown error'] 
       };
     }
-  }, [ethAddress]);
+  }, [ethAddress, checkEFPFollowing]);
 
   const verifyPostRequirements = useCallback(async (settings: PostSettings): Promise<VerificationResult> => {
     try {
