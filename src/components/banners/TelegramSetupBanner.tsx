@@ -24,7 +24,7 @@ export function TelegramSetupBanner({ communityId, theme, buildUrl }: TelegramSe
   const [isLocallyDismissed, setIsLocallyDismissed] = useState(false);
 
   // Check if user is admin
-  const isAdmin = user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID;
+  const isAdmin = user?.isAdmin;
 
   // Fetch Telegram groups to check if any are connected
   const { data: telegramGroups = [] } = useQuery<TelegramGroupResponse[]>({

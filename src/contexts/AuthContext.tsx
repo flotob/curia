@@ -114,7 +114,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             userId: decoded.sub,
             name: decoded.name,
             picture: decoded.picture,
-            isAdmin: decoded.adm || false,
+            isAdmin: decoded.adm || decoded.sub === process.env.NEXT_PUBLIC_SUPERADMIN_ID,
             cid: decoded.cid, 
             roles: decoded.roles,
             communityShortId: decoded.communityShortId,  // 🆕

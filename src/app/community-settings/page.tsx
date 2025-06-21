@@ -204,7 +204,7 @@ export default function CommunitySettingsPage() {
   });
 
   // Admin access control
-  if (user && !user.isAdmin && user.userId !== process.env.NEXT_PUBLIC_SUPERADMIN_ID) {
+  if (user && !user.isAdmin) {
     return (
       <div 
         className="min-h-screen flex items-center justify-center"

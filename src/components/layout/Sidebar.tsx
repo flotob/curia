@@ -350,7 +350,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               })}
               
               {/* Create Board Link - Admin Only */}
-              {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+              {user?.isAdmin && (
                 <Link
                   href={buildUrl('/create-board')}
                   className={cn(
@@ -425,7 +425,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </p>
             
             {/* Create Board Link - Admin Only */}
-            {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+            {user?.isAdmin && (
               <Link
                 href={buildUrl('/create-board')}
                 className={cn(
@@ -512,7 +512,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer Section - Community Settings */}
-      {(user?.isAdmin || user?.userId === process.env.NEXT_PUBLIC_SUPERADMIN_ID) && (
+      {user?.isAdmin && (
         <div className={cn(
           'p-3 border-t backdrop-blur-sm',
           theme === 'dark' 

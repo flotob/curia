@@ -93,7 +93,7 @@ export function withAuth(
       const authReq = req as AuthenticatedRequest;
       authReq.user = decoded;
 
-      if (adminOnly && !decoded.adm) {
+      if (adminOnly && !decoded.adm && decoded.sub !== process.env.NEXT_PUBLIC_SUPERADMIN_ID) {
         console.warn(
           `Non-admin user (sub: ${decoded.sub}) attempted admin-only route.`
         );
