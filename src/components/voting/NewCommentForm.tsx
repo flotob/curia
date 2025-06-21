@@ -28,6 +28,7 @@ import { common, createLowlight } from 'lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
+import { MarkdownUtils } from '@/utils/markdownUtils';
 // highlight.js CSS is in layout.tsx
 
 const lowlight = createLowlight(common);
@@ -40,12 +41,12 @@ interface NewCommentFormProps {
 }
 
 interface CreateCommentMutationPayload {
-  content: object; // Tiptap JSON content
+  content: string; // Markdown content
   parent_comment_id?: number | null;
 }
 
 interface CreateCommentApiPayload {
-    content: string; 
+    content: string; // Markdown content
     parent_comment_id?: number | null;
 }
 
@@ -111,6 +112,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       }),
     ],
     content: '',
+    immediatelyRender: false, // Fix SSR hydration warnings
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert leading-relaxed focus:outline-none min-h-[100px] px-4 py-3 w-full',
@@ -136,7 +138,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       if (!token) throw new Error('Authentication required to comment.');
       
       const apiPayload: CreateCommentApiPayload = {
-        content: JSON.stringify(commentData.content),
+        content: commentData.content, // Already Markdown from MarkdownUtils
         parent_comment_id: commentData.parent_comment_id,
       };
 
@@ -166,23 +168,30 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     // Stop typing indicator immediately when submitting
     typingEvents.handleSubmit();
     
-    const editorContentJson = editor?.getJSON();
+    if (!editor) {
+      setError('Editor is not initialized.');
+      return;
+    }
 
-    if (!editorContentJson || editor?.isEmpty) {
+    if (editor.isEmpty) {
       setError('Comment cannot be empty.');
       return;
     }
+    
     if (!isAuthenticated) {
         setError('You must be logged in to comment.');
         return;
     }
+
+    // Extract Markdown content instead of JSON
+    const markdownContent = MarkdownUtils.getMarkdown(editor);
 
     setError(null);
 
     try {
       // Submit comment (backend handles all gating verification)
       addCommentMutation.mutate({ 
-        content: editorContentJson, 
+        content: markdownContent, 
         parent_comment_id: parentCommentId
       });
     } catch (submitError) {

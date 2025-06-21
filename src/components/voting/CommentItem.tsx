@@ -19,11 +19,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-// import { Markdown } from 'tiptap-markdown'; 
+import { Markdown } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import TiptapLink from '@tiptap/extension-link'; // For rendering links
 import TiptapImage from '@tiptap/extension-image'; // For rendering images (though comments might not use images often)
+import { MarkdownUtils } from '@/utils/markdownUtils';
 // import { cn } from '@/lib/utils';
 // Ensure highlight.js theme is available. If not imported globally, import here.
 // For now, assuming it might be covered by NewCommentForm's import or a global one.
@@ -122,6 +123,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       }),
       TiptapImage, // For rendering images, if they ever appear in comments
       CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
+      Markdown.configure({ html: false, tightLists: true }),
     ],
     content: '', // Will be set by useEffect
     editable: false,
@@ -135,14 +137,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
   React.useEffect(() => {
     if (editor && comment.content) {
-      try {
-        const jsonContent = JSON.parse(comment.content);
-        editor.commands.setContent(jsonContent);
-      } catch (e) {
-        // If content is not JSON, set it as plain text (fallback)
-        console.warn('Comment content is not valid JSON, rendering as plain text:', comment.content, e);
-        editor.commands.setContent(comment.content); 
-      }
+      // Use backwards-compatible content loading
+      MarkdownUtils.loadContent(editor, comment.content);
     }
   }, [editor, comment.content]);
 

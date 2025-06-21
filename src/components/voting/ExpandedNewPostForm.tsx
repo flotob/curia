@@ -27,6 +27,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TiptapLink from '@tiptap/extension-link';
 import TiptapImage from '@tiptap/extension-image';
 import { EditorToolbar } from './EditorToolbar';
+import { MarkdownUtils } from '@/utils/markdownUtils';
 
 const lowlight = createLowlight(common);
 
@@ -41,7 +42,7 @@ interface ExpandedNewPostFormProps {
 
 interface CreatePostMutationPayload {
   title: string;
-  content: object; // Tiptap JSON object
+  content: string; // Markdown content
   tags?: string[]; 
   boardId: string;
   settings?: PostSettings;
@@ -50,7 +51,7 @@ interface CreatePostMutationPayload {
 
 interface CreatePostApiPayload {
   title: string;
-  content: string; // Stringified Tiptap JSON
+  content: string; // Markdown content
   tags?: string[];
   boardId: string;
   settings?: PostSettings;
@@ -173,6 +174,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       }),
     ],
     content: '',
+    immediatelyRender: false, // Fix SSR hydration warnings
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert leading-relaxed focus:outline-none min-h-[200px] px-4 py-3 w-full',
@@ -185,7 +187,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       if (!token) throw new Error('Authentication required to create a post.');
       const apiPayload: CreatePostApiPayload = {
         title: postData.title,
-        content: JSON.stringify(postData.content), 
+        content: postData.content, // Already Markdown from MarkdownUtils
         tags: postData.tags,
         boardId: postData.boardId,
         settings: postData.settings,
@@ -258,9 +260,16 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
     const lockId = (postSettings as unknown as { lockId?: number }).lockId;
     const settings = postSettings.responsePermissions ? postSettings : undefined;
     
+    // Extract Markdown content instead of JSON
+    if (!contentEditor) {
+      console.error('Content editor is not initialized');
+      return;
+    }
+    const markdownContent = MarkdownUtils.getMarkdown(contentEditor);
+    
     createPostMutation.mutate({ 
       title, 
-      content: currentContentJson, 
+      content: markdownContent, 
       tags: tagsArray, 
       boardId: selectedBoardId, 
       settings,
