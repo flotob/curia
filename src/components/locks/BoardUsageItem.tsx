@@ -3,6 +3,7 @@ import { BoardUsageData } from '@/hooks/useLockUsage';
 import { Folder } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { buildBoardUrl } from '@/utils/urlBuilder';
 
 interface BoardUsageItemProps {
   board: BoardUsageData;
@@ -12,8 +13,8 @@ export function BoardUsageItem({ board }: BoardUsageItemProps) {
   const router = useRouter();
   
   const handleClick = () => {
-    // Navigate to board using the boardId URL pattern
-    const url = `/?boardId=${board.id}`;
+    // Navigate to board using the boardId URL pattern while preserving theme params
+    const url = buildBoardUrl(board.id);
     router.push(url);
   };
 

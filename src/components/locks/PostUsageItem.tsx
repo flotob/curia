@@ -3,6 +3,7 @@ import { PostUsageData } from '@/hooks/useLockUsage';
 import { User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { buildPostUrl } from '@/utils/urlBuilder';
 
 interface PostUsageItemProps {
   post: PostUsageData;
@@ -12,8 +13,8 @@ export function PostUsageItem({ post }: PostUsageItemProps) {
   const router = useRouter();
   
   const handleClick = () => {
-    // Navigate to post using the board/post URL pattern
-    const url = `/board/${post.board_id}/post/${post.id}`;
+    // Navigate to post using the board/post URL pattern while preserving theme params
+    const url = buildPostUrl(post.id, post.board_id);
     router.push(url);
   };
 
