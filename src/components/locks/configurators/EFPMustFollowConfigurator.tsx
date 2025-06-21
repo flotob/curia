@@ -4,10 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, UserPlus, User } from 'lucide-react';
+import { ArrowLeft, UserPlus, User, Search, Edit3 } from 'lucide-react';
 
 import { GatingRequirement, EFPMustFollowConfig } from '@/types/locks';
 import { validateEthereumAddress } from '@/lib/requirements/validation';
+import { NameFirstSearch, SearchProfile } from '@/components/locks/NameFirstSearch';
 
 interface EFPMustFollowConfiguratorProps {
   editingRequirement?: GatingRequirement;
@@ -28,6 +29,7 @@ export const EFPMustFollowConfigurator: React.FC<EFPMustFollowConfiguratorProps>
   const [ensName, setEnsName] = useState('');
   const [validation, setValidation] = useState<{ isValid: boolean; error?: string }>({ isValid: false });
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [searchMode, setSearchMode] = useState<'name-search' | 'manual-input'>('name-search');
   const [profilePreview, setProfilePreview] = useState<{
     address: string;
     displayName: string;
@@ -138,6 +140,27 @@ export const EFPMustFollowConfigurator: React.FC<EFPMustFollowConfiguratorProps>
 
   // ===== HANDLERS =====
   
+  const handleNameSearchSelect = (profile: SearchProfile) => {
+    console.log('[EFP Must Follow Configurator] Name-first search selected profile:', profile);
+    
+    // Set address and ENS name from search result
+    setAddress(profile.address);
+    setEnsName(profile.displayName);
+    
+    // Convert SearchProfile to our internal profile preview format
+    setProfilePreview({
+      address: profile.address,
+      displayName: profile.displayName,
+      avatar: profile.avatar,
+      ensName: profile.source === 'ens' ? profile.displayName : undefined,
+      followers: profile.metadata?.efpStats?.followers_count || 0,
+      following: profile.metadata?.efpStats?.following_count || 0,
+      isVerified: profile.isVerified || false
+    });
+    
+    console.log('[EFP Must Follow Configurator] ✅ Profile auto-populated from name search');
+  };
+
   const handleSave = () => {
     if (!validation.isValid || !address.trim()) return;
 
@@ -209,52 +232,104 @@ export const EFPMustFollowConfigurator: React.FC<EFPMustFollowConfiguratorProps>
             </div>
           </div>
 
-          {/* Address Input */}
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Ethereum Address *
-              </Label>
-              <div className="flex space-x-2 mt-1">
-                <Input
-                  type="text"
-                  placeholder="0x... or vitalik.eth"
-                  value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value);
-                    // Clear profile preview when address changes
-                    if (profilePreview && e.target.value !== profilePreview.address) {
-                      setProfilePreview(null);
-                    }
-                  }}
-                  onKeyDown={handleKeyPress}
-                  disabled={disabled}
-                  className={`text-sm ${
-                    validation.isValid 
-                      ? 'border-sky-200 focus:border-sky-400 focus:ring-sky-400' 
-                      : address.trim() 
-                        ? 'border-red-300 focus:border-red-400 focus:ring-red-400'
-                        : 'border-gray-300 focus:border-gray-400 focus:ring-gray-400'
-                  }`}
-                />
-                <Button 
-                  size="sm"
-                  onClick={handleFetchProfile}
-                  disabled={disabled || !validation.isValid || isLoadingProfile}
-                  variant="outline"
-                  className="shrink-0"
-                >
-                  {isLoadingProfile ? '...' : 'Fetch'}
-                </Button>
-              </div>
-              
-              {/* Validation Message */}
-              {address.trim() && !validation.isValid && validation.error && (
-                <p className="text-sm text-red-600 mt-1">
-                  {validation.error}
-                </p>
-              )}
+          {/* Search Mode Toggle */}
+          <div className="flex justify-center mb-6">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setSearchMode('name-search')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  searchMode === 'name-search'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                }`}
+              >
+                <Search className="h-4 w-4" />
+                Name Search
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode('manual-input')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  searchMode === 'manual-input'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                }`}
+              >
+                <Edit3 className="h-4 w-4" />
+                Manual Input
+              </button>
             </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Name-First Search Mode */}
+            {searchMode === 'name-search' && (
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 block">
+                  Search by Name or Address
+                </Label>
+                <NameFirstSearch
+                  placeholder="Search vitalik.eth, 0x123..., or ENS names"
+                  onSelect={handleNameSearchSelect}
+                  searchTypes={['ens', 'efp']}
+                  disabled={disabled}
+                  className="border-sky-100 dark:border-sky-900"
+                />
+                
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Search for ENS names or EFP profiles by typing names or addresses
+                </p>
+              </div>
+            )}
+
+            {/* Manual Address Input Mode */}
+            {searchMode === 'manual-input' && (
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Ethereum Address *
+                </Label>
+                <div className="flex space-x-2 mt-1">
+                  <Input
+                    type="text"
+                    placeholder="0x... or vitalik.eth"
+                    value={address}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      // Clear profile preview when address changes
+                      if (profilePreview && e.target.value !== profilePreview.address) {
+                        setProfilePreview(null);
+                      }
+                    }}
+                    onKeyDown={handleKeyPress}
+                    disabled={disabled}
+                    className={`text-sm ${
+                      validation.isValid 
+                        ? 'border-sky-200 focus:border-sky-400 focus:ring-sky-400' 
+                        : address.trim() 
+                          ? 'border-red-300 focus:border-red-400 focus:ring-red-400'
+                          : 'border-gray-300 focus:border-gray-400 focus:ring-gray-400'
+                    }`}
+                  />
+                  <Button 
+                    size="sm"
+                    onClick={handleFetchProfile}
+                    disabled={disabled || !validation.isValid || isLoadingProfile}
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    {isLoadingProfile ? '...' : 'Fetch'}
+                  </Button>
+                </div>
+                
+                {/* Validation Message */}
+                {address.trim() && !validation.isValid && validation.error && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {validation.error}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Profile Preview */}
             {profilePreview && (
@@ -359,8 +434,8 @@ export const EFPMustFollowConfigurator: React.FC<EFPMustFollowConfiguratorProps>
       {/* Help Text */}
       <div className="max-w-md mx-auto text-center">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Users must follow the specified Ethereum address on EFP (Ethereum Follow Protocol) to access gated content. 
-          This creates social requirements based on on-chain following relationships.
+          Users must follow the specified address on EFP (Ethereum Follow Protocol) to access gated content. 
+          Use <strong>Name Search</strong> to find profiles by ENS names, or <strong>Manual Input</strong> for direct address entry.
         </p>
       </div>
     </div>
