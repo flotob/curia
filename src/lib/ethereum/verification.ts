@@ -429,7 +429,7 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_follow': {
-          const response = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following`);
+          const response = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following?limit=1000000`);
           if (!response.ok) {
             throw new Error(`EFP API error: ${response.status}`);
           }
@@ -459,7 +459,7 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_be_followed_by': {
-          const response = await fetch(`${EFP_API_BASE}/users/${requirement.value}/following`);
+          const response = await fetch(`${EFP_API_BASE}/users/${requirement.value}/following?limit=1000000`);
           if (!response.ok) {
             throw new Error(`EFP API error: ${response.status}`);
           }

@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
           for (const efpReq of requirements.efpRequirements) {
             if (efpReq.type === 'must_follow') {
               try {
-                const followResponse = await fetch(`${EFP_API_BASE}/users/${address}/following`);
+                const followResponse = await fetch(`${EFP_API_BASE}/users/${address}/following?limit=1000000`);
                 if (followResponse.ok) {
                   const followData = await followResponse.json();
                   const followingList = followData.following || [];
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
               }
             } else if (efpReq.type === 'must_be_followed_by') {
               try {
-                const followedResponse = await fetch(`${EFP_API_BASE}/users/${efpReq.value}/following`);
+                const followedResponse = await fetch(`${EFP_API_BASE}/users/${efpReq.value}/following?limit=1000000`);
                 if (followedResponse.ok) {
                   const followedData = await followedResponse.json();
                   const followingList = followedData.following || [];

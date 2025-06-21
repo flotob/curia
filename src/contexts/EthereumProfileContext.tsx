@@ -375,7 +375,7 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
             }
           } else if (req.type === 'must_follow') {
             // Check if current user follows the target address
-            const followResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following`);
+            const followResponse = await fetch(`${EFP_API_BASE}/users/${ethAddress}/following?limit=1000000`);
             if (!followResponse.ok) {
               throw new Error(`EFP API error: ${followResponse.status}`);
             }
@@ -405,7 +405,7 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
             }
             
             // Check if target address follows the current user
-            const followedResponse = await fetch(`${EFP_API_BASE}/users/${req.value}/following`);
+            const followedResponse = await fetch(`${EFP_API_BASE}/users/${req.value}/following?limit=1000000`);
             if (!followedResponse.ok) {
               throw new Error(`EFP API error: ${followedResponse.status}`);
             }
