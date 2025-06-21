@@ -4,8 +4,9 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { ethers } from 'ethers';
 import { PostSettings, TokenRequirement, SettingsUtils, FollowerRequirement } from '@/types/settings';
 import { VerificationResult } from '@/types/gating';
-import { ERC725YDataKeys } from '@lukso/lsp-smart-contracts';
 import { lsp26Registry } from '@/lib/lsp26';
+import { ERC725 } from '@erc725/erc725.js';
+import LSP4DigitalAssetSchema from '@erc725/erc725.js/schemas/LSP4DigitalAsset.json';
 
 // LUKSO network configuration
 const LUKSO_MAINNET_CHAIN_ID = '0x2a'; // 42 in hex
@@ -587,6 +588,15 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       throw new Error('No provider or address available');
     }
 
+    // Helper to get RPC URL from provider
+    const getProviderUrl = (provider: ethers.providers.JsonRpcProvider | ethers.providers.Web3Provider): string => {
+      if ('connection' in provider && provider.connection?.url) {
+        return provider.connection.url;
+      }
+      // Fallback to LUKSO RPC URL
+      return process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+    };
+
     console.log(`[UP Context] Checking token balance for ${contractAddress} (${tokenType})`);
 
     try {
@@ -654,34 +664,37 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       if (tokenType === 'LSP7') {
         // LSP7 might use ERC725Y data keys for name/symbol but standard decimals()
         try {
-          // First try ERC725Y data keys (like LSP8)
-          const lsp7Contract = new ethers.Contract(contractAddress, [
-            'function getData(bytes32) view returns (bytes)',
-            'function getDataBatch(bytes32[]) view returns (bytes[])',
-            'function decimals() view returns (uint8)'
-          ], provider);
+          // ✅ Use ERC725.js fetchData() approach instead of manual parsing
+          const erc725 = new ERC725(
+            LSP4DigitalAssetSchema,
+            contractAddress,
+            getProviderUrl(provider),
+            {
+              ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+            }
+          );
 
-          const dataKeys = [
-            ERC725YDataKeys.LSP4.LSP4TokenName,
-            ERC725YDataKeys.LSP4.LSP4TokenSymbol
-          ];
-
-          const [nameBytes, symbolBytes] = await lsp7Contract.getDataBatch(dataKeys);
+          // Fetch token metadata using ERC725.js
+          const tokenData = await erc725.fetchData(['LSP4TokenName', 'LSP4TokenSymbol']);
+          console.log(`[UP Context] ERC725.js fetchData result for ${contractAddress}:`, tokenData);
           
-          // Decode the bytes data
-          if (nameBytes && nameBytes !== '0x') {
-            name = ethers.utils.toUtf8String(nameBytes);
+          // Extract name and symbol from ERC725.js results
+          const nameResult = tokenData.find(item => item.name === 'LSP4TokenName');
+          const symbolResult = tokenData.find(item => item.name === 'LSP4TokenSymbol');
+          
+          if (nameResult?.value && typeof nameResult.value === 'string') {
+            name = nameResult.value;
           }
-          if (symbolBytes && symbolBytes !== '0x') {
-            symbol = ethers.utils.toUtf8String(symbolBytes);
+          if (symbolResult?.value && typeof symbolResult.value === 'string') {
+            symbol = symbolResult.value;
           }
           
           // Get decimals using standard function (this works)
-          decimals = await lsp7Contract.decimals();
+          decimals = await directContract.decimals();
           
-          console.log(`[UP Context] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-        } catch (erc725yError) {
-          console.log(`[UP Context] ⚠️ LSP7 ERC725Y metadata failed, trying standard functions:`, erc725yError);
+          console.log(`[UP Context] ✅ LSP7 metadata via ERC725.js: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+        } catch (erc725Error) {
+          console.log(`[UP Context] ⚠️ LSP7 ERC725.js metadata failed, trying standard functions:`, erc725Error);
           
           // Fallback: try standard ERC20-like functions
           try {
@@ -716,30 +729,34 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       } else {
         // LSP8 uses ERC725Y data keys for metadata
         try {
-          const lsp8Contract = new ethers.Contract(contractAddress, [
-            'function getData(bytes32) view returns (bytes)',
-            'function getDataBatch(bytes32[]) view returns (bytes[])'
-          ], provider);
+          // ✅ Use ERC725.js fetchData() approach instead of manual parsing
+          const erc725 = new ERC725(
+            LSP4DigitalAssetSchema,
+            contractAddress,
+            getProviderUrl(provider),
+            {
+              ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+            }
+          );
 
-          // Use ERC725Y data keys for LSP4 metadata
-          const dataKeys = [
-            ERC725YDataKeys.LSP4.LSP4TokenName,
-            ERC725YDataKeys.LSP4.LSP4TokenSymbol
-          ];
-
-          const [nameBytes, symbolBytes] = await lsp8Contract.getDataBatch(dataKeys);
+          // Fetch token metadata using ERC725.js
+          const tokenData = await erc725.fetchData(['LSP4TokenName', 'LSP4TokenSymbol']);
+          console.log(`[UP Context] ERC725.js fetchData result for ${contractAddress}:`, tokenData);
           
-          // Decode the bytes data
-          if (nameBytes && nameBytes !== '0x') {
-            name = ethers.utils.toUtf8String(nameBytes);
+          // Extract name and symbol from ERC725.js results
+          const nameResult = tokenData.find(item => item.name === 'LSP4TokenName');
+          const symbolResult = tokenData.find(item => item.name === 'LSP4TokenSymbol');
+          
+          if (nameResult?.value && typeof nameResult.value === 'string') {
+            name = nameResult.value;
           }
-          if (symbolBytes && symbolBytes !== '0x') {
-            symbol = ethers.utils.toUtf8String(symbolBytes);
+          if (symbolResult?.value && typeof symbolResult.value === 'string') {
+            symbol = symbolResult.value;
           }
           
-          console.log(`[UP Context] ✅ LSP8 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
-        } catch (lsp8Error) {
-          console.log(`[UP Context] ❌ LSP8 ERC725Y metadata failed:`, lsp8Error);
+          console.log(`[UP Context] ✅ LSP8 metadata via ERC725.js: name=${name}, symbol=${symbol}`);
+        } catch (erc725Error) {
+          console.log(`[UP Context] ❌ LSP8 ERC725.js metadata failed:`, erc725Error);
           
           // Fallback: try standard name()/symbol() functions in case it's a hybrid
           try {
@@ -790,6 +807,15 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       throw new Error('No provider available');
     }
 
+    // Helper to get RPC URL from provider
+    const getProviderUrl = (provider: ethers.providers.JsonRpcProvider | ethers.providers.Web3Provider): string => {
+      if ('connection' in provider && provider.connection?.url) {
+        return provider.connection.url;
+      }
+      // Fallback to LUKSO RPC URL
+      return process.env.NEXT_PUBLIC_LUKSO_MAINNET_RPC_URL || 'https://rpc.mainnet.lukso.network';
+    };
+
     try {
       if (tokenType === 'LSP7') {
         // LSP7 might use ERC725Y data keys for name/symbol but standard decimals()
@@ -798,32 +824,40 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
         let decimals = 18;
 
         try {
-          // First try ERC725Y data keys (like LSP8)
-          const lsp7Contract = new ethers.Contract(contractAddress, [
-            'function getData(bytes32) view returns (bytes)',
-            'function getDataBatch(bytes32[]) view returns (bytes[])',
-            'function decimals() view returns (uint8)'
-          ], provider);
+          // ✅ Use ERC725.js fetchData() approach instead of manual parsing
+          const erc725 = new ERC725(
+            LSP4DigitalAssetSchema,
+            contractAddress,
+            getProviderUrl(provider),
+            {
+              ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+            }
+          );
 
-          const dataKeys = [
-            ERC725YDataKeys.LSP4.LSP4TokenName,
-            ERC725YDataKeys.LSP4.LSP4TokenSymbol
-          ];
-
-          const [nameBytes, symbolBytes] = await lsp7Contract.getDataBatch(dataKeys);
+          // Fetch token metadata using ERC725.js
+          const tokenData = await erc725.fetchData(['LSP4TokenName', 'LSP4TokenSymbol']);
+          console.log(`[UP Context] ERC725.js fetchData result for ${contractAddress}:`, tokenData);
           
-          // Decode the bytes data
-          if (nameBytes && nameBytes !== '0x') {
-            name = ethers.utils.toUtf8String(nameBytes);
+          // Extract name and symbol from ERC725.js results
+          const nameResult = tokenData.find(item => item.name === 'LSP4TokenName');
+          const symbolResult = tokenData.find(item => item.name === 'LSP4TokenSymbol');
+          
+          if (nameResult?.value && typeof nameResult.value === 'string') {
+            name = nameResult.value;
           }
-          if (symbolBytes && symbolBytes !== '0x') {
-            symbol = ethers.utils.toUtf8String(symbolBytes);
+          if (symbolResult?.value && typeof symbolResult.value === 'string') {
+            symbol = symbolResult.value;
           }
           
           // Get decimals using standard function (this works)
-          decimals = await lsp7Contract.decimals();
-        } catch (erc725yError) {
-          console.log(`LSP7 ERC725Y metadata failed, trying fallback:`, erc725yError);
+          const decimalsContract = new ethers.Contract(contractAddress, [
+            'function decimals() view returns (uint8)'
+          ], provider);
+          decimals = await decimalsContract.decimals();
+          
+          console.log(`[UP Context] ✅ LSP7 metadata via ERC725.js: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+        } catch (erc725Error) {
+          console.log(`[UP Context] ⚠️ LSP7 ERC725.js metadata failed, trying fallback:`, erc725Error);
           
           // Fallback: try standard ERC20-like functions
           try {
@@ -842,8 +876,10 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
               symbolPromise,
               decimalsPromise
             ]);
+            
+            console.log(`[UP Context] ⚠️ LSP7 fallback to standard functions: name=${name}, symbol=${symbol}, decimals=${decimals}`);
           } catch (fallbackError) {
-            console.log(`LSP7 fallback metadata also failed:`, fallbackError);
+            console.log(`[UP Context] ❌ LSP7 fallback metadata also failed:`, fallbackError);
           }
         }
         
@@ -851,32 +887,38 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
         
       } else {
         // LSP8 uses ERC725Y data keys for metadata
-        const contract = new ethers.Contract(contractAddress, [
-          'function getData(bytes32) view returns (bytes)',
-          'function getDataBatch(bytes32[]) view returns (bytes[])'
-        ], provider);
-
-        // Use ERC725Y data keys for LSP4 metadata
-        const dataKeys = [
-          ERC725YDataKeys.LSP4.LSP4TokenName,
-          ERC725YDataKeys.LSP4.LSP4TokenSymbol
-        ];
-
         let name = 'Unknown Token';
         let symbol = 'UNK';
 
         try {
-          const [nameBytes, symbolBytes] = await contract.getDataBatch(dataKeys);
+          // ✅ Use ERC725.js fetchData() approach instead of manual parsing
+          const erc725 = new ERC725(
+            LSP4DigitalAssetSchema,
+            contractAddress,
+            getProviderUrl(provider),
+            {
+              ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+            }
+          );
+
+          // Fetch token metadata using ERC725.js
+          const tokenData = await erc725.fetchData(['LSP4TokenName', 'LSP4TokenSymbol']);
+          console.log(`[UP Context] ERC725.js fetchData result for ${contractAddress}:`, tokenData);
           
-          // Decode the bytes data
-          if (nameBytes && nameBytes !== '0x') {
-            name = ethers.utils.toUtf8String(nameBytes);
+          // Extract name and symbol from ERC725.js results
+          const nameResult = tokenData.find(item => item.name === 'LSP4TokenName');
+          const symbolResult = tokenData.find(item => item.name === 'LSP4TokenSymbol');
+          
+          if (nameResult?.value && typeof nameResult.value === 'string') {
+            name = nameResult.value;
           }
-          if (symbolBytes && symbolBytes !== '0x') {
-            symbol = ethers.utils.toUtf8String(symbolBytes);
+          if (symbolResult?.value && typeof symbolResult.value === 'string') {
+            symbol = symbolResult.value;
           }
-        } catch (erc725yError) {
-          console.log(`LSP8 ERC725Y metadata failed, trying fallback:`, erc725yError);
+          
+          console.log(`[UP Context] ✅ LSP8 metadata via ERC725.js: name=${name}, symbol=${symbol}`);
+        } catch (erc725Error) {
+          console.log(`[UP Context] ⚠️ LSP8 ERC725.js metadata failed, trying fallback:`, erc725Error);
           
           // Fallback: try standard name()/symbol() functions
           try {
@@ -889,8 +931,10 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
             const symbolPromise = fallbackContract.symbol().catch(() => 'UNK');
             
             [name, symbol] = await Promise.all([namePromise, symbolPromise]);
+            
+            console.log(`[UP Context] ⚠️ LSP8 fallback to standard functions: name=${name}, symbol=${symbol}`);
           } catch (fallbackError) {
-            console.log(`LSP8 fallback metadata also failed:`, fallbackError);
+            console.log(`[UP Context] ❌ LSP8 fallback also failed:`, fallbackError);
           }
         }
         
@@ -898,7 +942,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
       }
       
     } catch (error) {
-      console.error(`Failed to get ${tokenType} token metadata:`, error);
+      console.error(`[UP Context] Failed to get ${tokenType} token metadata:`, error);
       throw error;
     }
   }, [getProvider]);

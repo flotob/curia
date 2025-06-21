@@ -35,6 +35,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ERC725 } from '@erc725/erc725.js';
+import LSP4DigitalAssetSchema from '@erc725/erc725.js/schemas/LSP4DigitalAsset.json';
 
 // ===== UNIVERSAL PROFILE RENDERER CLASS =====
 
@@ -1420,34 +1422,40 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
         if (detectedTokenType === 'LSP7') {
           // LSP7 might use ERC725Y data keys for name/symbol but standard decimals()
           try {
-            // First try ERC725Y data keys
-            const lsp7Contract = new ethers.Contract(contractAddress, [
-              'function getData(bytes32) view returns (bytes)',
-              'function getDataBatch(bytes32[]) view returns (bytes[])',
-              'function decimals() view returns (uint8)'
-            ], provider);
+            // ✅ Use ERC725.js fetchData() approach instead of manual parsing
+            const erc725 = new ERC725(
+              LSP4DigitalAssetSchema,
+              contractAddress,
+              provider.connection?.url || (provider as ethers.providers.JsonRpcProvider).connection?.url || 'https://rpc.mainnet.lukso.network',
+              {
+                ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+              }
+            );
 
-            // LSP4 metadata data keys
-            const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
-            const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+            // Fetch token metadata using ERC725.js
+            const tokenData = await erc725.fetchData(['LSP4TokenName', 'LSP4TokenSymbol']);
+            console.log(`[UP Renderer] ERC725.js fetchData result for ${contractAddress}:`, tokenData);
             
-            const dataKeys = [LSP4_TOKEN_NAME_KEY, LSP4_TOKEN_SYMBOL_KEY];
-            const [nameBytes, symbolBytes] = await lsp7Contract.getDataBatch(dataKeys);
+            // Extract name and symbol from ERC725.js results
+            const nameResult = tokenData.find(item => item.name === 'LSP4TokenName');
+            const symbolResult = tokenData.find(item => item.name === 'LSP4TokenSymbol');
             
-            // Decode the bytes data
-            if (nameBytes && nameBytes !== '0x') {
-              name = ethers.utils.toUtf8String(nameBytes);
+            if (nameResult?.value && typeof nameResult.value === 'string') {
+              name = nameResult.value;
             }
-            if (symbolBytes && symbolBytes !== '0x') {
-              symbol = ethers.utils.toUtf8String(symbolBytes);
+            if (symbolResult?.value && typeof symbolResult.value === 'string') {
+              symbol = symbolResult.value;
             }
             
             // Get decimals using standard function (this works)
-            decimals = await lsp7Contract.decimals();
+            const decimalsContract = new ethers.Contract(contractAddress, [
+              'function decimals() view returns (uint8)'
+            ], provider);
+            decimals = await decimalsContract.decimals();
             
-            console.log(`[UP Renderer] ✅ LSP7 metadata via ERC725Y: name=${name}, symbol=${symbol}, decimals=${decimals}`);
-          } catch (erc725yError) {
-            console.log(`[UP Renderer] ⚠️ LSP7 ERC725Y metadata failed, trying fallback:`, erc725yError);
+            console.log(`[UP Renderer] ✅ LSP7 metadata via ERC725.js: name=${name}, symbol=${symbol}, decimals=${decimals}`);
+          } catch (erc725Error) {
+            console.log(`[UP Renderer] ⚠️ LSP7 ERC725.js metadata failed, trying fallback:`, erc725Error);
             
             // Fallback: try standard ERC20-like functions
             try {
@@ -1466,29 +1474,34 @@ const UPConfigComponent: React.FC<UPConfigComponentProps> = ({
         } else {
           // LSP8 uses ERC725Y data keys for metadata
           try {
-            const lsp8Contract = new ethers.Contract(contractAddress, [
-              'function getData(bytes32) view returns (bytes)',
-              'function getDataBatch(bytes32[]) view returns (bytes[])'
-            ], provider);
+            // ✅ Use ERC725.js fetchData() approach instead of manual parsing
+            const erc725 = new ERC725(
+              LSP4DigitalAssetSchema,
+              contractAddress,
+              provider.connection?.url || (provider as ethers.providers.JsonRpcProvider).connection?.url || 'https://rpc.mainnet.lukso.network',
+              {
+                ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+              }
+            );
 
-            // LSP4 metadata data keys
-            const LSP4_TOKEN_NAME_KEY = '0xdeba1e292f8ba88238e10ab3c7f88bd4be4fac56cad5194b6ecceaf653468af1';
-            const LSP4_TOKEN_SYMBOL_KEY = '0x2f0a68ab07768e01943a599e73362a0e17a63a72e94dd2e384d2c1d4db932756';
+            // Fetch token metadata using ERC725.js
+            const tokenData = await erc725.fetchData(['LSP4TokenName', 'LSP4TokenSymbol']);
+            console.log(`[UP Renderer] ERC725.js fetchData result for ${contractAddress}:`, tokenData);
             
-            const dataKeys = [LSP4_TOKEN_NAME_KEY, LSP4_TOKEN_SYMBOL_KEY];
-            const [nameBytes, symbolBytes] = await lsp8Contract.getDataBatch(dataKeys);
+            // Extract name and symbol from ERC725.js results
+            const nameResult = tokenData.find(item => item.name === 'LSP4TokenName');
+            const symbolResult = tokenData.find(item => item.name === 'LSP4TokenSymbol');
             
-            // Decode the bytes data
-            if (nameBytes && nameBytes !== '0x') {
-              name = ethers.utils.toUtf8String(nameBytes);
+            if (nameResult?.value && typeof nameResult.value === 'string') {
+              name = nameResult.value;
             }
-            if (symbolBytes && symbolBytes !== '0x') {
-              symbol = ethers.utils.toUtf8String(symbolBytes);
+            if (symbolResult?.value && typeof symbolResult.value === 'string') {
+              symbol = symbolResult.value;
             }
             
-            console.log(`[UP Renderer] ✅ LSP8 metadata via ERC725Y: name=${name}, symbol=${symbol}`);
-          } catch (lsp8Error) {
-            console.log(`[UP Renderer] ❌ LSP8 ERC725Y metadata failed:`, lsp8Error);
+            console.log(`[UP Renderer] ✅ LSP8 metadata via ERC725.js: name=${name}, symbol=${symbol}`);
+          } catch (erc725Error) {
+            console.log(`[UP Renderer] ❌ LSP8 ERC725.js metadata failed:`, erc725Error);
             
             // Fallback: try standard name()/symbol() functions in case it's a hybrid
             try {
