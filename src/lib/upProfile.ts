@@ -212,19 +212,27 @@ export class UPProfileFetcher {
       }
 
       console.log(`[UPProfileFetcher] Fetching profile info for ${upAddress}`);
-
-      // Create a robust provider with retry logic
+      
       const provider = await this.createProviderWithRetry();
+      console.log(`[UPProfileFetcher] Successfully connected to RPC: ${provider.connection.url}`);
 
       try {
-        // --- DIRECT ERC725Y getData CALL (avoids RPC batch) ---
-        const ER725Y_ABI = ['function getData(bytes32) view returns (bytes)'];
-        const upContract = new ethers.Contract(upAddress, ER725Y_ABI, provider);
-        const LSP3_PROFILE_KEY = '0x5ef83ad9559033e6e941db7d7c495acdce616347d28e90c7ce47cbfcfcad3bc5';
+        // Use ERC725.js with the working fetchData() method instead of broken decodeData()
+        const erc725 = new ERC725(
+          LSP3ProfileSchema,
+          upAddress,
+          provider.connection.url,
+          {
+            ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
+          }
+        );
 
-        const rawBytes: string = await upContract.getData(LSP3_PROFILE_KEY).catch(() => '0x');
-        if (rawBytes === '0x') {
-          console.log(`[UPProfileFetcher] LSP3Profile empty for ${upAddress}`);
+        // Use the working fetchData() approach instead of the broken decodeData() approach
+        const profileData = await erc725.fetchData('LSP3Profile');
+        console.log(`[UPProfileFetcher] ERC725 fetchData result for ${upAddress}:`, profileData);
+        
+        if (!profileData || !profileData.value) {
+          console.log(`[UPProfileFetcher] No LSP3Profile data for ${upAddress}`);
           return {
             address: upAddress,
             name: undefined,
@@ -233,48 +241,18 @@ export class UPProfileFetcher {
           };
         }
 
-        // Decode JSONURL bytes via ERC725 utils to get the actual URL
-        let metadataUrl: string | undefined;
-        try {
-          const erc725Decoder = new ERC725(LSP3ProfileSchema, undefined, {
-            ipfsGateway: process.env.NEXT_PUBLIC_LUKSO_IPFS_GATEWAY || 'https://api.universalprofile.cloud/ipfs/',
-          });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const decodedArr = (erc725Decoder as any).decodeData([
-            { key: LSP3_PROFILE_KEY, value: rawBytes },
-          ]);
-          metadataUrl = decodedArr?.[0]?.value?.url as string | undefined;
-        } catch (decodeErr) {
-          console.warn('[UPProfileFetcher] ERC725 decodeData failed, falling back to heuristic', decodeErr);
-          try {
-            const ascii = ethers.utils.toUtf8String(rawBytes).replace(/\u0000/g, '');
-            const ipfsIndex = ascii.indexOf('ipfs://');
-            const httpIndex = ascii.indexOf('https://');
-            if (ipfsIndex !== -1) {
-              metadataUrl = ascii.slice(ipfsIndex).split('\u0000')[0];
-            } else if (httpIndex !== -1) {
-              metadataUrl = ascii.slice(httpIndex).split('\u0000')[0];
-            }
-          } catch {/* ignore */}
-        }
-
-        let metadata: UPProfileMetadata = {};
-        if (metadataUrl) {
-          const resolved = resolveIpfsUrl(metadataUrl);
-          const json = await fetch(resolved).then(r => r.json()).catch(() => null);
-          if (json && json.LSP3Profile) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const lsp3 = json.LSP3Profile as any;
-            metadata = {
-              name: lsp3.name,
-              description: lsp3.description,
-              profileImage: lsp3.profileImage,
-              backgroundImage: lsp3.backgroundImage,
-              tags: lsp3.tags,
-              links: lsp3.links,
-            };
-          }
-        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const lsp3Profile = profileData.value as any;
+        
+        // ERC725.js already resolved the IPFS URLs and parsed the JSON for us!
+        const metadata: UPProfileMetadata = {
+          name: lsp3Profile?.LSP3Profile?.name,
+          description: lsp3Profile?.LSP3Profile?.description,
+          profileImage: lsp3Profile?.LSP3Profile?.profileImage,
+          backgroundImage: lsp3Profile?.LSP3Profile?.backgroundImage,
+          tags: lsp3Profile?.LSP3Profile?.tags,
+          links: lsp3Profile?.LSP3Profile?.links,
+        };
 
         console.log(`[UPProfileFetcher] Parsed LSP3 metadata for ${upAddress}:`, metadata);
 
