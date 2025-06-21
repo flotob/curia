@@ -168,10 +168,10 @@ export class TelegramEventHandler {
         payload.pluginId as string
       );
       
-      // Create caption for the image
-      const caption = `🆕 <b>New Post</b>\n\n📝 <b>${this.escapeHtml(postTitle)}</b>\n👤 by ${this.escapeHtml(metadata.author_name)}\n📋 in ${this.escapeHtml(boardContext.boardName || 'Board')}`;
+      // Create caption with clickable title
+      const caption = `🆕 <b>New Post</b>\n\n📝 <a href="${shareUrl}">${this.escapeHtml(postTitle)}</a>\n👤 by ${this.escapeHtml(metadata.author_name)}\n📋 in ${this.escapeHtml(boardContext.boardName || 'Board')}`;
       
-      // Send image notification with caption and URL
+      // Send image notification with clickable caption (single message)
       const result = await telegramService.sendImageNotificationToCommunity(
         boardContext.communityId,
         imageBuffer,
@@ -179,7 +179,7 @@ export class TelegramEventHandler {
         caption
       );
       
-      console.log(`[TelegramEventHandler] OG image new post notification sent: ${result.sent} successful, ${result.failed} failed`);
+      console.log(`[TelegramEventHandler] Single image notification with clickable title sent: ${result.sent} successful, ${result.failed} failed`);
       
     } catch (error) {
       console.error(`[TelegramEventHandler] Error sending OG image notification, falling back to text:`, error);
@@ -218,7 +218,7 @@ export class TelegramEventHandler {
       shareUrl
     );
     
-    console.log(`[TelegramEventHandler] Fallback new post notification sent: ${result.sent} successful, ${result.failed} failed`);
+    console.log(`[TelegramEventHandler] Single new post notification with clickable title sent: ${result.sent} successful, ${result.failed} failed`);
   }
 
   /**
@@ -256,17 +256,16 @@ export class TelegramEventHandler {
         upvote_count: newCount,
         is_milestone: true
       }
-      // Note: No post_url in rich message - comes separately
     };
     
-    // Send two-part notification: rich message + clean link
+    // Send single notification with clickable title
     const result = await telegramService.sendTwoPartNotification(
       boardContext.communityId,
       notificationData,
       shareUrl
     );
     
-    console.log(`[TelegramEventHandler] Two-part vote milestone notification sent: ${result.sent} successful, ${result.failed} failed`);
+    console.log(`[TelegramEventHandler] Single vote milestone notification with clickable title sent: ${result.sent} successful, ${result.failed} failed`);
   }
 
   /**
@@ -292,19 +291,18 @@ export class TelegramEventHandler {
     const notificationData: NotificationData = {
       type: 'comment',
       post_id: postId,
-      post_title: post_title || 'Untitled Post', // ✅ Now uses real post title from payload
+      post_title: post_title || 'Untitled Post',
       user_name: (comment.author_name as string) || 'Unknown User'
-      // Note: No content or post_url in rich message - content removed for simplicity, URL comes separately
     };
     
-    // Send two-part notification: rich message + clean link
+    // Send single notification with clickable title
     const result = await telegramService.sendTwoPartNotification(
       boardContext.communityId,
       notificationData,
       shareUrl
     );
     
-    console.log(`[TelegramEventHandler] Two-part new comment notification sent: ${result.sent} successful, ${result.failed} failed`);
+    console.log(`[TelegramEventHandler] Single new comment notification with clickable title sent: ${result.sent} successful, ${result.failed} failed`);
   }
 
   /**

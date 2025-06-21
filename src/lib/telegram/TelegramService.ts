@@ -203,11 +203,12 @@ export class TelegramService {
   }
 
   /**
-   * Send notification to all groups in a community
+   * Send single notification to all groups in a community with optional clickable link
    */
   async sendNotificationToCommunity(
     communityId: string,
-    notificationData: NotificationData
+    notificationData: NotificationData,
+    shareUrl?: string
   ): Promise<{ sent: number; failed: number }> {
     const groups = await this.getGroupsByCommunity(communityId);
     
@@ -218,7 +219,7 @@ export class TelegramService {
 
     console.log(`[TelegramService] Sending ${notificationData.type} notification to ${groups.length} groups`);
     
-    const message = this.formatNotificationMessage(notificationData);
+    const message = this.formatNotificationMessage(notificationData, shareUrl);
     let sent = 0;
     let failed = 0;
 
@@ -247,65 +248,18 @@ export class TelegramService {
   }
 
   /**
-   * Send a two-part notification: rich context + clean share link
-   * This provides better UX with separate rich notification and clean link for previews
+   * Send a single notification with clickable title link
+   * Replaces the old two-part notification system for better UX
    */
   async sendTwoPartNotification(
     communityId: string,
     notificationData: NotificationData,
     shareUrl: string
   ): Promise<{ sent: number; failed: number }> {
-    const groups = await this.getGroupsByCommunity(communityId);
+    console.log(`[TelegramService] Sending single ${notificationData.type} notification with clickable link to community ${communityId}`);
     
-    if (groups.length === 0) {
-      console.log(`[TelegramService] No active groups for community ${communityId}`);
-      return { sent: 0, failed: 0 };
-    }
-
-    console.log(`[TelegramService] Sending two-part ${notificationData.type} notification to ${groups.length} groups`);
-    
-    // Filter groups based on notification settings
-    const eligibleGroups = groups.filter(group => 
-      this.shouldSendNotification(group, notificationData)
-    );
-
-    let sent = 0;
-    let failed = 0;
-
-    for (const group of eligibleGroups) {
-      try {
-        // Message 1: Rich notification (without URL to avoid duplication)
-        const richMessage = this.formatNotificationMessage({
-          ...notificationData,
-          post_url: undefined // Remove URL from rich message - comes separately
-        });
-        
-        const richSuccess = await this.sendMessage(group.chat_id, richMessage);
-        if (!richSuccess) {
-          failed++;
-          continue; // Skip second message if first fails
-        }
-        
-        // Small delay between messages to avoid rate limits and ensure proper order
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Message 2: Clean share URL only for Telegram preview
-        const linkSuccess = await this.sendMessage(group.chat_id, shareUrl);
-        
-        if (richSuccess && linkSuccess) {
-          sent++;
-        } else {
-          failed++;
-        }
-        
-      } catch (error) {
-        console.error(`[TelegramService] Failed to send two-part notification to group ${group.chat_id}:`, error);
-        failed++;
-      }
-    }
-
-    console.log(`[TelegramService] Two-part notification sent: ${sent} successful, ${failed} failed`);
-    return { sent, failed };
+    // Use the updated single message method with clickable title
+    return this.sendNotificationToCommunity(communityId, notificationData, shareUrl);
   }
 
   /**
@@ -358,7 +312,7 @@ export class TelegramService {
   }
 
   /**
-   * Send rich image notification to all groups in a community
+   * Send rich image notification to all groups in a community with clickable caption
    */
   async sendImageNotificationToCommunity(
     communityId: string,
@@ -380,20 +334,10 @@ export class TelegramService {
 
     for (const group of groups) {
       try {
-        // Send image with caption
+        // Send image with caption that already contains clickable links
         const photoSuccess = await this.sendPhoto(group.chat_id, imageBuffer, caption);
-        if (!photoSuccess) {
-          failed++;
-          continue; // Skip URL message if photo fails
-        }
         
-        // Small delay between messages to ensure proper order
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Send shareable URL separately for easy copying
-        const linkSuccess = await this.sendMessage(group.chat_id, `🔗 ${shareUrl}`);
-        
-        if (photoSuccess && linkSuccess) {
+        if (photoSuccess) {
           sent++;
         } else {
           failed++;
@@ -473,56 +417,71 @@ export class TelegramService {
   }
 
   /**
-   * Format notification data into a nice Telegram message
+   * Format notification data into a nice Telegram message with clickable title
    */
-  private formatNotificationMessage(data: NotificationData): string {
+  private formatNotificationMessage(data: NotificationData, shareUrl?: string): string {
     switch (data.type) {
       case 'new_post':
-        return this.formatNewPostMessage(data);
+        return this.formatNewPostMessage(data, shareUrl);
       case 'upvote':
-        return this.formatUpvoteMessage(data);
+        return this.formatUpvoteMessage(data, shareUrl);
       case 'comment':
-        return this.formatCommentMessage(data);
+        return this.formatCommentMessage(data, shareUrl);
       case 'user_activity':
-        return this.formatUserActivityMessage(data);
+        return this.formatUserActivityMessage(data, shareUrl);
       default:
-        return this.formatGenericMessage(data);
+        return this.formatGenericMessage(data, shareUrl);
     }
   }
 
-  private formatNewPostMessage(data: NotificationData): string {
+  private formatNewPostMessage(data: NotificationData, shareUrl?: string): string {
     const { post_title, user_name, community_name, board_name } = data;
+    const title = post_title || 'Untitled Post';
+    
+    // Make title clickable if shareUrl is provided
+    const formattedTitle = shareUrl 
+      ? `<a href="${shareUrl}">${this.escapeHtml(title)}</a>`
+      : `<b>${this.escapeHtml(title)}</b>`;
     
     return `🆕 <b>New Post</b>
 
-📝 <b>${this.escapeHtml(post_title || 'Untitled Post')}</b>
+📝 ${formattedTitle}
 👤 by ${this.escapeHtml(user_name || 'Unknown User')}
 📋 in ${this.escapeHtml(board_name || 'General')} • ${this.escapeHtml(community_name || 'Community')}`;
-    // Note: No link in rich message - comes separately for better Telegram preview
   }
 
-  private formatUpvoteMessage(data: NotificationData): string {
+  private formatUpvoteMessage(data: NotificationData, shareUrl?: string): string {
     const { post_title, metadata } = data;
     const upvoteCount = metadata?.upvote_count || 1;
+    const title = post_title || 'Untitled Post';
+    
+    // Make title clickable if shareUrl is provided
+    const formattedTitle = shareUrl 
+      ? `<a href="${shareUrl}">${this.escapeHtml(title)}</a>`
+      : `<b>${this.escapeHtml(title)}</b>`;
     
     return `👍 <b>Post Upvoted</b>
 
-📝 <b>${this.escapeHtml(post_title || 'Untitled Post')}</b>
+📝 ${formattedTitle}
 📊 ${upvoteCount} ${upvoteCount === 1 ? 'upvote' : 'upvotes'} total`;
-    // Note: No link in rich message - comes separately for better Telegram preview
   }
 
-  private formatCommentMessage(data: NotificationData): string {
+  private formatCommentMessage(data: NotificationData, shareUrl?: string): string {
     const { post_title, user_name } = data;
+    const title = post_title || 'Untitled Post';
+    
+    // Make title clickable if shareUrl is provided
+    const formattedTitle = shareUrl 
+      ? `<a href="${shareUrl}">${this.escapeHtml(title)}</a>`
+      : `<b>${this.escapeHtml(title)}</b>`;
     
     return `💬 <b>New Comment</b>
 
-📝 on <b>${this.escapeHtml(post_title || 'Untitled Post')}</b>
+📝 on ${formattedTitle}
 👤 by ${this.escapeHtml(user_name || 'Unknown User')}`;
-    // Note: No content preview or link - content parsing removed for simplicity, link comes separately
   }
 
-  private formatUserActivityMessage(data: NotificationData): string {
+  private formatUserActivityMessage(data: NotificationData, shareUrl?: string): string { // eslint-disable-line @typescript-eslint/no-unused-vars
     const { user_name, content, metadata } = data;
     
     return `👋 <b>User Activity</b>
@@ -531,7 +490,7 @@ export class TelegramService {
 ${metadata?.details ? `\n${this.escapeHtml(String(metadata.details))}` : ''}`;
   }
 
-  private formatGenericMessage(data: NotificationData): string {
+  private formatGenericMessage(data: NotificationData, shareUrl?: string): string { // eslint-disable-line @typescript-eslint/no-unused-vars
     const { content, user_name } = data;
     
     return `🔔 <b>Notification</b>
