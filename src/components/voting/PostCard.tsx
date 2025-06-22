@@ -32,8 +32,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
 import { cn } from '@/lib/utils';
-import { CommentList } from './CommentList'; // Import CommentList
-import { NewCommentForm } from './NewCommentForm'; // Import NewCommentForm
+import { CommentList } from './CommentList';
+import { NewCommentForm } from './NewCommentForm';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 import { useTimeSince } from '@/utils/timeUtils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -41,7 +41,7 @@ import { SettingsUtils } from '@/types/settings';
 import { getUPDisplayName } from '@/lib/upProfile';
 import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
-import ReactionBar from '../reactions/ReactionBar'; // Add ReactionBar import
+import { ReactionBar } from '../reactions/ReactionBar';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -704,12 +704,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             </div>
           </CardFooter>
           
-          {/* Temporary: Test ReactionBar component */}
+          {/* ReactionBar */}
           <div className="px-3 sm:px-6 pb-3">
             <ReactionBar 
               postId={post.id}
-              onReact={(emoji) => console.log('Reacting with:', emoji)}
-              onUnreact={(emoji) => console.log('Unreacting with:', emoji)}
             />
           </div>
         </div>

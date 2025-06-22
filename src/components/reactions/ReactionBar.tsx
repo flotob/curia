@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { Plus } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { authFetchJson } from '@/utils/authFetch';
 
 // Types for our reaction system
 interface ReactionSummary {
@@ -19,174 +21,192 @@ interface ReactionSummary {
   users: Array<{ userId: string; name: string; avatar?: string }>;
 }
 
+interface ReactionsResponse {
+  reactions: ReactionSummary[];
+  userReactions: string[];
+}
+
 interface ReactionBarProps {
   postId?: number;
   commentId?: number;
-  reactions?: ReactionSummary[];
-  userReactions?: string[];
-  onReact?: (emoji: string) => void;
-  onUnreact?: (emoji: string) => void;
-  canReact?: boolean;
+  lockId?: number;
   className?: string;
 }
 
-// Mock data for testing
-const mockReactions: ReactionSummary[] = [
-  {
-    emoji: '👍',
-    count: 5,
-    users: [
-      { userId: '1', name: 'Alice' },
-      { userId: '2', name: 'Bob' },
-      { userId: '3', name: 'Charlie' },
-      { userId: '4', name: 'Diana' },
-      { userId: '5', name: 'Eve' }
-    ]
-  },
-  {
-    emoji: '❤️',
-    count: 3,
-    users: [
-      { userId: '1', name: 'Alice' },
-      { userId: '6', name: 'Frank' },
-      { userId: '7', name: 'Grace' }
-    ]
-  },
-  {
-    emoji: '😂',
-    count: 1,
-    users: [
-      { userId: '8', name: 'You' }
-    ]
-  }
-];
-
-const mockUserReactions = ['😂']; // User has reacted with laugh emoji
-
 export const ReactionBar: React.FC<ReactionBarProps> = ({
-  // postId, // Commented out for now since we're using mock data
-  // commentId, // Commented out for now since we're using mock data
-  reactions = mockReactions,
-  userReactions = mockUserReactions,
-  onReact,
-  onUnreact,
-  canReact = true,
+  postId,
+  commentId,
+  lockId,
   className
 }) => {
+  const { token } = useAuth();
+  const [reactions, setReactions] = useState<ReactionSummary[]>([]);
+  const [userReactions, setUserReactions] = useState<string[]>([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Determine the API endpoint based on content type
+  const getApiEndpoint = () => {
+    if (postId) return `/api/posts/${postId}/reactions`;
+    if (commentId) return `/api/comments/${commentId}/reactions`;
+    if (lockId) return `/api/locks/${lockId}/reactions`;
+    return null;
+  };
+
+  // Fetch reactions from API
+  const fetchReactions = async () => {
+    const endpoint = getApiEndpoint();
+    if (!endpoint || !token) return;
+
+    try {
+      setError(null);
+      const response = await authFetchJson<ReactionsResponse>(endpoint, {
+        method: 'GET',
+      });
+      
+      setReactions(response.reactions || []);
+      setUserReactions(response.userReactions || []);
+    } catch (err) {
+      console.error('Failed to fetch reactions:', err);
+      setError('Failed to load reactions');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Toggle a reaction
+  const handleReaction = async (emoji: string) => {
+    const endpoint = getApiEndpoint();
+    if (!endpoint || !token) return;
+
+    try {
+      setError(null);
+      const response = await authFetchJson<ReactionsResponse & { action: string }>(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ emoji }),
+      });
+
+      setReactions(response.reactions || []);
+      setUserReactions(response.userReactions || []);
+      
+      console.log(`Reaction ${response.action}: ${emoji}`);
+    } catch (err) {
+      console.error('Failed to toggle reaction:', err);
+      setError('Failed to update reaction');
+    }
+  };
 
   const handleEmojiSelect = (emoji: { native: string; [key: string]: unknown }) => {
     console.log('Emoji selected:', emoji);
-    
-    // Check if user already reacted with this emoji
-    const hasReacted = userReactions.includes(emoji.native);
-    
-    if (hasReacted) {
-      onUnreact?.(emoji.native);
-    } else {
-      onReact?.(emoji.native);
-    }
-    
+    handleReaction(emoji.native);
     setIsPickerOpen(false);
   };
 
-  const handleReactionClick = (emoji: string) => {
-    const hasReacted = userReactions.includes(emoji);
-    
-    if (hasReacted) {
-      onUnreact?.(emoji);
-    } else {
-      onReact?.(emoji);
-    }
-  };
+  // Load reactions on mount
+  useEffect(() => {
+    fetchReactions();
+  }, [postId, commentId, lockId, token]);
 
-  const formatTooltip = (reaction: ReactionSummary): string => {
-    const { users, emoji } = reaction;
-    
-    if (users.length === 1) {
-      return `${users[0].name} reacted with ${emoji}`;
-    }
-    
-    if (users.length === 2) {
-      return `${users[0].name} and ${users[1].name} reacted with ${emoji}`;
-    }
-    
-    if (users.length === 3) {
-      return `${users[0].name}, ${users[1].name} and ${users[2].name} reacted with ${emoji}`;
-    }
-    
-    const firstTwo = users.slice(0, 2).map(u => u.name).join(', ');
-    const remaining = users.length - 2;
-    return `${firstTwo} and ${remaining} other${remaining > 1 ? 's' : ''} reacted with ${emoji}`;
-  };
-
-  if (!canReact && reactions.length === 0) {
-    return null; // Don't show anything if user can't react and no reactions exist
+  // Early return if no valid content ID
+  if (!postId && !commentId && !lockId) {
+    return null;
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className={cn("flex items-center gap-2 py-2", className)}>
+        <div className="text-sm text-muted-foreground">Loading reactions...</div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className={cn("flex items-center gap-2 py-2", className)}>
+        <div className="text-sm text-red-500">{error}</div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={fetchReactions}
+          className="text-xs"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  // Create tooltip text for reaction
+  const getTooltipText = (reaction: ReactionSummary): string => {
+    if (reaction.count === 1) {
+      return `${reaction.users[0]?.name || 'Someone'} reacted with ${reaction.emoji}`;
+    }
+    
+    if (reaction.count <= 3) {
+      const names = reaction.users.slice(0, reaction.count).map(u => u.name).join(', ');
+      return `${names} reacted with ${reaction.emoji}`;
+    }
+    
+    const firstTwo = reaction.users.slice(0, 2).map(u => u.name).join(', ');
+    const remaining = reaction.count - 2;
+    return `${firstTwo} and ${remaining} others reacted with ${reaction.emoji}`;
+  };
+
   return (
-    <div className={cn("flex flex-wrap items-center gap-1 mt-2", className)}>
+    <div className={cn("flex items-center gap-2 py-2", className)}>
       {/* Existing reaction pills */}
       {reactions.map((reaction) => {
-        const hasUserReacted = userReactions.includes(reaction.emoji);
+        const userHasReacted = userReactions.includes(reaction.emoji);
         
         return (
           <Button
             key={reaction.emoji}
             variant="ghost"
             size="sm"
-            onClick={() => handleReactionClick(reaction.emoji)}
-            disabled={!canReact}
+            onClick={() => handleReaction(reaction.emoji)}
             className={cn(
-              "h-8 px-2 py-1 rounded-full border text-sm font-medium transition-all duration-200",
-              "hover:scale-105 active:scale-95",
-              hasUserReacted
-                ? "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300"
-                : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              "h-8 px-2 py-1 rounded-full border transition-all duration-200",
+              userHasReacted 
+                ? "bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200" 
+                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
             )}
-            title={formatTooltip(reaction)}
+            title={getTooltipText(reaction)}
           >
-            <span className="mr-1">{reaction.emoji}</span>
-            <span className="text-xs">{reaction.count}</span>
+            <span className="text-sm mr-1">{reaction.emoji}</span>
+            <span className="text-xs font-medium">{reaction.count}</span>
           </Button>
         );
       })}
-      
+
       {/* Add reaction button */}
-      {canReact && (
+      {token && (
         <DropdownMenu open={isPickerOpen} onOpenChange={setIsPickerOpen}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
-              className={cn(
-                "h-8 w-8 rounded-full border border-dashed p-0 transition-all duration-200",
-                "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400",
-                "hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800",
-                "hover:scale-105 active:scale-95"
-              )}
+              className="h-8 w-8 p-0 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
               title="Add reaction"
             >
-              <Plus size={14} />
+              <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent 
-            className="w-auto p-0 border-0 shadow-lg" 
+            className="p-0 border-0 shadow-lg" 
             align="start"
-            sideOffset={8}
+            side="top"
           >
             <Picker
               data={data}
               onEmojiSelect={handleEmojiSelect}
-              theme="auto"
+              theme="light"
               previewPosition="none"
               skinTonePosition="none"
-              searchPosition="sticky"
               maxFrequentRows={2}
-              categories={['frequent', 'people', 'nature', 'foods', 'activity']}
               perLine={8}
-              emojiSize={20}
-              emojiButtonSize={28}
               set="native"
             />
           </DropdownMenuContent>
