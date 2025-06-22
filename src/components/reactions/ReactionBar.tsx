@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { Button } from '@/components/ui/button';
@@ -106,8 +107,49 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
       
       console.log(`Reaction ${data.action}: ${emoji}`);
     },
-    onError: (error) => {
+    onError: (error: Error, emoji) => {
       console.error('Failed to toggle reaction:', error);
+      
+      // Handle different error scenarios with user-friendly notifications
+      if (error?.message?.includes('This board requires verification') || error?.message?.includes('requiresVerification')) {
+        toast.error(`Can't add ${emoji} reaction`, {
+          description: "This board requires verification before you can react",
+        });
+      } else if (error?.message?.includes('403') || error?.message?.includes('Forbidden')) {
+        toast.error(`Can't add ${emoji} reaction`, {
+          description: "You don't have permission to react here",
+          action: {
+            label: 'Check Access',
+            onClick: () => {
+              console.log('Navigate to verification');
+            },
+          },
+        });
+      } else if (error?.message?.includes('400')) {
+        toast.error(`Invalid emoji reaction`, {
+          description: "This emoji format isn't supported",
+        });
+      } else if (error?.message?.includes('429')) {
+        toast.error(`Slow down there! 🐌`, {
+          description: "You're reacting too quickly. Try again in a moment.",
+        });
+      } else if (error?.message?.includes('Network')) {
+        toast.error(`Connection failed`, {
+          description: "Check your internet connection and try again",
+          action: {
+            label: 'Retry',
+            onClick: () => reactionMutation.mutate(emoji),
+          },
+        });
+      } else {
+        toast.error(`Failed to add ${emoji} reaction`, {
+          description: "Something went wrong. Please try again.",
+          action: {
+            label: 'Retry',
+            onClick: () => reactionMutation.mutate(emoji),
+          },
+        });
+      }
     },
   });
 
