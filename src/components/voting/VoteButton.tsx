@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { cn } from '@/lib/utils'; // Assuming shadcn/ui utility for classnames
 import { ApiPost } from '@/app/api/posts/route'; // Import the ApiPost interface
+import { toast } from 'sonner'; // Add Sonner toast import
 
 interface VoteButtonProps {
   postId: number;
@@ -21,6 +22,18 @@ interface VoteResponse {
     post: ApiPost; // Expect the updated post object back
     message: string;
 }
+
+// Enhanced error interface to handle API error responses (for future use)
+// interface VoteError {
+//   error: string;
+//   requiresVerification?: boolean;
+//   verificationDetails?: {
+//     lockIds: number[];
+//     fulfillmentMode: 'any' | 'all';
+//     verifiedCount: number;
+//     requiredCount: number;
+//   };
+// }
 
 export const VoteButton: React.FC<VoteButtonProps> = ({
   postId,
@@ -59,10 +72,19 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
       setCurrentUserHasUpvoted(isUpvoting);
       setCurrentUpvoteCount((prevCount) => isUpvoting ? prevCount + 1 : Math.max(0, prevCount - 1));
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // On success, the server returns the updated post. Update our local state from it.
       setCurrentUpvoteCount(data.post.upvote_count);
       setCurrentUserHasUpvoted(data.post.user_has_upvoted);
+      
+      // Show success toast with action-specific message
+      const action = variables.isUpvoting ? 'upvoted' : 'removed vote from';
+      const emoji = variables.isUpvoting ? '👍' : '↩️';
+      
+      toast.success(`${emoji} Successfully ${action} post`, {
+        description: `Post now has ${data.post.upvote_count} vote${data.post.upvote_count !== 1 ? 's' : ''}`,
+        duration: 3000,
+      });
       
       // Invalidate infinite scroll queries - this will refetch and update the feed
       // We removed setQueriesData to avoid cache contamination with user-specific vote states
@@ -70,22 +92,70 @@ export const VoteButton: React.FC<VoteButtonProps> = ({
     },
     onError: (error, variables) => {
       console.error('Vote mutation failed:', error);
+      
       // Revert optimistic update to local component state
       setCurrentUserHasUpvoted(!variables.isUpvoting); // Revert to previous state
-      setCurrentUpvoteCount((prevCount) => variables.isUpvoting ? prevCount -1 : prevCount + 1);
-      // TODO: Show error toast to user
+      setCurrentUpvoteCount((prevCount) => variables.isUpvoting ? prevCount - 1 : prevCount + 1);
+      
+      // Parse error response for specific error handling
+      let errorMessage = 'Failed to update vote';
+      let errorDescription = 'Please try again';
+      
+      try {
+        // Try to parse structured error response
+        const errorText = error.message;
+        
+        if (errorText.includes('requires verification')) {
+          errorMessage = '🔒 Verification Required';
+          errorDescription = 'Complete board verification requirements to vote on this post';
+        } else if (errorText.includes('Authentication required') || errorText.includes('Token')) {
+          errorMessage = '🔑 Authentication Required';
+          errorDescription = 'Please sign in to vote on posts';
+        } else if (errorText.includes('permission')) {
+          errorMessage = '⛔ Access Denied';
+          errorDescription = 'You don\'t have permission to vote on this board';
+        } else if (errorText.includes('Post not found')) {
+          errorMessage = '❓ Post Not Found';
+          errorDescription = 'This post may have been deleted or moved';
+        } else if (errorText.includes('Network') || errorText.includes('fetch')) {
+          errorMessage = '🌐 Connection Error';
+          errorDescription = 'Check your internet connection and try again';
+        } else {
+          // Generic server error
+          errorMessage = '⚠️ Server Error';
+          errorDescription = 'Something went wrong. Please try again later';
+        }
+      } catch (parseError) {
+        console.warn('Could not parse vote error response:', parseError);
+        // Use generic error message
+      }
+      
+      // Show error toast with specific messaging
+      toast.error(errorMessage, {
+        description: errorDescription,
+        duration: 5000, // Longer duration for errors so users can read them
+      });
     },
   });
 
   const handleVote = () => {
-    if (!isAuthenticated || voteMutation.isPending || externalDisabled) {
-      // TODO: Prompt login or show message if not authenticated
+    if (!isAuthenticated) {
+      // Show authentication prompt
+      toast.error('🔑 Sign In Required', {
+        description: 'You need to be signed in to vote on posts',
+        duration: 4000,
+      });
       return;
     }
+    
+    if (voteMutation.isPending || externalDisabled) {
+      return;
+    }
+    
     voteMutation.mutate({ isUpvoting: !currentUserHasUpvoted });
   };
 
-  const isDisabled = !isAuthenticated || voteMutation.isPending || externalDisabled;
+  const isDisabled = voteMutation.isPending || externalDisabled;
 
   return (
     <Button
