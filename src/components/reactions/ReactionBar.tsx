@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTheme } from 'next-themes';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { Button } from '@/components/ui/button';
@@ -42,11 +43,8 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
 }) => {
   const { token } = useAuth();
   const { theme } = useTheme();
-  const [reactions, setReactions] = useState<ReactionSummary[]>([]);
-  const [userReactions, setUserReactions] = useState<string[]>([]);
+  const queryClient = useQueryClient();
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Determine the API endpoint based on content type
   const getApiEndpoint = () => {
@@ -56,64 +54,77 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
     return null;
   };
 
-  // Fetch reactions from API
-  const fetchReactions = async () => {
-    const endpoint = getApiEndpoint();
-    if (!endpoint || !token) return;
+  // Generate React Query key
+  const getQueryKey = () => {
+    if (postId) return ['reactions', 'post', postId];
+    if (commentId) return ['reactions', 'comment', commentId];
+    if (lockId) return ['reactions', 'lock', lockId];
+    return ['reactions'];
+  };
 
-    try {
-      setError(null);
+  // Fetch reactions using React Query
+  const { data: reactionsData, isLoading, error, refetch } = useQuery({
+    queryKey: getQueryKey(),
+    queryFn: async (): Promise<ReactionsResponse> => {
+      const endpoint = getApiEndpoint();
+      if (!endpoint || !token) {
+        return { reactions: [], userReactions: [] };
+      }
+
       const response = await authFetchJson<ReactionsResponse>(endpoint, {
         method: 'GET',
       });
       
-      setReactions(response.reactions || []);
-      setUserReactions(response.userReactions || []);
-    } catch (err) {
-      console.error('Failed to fetch reactions:', err);
-      setError('Failed to load reactions');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return response;
+    },
+    enabled: !!(token && (postId || commentId || lockId)),
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchOnWindowFocus: false,
+  });
 
-  // Toggle a reaction
-  const handleReaction = async (emoji: string) => {
-    const endpoint = getApiEndpoint();
-    if (!endpoint || !token) return;
+  // Toggle reaction mutation
+  const reactionMutation = useMutation({
+    mutationFn: async (emoji: string): Promise<ReactionsResponse & { action: string }> => {
+      const endpoint = getApiEndpoint();
+      if (!endpoint || !token) {
+        throw new Error('No endpoint or token available');
+      }
 
-    try {
-      setError(null);
       const response = await authFetchJson<ReactionsResponse & { action: string }>(endpoint, {
         method: 'POST',
         body: JSON.stringify({ emoji }),
       });
 
-      setReactions(response.reactions || []);
-      setUserReactions(response.userReactions || []);
+      return response;
+    },
+    onSuccess: (data, emoji) => {
+      // Update the cache immediately with the new data
+      queryClient.setQueryData(getQueryKey(), {
+        reactions: data.reactions || [],
+        userReactions: data.userReactions || [],
+      });
       
-      console.log(`Reaction ${response.action}: ${emoji}`);
-    } catch (err) {
-      console.error('Failed to toggle reaction:', err);
-      setError('Failed to update reaction');
-    }
-  };
+      console.log(`Reaction ${data.action}: ${emoji}`);
+    },
+    onError: (error) => {
+      console.error('Failed to toggle reaction:', error);
+    },
+  });
 
   const handleEmojiSelect = (emoji: { native: string; [key: string]: unknown }) => {
     console.log('Emoji selected:', emoji);
-    handleReaction(emoji.native);
+    reactionMutation.mutate(emoji.native);
     setIsPickerOpen(false);
   };
-
-  // Load reactions on mount
-  useEffect(() => {
-    fetchReactions();
-  }, [postId, commentId, lockId, token]);
 
   // Early return if no valid content ID
   if (!postId && !commentId && !lockId) {
     return null;
   }
+
+  // Extract data with fallbacks
+  const reactions = reactionsData?.reactions || [];
+  const userReactions = reactionsData?.userReactions || [];
 
   // Loading state
   if (isLoading) {
@@ -128,11 +139,11 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   if (error) {
     return (
       <div className={cn("flex items-center gap-2 py-2", className)}>
-        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400">Failed to load reactions</div>
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={fetchReactions}
+          onClick={() => refetch()}
           className="text-xs"
         >
           Retry
@@ -168,7 +179,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
             key={reaction.emoji}
             variant="ghost"
             size="sm"
-            onClick={() => handleReaction(reaction.emoji)}
+            onClick={() => reactionMutation.mutate(reaction.emoji)}
             className={cn(
               "h-8 px-2 py-1 rounded-full border transition-all duration-200",
               userHasReacted 

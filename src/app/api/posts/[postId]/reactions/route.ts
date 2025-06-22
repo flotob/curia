@@ -4,6 +4,7 @@ import { getClient, query } from '@/lib/db';
 import { PoolClient } from 'pg';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
 import { SettingsUtils } from '@/types/settings';
+import emojiRegex from 'emoji-regex-xs';
 
 interface ReactionSummary {
   emoji: string;
@@ -146,9 +147,16 @@ async function toggleReactionHandler(req: AuthenticatedRequest, context: RouteCo
     return NextResponse.json({ error: 'Valid emoji is required' }, { status: 400 });
   }
 
-  // Basic emoji validation (allow single emojis with optional variation selectors and modifiers)
-  const emojiRegex = /^[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{3000}-\u{303F}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}][\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}]?$/u;
-  if (!emojiRegex.test(emoji.trim())) {
+  // Proper emoji validation using battle-tested library that handles ZWJ sequences and compound emojis
+  const isValidEmoji = (str: string): boolean => {
+    const trimmed = str.trim();
+    const regex = emojiRegex();
+    const matches = trimmed.match(regex);
+    // Check if the entire string is exactly one emoji (no extra characters)
+    return matches !== null && matches.length === 1 && matches[0] === trimmed;
+  };
+
+  if (!isValidEmoji(emoji)) {
     return NextResponse.json({ error: 'Invalid emoji format' }, { status: 400 });
   }
 

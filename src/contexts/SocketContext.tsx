@@ -288,6 +288,25 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    newSocket.on('reactionUpdate', (reactionData: { postId: number; emoji: string; action: string; userId: string; reactions: unknown[]; board_id: number; post_title: string; board_name: string }) => {
+      console.log(`[Socket] Reaction update for post "${reactionData.post_title}": ${reactionData.action} ${reactionData.emoji} by ${reactionData.userId}`);
+      if (reactionData.userId !== userId) {
+        // Skip toast notifications for reactions (they're frequent and less important than votes)
+        // But still invalidate caches for real-time updates
+        console.log(`[RQ Invalidate] Invalidating posts for board: ${reactionData.board_id} due to reaction.`);
+        queryClient.invalidateQueries({ queryKey: ['posts', reactionData.board_id?.toString()] });
+        // Reactions don't affect post sorting, but they're visible in post lists
+        console.log(`[RQ Invalidate] Invalidating home feed for reaction update`);
+        queryClient.invalidateQueries({ queryKey: ['posts', null] });
+        // ALSO invalidate individual post query for detail views (reactions are shown there)
+        console.log(`[RQ Invalidate] Invalidating individual post query for post: ${reactionData.postId}`);
+        queryClient.invalidateQueries({ queryKey: ['post', reactionData.postId] });
+        // MOST IMPORTANTLY: Invalidate the specific reaction cache for this post
+        console.log(`[RQ Invalidate] Invalidating reaction cache for post: ${reactionData.postId}`);
+        queryClient.invalidateQueries({ queryKey: ['reactions', 'post', reactionData.postId] });
+      }
+    });
+
     newSocket.on('newComment', (commentData: { postId: number; post_title: string; board_id: number; board_name: string; comment: { author_user_id: string; author_name?: string; id: number; post_id: number; board_id: number; post_title: string; board_name: string; /* other comment props */ } }) => {
       console.log(`[Socket] New comment on post "${commentData.post_title}":`, commentData.comment);
       if (commentData.comment.author_user_id !== userId) {

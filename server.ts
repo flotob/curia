@@ -331,6 +331,14 @@ async function bootstrap() {
         };
         break;
         
+      case 'reactionUpdate':
+        config = {
+          globalRoom: true,              // Enable global broadcast for home page users
+          specificRooms: [room],         // Board users need immediate update
+          invalidateForAllUsers: true    // All users with access should see updated reactions
+        };
+        break;
+        
       case 'newComment':
         config = {
           globalRoom: true,              // Comment counts affect home feed
