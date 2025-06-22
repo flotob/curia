@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   className
 }) => {
   const { token } = useAuth();
+  const { theme } = useTheme();
   const [reactions, setReactions] = useState<ReactionSummary[]>([]);
   const [userReactions, setUserReactions] = useState<string[]>([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -117,7 +119,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   if (isLoading) {
     return (
       <div className={cn("flex items-center gap-2 py-2", className)}>
-        <div className="text-sm text-muted-foreground">Loading reactions...</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">Loading reactions...</div>
       </div>
     );
   }
@@ -126,7 +128,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   if (error) {
     return (
       <div className={cn("flex items-center gap-2 py-2", className)}>
-        <div className="text-sm text-red-500">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
         <Button 
           variant="ghost" 
           size="sm" 
@@ -170,8 +172,8 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
             className={cn(
               "h-8 px-2 py-1 rounded-full border transition-all duration-200",
               userHasReacted 
-                ? "bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200" 
-                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                ? "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50" 
+                : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             )}
             title={getTooltipText(reaction)}
           >
@@ -188,7 +190,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              className="h-8 w-8 p-0 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300"
               title="Add reaction"
             >
               <Plus className="h-4 w-4" />
@@ -202,7 +204,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
             <Picker
               data={data}
               onEmojiSelect={handleEmojiSelect}
-              theme="light"
+              theme={theme === 'dark' ? 'dark' : 'light'}
               previewPosition="none"
               skinTonePosition="none"
               maxFrequentRows={2}
