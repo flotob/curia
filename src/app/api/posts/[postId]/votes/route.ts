@@ -3,6 +3,7 @@ import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { getClient, query } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
 import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { SettingsUtils } from '@/types/settings';
 
 // POST to upvote a post (protected and permission-checked)
 async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
@@ -51,6 +52,46 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
     if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
       console.warn(`[API POST /api/posts/${postId}/votes] User ${userId} attempted to vote on restricted board ${board_id}`);
       return NextResponse.json({ error: 'You do not have permission to vote on this post' }, { status: 403 });
+    }
+
+    // 🚀 BOARD LOCK VERIFICATION: Check if user has verified board's lock requirements
+    const boardLockGating = SettingsUtils.getBoardLockGating(boardSettings);
+    
+    if (boardLockGating && boardLockGating.lockIds.length > 0) {
+      console.log(`[API POST /api/posts/${postId}/votes] Board ${board_id} has ${boardLockGating.lockIds.length} lock requirements, checking user verification...`);
+      
+      // Check user's verification status for required locks
+      const lockIdPlaceholders = boardLockGating.lockIds.map((_, index) => `$${index + 2}`).join(', ');
+      const verificationResult = await query(`
+        SELECT lock_id FROM pre_verifications 
+        WHERE user_id = $1 AND lock_id IN (${lockIdPlaceholders})
+          AND verification_status = 'verified' AND expires_at > NOW()
+      `, [userId, ...boardLockGating.lockIds]);
+      
+      const verifiedLockIds = new Set(verificationResult.rows.map(row => row.lock_id));
+      const verifiedCount = verifiedLockIds.size;
+      const requiredCount = boardLockGating.lockIds.length;
+      
+      // Apply fulfillment logic (ANY vs ALL)
+      const hasAccess = boardLockGating.fulfillment === 'any'
+        ? verifiedCount >= 1
+        : verifiedCount >= requiredCount;
+        
+      if (!hasAccess) {
+        console.log(`[API POST /api/posts/${postId}/votes] User ${userId} failed board lock verification: ${verifiedCount}/${requiredCount} locks verified (${boardLockGating.fulfillment} mode)`);
+        return NextResponse.json({ 
+          error: 'This board requires verification before you can vote',
+          requiresVerification: true,
+          verificationDetails: {
+            lockIds: boardLockGating.lockIds,
+            fulfillmentMode: boardLockGating.fulfillment,
+            verifiedCount,
+            requiredCount
+          }
+        }, { status: 403 });
+      }
+      
+      console.log(`[API POST /api/posts/${postId}/votes] ✅ User ${userId} passed board lock verification: ${verifiedCount}/${requiredCount} locks verified`);
     }
     client = await getClient();
     await client.query('BEGIN');
@@ -176,6 +217,46 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
     if (!canUserAccessBoard(userRoles, boardSettings, isAdmin)) {
       console.warn(`[API DELETE /api/posts/${postId}/votes] User ${userId} attempted to unvote on restricted board ${board_id}`);
       return NextResponse.json({ error: 'You do not have permission to vote on this post' }, { status: 403 });
+    }
+
+    // 🚀 BOARD LOCK VERIFICATION: Check if user has verified board's lock requirements
+    const boardLockGating = SettingsUtils.getBoardLockGating(boardSettings);
+    
+    if (boardLockGating && boardLockGating.lockIds.length > 0) {
+      console.log(`[API DELETE /api/posts/${postId}/votes] Board ${board_id} has ${boardLockGating.lockIds.length} lock requirements, checking user verification...`);
+      
+      // Check user's verification status for required locks
+      const lockIdPlaceholders = boardLockGating.lockIds.map((_, index) => `$${index + 2}`).join(', ');
+      const verificationResult = await query(`
+        SELECT lock_id FROM pre_verifications 
+        WHERE user_id = $1 AND lock_id IN (${lockIdPlaceholders})
+          AND verification_status = 'verified' AND expires_at > NOW()
+      `, [userId, ...boardLockGating.lockIds]);
+      
+      const verifiedLockIds = new Set(verificationResult.rows.map(row => row.lock_id));
+      const verifiedCount = verifiedLockIds.size;
+      const requiredCount = boardLockGating.lockIds.length;
+      
+      // Apply fulfillment logic (ANY vs ALL)
+      const hasAccess = boardLockGating.fulfillment === 'any'
+        ? verifiedCount >= 1
+        : verifiedCount >= requiredCount;
+        
+      if (!hasAccess) {
+        console.log(`[API DELETE /api/posts/${postId}/votes] User ${userId} failed board lock verification: ${verifiedCount}/${requiredCount} locks verified (${boardLockGating.fulfillment} mode)`);
+        return NextResponse.json({ 
+          error: 'This board requires verification before you can vote',
+          requiresVerification: true,
+          verificationDetails: {
+            lockIds: boardLockGating.lockIds,
+            fulfillmentMode: boardLockGating.fulfillment,
+            verifiedCount,
+            requiredCount
+          }
+        }, { status: 403 });
+      }
+      
+      console.log(`[API DELETE /api/posts/${postId}/votes] ✅ User ${userId} passed board lock verification: ${verifiedCount}/${requiredCount} locks verified`);
     }
     client = await getClient();
     await client.query('BEGIN');
