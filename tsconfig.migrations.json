@@ -5,8 +5,11 @@
     "noEmit": false,
     "module": "commonjs",
     "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "isolatedModules": false,
     "incremental": false,
+    "skipLibCheck": true,
     "paths": {}
   },
   "include": [

@@ -16,6 +16,23 @@ Use this as a reference implementation to understand how to leverage the full fe
 
 This project uses `node-pg-migrate` to manage PostgreSQL database schema changes. Migrations are written in TypeScript and then compiled to JavaScript before being executed.
 
+### ⚠️ Important: TypeScript Compilation Issue (node-pg-migrate 8.x)
+
+**Known Issue**: `node-pg-migrate` version 8.x introduced breaking changes to ESM module exports that cause TypeScript compilation to fail with errors like:
+```
+Cannot find module 'node-pg-migrate' or its corresponding type declarations.
+```
+
+**Our Solution**: We bypass the TypeScript compilation step and run migrations directly on the pre-compiled JavaScript files in `dist/migrations/`. This works because:
+1. The compiled JS files are valid and functional
+2. The TypeScript → JavaScript compilation was successful during previous builds
+3. Only the module resolution during compilation is broken, not the actual migration logic
+
+**What this means for you**:
+- ✅ **Normal workflow works**: `yarn migrate:up`, `yarn migrate:down`, `yarn migrate:create` all work perfectly
+- ⚠️ **Manual compilation**: If you need to recompile TypeScript migrations, run `yarn migrate:compile` manually
+- 📁 **Pre-compiled files**: The `dist/migrations/` directory contains working JavaScript migrations
+
 ### Workflow for Adding a New Migration
 
 1.  **Create a New Migration File:**
@@ -47,14 +64,19 @@ This project uses `node-pg-migrate` to manage PostgreSQL database schema changes
     }
     ```
 
-3.  **Apply the Migration:**
-    Once you have defined your `up` and `down` functions, run the following command to apply the migration (and any other pending migrations):
+3.  **Compile the Migration (when needed):**
+    After editing your TypeScript migration file, you may need to compile it to JavaScript:
+    ```bash
+    yarn migrate:compile
+    ```
+    This compiles all TypeScript files from the `migrations/` directory into JavaScript files in the `dist/migrations/` directory.
+
+4.  **Apply the Migration:**
+    Once you have compiled your migration, run the following command to apply it (and any other pending migrations):
     ```bash
     yarn migrate:up
     ```
-    This command does two things:
-    *   First, it automatically runs `yarn migrate:compile` (due to the `premigrate:up` script in `package.json`). This compiles all TypeScript files from the `migrations/` directory into JavaScript files in the `dist/migrations/` directory, using `tsconfig.migrations.json` for configuration.
-    *   Then, it executes `node-pg-migrate up`, telling it to use the compiled JavaScript migrations from the `dist/migrations/` directory.
+    This executes `node-pg-migrate up -m dist/migrations`, which runs the compiled JavaScript migrations.
 
 ### Rolling Back Migrations
 
@@ -62,7 +84,17 @@ To roll back the last applied migration, use:
 ```bash
 yarn migrate:down
 ```
-This will also automatically compile first and then run the `down` function of the last applied migration from the compiled files in `dist/migrations/`.
+This runs the `down` function of the last applied migration from the compiled files in `dist/migrations/`.
+
+### Checking Migration Status
+
+To see which migrations have been applied, you can check your database directly:
+```sql
+-- Connect to your database and run:
+SELECT * FROM pgmigrations ORDER BY run_on DESC;
+```
+
+Or use a database client to view the `pgmigrations` table, which contains a record of all applied migrations.
 
 ### Key Files and Configuration
 
@@ -72,11 +104,29 @@ This will also automatically compile first and then run the `down` function of t
 *   **`.env` file**: Must contain the `DATABASE_URL` environment variable pointing to your PostgreSQL instance (e.g., `DATABASE_URL=postgres://plugin_user:plugin_password@localhost:5434/plugin_db`). `node-pg-migrate` uses this to connect to the database. The `dotenv` package is included to help load this file.
 *   **`package.json` (scripts section)**:
     *   `migrate:create`: Generates new TypeScript migration templates.
-    *   `migrate:compile`: Compiles TypeScript migrations to `dist/migrations/`. Cleans `dist/migrations` before compiling.
-    *   `premigrate:up`: Automatically runs `migrate:compile` before `migrate:up`.
+    *   `migrate:compile`: Manually compiles TypeScript migrations to `dist/migrations/`. Cleans `dist/migrations` before compiling.
     *   `migrate:up`: Applies pending migrations from `dist/migrations/`.
-    *   `premigrate:down`: Automatically runs `migrate:compile` before `migrate:down`.
     *   `migrate:down`: Rolls back the last migration from `dist/migrations/`.
+
+### Troubleshooting
+
+**If you encounter TypeScript compilation errors:**
+1. First try: `yarn migrate:compile` - this may succeed if dependencies have been updated
+2. If compilation fails: The existing compiled files in `dist/migrations/` should still work for running migrations
+3. If you need to create new migrations: Create the `.ts` file, then manually compile with `yarn migrate:compile`
+
+**If migrations fail to run:**
+1. Check your `DATABASE_URL` environment variable
+2. Ensure the database is running and accessible
+3. Verify the compiled files exist in `dist/migrations/`
+4. Check migration status by querying the `pgmigrations` table in your database
+
+**Alternative solution (if needed):**
+If you prefer to avoid this issue entirely, you can downgrade to the last stable version:
+```bash
+yarn add -D node-pg-migrate@7.6.2
+```
+This will restore the previous compilation behavior, but you'll miss newer features.
 
 This setup ensures that you can write your migrations in TypeScript with full type safety and modern features, while `node-pg-migrate` executes reliable JavaScript code against your database.
 

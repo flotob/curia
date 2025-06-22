@@ -41,6 +41,7 @@ import { SettingsUtils } from '@/types/settings';
 import { getUPDisplayName } from '@/lib/upProfile';
 import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
+import ReactionBar from '../reactions/ReactionBar'; // Add ReactionBar import
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -702,6 +703,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               )}
             </div>
           </CardFooter>
+          
+          {/* Temporary: Test ReactionBar component */}
+          <div className="px-3 sm:px-6 pb-3">
+            <ReactionBar 
+              postId={post.id}
+              onReact={(emoji) => console.log('Reacting with:', emoji)}
+              onUnreact={(emoji) => console.log('Unreacting with:', emoji)}
+            />
+          </div>
         </div>
       </div>
       
