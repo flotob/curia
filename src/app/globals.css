@@ -209,6 +209,20 @@ a {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Hide scrollbars utility */
+.scrollbar-hide {
+  /* Hide scrollbar for Webkit browsers */
+  -webkit-scrollbar: none;
+  /* Hide scrollbar for Firefox */
+  scrollbar-width: none;
+  /* Hide scrollbar for IE and Edge */
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Mini Mode Test Helper (for development) */
 .test-mini-mode {
   width: 200px !important;

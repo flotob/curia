@@ -211,9 +211,10 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   };
 
   return (
-    <div className={cn("flex items-center gap-2 py-2", className)}>
-      {/* Existing reaction pills */}
-      {reactions.map((reaction) => {
+    <div className={cn("overflow-x-auto scrollbar-hide py-2", className)}>
+      <div className="flex items-center gap-2 min-w-max">
+        {/* Existing reaction pills */}
+        {reactions.map((reaction) => {
         const userHasReacted = userReactions.includes(reaction.emoji);
         
         return (
@@ -267,6 +268,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      </div>
     </div>
   );
 };
