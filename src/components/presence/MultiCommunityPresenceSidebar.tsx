@@ -100,14 +100,34 @@ const formatTimeAgo = (date: Date | string): string => {
 };
 
 // Individual device display component
-const DeviceCard = ({ device, isPrimary = false }: { device: DevicePresence; isPrimary?: boolean }) => {
+const DeviceCard = ({ device, isPrimary = false, isCurrentCommunity = true }: { device: DevicePresence; isPrimary?: boolean; isCurrentCommunity?: boolean }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { navigateToPost } = useCrossCommunityNavigation();
   
-  const navigateToBoard = (boardId: number) => {
-    const params = new URLSearchParams(searchParams?.toString() || '');
-    params.set('boardId', boardId.toString());
-    router.push(`/?${params.toString()}`);
+  const navigateToBoard = async (targetDevice: DevicePresence) => {
+    if (isCurrentCommunity) {
+      // Same community - normal navigation  
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('boardId', targetDevice.currentBoardId!.toString());
+      router.push(`/?${params.toString()}`);
+    } else {
+      // ✅ Cross-community navigation to board
+      if (!targetDevice.communityShortId || !targetDevice.pluginId || !targetDevice.currentBoardId) {
+        console.warn('Missing cross-community metadata for board navigation');
+        return;
+      }
+      
+      console.log(`[CrossCommunity] Navigating to board ${targetDevice.currentBoardName} in ${targetDevice.communityShortId}`);
+      
+      // Navigate to board home (no specific post)
+      await navigateToPost(
+        targetDevice.communityShortId,
+        targetDevice.pluginId,
+        -1, // No specific post - go to board home
+        targetDevice.currentBoardId // Target this specific board
+      );
+    }
   };
   
   return (
@@ -135,9 +155,10 @@ const DeviceCard = ({ device, isPrimary = false }: { device: DevicePresence; isP
         
         {device.currentBoardId && (
           <button
-            onClick={() => navigateToBoard(device.currentBoardId!)}
+            onClick={() => navigateToBoard(device)}
             className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors hover:underline"
           >
+            {!isCurrentCommunity && "🔗 "}
             📋 {device.currentBoardName || `Board ${device.currentBoardId}`}
             <ExternalLink size={8} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
@@ -164,20 +185,33 @@ const UserPresenceCard = ({
   const hasMultipleDevices = user.totalDevices > 1;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { navigateToPost } = useCrossCommunityNavigation();
   
   // Get typing context for this user
   const typingContext = useTypingContext(user.userId);
   
-  const navigateToBoard = (boardId: number) => {
+  const navigateToBoard = async (device: DevicePresence) => {
     if (isCurrentCommunity) {
-      // Same community - normal navigation
+      // Same community - normal navigation  
       const params = new URLSearchParams(searchParams?.toString() || '');
-      params.set('boardId', boardId.toString());
+      params.set('boardId', device.currentBoardId!.toString());
       router.push(`/?${params.toString()}`);
     } else {
-      // Foreign community - show disabled link for now
-      // TODO: Implement cross-community navigation when URLs are available
-      console.log(`Would navigate to board ${boardId} in community ${user.communityId} (not implemented yet)`);
+      // ✅ Cross-community navigation to board
+      if (!device.communityShortId || !device.pluginId || !device.currentBoardId) {
+        console.warn('Missing cross-community metadata for board navigation');
+        return;
+      }
+      
+      console.log(`[CrossCommunity] Navigating to board ${device.currentBoardName} in ${device.communityShortId}`);
+      
+      // Navigate to board home (no specific post)
+      await navigateToPost(
+        device.communityShortId,
+        device.pluginId,
+        -1, // No specific post - go to board home
+        device.currentBoardId // Target this specific board
+      );
     }
   };
   
@@ -257,15 +291,9 @@ const UserPresenceCard = ({
                   <>
                     {user.primaryDevice.currentBoardId && (
                       <button
-                        onClick={() => navigateToBoard(user.primaryDevice.currentBoardId!)}
-                        className={cn(
-                          "text-xs hover:underline transition-colors",
-                          isCurrentCommunity 
-                            ? "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" 
-                            : "text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 cursor-not-allowed opacity-60"
-                        )}
-                        disabled={!isCurrentCommunity}
-                        title={isCurrentCommunity ? undefined : "Cross-community navigation not yet available"}
+                        onClick={() => navigateToBoard(user.primaryDevice)}
+                        className="text-xs hover:underline transition-colors text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        title={isCurrentCommunity ? undefined : `Navigate to ${user.primaryDevice.currentBoardName} in other community`}
                       >
                         {!isCurrentCommunity && "🔗 "}
                         📋 {user.primaryDevice.currentBoardName || `Board ${user.primaryDevice.currentBoardId}`}
@@ -306,6 +334,7 @@ const UserPresenceCard = ({
                 key={device.frameUID} 
                 device={device} 
                 isPrimary={index === 0}
+                isCurrentCommunity={isCurrentCommunity}
               />
             ))}
             
