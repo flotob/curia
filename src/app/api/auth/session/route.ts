@@ -78,13 +78,18 @@ export async function POST(req: NextRequest) {
         const nameForCommunityUpsert = body.communityName; // Explicit access from body again
         console.log('[/api/auth/session] Value of body.communityName right before community upsert:', nameForCommunityUpsert);
         
-        // 1. Upsert Community
+        // 1. Upsert Community with CG lib metadata
         await query(
-          `INSERT INTO communities (id, name, updated_at) VALUES ($1, $2, NOW())
-           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
-          [communityId, nameForCommunityUpsert || communityId] // Use the explicitly accessed variable
+          `INSERT INTO communities (id, name, community_short_id, plugin_id, updated_at) 
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (id) DO UPDATE SET 
+             name = EXCLUDED.name, 
+             community_short_id = COALESCE(EXCLUDED.community_short_id, communities.community_short_id),
+             plugin_id = COALESCE(EXCLUDED.plugin_id, communities.plugin_id),
+             updated_at = NOW();`,
+                     [communityId, nameForCommunityUpsert || communityId, communityShortId ?? null, pluginId ?? null]
         );
-        console.log(`[/api/auth/session] Upserted community: ${communityId} with name parameter: ${nameForCommunityUpsert || communityId}`);
+        console.log(`[/api/auth/session] Upserted community: ${communityId} with metadata (short_id: ${communityShortId}, plugin_id: ${pluginId})`);
 
         // 2. Upsert Default Board for this Community
         const defaultBoardName = 'General Discussion';
@@ -97,6 +102,32 @@ export async function POST(req: NextRequest) {
           [communityId, defaultBoardName, defaultBoardDescription]
         );
         console.log(`[/api/auth/session] Upserted default board for community ${communityId}. Board ID: ${boardResult.rows[0]?.id}`);
+
+        // 3. Ensure user record exists before creating user-community relationship
+        await query(
+          `INSERT INTO users (user_id, name, profile_picture_url, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET 
+             name = COALESCE(EXCLUDED.name, users.name),
+             profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, users.profile_picture_url),
+             updated_at = NOW();`,
+          [userId, name ?? null, profilePictureUrl ?? null]
+        );
+
+        // 4. Track user-community relationship for cross-device "What's New"
+        const userCommunityResult = await query(
+          `INSERT INTO user_communities (user_id, community_id, first_visited_at, last_visited_at, visit_count, created_at, updated_at)
+           VALUES ($1, $2, NOW(), NOW(), 1, NOW(), NOW())
+           ON CONFLICT (user_id, community_id) DO UPDATE SET 
+             last_visited_at = NOW(),
+             visit_count = user_communities.visit_count + 1,
+             updated_at = NOW()
+           RETURNING visit_count, first_visited_at;`,
+          [userId, communityId]
+        );
+        
+        const visitInfo = userCommunityResult.rows[0];
+        console.log(`[/api/auth/session] Updated user-community relationship for ${userId} in ${communityId}. Visit count: ${visitInfo?.visit_count}, First visit: ${visitInfo?.first_visited_at}`);
 
       } catch (dbError) {
         console.error(`[/api/auth/session] Error during community/board upsert for community ${communityId}:`, dbError);
