@@ -13,8 +13,8 @@
     "lint": "next lint",
     "migrate:compile": "rimraf dist/migrations && tsc -p tsconfig.migrations.json",
     "migrate:create": "node-pg-migrate create -j ts",
-    "migrate:up": "node-pg-migrate up -m dist/migrations",
-    "migrate:down": "node-pg-migrate down -m dist/migrations"
+    "migrate:up": "npx tsx ./node_modules/.bin/node-pg-migrate up -m migrations",
+    "migrate:down": "npx tsx ./node_modules/.bin/node-pg-migrate down -m migrations"
   },
   "dependencies": {
     "@common-ground-dao/cg-plugin-lib": "^0.9.13",
