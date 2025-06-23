@@ -285,8 +285,8 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="container mx-auto py-8 px-4 overflow-x-hidden">
+      <div className="max-w-4xl mx-auto space-y-6 w-full max-w-full">
         {/* Breadcrumb Navigation */}
         {/* <Breadcrumb>
           <BreadcrumbList>

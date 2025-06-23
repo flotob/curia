@@ -15,6 +15,11 @@ interface AuthUser {
   roles?: string[]; // Add user roles from JWT
   communityShortId?: string | null; // 🆕 Short ID for URL construction
   pluginId?: string | null;         // 🆕 Plugin ID from context
+  stats?: {
+    postCount: number;
+    commentCount: number;
+    isNewUser: boolean;
+  };
 }
 
 // Define the structure for a community role, mirroring cg-data.md
@@ -64,6 +69,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { cgInstance, isInitializing: isCgLibInitializing, iframeUid: cgIframeUid } = useCgLib();
   const lastCgUserData = useRef<UserDataFromCgLib | null>(null);
 
+  // Fetch user stats from enhanced /api/me endpoint
+  const fetchUserStats = useCallback(async (authToken: string) => {
+    try {
+      const response = await fetch('/api/me', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.stats;
+      }
+    } catch (error) {
+      console.error('[AuthContext] Failed to fetch user stats:', error);
+    }
+    
+    // Fallback stats
+    return {
+      postCount: 0,
+      commentCount: 0,
+      isNewUser: true
+    };
+  }, []);
+
   const performLoginLogic = useCallback(async (loginData: UserDataFromCgLib, isRefresh: boolean = false) => {
     console.log(`[AuthContext] ${isRefresh ? 'REFRESHING TOKEN' : 'LOGIN ATTEMPT'}. User roles from input:`, loginData.roles, 'Community roles from input:', loginData.communityRoles);
     setIsLoading(true);
@@ -109,6 +139,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           pluginId?: string           // 🆕
         }>(newToken);
         console.log('[AuthContext] New token received. Decoded JWT:', decoded);
+        
+        // Fetch user stats after successful login
+        const userStats = await fetchUserStats(newToken);
+        
         setToken(newToken);
         setUser({
             userId: decoded.sub,
@@ -119,6 +153,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             roles: decoded.roles,
             communityShortId: decoded.communityShortId,  // 🆕
             pluginId: decoded.pluginId,                  // 🆕
+            stats: userStats,
         });
         lastCgUserData.current = loginData; // Store successful login data for potential refresh fallback
         return true; // Indicate success
@@ -135,7 +170,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchUserStats]);
 
   const login = useCallback(async (userDataFromCgLib: UserDataFromCgLib) => {
     await performLoginLogic(userDataFromCgLib, false);
