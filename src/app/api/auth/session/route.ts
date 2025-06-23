@@ -2,6 +2,63 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { query } from '@/lib/db'; // For potential initial user data sync
 
+// Helper function for background friends sync
+async function syncFriendsInBackground(
+  userId: string, 
+  friends: Array<{ id: string; name: string; image?: string }>
+): Promise<void> {
+  console.log(`[Friends Background Sync] Starting sync for ${userId} with ${friends.length} friends`);
+  
+  let syncedCount = 0;
+  const errors: string[] = [];
+
+  for (const friend of friends) {
+    try {
+      // Validate friend data
+      if (!friend.id || !friend.name) {
+        errors.push(`Invalid friend data: missing id or name`);
+        continue;
+      }
+
+      // Ensure friend user exists in users table
+      await query(
+        `INSERT INTO users (user_id, name, profile_picture_url, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET 
+           name = COALESCE(EXCLUDED.name, users.name),
+           profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, users.profile_picture_url),
+           updated_at = NOW();`,
+        [friend.id, friend.name, friend.image || null]
+      );
+
+      // Upsert friendship record
+      await query(
+        `INSERT INTO user_friends (user_id, friend_user_id, friend_name, friend_image_url, friendship_status, synced_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'active', NOW(), NOW(), NOW())
+         ON CONFLICT (user_id, friend_user_id) DO UPDATE SET
+           friend_name = EXCLUDED.friend_name,
+           friend_image_url = EXCLUDED.friend_image_url,
+           friendship_status = 'active',
+           synced_at = NOW(),
+           updated_at = NOW();`,
+        [userId, friend.id, friend.name, friend.image || null]
+      );
+
+      syncedCount++;
+      
+    } catch (dbError) {
+      console.error(`[Friends Background Sync] Error syncing friend ${friend.id}:`, dbError);
+      errors.push(`Failed to sync friend ${friend.name} (${friend.id}): ${dbError}`);
+    }
+  }
+
+  console.log(`[Friends Background Sync] Completed for ${userId}. Synced: ${syncedCount}/${friends.length}${errors.length > 0 ? `, Errors: ${errors.length}` : ''}`);
+  
+  if (errors.length > 0) {
+    console.warn(`[Friends Background Sync] Sync errors for ${userId}:`, errors);
+  }
+}
+
 const JWT_SECRET = process.env.JWT_SECRET;
 // Use seconds for expiresIn to satisfy linter with current @types/jsonwebtoken
 const JWT_EXPIRES_IN_SECONDS = parseInt(process.env.JWT_EXPIRES_IN_SECONDS || '3600', 10); 
@@ -23,6 +80,11 @@ interface SessionRequestBody {
   communityName?: string | null; // Added for community upsert
   communityShortId?: string | null; // 🆕 Short ID for URL construction
   pluginId?: string | null;         // 🆕 Plugin ID from context
+  friends?: Array<{             // 🆕 Friends data from CG lib
+    id: string;
+    name: string;
+    image?: string;
+  }>;
 }
 
 // This should match or be compatible with JwtPayload in withAuth.ts
@@ -128,6 +190,18 @@ export async function POST(req: NextRequest) {
         
         const visitInfo = userCommunityResult.rows[0];
         console.log(`[/api/auth/session] Updated user-community relationship for ${userId} in ${communityId}. Visit count: ${visitInfo?.visit_count}, First visit: ${visitInfo?.first_visited_at}`);
+
+        // 5. Auto-sync friends if provided (non-blocking)
+        if (body.friends && Array.isArray(body.friends) && body.friends.length > 0) {
+          console.log(`[/api/auth/session] Starting automatic friends sync for ${userId} (${body.friends.length} friends)`);
+          
+          // Run friends sync in background (don't await to avoid blocking session creation)
+          syncFriendsInBackground(userId, body.friends).catch((syncError: unknown) => {
+            console.error(`[/api/auth/session] Background friends sync failed for ${userId}:`, syncError);
+          });
+        } else if (body.friends !== undefined) {
+          console.log(`[/api/auth/session] No friends data provided for ${userId} (friends array empty or invalid)`);
+        }
 
       } catch (dbError) {
         console.error(`[/api/auth/session] Error during community/board upsert for community ${communityId}:`, dbError);

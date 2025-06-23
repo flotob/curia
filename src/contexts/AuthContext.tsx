@@ -5,6 +5,19 @@ import { jwtDecode } from 'jwt-decode'; // Utility to decode JWTs on the client-
 import { AuthService } from '@/services/AuthService';
 import { useCgLib } from '@/contexts/CgLibContext';
 
+// Interface for CG lib instance with friends method
+interface CgInstanceWithFriends {
+  getUserFriends(limit: number, offset: number): Promise<{
+    data?: {
+      friends?: Array<{
+        id: string;
+        name: string;
+        imageUrl?: string;
+      }>;
+    };
+  }>;
+}
+
 // Define the shape of the user object derived from the JWT
 interface AuthUser {
   userId: string; // from jwt 'sub'
@@ -99,6 +112,46 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     console.log(`[AuthContext] ${isRefresh ? 'REFRESHING TOKEN' : 'LOGIN ATTEMPT'}. User roles from input:`, loginData.roles, 'Community roles from input:', loginData.communityRoles);
     setIsLoading(true);
 
+    // 🆕 Fetch friends from CG lib for automatic sync
+    let friends: Array<{ id: string; name: string; image?: string }> = [];
+    if (cgInstance && !isRefresh && !isCgLibInitializing && cgIframeUid) { // All prerequisites met
+      try {
+        // Check if getUserFriends method exists
+        if (typeof (cgInstance as unknown as CgInstanceWithFriends).getUserFriends === 'function') {
+          console.log('[AuthContext] Fetching friends from CG lib for session sync...');
+          const friendsResponse = await (cgInstance as unknown as CgInstanceWithFriends).getUserFriends(100, 0); // Fetch up to 100 friends
+          
+          // Access the correct nested structure: response.data.friends
+          const friendsData = friendsResponse?.data?.friends || [];
+          
+          if (Array.isArray(friendsData)) {
+            friends = friendsData.map((friend: { id: string; name: string; imageUrl?: string }) => ({
+              id: friend.id,
+              name: friend.name,
+              image: friend.imageUrl // Map imageUrl to image
+            })).filter((friend) => friend.id && friend.name); // Filter out invalid entries
+            
+            console.log(`[AuthContext] Fetched ${friends.length} friends from CG lib`);
+          } else {
+            console.warn('[AuthContext] Friends response data is not an array:', friendsData);
+          }
+        } else {
+          console.log('[AuthContext] getUserFriends method not available on cgInstance');
+        }
+      } catch (friendsError) {
+        console.warn('[AuthContext] Failed to fetch friends from CG lib (non-critical):', friendsError);
+        // Continue with empty friends array - this shouldn't block login
+      }
+    } else {
+      const reasons = [];
+      if (!cgInstance) reasons.push('cgInstance not available');
+      if (isRefresh) reasons.push('token refresh (skipping friends sync)');
+      if (isCgLibInitializing) reasons.push('CG lib still initializing');
+      if (!cgIframeUid) reasons.push('iframeUid not available');
+      
+      console.log(`[AuthContext] Skipping friends sync: ${reasons.join(', ')}`);
+    }
+
     const payloadForBackend = {
         userId: loginData.userId,
         name: loginData.name,
@@ -110,6 +163,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         communityName: loginData.communityName,
         communityShortId: loginData.communityShortId,  // 🆕 Short ID for URLs
         pluginId: loginData.pluginId,                  // 🆕 Plugin ID from context
+        friends: friends.length > 0 ? friends : undefined, // 🆕 Include friends if available
     };
 
     try {
@@ -173,7 +227,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchUserStats]);
+  }, [fetchUserStats, cgInstance, isCgLibInitializing, cgIframeUid]);
 
   const login = useCallback(async (userDataFromCgLib: UserDataFromCgLib) => {
     await performLoginLogic(userDataFromCgLib, false);
