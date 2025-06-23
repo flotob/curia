@@ -81,10 +81,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             p.title as post_title,
             p.board_id,
             b.name as board_name,
+            comm.id as community_id,
+            comm.community_short_id,
+            comm.plugin_id,
             CASE WHEN c.created_at > $2 THEN true ELSE false END as is_new
           FROM comments c
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
+          INNER JOIN communities comm ON b.community_id = comm.id
           INNER JOIN users commenter ON c.author_user_id = commenter.user_id
           WHERE p.author_user_id = $1 
             AND c.author_user_id != $1
@@ -149,10 +153,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             p.title as post_title,
             p.board_id,
             b.name as board_name,
+            comm.id as community_id,
+            comm.community_short_id,
+            comm.plugin_id,
             CASE WHEN c.created_at > $2 THEN true ELSE false END as is_new
           FROM comments c
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
+          INNER JOIN communities comm ON b.community_id = comm.id
           INNER JOIN users commenter ON c.author_user_id = commenter.user_id
           WHERE EXISTS (
             SELECT 1 FROM comments my_comments 
@@ -233,14 +241,19 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             CASE WHEN r.comment_id IS NOT NULL THEN LEFT(c.content, 100) END as comment_preview,
             COALESCE(p.board_id, cp.board_id) as board_id,
             COALESCE(pb.name, cpb.name) as board_name,
+            COALESCE(pcomm.id, cpcomm.id) as community_id,
+            COALESCE(pcomm.community_short_id, cpcomm.community_short_id) as community_short_id,
+            COALESCE(pcomm.plugin_id, cpcomm.plugin_id) as plugin_id,
             CASE WHEN r.created_at > $2 THEN true ELSE false END as is_new
           FROM reactions r
           INNER JOIN users reactor ON r.user_id = reactor.user_id
           LEFT JOIN posts p ON r.post_id = p.id AND p.author_user_id = $1
           LEFT JOIN boards pb ON p.board_id = pb.id
+          LEFT JOIN communities pcomm ON pb.community_id = pcomm.id
           LEFT JOIN comments c ON r.comment_id = c.id AND c.author_user_id = $1
           LEFT JOIN posts cp ON c.post_id = cp.id
           LEFT JOIN boards cpb ON cp.board_id = cpb.id
+          LEFT JOIN communities cpcomm ON cpb.community_id = cpcomm.id
           WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
             AND r.user_id != $1
             AND (pb.community_id = $3 OR cpb.community_id = $3)`
@@ -310,10 +323,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             p.comment_count,
             p.board_id,
             b.name as board_name,
+            comm.id as community_id,
+            comm.community_short_id,
+            comm.plugin_id,
             CASE WHEN p.created_at > $2 THEN true ELSE false END as is_new
           FROM posts p
           INNER JOIN users author ON p.author_user_id = author.user_id
           INNER JOIN boards b ON p.board_id = b.id
+          INNER JOIN communities comm ON b.community_id = comm.id
           WHERE EXISTS (
             SELECT 1 FROM (
               SELECT DISTINCT board_id FROM posts WHERE author_user_id = $1

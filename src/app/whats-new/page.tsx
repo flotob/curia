@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommunitySelector } from '@/components/whats-new/CommunitySelector';
+import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 
 // Enhanced interfaces for new API structure
 interface ActivityCounts {
@@ -66,6 +67,11 @@ interface ActivityItem {
   // Board info
   board_id: number;
   board_name: string;
+  
+  // Community info for cross-community navigation
+  community_id: string;
+  community_short_id?: string;
+  plugin_id?: string;
 }
 
 interface WhatsNewResponse {
@@ -487,12 +493,65 @@ export default function WhatsNewPage() {
 
   // Activity item component with visual distinction, links, avatars, and content previews
   const ActivityItem = ({ item }: { item: ActivityItem }) => {
+    const { navigateToPost } = useCrossCommunityNavigation();
+    const [isNavigating, setIsNavigating] = useState(false);
     const isNew = item.is_new;
-    // Build URL with comment anchor for comment activities
+    
+    // Check if this is cross-community (compared to user's home community)
+    const isCrossCommunity = item.community_id !== user?.cid;
+    
+    // Debug cross-community detection
+    console.log('[ActivityItem] Cross-community check:', {
+      itemCommunityId: item.community_id,
+      userHomeCommunityId: user?.cid,
+      selectedCommunityId,
+      isCrossCommunity,
+      postTitle: item.post_title
+    });
+    
+    // Build URL for same-community navigation
     let postUrl = buildPostUrl(item.post_id, item.board_id);
     if (item.comment_id) {
       postUrl += `#comment-${item.comment_id}`;
     }
+    
+    // Handle click - either cross-community navigation or normal Link
+    const handleClick = async (e: React.MouseEvent) => {
+      console.log('[ActivityItem] Click detected!', {
+        isCrossCommunity,
+        communityId: item.community_id,
+        selectedCommunityId,
+        communityShortId: item.community_short_id,
+        pluginId: item.plugin_id
+      });
+      
+      if (!isCrossCommunity) {
+        // Same community - let normal Link behavior handle it
+        console.log('[ActivityItem] Same community, letting Link handle');
+        return;
+      }
+      
+      // Cross-community navigation
+      console.log('[ActivityItem] Cross-community detected, preventing default');
+      e.preventDefault();
+      
+      if (!item.community_short_id || !item.plugin_id) {
+        console.warn('Missing metadata for cross-community navigation:', item);
+        return;
+      }
+      
+      console.log('[ActivityItem] Starting cross-community navigation...');
+      setIsNavigating(true);
+      
+      await navigateToPost(
+        item.community_short_id,
+        item.plugin_id,
+        item.post_id,
+        item.board_id
+      );
+      
+      setIsNavigating(false);
+    };
     
     // Determine the main user and avatar for this activity
     let actorName = '';
@@ -515,7 +574,7 @@ export default function WhatsNewPage() {
       actorFallback = actorName.substring(0, 2).toUpperCase();
       const emoji = item.emoji || '👍';
       activityText = `reacted ${emoji} to`;
-                     contentPreview = item.content_type === 'comment' && item.comment_preview 
+      contentPreview = item.content_type === 'comment' && item.comment_preview 
                  ? `&quot;${item.comment_preview}...&quot;` 
                  : '';
     } else {
@@ -529,64 +588,82 @@ export default function WhatsNewPage() {
     
     const timestamp = item.comment_created_at || item.post_created_at || item.reaction_created_at || '';
     
-    return (
-      <Link href={postUrl}>
-        <div className={`p-4 border rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer overflow-hidden ${
-          isNew 
-            ? 'bg-white dark:bg-slate-800 border-green-200 dark:border-green-800 shadow-sm hover:border-green-300 dark:hover:border-green-700' 
-            : 'bg-gray-50 dark:bg-slate-900/50 border-gray-200 dark:border-gray-700 opacity-60 hover:opacity-80'
-        }`}>
-          <div className="flex items-start gap-3 min-w-0">
-            {/* Profile Picture */}
-            <Avatar className="h-8 w-8 flex-shrink-0">
-              <AvatarImage src={actorAvatar} alt={actorName} />
-              <AvatarFallback className="text-xs bg-muted">
-                {actorFallback}
-              </AvatarFallback>
-            </Avatar>
-            
-            <div className="flex-1 min-w-0">
-              {/* Header with NEW badge and board */}
-              <div className="flex items-center gap-2 mb-1">
-                {isNew && (
-                  <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs px-2 py-0.5">
-                    NEW
-                  </Badge>
-                )}
-                <span className={`text-sm ${isNew ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>
-                  in {item.board_name}
-                </span>
-              </div>
-              
-              {              /* Main activity description */}
-              <div className={`text-sm ${isNew ? 'text-foreground' : 'text-muted-foreground'} mb-1 overflow-hidden`}>
-                <span className="font-medium">{actorName}</span>
-                <span className="mx-1">{activityText}</span>
-                {item.reaction_id ? (
-                  <span className="font-medium">{item.content_type === 'post' ? 'post' : 'comment'}</span>
-                ) : (
-                  <span className="font-medium truncate inline-block max-w-[150px] sm:max-w-[200px] align-bottom">
-                    &quot;{item.post_title}&quot;
-                  </span>
-                )}
-              </div>
-              
-              {/* Content preview */}
-              {contentPreview && (
-                <p className={`text-sm ${isNew ? 'text-muted-foreground' : 'text-muted-foreground/70'} line-clamp-2 italic`}>
-                  {contentPreview}
-                </p>
+    const cardContent = (
+      <div className={`p-4 border rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer overflow-hidden ${
+        isNew 
+          ? 'bg-white dark:bg-slate-800 border-green-200 dark:border-green-800 shadow-sm hover:border-green-300 dark:hover:border-green-700' 
+          : 'bg-gray-50 dark:bg-slate-900/50 border-gray-200 dark:border-gray-700 opacity-60 hover:opacity-80'
+      }`}>
+        <div className="flex items-start gap-3 min-w-0">
+          {/* Profile Picture */}
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarImage src={actorAvatar} alt={actorName} />
+            <AvatarFallback className="text-xs bg-muted">
+              {actorFallback}
+            </AvatarFallback>
+          </Avatar>
+          
+          <div className="flex-1 min-w-0">
+            {/* Header with NEW badge, cross-community indicator, and board */}
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              {isNew && (
+                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs px-2 py-0.5">
+                  NEW
+                </Badge>
               )}
-              
-              {/* Timestamp */}
-              <div className="mt-2 text-xs text-muted-foreground">
-                {formatTimeSinceLastVisit(timestamp)}
-              </div>
+              {isCrossCommunity && (
+                <Badge variant="outline" className="text-xs">
+                  {item.community_short_id && item.plugin_id ? 'External Community' : 'External (Limited)'}
+                </Badge>
+              )}
+              {isNavigating && (
+                <div className="inline-flex items-center gap-1 text-xs text-blue-600">
+                  <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  Opening...
+                </div>
+              )}
+              <span className={`text-sm ${isNew ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>
+                in {item.board_name}
+              </span>
+            </div>
+            
+            {/* Main activity description */}
+            <div className={`text-sm ${isNew ? 'text-foreground' : 'text-muted-foreground'} mb-1 overflow-hidden`}>
+              <span className="font-medium">{actorName}</span>
+              <span className="mx-1">{activityText}</span>
+              {item.reaction_id ? (
+                <span className="font-medium">{item.content_type === 'post' ? 'post' : 'comment'}</span>
+              ) : (
+                <span className="font-medium truncate inline-block max-w-[150px] sm:max-w-[200px] align-bottom">
+                  &quot;{item.post_title}&quot;
+                </span>
+              )}
+            </div>
+            
+            {/* Content preview */}
+            {contentPreview && (
+              <p className={`text-sm ${isNew ? 'text-muted-foreground' : 'text-muted-foreground/70'} line-clamp-2 italic`}>
+                {contentPreview}
+              </p>
+            )}
+            
+            {/* Timestamp */}
+            <div className="mt-2 text-xs text-muted-foreground">
+              {formatTimeSinceLastVisit(timestamp)}
             </div>
           </div>
         </div>
-      </Link>
+      </div>
     );
+    
+    // Conditional wrapper - Link for same community, div for cross-community
+    if (isCrossCommunity) {
+      console.log('[ActivityItem] Rendering cross-community div wrapper');
+      return <div onClick={handleClick}>{cardContent}</div>;
+    } else {
+      console.log('[ActivityItem] Rendering same-community Link wrapper');
+      return <Link href={postUrl}>{cardContent}</Link>;
+    }
   };
 
   return (
