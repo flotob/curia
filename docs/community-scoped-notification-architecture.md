@@ -132,7 +132,7 @@ CREATE TABLE community_notification_whitelist (
   target_community_id TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
   
   -- Relationship details
-  relationship_type VARCHAR(50) DEFAULT 'partner', -- 'partner', 'alliance', 'network'
+  relationship_type VARCHAR(50) DEFAULT 'partner', -- 'partner', 'ecosystem'
   is_bidirectional BOOLEAN DEFAULT FALSE,
   
   -- Notification permissions for this relationship
@@ -208,7 +208,7 @@ interface CommunityWhitelistEntry {
   communityId: string;
   communityName: string;
   communityShortId: string;
-  relationshipType: 'partner' | 'alliance' | 'network';
+  relationshipType: 'partner' | 'ecosystem';
   isBidirectional: boolean;
   permissions: NotificationPermissions;
   status: 'active' | 'paused' | 'expired';
