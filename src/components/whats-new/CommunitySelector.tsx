@@ -99,7 +99,7 @@ export function CommunitySelector({
         <Button
           variant="outline"
           className={cn(
-            "justify-between h-auto p-3 min-w-[240px]",
+            "justify-between h-auto p-3 min-w-[160px] sm:min-w-[240px] max-w-full",
             className
           )}
         >
@@ -132,7 +132,7 @@ export function CommunitySelector({
       
       <DropdownMenuContent 
         align="start" 
-        className="w-[280px] max-h-[400px] overflow-y-auto"
+        className="w-[200px] sm:w-[280px] max-h-[400px] overflow-y-auto"
       >
         {communities.map((community) => (
           <DropdownMenuItem

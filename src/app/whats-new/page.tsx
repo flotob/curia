@@ -607,22 +607,22 @@ export default function WhatsNewPage() {
             {/* Header with NEW badge, cross-community indicator, and board */}
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               {isNew && (
-                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs px-2 py-0.5">
+                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs px-2 py-0.5 flex-shrink-0">
                   NEW
                 </Badge>
               )}
               {isCrossCommunity && (
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs flex-shrink-0">
                   {item.community_short_id && item.plugin_id ? 'External Community' : 'External (Limited)'}
                 </Badge>
               )}
               {isNavigating && (
-                <div className="inline-flex items-center gap-1 text-xs text-blue-600">
+                <div className="inline-flex items-center gap-1 text-xs text-blue-600 flex-shrink-0">
                   <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full" />
                   Opening...
                 </div>
               )}
-              <span className={`text-sm ${isNew ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>
+              <span className={`text-sm ${isNew ? 'text-muted-foreground' : 'text-muted-foreground/70'} truncate`}>
                 in {item.board_name}
               </span>
             </div>
@@ -634,7 +634,7 @@ export default function WhatsNewPage() {
               {item.reaction_id ? (
                 <span className="font-medium">{item.content_type === 'post' ? 'post' : 'comment'}</span>
               ) : (
-                <span className="font-medium truncate inline-block max-w-[150px] sm:max-w-[200px] align-bottom">
+                <span className="font-medium truncate inline-block max-w-[120px] sm:max-w-[180px] md:max-w-[200px] align-bottom">
                   &quot;{item.post_title}&quot;
                 </span>
               )}
@@ -679,8 +679,8 @@ export default function WhatsNewPage() {
             </Link>
           </div>
 
-                      <div className="flex items-start justify-between gap-6">
-              <div className="flex-1">
+                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
+              <div className="flex-1 min-w-0">
                 <h1 className="text-3xl font-bold mb-2">What&apos;s New</h1>
                 <p className="text-muted-foreground mb-4">
                   {summary && summaryData?.previousVisit && (
@@ -689,28 +689,31 @@ export default function WhatsNewPage() {
                 </p>
                 
                 {/* 🆕 Community Selector */}
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-muted-foreground">Community:</span>
-                  <CommunitySelector
-                    currentCommunityId={selectedCommunityId}
-                    onCommunityChange={setSelectedCommunityId}
-                  />
-                  
-                  {/* 🆕 Cross-Community Indicator */}
-                  {selectedCommunityId !== user?.cid && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
-                      <Globe className="h-3 w-3 mr-1" />
-                      Cross-Community View
-                    </Badge>
-                  )}
-                  
-                  {/* 🆕 Loading Indicator */}
-                  {isLoading && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      Loading activity...
-                    </div>
-                  )}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <span className="text-sm font-medium text-muted-foreground flex-shrink-0">Community:</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0">
+                    <CommunitySelector
+                      currentCommunityId={selectedCommunityId}
+                      onCommunityChange={setSelectedCommunityId}
+                      className="w-full sm:w-auto"
+                    />
+                    
+                    {/* 🆕 Cross-Community Indicator */}
+                    {selectedCommunityId !== user?.cid && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 flex-shrink-0">
+                        <Globe className="h-3 w-3 mr-1" />
+                        Cross-Community View
+                      </Badge>
+                    )}
+                    
+                    {/* 🆕 Loading Indicator */}
+                    {isLoading && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-shrink-0">
+                        <div className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        Loading activity...
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               
@@ -718,7 +721,7 @@ export default function WhatsNewPage() {
                 variant="outline" 
                 size="sm" 
                 onClick={() => setShowOnlyNew(!showOnlyNew)}
-                className="gap-2"
+                className="gap-2 self-start flex-shrink-0"
               >
                 {showOnlyNew ? (
                   <>
