@@ -67,6 +67,7 @@ export function AppInitializer() {
             communityName: communityInfo.title,
             communityShortId: communityInfo.url,  // 🆕 Short ID for URL construction
             pluginId: pluginId,                  // 🆕 Plugin ID from context
+            communityLogoUrl: communityInfo.smallLogoUrl, // 🆕 Community logo from CG
           };
 
           console.log('[AppInitializer] Extracted context data:', {

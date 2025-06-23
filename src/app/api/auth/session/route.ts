@@ -80,6 +80,7 @@ interface SessionRequestBody {
   communityName?: string | null; // Added for community upsert
   communityShortId?: string | null; // 🆕 Short ID for URL construction
   pluginId?: string | null;         // 🆕 Plugin ID from context
+  communityLogoUrl?: string | null; // 🆕 Community logo/avatar URL
   friends?: Array<{             // 🆕 Friends data from CG lib
     id: string;
     name: string;
@@ -161,16 +162,17 @@ export async function POST(req: NextRequest) {
           // Continue without previousVisit - non-critical for session creation
         }
         
-        // 1. Upsert Community with CG lib metadata
+        // 1. Upsert Community with CG lib metadata including logo
         await query(
-          `INSERT INTO communities (id, name, community_short_id, plugin_id, updated_at) 
-           VALUES ($1, $2, $3, $4, NOW())
+          `INSERT INTO communities (id, name, community_short_id, plugin_id, logo_url, updated_at) 
+           VALUES ($1, $2, $3, $4, $5, NOW())
            ON CONFLICT (id) DO UPDATE SET 
              name = EXCLUDED.name, 
              community_short_id = COALESCE(EXCLUDED.community_short_id, communities.community_short_id),
              plugin_id = COALESCE(EXCLUDED.plugin_id, communities.plugin_id),
+             logo_url = COALESCE(EXCLUDED.logo_url, communities.logo_url),
              updated_at = NOW();`,
-                     [communityId, nameForCommunityUpsert || communityId, communityShortId ?? null, pluginId ?? null]
+                     [communityId, nameForCommunityUpsert || communityId, communityShortId ?? null, pluginId ?? null, body.communityLogoUrl ?? null]
         );
         console.log(`[/api/auth/session] Upserted community: ${communityId} with metadata (short_id: ${communityShortId}, plugin_id: ${pluginId})`);
 

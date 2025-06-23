@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, Heart, FileText, Users, Eye, EyeOff, ChevronDown, ChevronRight, Filter } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Heart, FileText, Users, Eye, EyeOff, ChevronDown, ChevronRight, Filter, Globe } from 'lucide-react';
 import { formatTimeSinceLastVisit, getWelcomeMessage } from '@/utils/dateUtils';
 import { authFetchJson } from '@/utils/authFetch';
 import { buildHomeUrl, preserveCgParams, buildPostUrl } from '@/utils/urlBuilder';
@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CommunitySelector } from '@/components/whats-new/CommunitySelector';
 
 // Enhanced interfaces for new API structure
 interface ActivityCounts {
@@ -86,6 +87,15 @@ interface WhatsNewResponse {
 export default function WhatsNewPage() {
   const { token, user } = useAuth();
   const [showOnlyNew, setShowOnlyNew] = useState(false);
+  // 🆕 Community selection state - defaults to current community
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string>(user?.cid || '');
+  
+  // Update selected community when user data loads
+  React.useEffect(() => {
+    if (user?.cid && !selectedCommunityId) {
+      setSelectedCommunityId(user.cid);
+    }
+  }, [user?.cid, selectedCommunityId]);
   
   // Collapse state for each category
   const [collapsedCategories, setCollapsedCategories] = useState({
@@ -113,22 +123,27 @@ export default function WhatsNewPage() {
 
   // Fetch summary data
   const { data: summaryData, isLoading: summaryLoading } = useQuery<WhatsNewResponse>({
-    queryKey: ['whatsNewSummary'],
+    queryKey: ['whatsNewSummary', selectedCommunityId],
     queryFn: async () => {
-      if (!user?.cid || !token) {
+      if (!selectedCommunityId || !token) {
         throw new Error('Authentication required');
       }
-      return authFetchJson<WhatsNewResponse>('/api/me/whats-new', { token });
+      const params = new URLSearchParams();
+      if (selectedCommunityId !== user?.cid) {
+        params.set('communityId', selectedCommunityId);
+      }
+      const url = `/api/me/whats-new${params.toString() ? `?${params.toString()}` : ''}`;
+      return authFetchJson<WhatsNewResponse>(url, { token });
     },
-    enabled: !!(user?.cid && token),
+    enabled: !!(selectedCommunityId && token),
     staleTime: 30000, // 30 seconds
   });
 
   // Fetch all detailed data for all categories with per-category pagination
   const commentsOnMyPostsQuery = useQuery<WhatsNewResponse>({
-    queryKey: ['whatsNewDetail', 'comments_on_my_posts', categoryPagination.comments_on_my_posts, categoryFilters.comments_on_my_posts],
+    queryKey: ['whatsNewDetail', 'comments_on_my_posts', selectedCommunityId, categoryPagination.comments_on_my_posts, categoryFilters.comments_on_my_posts],
     queryFn: async () => {
-      if (!user?.cid || !token) {
+      if (!selectedCommunityId || !token) {
         throw new Error('Authentication required');
       }
       const pagination = categoryPagination.comments_on_my_posts;
@@ -136,18 +151,19 @@ export default function WhatsNewPage() {
         type: 'comments_on_my_posts',
         limit: pagination.limit.toString(),
         offset: (pagination.page * pagination.limit).toString(),
-        ...(categoryFilters.comments_on_my_posts && { showOnlyNew: 'true' })
+        ...(categoryFilters.comments_on_my_posts && { showOnlyNew: 'true' }),
+        ...(selectedCommunityId !== user?.cid && { communityId: selectedCommunityId })
       });
       return authFetchJson<WhatsNewResponse>(`/api/me/whats-new?${params}`, { token });
     },
-    enabled: !!(user?.cid && token),
+    enabled: !!(selectedCommunityId && token),
     staleTime: 30000,
   });
   
   const commentsOnPostsICommentedQuery = useQuery<WhatsNewResponse>({
-    queryKey: ['whatsNewDetail', 'comments_on_posts_i_commented', categoryPagination.comments_on_posts_i_commented, categoryFilters.comments_on_posts_i_commented],
+    queryKey: ['whatsNewDetail', 'comments_on_posts_i_commented', selectedCommunityId, categoryPagination.comments_on_posts_i_commented, categoryFilters.comments_on_posts_i_commented],
     queryFn: async () => {
-      if (!user?.cid || !token) {
+      if (!selectedCommunityId || !token) {
         throw new Error('Authentication required');
       }
       const pagination = categoryPagination.comments_on_posts_i_commented;
@@ -155,18 +171,19 @@ export default function WhatsNewPage() {
         type: 'comments_on_posts_i_commented',
         limit: pagination.limit.toString(),
         offset: (pagination.page * pagination.limit).toString(),
-        ...(categoryFilters.comments_on_posts_i_commented && { showOnlyNew: 'true' })
+        ...(categoryFilters.comments_on_posts_i_commented && { showOnlyNew: 'true' }),
+        ...(selectedCommunityId !== user?.cid && { communityId: selectedCommunityId })
       });
       return authFetchJson<WhatsNewResponse>(`/api/me/whats-new?${params}`, { token });
     },
-    enabled: !!(user?.cid && token),
+    enabled: !!(selectedCommunityId && token),
     staleTime: 30000,
   });
   
   const reactionsOnMyContentQuery = useQuery<WhatsNewResponse>({
-    queryKey: ['whatsNewDetail', 'reactions_on_my_content', categoryPagination.reactions_on_my_content, categoryFilters.reactions_on_my_content],
+    queryKey: ['whatsNewDetail', 'reactions_on_my_content', selectedCommunityId, categoryPagination.reactions_on_my_content, categoryFilters.reactions_on_my_content],
     queryFn: async () => {
-      if (!user?.cid || !token) {
+      if (!selectedCommunityId || !token) {
         throw new Error('Authentication required');
       }
       const pagination = categoryPagination.reactions_on_my_content;
@@ -174,18 +191,19 @@ export default function WhatsNewPage() {
         type: 'reactions_on_my_content',
         limit: pagination.limit.toString(),
         offset: (pagination.page * pagination.limit).toString(),
-        ...(categoryFilters.reactions_on_my_content && { showOnlyNew: 'true' })
+        ...(categoryFilters.reactions_on_my_content && { showOnlyNew: 'true' }),
+        ...(selectedCommunityId !== user?.cid && { communityId: selectedCommunityId })
       });
       return authFetchJson<WhatsNewResponse>(`/api/me/whats-new?${params}`, { token });
     },
-    enabled: !!(user?.cid && token),
+    enabled: !!(selectedCommunityId && token),
     staleTime: 30000,
   });
   
   const newPostsInActiveBoardsQuery = useQuery<WhatsNewResponse>({
-    queryKey: ['whatsNewDetail', 'new_posts_in_active_boards', categoryPagination.new_posts_in_active_boards, categoryFilters.new_posts_in_active_boards],
+    queryKey: ['whatsNewDetail', 'new_posts_in_active_boards', selectedCommunityId, categoryPagination.new_posts_in_active_boards, categoryFilters.new_posts_in_active_boards],
     queryFn: async () => {
-      if (!user?.cid || !token) {
+      if (!selectedCommunityId || !token) {
         throw new Error('Authentication required');
       }
       const pagination = categoryPagination.new_posts_in_active_boards;
@@ -193,11 +211,12 @@ export default function WhatsNewPage() {
         type: 'new_posts_in_active_boards',
         limit: pagination.limit.toString(),
         offset: (pagination.page * pagination.limit).toString(),
-        ...(categoryFilters.new_posts_in_active_boards && { showOnlyNew: 'true' })
+        ...(categoryFilters.new_posts_in_active_boards && { showOnlyNew: 'true' }),
+        ...(selectedCommunityId !== user?.cid && { communityId: selectedCommunityId })
       });
       return authFetchJson<WhatsNewResponse>(`/api/me/whats-new?${params}`, { token });
     },
-    enabled: !!(user?.cid && token),
+    enabled: !!(selectedCommunityId && token),
     staleTime: 30000,
   });
 
@@ -583,14 +602,39 @@ export default function WhatsNewPage() {
             </Link>
           </div>
 
-                      <div className="flex items-center justify-between">
-              <div>
+                      <div className="flex items-start justify-between gap-6">
+              <div className="flex-1">
                 <h1 className="text-3xl font-bold mb-2">What&apos;s New</h1>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground mb-4">
                   {summary && summaryData?.previousVisit && (
                     <>Activity since your last visit {formatTimeSinceLastVisit(summaryData.previousVisit)}</>
                   )}
                 </p>
+                
+                {/* 🆕 Community Selector */}
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-muted-foreground">Community:</span>
+                  <CommunitySelector
+                    currentCommunityId={selectedCommunityId}
+                    onCommunityChange={setSelectedCommunityId}
+                  />
+                  
+                  {/* 🆕 Cross-Community Indicator */}
+                  {selectedCommunityId !== user?.cid && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+                      <Globe className="h-3 w-3 mr-1" />
+                      Cross-Community View
+                    </Badge>
+                  )}
+                  
+                  {/* 🆕 Loading Indicator */}
+                  {isLoading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      Loading activity...
+                    </div>
+                  )}
+                </div>
               </div>
               
               <Button 
@@ -623,8 +667,40 @@ export default function WhatsNewPage() {
               </div>
             ))}
           </div>
+        ) : summary && Object.values(summary.totalCounts).every(count => count === 0) ? (
+          /* 🆕 Global Empty State */
+          <div className="text-center py-16">
+            <div className="mx-auto w-32 h-32 mb-6 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
+              <Users className="h-16 w-16 text-blue-500 dark:text-blue-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No Activity Yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              {selectedCommunityId !== user?.cid 
+                ? "There's no activity in this community yet. Try participating to see updates here!"
+                : "Start participating in discussions to see activity updates here!"
+              }
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href={buildHomeUrl()}>
+                <Button className="gap-2">
+                  <MessageSquare size={16} />
+                  Browse Discussions
+                </Button>
+              </Link>
+              {selectedCommunityId !== user?.cid && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setSelectedCommunityId(user?.cid || '')}
+                  className="gap-2"
+                >
+                  <ArrowLeft size={16} />
+                  Return to My Community
+                </Button>
+              )}
+            </div>
+          </div>
         ) : (
-          <div className="space-y-8">
+          <div className={`space-y-8 transition-all duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
             {/* Comments on My Posts */}
             {summary && (
               <div>

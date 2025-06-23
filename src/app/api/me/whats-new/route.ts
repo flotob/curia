@@ -7,6 +7,7 @@ interface WhatsNewQuery {
   limit?: number;
   offset?: number;
   boardId?: string;
+  communityId?: string; // 🆕 Community filtering for cross-community What's New
   showOnlyNew?: boolean; // Optional filter to show only new items
 }
 
@@ -32,11 +33,22 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
     
   const boardId = searchParams.get('boardId');
   const showOnlyNew = searchParams.get('showOnlyNew') === 'true';
+  
+  // 🆕 Community filtering: use query param or fall back to current community from JWT
+  const communityId = searchParams.get('communityId') || req.user!.cid;
 
   // Validate boardId if provided (should be numeric)
   if (boardId && !Number.isFinite(Number(boardId))) {
     return NextResponse.json(
       { error: 'Invalid boardId parameter - must be a number' },
+      { status: 400 }
+    );
+  }
+  
+  // Validate communityId (required for scoping)
+  if (!communityId) {
+    return NextResponse.json(
+      { error: 'Community ID required for What\'s New filtering' },
       { status: 400 }
     );
   }
@@ -75,10 +87,11 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
           INNER JOIN boards b ON p.board_id = b.id
           INNER JOIN users commenter ON c.author_user_id = commenter.user_id
           WHERE p.author_user_id = $1 
-            AND c.author_user_id != $1`
+            AND c.author_user_id != $1
+            AND b.community_id = $3`
         ];
         
-        const commentsParams: (string | number)[] = [userId, previousVisit];
+        const commentsParams: (string | number)[] = [userId, previousVisit, communityId];
 
         if (showOnlyNew) {
           commentsQueryParts.push(` AND c.created_at > $2`);
@@ -101,13 +114,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
           WHERE p.author_user_id = $1 
-            AND c.author_user_id != $1`
+            AND c.author_user_id != $1
+            AND b.community_id = $2`
         ];
 
-        const countCommentsParams: (string | number)[] = [userId];
+        const countCommentsParams: (string | number)[] = [userId, communityId];
 
         if (showOnlyNew) {
-          countCommentsQueryParts.push(` AND c.created_at > $2`);
+          countCommentsQueryParts.push(` AND c.created_at > $3`);
           countCommentsParams.push(previousVisit);
         }
 
@@ -146,10 +160,11 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             AND my_comments.author_user_id = $1
           )
             AND c.author_user_id != $1
-            AND p.author_user_id != $1`
+            AND p.author_user_id != $1
+            AND b.community_id = $3`
         ];
 
-        const commentsOnPostsParams: (string | number)[] = [userId, previousVisit];
+        const commentsOnPostsParams: (string | number)[] = [userId, previousVisit, communityId];
 
         if (showOnlyNew) {
           commentsOnPostsQueryParts.push(` AND c.created_at > $2`);
@@ -177,13 +192,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             AND my_comments.author_user_id = $1
           )
             AND c.author_user_id != $1
-            AND p.author_user_id != $1`
+            AND p.author_user_id != $1
+            AND b.community_id = $2`
         ];
 
-        const countCommentsOnPostsParams: (string | number)[] = [userId];
+        const countCommentsOnPostsParams: (string | number)[] = [userId, communityId];
 
         if (showOnlyNew) {
-          countCommentsOnPostsQueryParts.push(` AND c.created_at > $2`);
+          countCommentsOnPostsQueryParts.push(` AND c.created_at > $3`);
           countCommentsOnPostsParams.push(previousVisit);
         }
 
@@ -226,10 +242,11 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
           LEFT JOIN posts cp ON c.post_id = cp.id
           LEFT JOIN boards cpb ON cp.board_id = cpb.id
           WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
-            AND r.user_id != $1`
+            AND r.user_id != $1
+            AND (pb.community_id = $3 OR cpb.community_id = $3)`
         ];
 
-        const reactionsParams: (string | number)[] = [userId, previousVisit];
+        const reactionsParams: (string | number)[] = [userId, previousVisit, communityId];
 
         if (showOnlyNew) {
           reactionsQueryParts.push(` AND r.created_at > $2`);
@@ -256,13 +273,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
           LEFT JOIN posts cp ON c.post_id = cp.id
           LEFT JOIN boards cpb ON cp.board_id = cpb.id
           WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
-            AND r.user_id != $1`
+            AND r.user_id != $1
+            AND (pb.community_id = $2 OR cpb.community_id = $2)`
         ];
 
-        const countReactionsParams: (string | number)[] = [userId];
+        const countReactionsParams: (string | number)[] = [userId, communityId];
 
         if (showOnlyNew) {
-          countReactionsQueryParts.push(` AND r.created_at > $2`);
+          countReactionsQueryParts.push(` AND r.created_at > $3`);
           countReactionsParams.push(previousVisit);
         }
 
@@ -305,10 +323,11 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               WHERE c.author_user_id = $1
             ) active_boards WHERE active_boards.board_id = p.board_id
           )
-            AND p.author_user_id != $1`
+            AND p.author_user_id != $1
+            AND b.community_id = $3`
         ];
 
-        const postsParams: (string | number)[] = [userId, previousVisit];
+        const postsParams: (string | number)[] = [userId, previousVisit, communityId];
 
         if (showOnlyNew) {
           postsQueryParts.push(` AND p.created_at > $2`);
@@ -338,13 +357,14 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               WHERE c.author_user_id = $1
             ) active_boards WHERE active_boards.board_id = p.board_id
           )
-            AND p.author_user_id != $1`
+            AND p.author_user_id != $1
+            AND b.community_id = $2`
         ];
 
-        const countPostsParams: (string | number)[] = [userId];
+        const countPostsParams: (string | number)[] = [userId, communityId];
 
         if (showOnlyNew) {
-          countPostsQueryParts.push(` AND p.created_at > $2`);
+          countPostsQueryParts.push(` AND p.created_at > $3`);
           countPostsParams.push(previousVisit);
         }
 
@@ -361,10 +381,11 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
 
       default:
         // Return enhanced summary with both NEW and TOTAL counts
-        // Build summary queries with optional board filtering
-        const boardFilter = boardId ? ` AND b.id = $${boardId ? 3 : 999}` : '';
-        const summaryParams = boardId ? [userId, previousVisit, boardId] : [userId, previousVisit];
-        const totalParams = boardId ? [userId, boardId] : [userId];
+        // Build summary queries with community filtering and optional board filtering
+        const communityFilter = ` AND b.community_id = $3`;
+        const boardFilter = boardId ? ` AND b.id = $4` : '';
+        const summaryParams = boardId ? [userId, previousVisit, communityId, boardId] : [userId, previousVisit, communityId];
+        const totalParams = boardId ? [userId, communityId, boardId] : [userId, communityId];
         
         const summaryQueries = await Promise.all([
           // Comments on my posts - NEW count
@@ -375,7 +396,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             INNER JOIN boards b ON p.board_id = b.id
             WHERE p.author_user_id = $1 
               AND c.author_user_id != $1
-              AND c.created_at > $2${boardFilter}
+              AND c.created_at > $2${communityFilter}${boardFilter}
           `, summaryParams),
           
           // Comments on my posts - TOTAL count  
@@ -385,7 +406,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             INNER JOIN posts p ON c.post_id = p.id
             INNER JOIN boards b ON p.board_id = b.id
             WHERE p.author_user_id = $1 
-              AND c.author_user_id != $1${boardFilter.replace('$3', '$2')}
+              AND c.author_user_id != $1${communityFilter.replace('$3', '$2')}${boardFilter.replace('$4', '$3')}
           `, totalParams),
           
           // Comments on posts I commented - NEW count
@@ -401,7 +422,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             )
               AND c.author_user_id != $1
               AND c.created_at > $2
-              AND p.author_user_id != $1${boardFilter}
+              AND p.author_user_id != $1${communityFilter}${boardFilter}
           `, summaryParams),
           
           // Comments on posts I commented - TOTAL count
@@ -416,7 +437,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               AND my_comments.author_user_id = $1
             )
               AND c.author_user_id != $1
-              AND p.author_user_id != $1${boardFilter.replace('$3', '$2')}
+              AND p.author_user_id != $1${communityFilter.replace('$3', '$2')}${boardFilter.replace('$4', '$3')}
           `, totalParams),
           
           // Reactions on my content - NEW count
@@ -430,7 +451,8 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             LEFT JOIN boards cpb ON cp.board_id = cpb.id
             WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
               AND r.user_id != $1
-              AND r.created_at > $2${boardId ? ` AND (pb.id = $3 OR cpb.id = $3)` : ''}
+              AND r.created_at > $2
+              AND (pb.community_id = $3 OR cpb.community_id = $3)${boardId ? ` AND (pb.id = $4 OR cpb.id = $4)` : ''}
           `, summaryParams),
           
           // Reactions on my content - TOTAL count
@@ -443,7 +465,8 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             LEFT JOIN posts cp ON c.post_id = cp.id
             LEFT JOIN boards cpb ON cp.board_id = cpb.id
             WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
-              AND r.user_id != $1${boardId ? ` AND (pb.id = $2 OR cpb.id = $2)` : ''}
+              AND r.user_id != $1
+              AND (pb.community_id = $2 OR cpb.community_id = $2)${boardId ? ` AND (pb.id = $3 OR cpb.id = $3)` : ''}
           `, totalParams),
           
           // New posts in active boards - NEW count
@@ -461,7 +484,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               ) active_boards WHERE active_boards.board_id = p.board_id
             )
               AND p.author_user_id != $1
-              AND p.created_at > $2${boardFilter}
+              AND p.created_at > $2${communityFilter}${boardFilter}
           `, summaryParams),
           
           // New posts in active boards - TOTAL count
@@ -478,7 +501,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
                 WHERE c.author_user_id = $1
               ) active_boards WHERE active_boards.board_id = p.board_id
             )
-              AND p.author_user_id != $1${boardFilter.replace('$3', '$2')}
+              AND p.author_user_id != $1${communityFilter.replace('$3', '$2')}${boardFilter.replace('$4', '$3')}
           `, totalParams)
         ]);
 

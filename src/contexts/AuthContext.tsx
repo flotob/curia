@@ -68,6 +68,7 @@ interface UserDataFromCgLib {
   communityId?: string | null;
   communityShortId?: string | null;  // 🆕 Short ID for URL construction
   pluginId?: string | null;          // 🆕 Plugin ID from context
+  communityLogoUrl?: string | null;  // 🆕 Community logo from CG
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -163,6 +164,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         communityName: loginData.communityName,
         communityShortId: loginData.communityShortId,  // 🆕 Short ID for URLs
         pluginId: loginData.pluginId,                  // 🆕 Plugin ID from context
+        communityLogoUrl: loginData.communityLogoUrl,  // 🆕 Community logo from CG
         friends: friends.length > 0 ? friends : undefined, // 🆕 Include friends if available
     };
 
@@ -274,6 +276,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             communityId: communityInfoResponse.data.id,
             communityShortId: communityInfoResponse.data.url,  // 🆕 Short ID for URLs
             pluginId: pluginId,                                // 🆕 Plugin ID from context
+            communityLogoUrl: communityInfoResponse.data.smallLogoUrl, // 🆕 Community logo from CG
           };
           
           console.log('[AuthContext] Extracted data for refresh:', {
