@@ -66,6 +66,7 @@ CREATE TABLE "public"."communities" (
     "community_short_id" text,
     "plugin_id" text,
     "community_url" text,
+    "logo_url" text,
     CONSTRAINT "communities_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
@@ -74,6 +75,8 @@ COMMENT ON COLUMN "public"."communities"."community_short_id" IS 'Community shor
 COMMENT ON COLUMN "public"."communities"."plugin_id" IS 'Plugin ID from CG lib context for URL building';
 
 COMMENT ON COLUMN "public"."communities"."community_url" IS 'Community URL field (for future use if needed)';
+
+COMMENT ON COLUMN "public"."communities"."logo_url" IS 'URL to the community logo/avatar image';
 
 CREATE INDEX communities_settings_index ON public.communities USING gin (settings);
 
@@ -626,4 +629,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-23 14:09:33 UTC
+-- 2025-06-23 19:26:58 UTC
