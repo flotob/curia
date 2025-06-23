@@ -7,6 +7,7 @@ interface WhatsNewQuery {
   limit?: number;
   offset?: number;
   boardId?: string;
+  showOnlyNew?: boolean; // Optional filter to show only new items
 }
 
 async function getWhatsNewHandler(req: AuthenticatedRequest) {
@@ -14,11 +15,31 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
   const userId = req.user!.sub;
   const { searchParams } = new URL(req.url!);
   
-  // Parse query parameters with safe defaults
+  // Parse query parameters with safe defaults and validation
   const type = searchParams.get('type') as WhatsNewQuery['type'];
-  const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50); // Max 50 items per request
-  const offset = parseInt(searchParams.get('offset') || '0');
+  
+  // Validate limit parameter
+  const rawLimit = Number(searchParams.get('limit'));
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 50 
+    ? rawLimit 
+    : 20;
+  
+  // Validate offset parameter
+  const rawOffset = Number(searchParams.get('offset'));
+  const offset = Number.isFinite(rawOffset) && rawOffset >= 0 
+    ? rawOffset 
+    : 0;
+    
   const boardId = searchParams.get('boardId');
+  const showOnlyNew = searchParams.get('showOnlyNew') === 'true';
+
+  // Validate boardId if provided (should be numeric)
+  if (boardId && !Number.isFinite(Number(boardId))) {
+    return NextResponse.json(
+      { error: 'Invalid boardId parameter - must be a number' },
+      { status: 400 }
+    );
+  }
 
   // If no previous visit, return welcome message for new users
   if (!previousVisit) {
@@ -35,8 +56,9 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
 
     switch (type) {
       case 'comments_on_my_posts':
-        const commentsOnMyPosts = await query(`
-          SELECT 
+        // Build query and parameters dynamically
+        const commentsQueryParts = [
+          `SELECT 
             c.id as comment_id,
             c.content as comment_content,
             c.created_at as comment_created_at,
@@ -46,44 +68,63 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             p.id as post_id,
             p.title as post_title,
             p.board_id,
-            b.name as board_name
+            b.name as board_name,
+            CASE WHEN c.created_at > $2 THEN true ELSE false END as is_new
           FROM comments c
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
           INNER JOIN users commenter ON c.author_user_id = commenter.user_id
           WHERE p.author_user_id = $1 
-            AND c.author_user_id != $1
-            AND c.created_at > $2
-            ${boardId ? 'AND b.id = $4' : ''}
-          ORDER BY c.created_at DESC
-          LIMIT $3 OFFSET ${offset}
-        `, boardId 
-          ? [userId, previousVisit, limit, boardId]
-          : [userId, previousVisit, limit]
-        );
+            AND c.author_user_id != $1`
+        ];
+        
+        const commentsParams: (string | number)[] = [userId, previousVisit];
 
-        // Get total count
-        const countCommentsOnMyPosts = await query(`
-          SELECT COUNT(*) as total
+        if (showOnlyNew) {
+          commentsQueryParts.push(` AND c.created_at > $2`);
+        }
+
+        if (boardId) {
+          commentsQueryParts.push(` AND b.id = $${commentsParams.length + 1}`);
+          commentsParams.push(boardId);
+        }
+
+        commentsQueryParts.push(` ORDER BY c.created_at DESC LIMIT $${commentsParams.length + 1} OFFSET $${commentsParams.length + 2}`);
+        commentsParams.push(limit, offset);
+
+        const commentsOnMyPosts = await query(commentsQueryParts.join(''), commentsParams);
+
+        // Get total count with same filters
+        const countCommentsQueryParts = [
+          `SELECT COUNT(*) as total
           FROM comments c
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
           WHERE p.author_user_id = $1 
-            AND c.author_user_id != $1
-            AND c.created_at > $2
-            ${boardId ? 'AND b.id = $3' : ''}
-        `, boardId 
-          ? [userId, previousVisit, boardId]
-          : [userId, previousVisit]
-        );
+            AND c.author_user_id != $1`
+        ];
+
+        const countCommentsParams: (string | number)[] = [userId];
+
+        if (showOnlyNew) {
+          countCommentsQueryParts.push(` AND c.created_at > $2`);
+          countCommentsParams.push(previousVisit);
+        }
+
+        if (boardId) {
+          countCommentsQueryParts.push(` AND b.id = $${countCommentsParams.length + 1}`);
+          countCommentsParams.push(boardId);
+        }
+
+        const countCommentsOnMyPosts = await query(countCommentsQueryParts.join(''), countCommentsParams);
 
         results = commentsOnMyPosts.rows;
         totalCount = parseInt(countCommentsOnMyPosts.rows[0]?.total || '0');
         break;
 
       case 'comments_on_posts_i_commented':
-        const commentsOnPostsICommented = await query(`
-          SELECT DISTINCT
+        const commentsOnPostsQueryParts = [
+          `SELECT DISTINCT
             c.id as comment_id,
             c.content as comment_content,
             c.created_at as comment_created_at,
@@ -93,7 +134,8 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             p.id as post_id,
             p.title as post_title,
             p.board_id,
-            b.name as board_name
+            b.name as board_name,
+            CASE WHEN c.created_at > $2 THEN true ELSE false END as is_new
           FROM comments c
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
@@ -104,19 +146,28 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             AND my_comments.author_user_id = $1
           )
             AND c.author_user_id != $1
-            AND c.created_at > $2
-            AND p.author_user_id != $1
-            ${boardId ? 'AND b.id = $4' : ''}
-          ORDER BY c.created_at DESC
-          LIMIT $3 OFFSET ${offset}
-        `, boardId 
-          ? [userId, previousVisit, limit, boardId]
-          : [userId, previousVisit, limit]
-        );
+            AND p.author_user_id != $1`
+        ];
+
+        const commentsOnPostsParams: (string | number)[] = [userId, previousVisit];
+
+        if (showOnlyNew) {
+          commentsOnPostsQueryParts.push(` AND c.created_at > $2`);
+        }
+
+        if (boardId) {
+          commentsOnPostsQueryParts.push(` AND b.id = $${commentsOnPostsParams.length + 1}`);
+          commentsOnPostsParams.push(boardId);
+        }
+
+        commentsOnPostsQueryParts.push(` ORDER BY c.created_at DESC LIMIT $${commentsOnPostsParams.length + 1} OFFSET $${commentsOnPostsParams.length + 2}`);
+        commentsOnPostsParams.push(limit, offset);
+
+        const commentsOnPostsICommented = await query(commentsOnPostsQueryParts.join(''), commentsOnPostsParams);
 
         // Get total count
-        const countCommentsOnPostsICommented = await query(`
-          SELECT COUNT(DISTINCT c.id) as total
+        const countCommentsOnPostsQueryParts = [
+          `SELECT COUNT(DISTINCT c.id) as total
           FROM comments c
           INNER JOIN posts p ON c.post_id = p.id
           INNER JOIN boards b ON p.board_id = b.id
@@ -126,21 +177,30 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             AND my_comments.author_user_id = $1
           )
             AND c.author_user_id != $1
-            AND c.created_at > $2
-            AND p.author_user_id != $1
-            ${boardId ? 'AND b.id = $3' : ''}
-        `, boardId 
-          ? [userId, previousVisit, boardId]
-          : [userId, previousVisit]
-        );
+            AND p.author_user_id != $1`
+        ];
+
+        const countCommentsOnPostsParams: (string | number)[] = [userId];
+
+        if (showOnlyNew) {
+          countCommentsOnPostsQueryParts.push(` AND c.created_at > $2`);
+          countCommentsOnPostsParams.push(previousVisit);
+        }
+
+        if (boardId) {
+          countCommentsOnPostsQueryParts.push(` AND b.id = $${countCommentsOnPostsParams.length + 1}`);
+          countCommentsOnPostsParams.push(boardId);
+        }
+
+        const countCommentsOnPostsICommented = await query(countCommentsOnPostsQueryParts.join(''), countCommentsOnPostsParams);
 
         results = commentsOnPostsICommented.rows;
         totalCount = parseInt(countCommentsOnPostsICommented.rows[0]?.total || '0');
         break;
 
       case 'reactions_on_my_content':
-        const reactionsOnMyContent = await query(`
-          SELECT 
+        const reactionsQueryParts = [
+          `SELECT 
             r.id as reaction_id,
             r.emoji,
             r.created_at as reaction_created_at,
@@ -156,7 +216,8 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             r.comment_id,
             CASE WHEN r.comment_id IS NOT NULL THEN LEFT(c.content, 100) END as comment_preview,
             COALESCE(p.board_id, cp.board_id) as board_id,
-            COALESCE(pb.name, cpb.name) as board_name
+            COALESCE(pb.name, cpb.name) as board_name,
+            CASE WHEN r.created_at > $2 THEN true ELSE false END as is_new
           FROM reactions r
           INNER JOIN users reactor ON r.user_id = reactor.user_id
           LEFT JOIN posts p ON r.post_id = p.id AND p.author_user_id = $1
@@ -165,19 +226,29 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
           LEFT JOIN posts cp ON c.post_id = cp.id
           LEFT JOIN boards cpb ON cp.board_id = cpb.id
           WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
-            AND r.user_id != $1
-            AND r.created_at > $2
-            ${boardId ? 'AND (pb.id = $4 OR cpb.id = $4)' : ''}
-          ORDER BY r.created_at DESC
-          LIMIT $3 OFFSET ${offset}
-        `, boardId 
-          ? [userId, previousVisit, limit, boardId]
-          : [userId, previousVisit, limit]
-        );
+            AND r.user_id != $1`
+        ];
+
+        const reactionsParams: (string | number)[] = [userId, previousVisit];
+
+        if (showOnlyNew) {
+          reactionsQueryParts.push(` AND r.created_at > $2`);
+        }
+
+        if (boardId) {
+          const nextParam = reactionsParams.length + 1;
+          reactionsQueryParts.push(` AND (pb.id = $${nextParam} OR cpb.id = $${nextParam})`);
+          reactionsParams.push(boardId);
+        }
+
+        reactionsQueryParts.push(` ORDER BY r.created_at DESC LIMIT $${reactionsParams.length + 1} OFFSET $${reactionsParams.length + 2}`);
+        reactionsParams.push(limit, offset);
+
+        const reactionsOnMyContent = await query(reactionsQueryParts.join(''), reactionsParams);
 
         // Get total count
-        const countReactionsOnMyContent = await query(`
-          SELECT COUNT(*) as total
+        const countReactionsQueryParts = [
+          `SELECT COUNT(*) as total
           FROM reactions r
           LEFT JOIN posts p ON r.post_id = p.id AND p.author_user_id = $1
           LEFT JOIN boards pb ON p.board_id = pb.id
@@ -185,21 +256,31 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
           LEFT JOIN posts cp ON c.post_id = cp.id
           LEFT JOIN boards cpb ON cp.board_id = cpb.id
           WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
-            AND r.user_id != $1
-            AND r.created_at > $2
-            ${boardId ? 'AND (pb.id = $3 OR cpb.id = $3)' : ''}
-        `, boardId 
-          ? [userId, previousVisit, boardId]
-          : [userId, previousVisit]
-        );
+            AND r.user_id != $1`
+        ];
+
+        const countReactionsParams: (string | number)[] = [userId];
+
+        if (showOnlyNew) {
+          countReactionsQueryParts.push(` AND r.created_at > $2`);
+          countReactionsParams.push(previousVisit);
+        }
+
+        if (boardId) {
+          const nextParam = countReactionsParams.length + 1;
+          countReactionsQueryParts.push(` AND (pb.id = $${nextParam} OR cpb.id = $${nextParam})`);
+          countReactionsParams.push(boardId);
+        }
+
+        const countReactionsOnMyContent = await query(countReactionsQueryParts.join(''), countReactionsParams);
 
         results = reactionsOnMyContent.rows;
         totalCount = parseInt(countReactionsOnMyContent.rows[0]?.total || '0');
         break;
 
       case 'new_posts_in_active_boards':
-        const newPostsInActiveBoards = await query(`
-          SELECT DISTINCT
+        const postsQueryParts = [
+          `SELECT DISTINCT
             p.id as post_id,
             p.title as post_title,
             p.content as post_content,
@@ -210,7 +291,8 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             p.upvote_count,
             p.comment_count,
             p.board_id,
-            b.name as board_name
+            b.name as board_name,
+            CASE WHEN p.created_at > $2 THEN true ELSE false END as is_new
           FROM posts p
           INNER JOIN users author ON p.author_user_id = author.user_id
           INNER JOIN boards b ON p.board_id = b.id
@@ -223,19 +305,28 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               WHERE c.author_user_id = $1
             ) active_boards WHERE active_boards.board_id = p.board_id
           )
-            AND p.author_user_id != $1
-            AND p.created_at > $2
-            ${boardId ? 'AND b.id = $4' : ''}
-          ORDER BY p.created_at DESC
-          LIMIT $3 OFFSET ${offset}
-        `, boardId 
-          ? [userId, previousVisit, limit, boardId]
-          : [userId, previousVisit, limit]
-        );
+            AND p.author_user_id != $1`
+        ];
+
+        const postsParams: (string | number)[] = [userId, previousVisit];
+
+        if (showOnlyNew) {
+          postsQueryParts.push(` AND p.created_at > $2`);
+        }
+
+        if (boardId) {
+          postsQueryParts.push(` AND b.id = $${postsParams.length + 1}`);
+          postsParams.push(boardId);
+        }
+
+        postsQueryParts.push(` ORDER BY p.created_at DESC LIMIT $${postsParams.length + 1} OFFSET $${postsParams.length + 2}`);
+        postsParams.push(limit, offset);
+
+        const newPostsInActiveBoards = await query(postsQueryParts.join(''), postsParams);
 
         // Get total count
-        const countNewPostsInActiveBoards = await query(`
-          SELECT COUNT(DISTINCT p.id) as total
+        const countPostsQueryParts = [
+          `SELECT COUNT(DISTINCT p.id) as total
           FROM posts p
           INNER JOIN boards b ON p.board_id = b.id
           WHERE EXISTS (
@@ -247,36 +338,62 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               WHERE c.author_user_id = $1
             ) active_boards WHERE active_boards.board_id = p.board_id
           )
-            AND p.author_user_id != $1
-            AND p.created_at > $2
-            ${boardId ? 'AND b.id = $3' : ''}
-        `, boardId 
-          ? [userId, previousVisit, boardId]
-          : [userId, previousVisit]
-        );
+            AND p.author_user_id != $1`
+        ];
+
+        const countPostsParams: (string | number)[] = [userId];
+
+        if (showOnlyNew) {
+          countPostsQueryParts.push(` AND p.created_at > $2`);
+          countPostsParams.push(previousVisit);
+        }
+
+        if (boardId) {
+          countPostsQueryParts.push(` AND b.id = $${countPostsParams.length + 1}`);
+          countPostsParams.push(boardId);
+        }
+
+        const countNewPostsInActiveBoards = await query(countPostsQueryParts.join(''), countPostsParams);
 
         results = newPostsInActiveBoards.rows;
         totalCount = parseInt(countNewPostsInActiveBoards.rows[0]?.total || '0');
         break;
 
       default:
-        // Return summary of all activity types
-        const summary = await Promise.all([
-          // Comments on my posts count
+        // Return enhanced summary with both NEW and TOTAL counts
+        // Build summary queries with optional board filtering
+        const boardFilter = boardId ? ` AND b.id = $${boardId ? 3 : 999}` : '';
+        const summaryParams = boardId ? [userId, previousVisit, boardId] : [userId, previousVisit];
+        const totalParams = boardId ? [userId, boardId] : [userId];
+        
+        const summaryQueries = await Promise.all([
+          // Comments on my posts - NEW count
           query(`
             SELECT COUNT(*) as count
             FROM comments c
             INNER JOIN posts p ON c.post_id = p.id
+            INNER JOIN boards b ON p.board_id = b.id
             WHERE p.author_user_id = $1 
               AND c.author_user_id != $1
-              AND c.created_at > $2
-          `, [userId, previousVisit]),
+              AND c.created_at > $2${boardFilter}
+          `, summaryParams),
           
-          // Comments on posts I commented count
+          // Comments on my posts - TOTAL count  
+          query(`
+            SELECT COUNT(*) as count
+            FROM comments c
+            INNER JOIN posts p ON c.post_id = p.id
+            INNER JOIN boards b ON p.board_id = b.id
+            WHERE p.author_user_id = $1 
+              AND c.author_user_id != $1${boardFilter.replace('$3', '$2')}
+          `, totalParams),
+          
+          // Comments on posts I commented - NEW count
           query(`
             SELECT COUNT(DISTINCT c.id) as count
             FROM comments c
             INNER JOIN posts p ON c.post_id = p.id
+            INNER JOIN boards b ON p.board_id = b.id
             WHERE EXISTS (
               SELECT 1 FROM comments my_comments 
               WHERE my_comments.post_id = p.id 
@@ -284,24 +401,56 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
             )
               AND c.author_user_id != $1
               AND c.created_at > $2
-              AND p.author_user_id != $1
-          `, [userId, previousVisit]),
+              AND p.author_user_id != $1${boardFilter}
+          `, summaryParams),
           
-          // Reactions on my content count
+          // Comments on posts I commented - TOTAL count
+          query(`
+            SELECT COUNT(DISTINCT c.id) as count
+            FROM comments c
+            INNER JOIN posts p ON c.post_id = p.id
+            INNER JOIN boards b ON p.board_id = b.id
+            WHERE EXISTS (
+              SELECT 1 FROM comments my_comments 
+              WHERE my_comments.post_id = p.id 
+              AND my_comments.author_user_id = $1
+            )
+              AND c.author_user_id != $1
+              AND p.author_user_id != $1${boardFilter.replace('$3', '$2')}
+          `, totalParams),
+          
+          // Reactions on my content - NEW count
           query(`
             SELECT COUNT(*) as count
             FROM reactions r
             LEFT JOIN posts p ON r.post_id = p.id AND p.author_user_id = $1
+            LEFT JOIN boards pb ON p.board_id = pb.id
             LEFT JOIN comments c ON r.comment_id = c.id AND c.author_user_id = $1
+            LEFT JOIN posts cp ON c.post_id = cp.id
+            LEFT JOIN boards cpb ON cp.board_id = cpb.id
             WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
               AND r.user_id != $1
-              AND r.created_at > $2
-          `, [userId, previousVisit]),
+              AND r.created_at > $2${boardId ? ` AND (pb.id = $3 OR cpb.id = $3)` : ''}
+          `, summaryParams),
           
-          // New posts in active boards count
+          // Reactions on my content - TOTAL count
+          query(`
+            SELECT COUNT(*) as count
+            FROM reactions r
+            LEFT JOIN posts p ON r.post_id = p.id AND p.author_user_id = $1
+            LEFT JOIN boards pb ON p.board_id = pb.id
+            LEFT JOIN comments c ON r.comment_id = c.id AND c.author_user_id = $1
+            LEFT JOIN posts cp ON c.post_id = cp.id
+            LEFT JOIN boards cpb ON cp.board_id = cpb.id
+            WHERE (p.author_user_id = $1 OR c.author_user_id = $1)
+              AND r.user_id != $1${boardId ? ` AND (pb.id = $2 OR cpb.id = $2)` : ''}
+          `, totalParams),
+          
+          // New posts in active boards - NEW count
           query(`
             SELECT COUNT(DISTINCT p.id) as count
             FROM posts p
+            INNER JOIN boards b ON p.board_id = b.id
             WHERE EXISTS (
               SELECT 1 FROM (
                 SELECT DISTINCT board_id FROM posts WHERE author_user_id = $1
@@ -312,18 +461,43 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
               ) active_boards WHERE active_boards.board_id = p.board_id
             )
               AND p.author_user_id != $1
-              AND p.created_at > $2
-          `, [userId, previousVisit])
+              AND p.created_at > $2${boardFilter}
+          `, summaryParams),
+          
+          // New posts in active boards - TOTAL count
+          query(`
+            SELECT COUNT(DISTINCT p.id) as count
+            FROM posts p
+            INNER JOIN boards b ON p.board_id = b.id
+            WHERE EXISTS (
+              SELECT 1 FROM (
+                SELECT DISTINCT board_id FROM posts WHERE author_user_id = $1
+                UNION
+                SELECT DISTINCT board_id FROM posts p2 
+                INNER JOIN comments c ON p2.id = c.post_id 
+                WHERE c.author_user_id = $1
+              ) active_boards WHERE active_boards.board_id = p.board_id
+            )
+              AND p.author_user_id != $1${boardFilter.replace('$3', '$2')}
+          `, totalParams)
         ]);
 
         return NextResponse.json({
           isFirstTimeUser: false,
           previousVisit,
           summary: {
-            commentsOnMyPosts: parseInt(summary[0].rows[0]?.count || '0'),
-            commentsOnPostsICommented: parseInt(summary[1].rows[0]?.count || '0'),
-            reactionsOnMyContent: parseInt(summary[2].rows[0]?.count || '0'),
-            newPostsInActiveBoards: parseInt(summary[3].rows[0]?.count || '0'),
+            newCounts: {
+              commentsOnMyPosts: parseInt(summaryQueries[0].rows[0]?.count || '0'),
+              commentsOnPostsICommented: parseInt(summaryQueries[2].rows[0]?.count || '0'),
+              reactionsOnMyContent: parseInt(summaryQueries[4].rows[0]?.count || '0'),
+              newPostsInActiveBoards: parseInt(summaryQueries[6].rows[0]?.count || '0'),
+            },
+            totalCounts: {
+              commentsOnMyPosts: parseInt(summaryQueries[1].rows[0]?.count || '0'),
+              commentsOnPostsICommented: parseInt(summaryQueries[3].rows[0]?.count || '0'),
+              reactionsOnMyContent: parseInt(summaryQueries[5].rows[0]?.count || '0'),
+              newPostsInActiveBoards: parseInt(summaryQueries[7].rows[0]?.count || '0'),
+            }
           }
         });
     }
@@ -332,6 +506,7 @@ async function getWhatsNewHandler(req: AuthenticatedRequest) {
       isFirstTimeUser: false,
       previousVisit,
       type,
+      showOnlyNew,
       data: results,
       pagination: {
         limit,
