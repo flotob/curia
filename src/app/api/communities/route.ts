@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 
 export interface ApiCommunity {
@@ -18,12 +18,17 @@ interface CommunityRow {
   settings: Record<string, unknown> | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getCommunitiesHandler(_req: AuthenticatedRequest, _context: RouteContext) {
+async function getCommunitiesHandler(req: AuthenticatedRequest) {
   try {
-    // Query all communities for name resolution
+    // Query all communities for name resolution, excluding the current user's community
+    const currentCommunityId = req.user?.cid;
+    if (!currentCommunityId) {
+      return NextResponse.json({ error: 'User community not found' }, { status: 400 });
+    }
+    
     const result = await query(
-      'SELECT id, name, created_at, updated_at, settings FROM communities ORDER BY name ASC'
+      'SELECT id, name, created_at, updated_at, settings FROM communities WHERE id != $1 ORDER BY name ASC',
+      [currentCommunityId]
     );
 
     const communities: ApiCommunity[] = result.rows.map((row: CommunityRow) => ({

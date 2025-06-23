@@ -26,6 +26,7 @@ export interface CommunityPartnership {
   canRespond?: boolean;
   canCancel?: boolean;
   canSuspend?: boolean;
+  canResume?: boolean;
 }
 
 export type PartnershipStatus = 

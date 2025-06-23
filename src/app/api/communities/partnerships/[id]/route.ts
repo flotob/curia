@@ -51,6 +51,9 @@ function transformPartnershipRow(row: PartnershipRow, currentUserId?: string, cu
     
     // Can suspend if: either community member + status is accepted
     partnership.canSuspend = (isSourceCommunity || isTargetCommunity) && row.status === 'accepted';
+    
+    // Can resume if: either community member + status is suspended
+    partnership.canResume = (isSourceCommunity || isTargetCommunity) && row.status === 'suspended';
   }
 
   return partnership;
@@ -246,6 +249,11 @@ async function updatePartnershipHandler(req: AuthenticatedRequest, context: Rout
         if (!isSourceCommunity && !isTargetCommunity) {
           return NextResponse.json({ error: 'Insufficient permissions to suspend partnership' }, { status: 403 });
         }
+      } else if (status === 'accepted' && currentStatus === 'suspended') {
+        // Either community can resume suspended partnership
+        if (!isSourceCommunity && !isTargetCommunity) {
+          return NextResponse.json({ error: 'Insufficient permissions to resume partnership' }, { status: 403 });
+        }
       } else {
         return NextResponse.json({ error: `Invalid status transition: ${currentStatus} -> ${status}` }, { status: 400 });
       }
@@ -274,6 +282,12 @@ async function updatePartnershipHandler(req: AuthenticatedRequest, context: Rout
         }
       } else if (status === 'suspended') {
         updateFields.push(`partnership_ended_at = NOW()`);
+      }
+      
+      // Handle resuming suspended partnership
+      if (status === 'accepted' && row.status === 'suspended') {
+        updateFields.push(`partnership_started_at = NOW()`);
+        updateFields.push(`partnership_ended_at = NULL`);
       }
     }
     

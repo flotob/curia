@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -70,7 +70,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isLocksPage = pathname === '/locks';
   const isCreateBoardPage = pathname === '/create-board';
   const isWhatsNewPage = pathname === '/whats-new';
-  const isHome = !currentBoardId && !isLocksPage && !isCreateBoardPage && !isWhatsNewPage;
+  const isPartnershipsPage = pathname === '/partnerships';
+  const isHome = !currentBoardId && !isLocksPage && !isCreateBoardPage && !isWhatsNewPage && !isPartnershipsPage;
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
@@ -571,14 +572,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </nav>
 
-      {/* Footer Section - Community Settings */}
+      {/* Footer Section - Admin Links */}
       {user?.isAdmin && (
         <div className={cn(
-          'p-3 border-t backdrop-blur-sm',
+          'p-3 border-t backdrop-blur-sm space-y-1',
           theme === 'dark' 
             ? 'border-slate-700/40 bg-slate-900/50' 
             : 'border-slate-200/60 bg-white/50'
         )}>
+          {/* Partnerships Link */}
+          <Link
+            href={buildUrl('/partnerships')}
+            className={cn(
+              'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full relative overflow-hidden',
+              isPartnershipsPage
+                ? theme === 'dark'
+                  ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 shadow-lg shadow-indigo-500/10'
+                  : 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-indigo-700 shadow-lg shadow-indigo-500/10'
+                : theme === 'dark'
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            )}
+          >
+            <div className={cn(
+              'p-1.5 rounded-lg mr-3 transition-all duration-200',
+              isPartnershipsPage
+                ? theme === 'dark'
+                  ? 'bg-indigo-500/20 text-indigo-300'
+                  : 'bg-indigo-500/10 text-indigo-600'
+                : theme === 'dark'
+                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+            )}>
+              <Handshake size={16} />
+            </div>
+            <span className="flex-1 text-sm font-medium">Partnerships</span>
+            {isPartnershipsPage && (
+              <ChevronRight size={14} className="opacity-60" />
+            )}
+            
+            {/* Active indicator */}
+            {isPartnershipsPage && (
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-xl" />
+            )}
+          </Link>
+          
+          {/* Community Settings Link */}
           <Link
             href={buildUrl('/community-settings')}
             className={cn(
