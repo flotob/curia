@@ -211,7 +211,7 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   };
 
   return (
-    <div className={cn("overflow-x-auto scrollbar-hide py-2", className)}>
+    <div className={cn("overflow-x-auto scrollbar-hide py-2 w-0 min-w-full", className)}>
       <div className="flex items-center gap-2 min-w-max">
         {/* Existing reaction pills */}
         {reactions.map((reaction) => {
