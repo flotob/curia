@@ -134,11 +134,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 🆕 Declare previousVisit at function level for JWT payload
+    let previousVisit: string | null = null;
+
     // --- Community and Default Board Upsert Logic --- 
     if (communityId) {
       try {
         const nameForCommunityUpsert = body.communityName; // Explicit access from body again
         console.log('[/api/auth/session] Value of body.communityName right before community upsert:', nameForCommunityUpsert);
+        
+        // 🆕 FIRST: Capture user's previous visit timestamp BEFORE updating anything
+        try {
+          const userResult = await query(
+            `SELECT updated_at FROM users WHERE user_id = $1`,
+            [userId]
+          );
+          
+          if (userResult.rows.length > 0) {
+            previousVisit = userResult.rows[0].updated_at;
+            console.log(`[/api/auth/session] Captured previous visit for user ${userId}:`, previousVisit);
+          } else {
+            console.log(`[/api/auth/session] First-time user ${userId} - no previous visit`);
+          }
+        } catch (error) {
+          console.error(`[/api/auth/session] Error capturing previous visit for user ${userId}:`, error);
+          // Continue without previousVisit - non-critical for session creation
+        }
         
         // 1. Upsert Community with CG lib metadata
         await query(
@@ -228,25 +249,6 @@ export async function POST(req: NextRequest) {
       isUserAdmin = userTitles.some(userRoleTitle => adminTitlesFromEnv.includes(userRoleTitle));
     }
     console.log(`[/api/auth/session] Determined admin status based on role titles and env var: ${isUserAdmin}`);
-
-    // 🆕 Capture user's previous visit timestamp BEFORE updating it
-    let previousVisit: string | null = null;
-    try {
-      const userResult = await query(
-        `SELECT updated_at FROM users WHERE user_id = $1`,
-        [userId]
-      );
-      
-      if (userResult.rows.length > 0) {
-        previousVisit = userResult.rows[0].updated_at;
-        console.log(`[/api/auth/session] Captured previous visit for user ${userId}:`, previousVisit);
-      } else {
-        console.log(`[/api/auth/session] First-time user ${userId} - no previous visit`);
-      }
-    } catch (error) {
-      console.error(`[/api/auth/session] Error capturing previous visit for user ${userId}:`, error);
-      // Continue without previousVisit - non-critical for session creation
-    }
 
     const payloadToSign: TokenSignPayload = {
       sub: userId,
