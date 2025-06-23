@@ -72,6 +72,10 @@ interface DevicePresence {
   socketId: string;
   isActive: boolean;             // Active in last 30 seconds
   
+  // 🆕 Cross-community navigation metadata
+  communityShortId?: string;     // For URL construction
+  pluginId?: string;             // For URL construction
+  
   // NEW: Typing state tracking
   isTyping?: boolean;
   typingPostId?: number;
@@ -453,7 +457,11 @@ async function bootstrap() {
       connectedAt: new Date(),
       lastSeen: new Date(),
       socketId: socket.id,
-      isActive: true
+      isActive: true,
+      
+      // 🆕 Extract cross-community navigation metadata from JWT
+      communityShortId: user.communityShortId,
+      pluginId: user.pluginId
     };
     
     devicePresence.set(frameUID, devicePresenceData);

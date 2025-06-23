@@ -31,6 +31,10 @@ interface DevicePresence {
   lastSeen: Date | string;
   socketId: string;
   isActive: boolean;
+  
+  // 🆕 Cross-community navigation metadata
+  communityShortId?: string;
+  pluginId?: string;
 }
 
 interface EnhancedUserPresence {

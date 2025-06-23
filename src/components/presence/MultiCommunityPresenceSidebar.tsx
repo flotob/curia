@@ -25,6 +25,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ContextualNavigationCard } from './ContextualNavigationCard';
 import { TypingIndicator } from './TypingIndicator';
 import { useTypingContext } from '@/hooks/useTypingContext';
+import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
 
@@ -42,6 +43,10 @@ interface DevicePresence {
   lastSeen: Date | string;
   socketId: string;
   isActive: boolean;
+  
+  // 🆕 Cross-community navigation metadata
+  communityShortId?: string;
+  pluginId?: string;
 }
 
 interface EnhancedUserPresence {
@@ -326,27 +331,70 @@ const UserPresenceCard = ({
 // Community group component
 const CommunityGroupSection = ({ group }: { group: CommunityPresenceGroup }) => {
   const [isExpanded, setIsExpanded] = useState(true);
+  const { navigateToPost } = useCrossCommunityNavigation();
+  const [isNavigating, setIsNavigating] = useState(false);
+  
+  // Handle community name click for cross-community navigation
+  const handleCommunityClick = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent expand/collapse
+    
+    // Get a sample user from this community to extract metadata
+    const sampleUser = group.users[0];
+    if (!sampleUser?.primaryDevice?.communityShortId || !sampleUser?.primaryDevice?.pluginId) {
+      console.warn('Missing cross-community navigation metadata for community:', group.communityName);
+      return;
+    }
+    
+    console.log(`[CommunityGroupSection] Navigating to community: ${group.communityName}`);
+    setIsNavigating(true);
+    
+    // Navigate to community root (no specific post)
+    await navigateToPost(
+      sampleUser.primaryDevice.communityShortId,
+      sampleUser.primaryDevice.pluginId,
+      -1, // No specific post - go to community root
+      -1  // No specific board - go to community root
+    );
+    
+    setIsNavigating(false);
+  };
   
   return (
     <div className="space-y-2">
-      <Button 
-        variant="ghost" 
-        className="w-full justify-between p-2 h-auto hover:bg-accent/50"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center space-x-2">
+      <div className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50 transition-colors">
+        <div className="flex items-center space-x-2 flex-1">
           <Building2 size={14} className="text-muted-foreground" />
-          <span className="font-medium text-sm">{group.communityName}</span>
+          
+          {/* 🆕 Clickable community name for cross-community navigation */}
+          <button
+            onClick={handleCommunityClick}
+            disabled={isNavigating}
+            className="font-medium text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title={`Navigate to ${group.communityName}`}
+          >
+            {isNavigating && "🔄 "}
+            {group.communityName}
+          </button>
+          
           <Badge variant="outline" className="text-xs">
             {group.totalUsers}
           </Badge>
         </div>
-        {isExpanded ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-      </Button>
+        
+        {/* Expand/collapse button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="h-6 w-6 p-0"
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
       
       {isExpanded && (
         <div className="space-y-2 mt-2">

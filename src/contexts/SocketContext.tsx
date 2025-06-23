@@ -26,6 +26,10 @@ interface DevicePresence {
   lastSeen: Date | string;
   socketId: string;
   isActive: boolean;
+  
+  // 🆕 Cross-community navigation metadata
+  communityShortId?: string;
+  pluginId?: string;
 }
 
 // Enhanced user presence (Socket.IO serializes dates as strings)
