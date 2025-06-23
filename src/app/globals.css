@@ -290,3 +290,32 @@ a {
     opacity: 0.4;
   }
 }
+
+/* Fix emoji-mart internal scrolling in dropdown containers */
+/* Target the emoji grid container that needs to scroll */
+[data-id="scroll"] {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important; /* iOS momentum scrolling */
+  touch-action: pan-y !important; /* Allow vertical touch scrolling */
+  scroll-behavior: smooth !important; /* Smooth scrolling */
+}
+
+/* Ensure emoji categories are scrollable */
+.emoji-mart-scroll {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important; /* iOS momentum scrolling */
+  touch-action: pan-y !important; /* Allow vertical touch scrolling */
+  scroll-behavior: smooth !important; /* Smooth scrolling */
+}
+
+/* Fix for emoji-mart picker container itself */
+[class*="emoji-mart"] {
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+/* Ensure emoji picker allows touch events */
+[data-testid="picker"] {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
