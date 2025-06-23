@@ -91,6 +91,47 @@ CREATE TRIGGER "set_timestamp_communities" BEFORE UPDATE ON "public"."communitie
 
 DELIMITER ;
 
+DROP TABLE IF EXISTS "community_partnerships";
+DROP SEQUENCE IF EXISTS community_partnerships_id_seq;
+CREATE SEQUENCE community_partnerships_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
+
+CREATE TABLE "public"."community_partnerships" (
+    "id" integer DEFAULT nextval('community_partnerships_id_seq') NOT NULL,
+    "source_community_id" text NOT NULL,
+    "target_community_id" text NOT NULL,
+    "status" character varying(20) DEFAULT '''pending''' NOT NULL,
+    "relationship_type" character varying(50) DEFAULT '''partner''',
+    "source_to_target_permissions" jsonb DEFAULT '{}',
+    "target_to_source_permissions" jsonb DEFAULT '{}',
+    "invited_by_user_id" text NOT NULL,
+    "invited_at" timestamptz DEFAULT CURRENT_TIMESTAMP,
+    "responded_by_user_id" text,
+    "responded_at" timestamptz,
+    "partnership_started_at" timestamptz,
+    "partnership_ended_at" timestamptz,
+    "invite_message" text,
+    "response_message" text,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "community_partnerships_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "community_partnerships_status_check" CHECK ((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'rejected'::character varying, 'cancelled'::character varying, 'expired'::character varying, 'suspended'::character varying])::text[])),
+    CONSTRAINT "community_partnerships_relationship_type_check" CHECK ((relationship_type)::text = ANY ((ARRAY['partner'::character varying, 'ecosystem'::character varying])::text[])),
+    CONSTRAINT "no_self_partnership" CHECK (source_community_id <> target_community_id)
+) WITH (oids = false);
+
+CREATE INDEX idx_community_partnerships_lookup ON public.community_partnerships USING btree (source_community_id, target_community_id, status);
+
+CREATE UNIQUE INDEX unique_community_partnership ON public.community_partnerships USING btree (source_community_id, target_community_id);
+
+CREATE INDEX idx_community_partnerships_source ON public.community_partnerships USING btree (source_community_id);
+
+CREATE INDEX idx_community_partnerships_target ON public.community_partnerships USING btree (target_community_id);
+
+CREATE INDEX idx_community_partnerships_status ON public.community_partnerships USING btree (status);
+
+CREATE INDEX idx_community_partnerships_invited_at ON public.community_partnerships USING btree (invited_at);
+
+
 DROP TABLE IF EXISTS "links";
 DROP SEQUENCE IF EXISTS links_id_seq;
 CREATE SEQUENCE links_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -575,6 +616,11 @@ ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_author_user_id_fke
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_parent_comment_id_fkey" FOREIGN KEY (parent_comment_id) REFERENCES comments(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 
+ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_invited_by_fkey" FOREIGN KEY (invited_by_user_id) REFERENCES users(user_id) NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_responded_by_fkey" FOREIGN KEY (responded_by_user_id) REFERENCES users(user_id) NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_source_community_id_fkey" FOREIGN KEY (source_community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_target_community_id_fkey" FOREIGN KEY (target_community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_shared_by_user_id_fkey" FOREIGN KEY (shared_by_user_id) REFERENCES users(user_id) NOT DEFERRABLE;
@@ -629,4 +675,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-23 19:26:58 UTC
+-- 2025-06-23 21:24:29 UTC
