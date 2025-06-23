@@ -203,7 +203,7 @@ export default function WhatsNewPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center overflow-x-hidden px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Sign In Required</CardTitle>
@@ -221,8 +221,8 @@ export default function WhatsNewPage() {
   // Handle first-time user case
   if (summaryData?.isFirstTimeUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-        <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen overflow-x-hidden">
+        <div className="container mx-auto px-4 py-8 max-w-full">
           <div className="flex items-center gap-4 mb-4">
             <Link href={buildHomeUrl()}>
               <Button variant="ghost" size="sm" className="gap-2">
@@ -347,24 +347,25 @@ export default function WhatsNewPage() {
 
         {/* Filter and Pagination Controls */}
         {!isCollapsed && (
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg space-y-3">
+            {/* Filter Controls */}
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Button
                 variant={isFiltered ? "default" : "outline"}
                 size="sm"
                 onClick={() => updateCategoryFilter(categoryKey, !isFiltered)}
-                className="gap-2"
+                className="gap-2 flex-shrink-0"
               >
                 {isFiltered ? (
                   <>
                     <Eye size={14} />
-                    Show All
+                    All
                   </>
                 ) : (
                   <>
                     <EyeOff size={14} />
-                    New Only
+                    New
                   </>
                 )}
               </Button>
@@ -372,26 +373,28 @@ export default function WhatsNewPage() {
             
             {/* Pagination Controls */}
             {query.data?.pagination && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page === 0}
-                  onClick={() => updateCategoryPage(categoryKey, pagination.page - 1)}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground px-2">
+              <div className="flex items-center justify-between gap-2">
+                                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pagination.page === 0}
+                    onClick={() => updateCategoryPage(categoryKey, pagination.page - 1)}
+                    className="flex-shrink-0"
+                  >
+                    Prev
+                  </Button>
+                <span className="text-sm text-muted-foreground px-1 text-center flex-shrink-0">
                   Page {pagination.page + 1}
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!query.data?.pagination?.hasMore}
-                  onClick={() => updateCategoryPage(categoryKey, pagination.page + 1)}
-                >
-                  Next
-                </Button>
+                                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!query.data?.pagination?.hasMore}
+                    onClick={() => updateCategoryPage(categoryKey, pagination.page + 1)}
+                    className="flex-shrink-0"
+                  >
+                    Next
+                  </Button>
               </div>
             )}
           </div>
@@ -473,12 +476,12 @@ export default function WhatsNewPage() {
     
     return (
       <Link href={postUrl}>
-        <div className={`p-4 border rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer ${
+        <div className={`p-4 border rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer overflow-hidden ${
           isNew 
             ? 'bg-white dark:bg-slate-800 border-green-200 dark:border-green-800 shadow-sm hover:border-green-300 dark:hover:border-green-700' 
             : 'bg-gray-50 dark:bg-slate-900/50 border-gray-200 dark:border-gray-700 opacity-60 hover:opacity-80'
         }`}>
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 min-w-0">
             {/* Profile Picture */}
             <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarImage src={actorAvatar} alt={actorName} />
@@ -500,16 +503,16 @@ export default function WhatsNewPage() {
                 </span>
               </div>
               
-              {/* Main activity description */}
-              <div className={`text-sm ${isNew ? 'text-foreground' : 'text-muted-foreground'} mb-1`}>
+              {              /* Main activity description */}
+              <div className={`text-sm ${isNew ? 'text-foreground' : 'text-muted-foreground'} mb-1 overflow-hidden`}>
                 <span className="font-medium">{actorName}</span>
                 <span className="mx-1">{activityText}</span>
                 {item.reaction_id ? (
                   <span className="font-medium">{item.content_type === 'post' ? 'post' : 'comment'}</span>
                 ) : (
-                                     <span className="font-medium truncate inline-block max-w-[200px] align-bottom">
-                     &quot;{item.post_title}&quot;
-                   </span>
+                  <span className="font-medium truncate inline-block max-w-[150px] sm:max-w-[200px] align-bottom">
+                    &quot;{item.post_title}&quot;
+                  </span>
                 )}
               </div>
               
@@ -532,8 +535,8 @@ export default function WhatsNewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen overflow-x-hidden">
+      <div className="container mx-auto px-4 py-8 max-w-full">
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
             <Link href={buildHomeUrl()}>
