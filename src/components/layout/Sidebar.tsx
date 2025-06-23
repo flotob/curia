@@ -316,8 +316,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Bell size={16} />
           </div>
           <span className="flex-1">What&apos;s New</span>
+          
+          {/* NEW Badge */}
+          <div className={cn(
+            'px-1.5 py-0.5 rounded-full text-xs font-bold tracking-wide transition-all duration-200',
+            theme === 'dark'
+              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20'
+              : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30'
+          )}>
+            NEW
+          </div>
+          
           {isWhatsNewPage && (
-            <ChevronRight size={14} className="opacity-60" />
+            <ChevronRight size={14} className="opacity-60 ml-2" />
           )}
           
           {/* Active indicator */}
@@ -537,8 +548,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Lock size={16} />
             </div>
             <span className="flex-1">Locks</span>
+            
+            {/* NEW Badge */}
+            <div className={cn(
+              'px-1.5 py-0.5 rounded-full text-xs font-bold tracking-wide transition-all duration-200',
+              theme === 'dark'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20'
+                : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30'
+            )}>
+              NEW
+            </div>
+            
             {isLocksPage && (
-              <ChevronRight size={14} className="opacity-60" />
+              <ChevronRight size={14} className="opacity-60 ml-2" />
             )}
             
             {/* Active indicator */}

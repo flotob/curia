@@ -430,6 +430,42 @@ export default function WhatsNewPage() {
     return items;
   };
 
+  // Loading skeleton component that matches ActivityItem height
+  const ActivityItemSkeleton = () => (
+    <div className="p-4 border rounded-lg bg-white dark:bg-slate-800 animate-pulse">
+      <div className="flex items-start gap-3">
+        {/* Avatar skeleton */}
+        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full flex-shrink-0"></div>
+        
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Header with badge and board name */}
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          </div>
+          
+          {/* Main content line */}
+          <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          
+          {/* Content preview line */}
+          <div className="h-3 w-1/2 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          
+          {/* Timestamp */}
+          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded mt-2"></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Generate skeleton items based on pagination limit
+  const renderSkeletonItems = (count: number = 10) => (
+    <div className="space-y-3">
+      {[...Array(count)].map((_, i) => (
+        <ActivityItemSkeleton key={`skeleton-${i}`} />
+      ))}
+    </div>
+  );
+
   // Activity item component with visual distinction, links, avatars, and content previews
   const ActivityItem = ({ item }: { item: ActivityItem }) => {
     const isNew = item.is_new;
@@ -604,6 +640,11 @@ export default function WhatsNewPage() {
                 {(!collapsedCategories.comments_on_my_posts || summary.newCounts.commentsOnMyPosts > 0) && (
                   <div className="mt-4">
                     {(() => {
+                      // Show skeleton during pagination loading
+                      if (commentsOnMyPostsQuery.isLoading && !collapsedCategories.comments_on_my_posts) {
+                        return renderSkeletonItems(categoryPagination.comments_on_my_posts.limit);
+                      }
+                      
                       const filteredItems = getFilteredItems(
                         commentsOnMyPostsQuery.data?.data, 
                         collapsedCategories.comments_on_my_posts
@@ -659,6 +700,11 @@ export default function WhatsNewPage() {
                 {(!collapsedCategories.comments_on_posts_i_commented || summary.newCounts.commentsOnPostsICommented > 0) && (
                   <div className="mt-4">
                     {(() => {
+                      // Show skeleton during pagination loading
+                      if (commentsOnPostsICommentedQuery.isLoading && !collapsedCategories.comments_on_posts_i_commented) {
+                        return renderSkeletonItems(categoryPagination.comments_on_posts_i_commented.limit);
+                      }
+                      
                       const filteredItems = getFilteredItems(
                         commentsOnPostsICommentedQuery.data?.data, 
                         collapsedCategories.comments_on_posts_i_commented
@@ -714,6 +760,11 @@ export default function WhatsNewPage() {
                 {(!collapsedCategories.reactions_on_my_content || summary.newCounts.reactionsOnMyContent > 0) && (
                   <div className="mt-4">
                     {(() => {
+                      // Show skeleton during pagination loading
+                      if (reactionsOnMyContentQuery.isLoading && !collapsedCategories.reactions_on_my_content) {
+                        return renderSkeletonItems(categoryPagination.reactions_on_my_content.limit);
+                      }
+                      
                       const filteredItems = getFilteredItems(
                         reactionsOnMyContentQuery.data?.data, 
                         collapsedCategories.reactions_on_my_content
@@ -769,6 +820,11 @@ export default function WhatsNewPage() {
                 {(!collapsedCategories.new_posts_in_active_boards || summary.newCounts.newPostsInActiveBoards > 0) && (
                   <div className="mt-4">
                     {(() => {
+                      // Show skeleton during pagination loading
+                      if (newPostsInActiveBoardsQuery.isLoading && !collapsedCategories.new_posts_in_active_boards) {
+                        return renderSkeletonItems(categoryPagination.new_posts_in_active_boards.limit);
+                      }
+                      
                       const filteredItems = getFilteredItems(
                         newPostsInActiveBoardsQuery.data?.data, 
                         collapsedCategories.new_posts_in_active_boards
