@@ -15,6 +15,7 @@ interface AuthUser {
   roles?: string[]; // Add user roles from JWT
   communityShortId?: string | null; // 🆕 Short ID for URL construction
   pluginId?: string | null;         // 🆕 Plugin ID from context
+  previousVisit?: string | null;    // 🆕 ISO timestamp of user's last visit
   stats?: {
     postCount: number;
     commentCount: number;
@@ -136,7 +137,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           cid?: string, 
           roles?: string[],
           communityShortId?: string,  // 🆕
-          pluginId?: string           // 🆕
+          pluginId?: string,          // 🆕
+          previousVisit?: string | null // 🆕
         }>(newToken);
         console.log('[AuthContext] New token received. Decoded JWT:', decoded);
         
@@ -153,6 +155,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             roles: decoded.roles,
             communityShortId: decoded.communityShortId,  // 🆕
             pluginId: decoded.pluginId,                  // 🆕
+            previousVisit: decoded.previousVisit,        // 🆕
             stats: userStats,
         });
         lastCgUserData.current = loginData; // Store successful login data for potential refresh fallback

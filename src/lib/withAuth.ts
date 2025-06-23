@@ -15,6 +15,7 @@ export interface JwtPayload {
   roles?: string[];         // Added: user role IDs from Common Ground
   communityShortId?: string; // 🆕 Short ID for URL construction
   pluginId?: string;         // 🆕 Plugin ID from context
+  previousVisit?: string | null; // 🆕 ISO timestamp of user's last visit
   // Add other claims as needed, e.g., iat, exp which jwt.verify adds
   iat?: number;
   exp?: number;

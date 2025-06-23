@@ -39,6 +39,7 @@ interface TokenSignPayload {
   roles?: string[]; // Add user roles to JWT
   communityShortId?: string; // 🆕 Short ID for URL construction
   pluginId?: string;         // 🆕 Plugin ID from context
+  previousVisit?: string | null; // 🆕 ISO timestamp of user's last visit
 }
 
 export async function POST(req: NextRequest) {
@@ -123,6 +124,25 @@ export async function POST(req: NextRequest) {
     }
     console.log(`[/api/auth/session] Determined admin status based on role titles and env var: ${isUserAdmin}`);
 
+    // 🆕 Capture user's previous visit timestamp BEFORE updating it
+    let previousVisit: string | null = null;
+    try {
+      const userResult = await query(
+        `SELECT updated_at FROM users WHERE user_id = $1`,
+        [userId]
+      );
+      
+      if (userResult.rows.length > 0) {
+        previousVisit = userResult.rows[0].updated_at;
+        console.log(`[/api/auth/session] Captured previous visit for user ${userId}:`, previousVisit);
+      } else {
+        console.log(`[/api/auth/session] First-time user ${userId} - no previous visit`);
+      }
+    } catch (error) {
+      console.error(`[/api/auth/session] Error capturing previous visit for user ${userId}:`, error);
+      // Continue without previousVisit - non-critical for session creation
+    }
+
     const payloadToSign: TokenSignPayload = {
       sub: userId,
       name: name,
@@ -133,6 +153,7 @@ export async function POST(req: NextRequest) {
       roles: userRoleIds,
       communityShortId: communityShortId ?? undefined, // 🆕 Short ID for URL construction
       pluginId: pluginId ?? undefined,                 // 🆕 Plugin ID from context
+      previousVisit: previousVisit,                    // 🆕 User's last visit timestamp
     };
     console.log('[/api/auth/session] Payload to sign (checking adm, uid, cid claims):', payloadToSign);
 
