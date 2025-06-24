@@ -20,7 +20,9 @@ export interface CommunityPartnership {
   updatedAt: string;
   // Computed fields
   sourceCommunityName?: string;
+  sourceCommunityLogoUrl?: string;
   targetCommunityName?: string;
+  targetCommunityLogoUrl?: string;
   invitedByUserName?: string;
   respondedByUserName?: string;
   canRespond?: boolean;
@@ -100,7 +102,9 @@ export interface PartnershipRow {
   updated_at: string;
   // From joins
   source_community_name?: string;
+  source_community_logo_url?: string;
   target_community_name?: string;
+  target_community_logo_url?: string;
   invited_by_user_name?: string;
   responded_by_user_name?: string;
 } 

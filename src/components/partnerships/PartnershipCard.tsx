@@ -7,7 +7,7 @@ import { authFetchJson } from '@/utils/authFetch';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Check, 
   X, 
@@ -90,6 +90,11 @@ export default function PartnershipCard({
   const getPartnerCommunityName = () => {
     // Show the other community (not the current user's community)
     return partnership.targetCommunityName || partnership.sourceCommunityName || 'Unknown Community';
+  };
+
+  const getPartnerCommunityLogo = () => {
+    // Show the other community's logo (not the current user's community)
+    return partnership.targetCommunityLogoUrl || partnership.sourceCommunityLogoUrl;
   };
 
   const getTimeInfo = () => {
@@ -220,6 +225,13 @@ export default function PartnershipCard({
       <Card className="p-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
+            {getPartnerCommunityLogo() && (
+              <AvatarImage 
+                src={getPartnerCommunityLogo()} 
+                alt={getPartnerCommunityName()}
+                className="object-cover"
+              />
+            )}
             <AvatarFallback className="text-xs">
               {getPartnerCommunityName().substring(0, 2).toUpperCase()}
             </AvatarFallback>
@@ -250,6 +262,13 @@ export default function PartnershipCard({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             <Avatar className="h-12 w-12">
+              {getPartnerCommunityLogo() && (
+                <AvatarImage 
+                  src={getPartnerCommunityLogo()} 
+                  alt={getPartnerCommunityName()}
+                  className="object-cover"
+                />
+              )}
               <AvatarFallback className="text-lg">
                 {getPartnerCommunityName().substring(0, 2).toUpperCase()}
               </AvatarFallback>

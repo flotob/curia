@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Select, 
   SelectContent, 
@@ -38,6 +38,7 @@ import { toast } from '@/hooks/use-toast';
 interface Community {
   id: string;
   name: string;
+  logoUrl?: string;
 }
 
 interface CreatePartnershipModalProps {
@@ -212,6 +213,13 @@ export default function CreatePartnershipModal({
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
+                    {community.logoUrl && (
+                      <AvatarImage 
+                        src={community.logoUrl} 
+                        alt={community.name}
+                        className="object-cover"
+                      />
+                    )}
                     <AvatarFallback className="text-xs">
                       {community.name.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
@@ -238,6 +246,13 @@ export default function CreatePartnershipModal({
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12 ring-2 ring-blue-200 dark:ring-blue-700">
+                {selectedCommunity?.logoUrl && (
+                  <AvatarImage 
+                    src={selectedCommunity.logoUrl} 
+                    alt={selectedCommunity.name}
+                    className="object-cover"
+                  />
+                )}
                 <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200 font-semibold">
                   {selectedCommunity?.name.substring(0, 2).toUpperCase()}
                 </AvatarFallback>

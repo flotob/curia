@@ -34,7 +34,9 @@ function transformPartnershipRow(row: PartnershipRow, currentUserId?: string, cu
     updatedAt: row.updated_at,
     // Computed fields from joins
     sourceCommunityName: row.source_community_name,
+    sourceCommunityLogoUrl: row.source_community_logo_url,
     targetCommunityName: row.target_community_name,
+    targetCommunityLogoUrl: row.target_community_logo_url,
     invitedByUserName: row.invited_by_user_name,
     respondedByUserName: row.responded_by_user_name
   };
@@ -135,7 +137,9 @@ async function getPartnershipsHandler(req: AuthenticatedRequest) {
       SELECT 
         cp.*,
         sc.name as source_community_name,
+        sc.logo_url as source_community_logo_url,
         tc.name as target_community_name,
+        tc.logo_url as target_community_logo_url,
         iu.name as invited_by_user_name,
         ru.name as responded_by_user_name
       FROM community_partnerships cp
@@ -299,7 +303,9 @@ async function createPartnershipHandler(req: AuthenticatedRequest) {
       SELECT 
         cp.*,
         sc.name as source_community_name,
+        sc.logo_url as source_community_logo_url,
         tc.name as target_community_name,
+        tc.logo_url as target_community_logo_url,
         iu.name as invited_by_user_name
       FROM community_partnerships cp
       LEFT JOIN communities sc ON cp.source_community_id = sc.id
