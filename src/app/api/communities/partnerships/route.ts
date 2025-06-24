@@ -319,8 +319,23 @@ async function createPartnershipHandler(req: AuthenticatedRequest) {
     
     console.log(`[API POST /api/communities/partnerships] Partnership created: ${currentCommunityId} -> ${targetCommunityId} (ID: ${newPartnership.id}) by user ${currentUserId}`);
     
-    // TODO: Emit real-time event for partnership invitation
-    // TODO: Send notification to target community admins
+    // 🚀 EMIT REAL-TIME EVENT: Partnership invitation created (to target community admins only)
+    const emitter = process.customEventEmitter;
+    if (emitter && typeof emitter.emit === 'function') {
+      emitter.emit('broadcastEvent', {
+        room: `community:${targetCommunityId}:admins`, // 🎯 ADMIN-ONLY TARGET COMMUNITY
+        eventName: 'partnershipInviteReceived',
+        payload: {
+          type: 'created',
+          partnership: newPartnership,
+          actor_name: currentUserId, // Could enhance with actual user name if available
+          communityId: targetCommunityId // Target community gets the notification
+        }
+      });
+      console.log(`[Partnership Events] Emitted partnershipInviteReceived to target community ${targetCommunityId} admins`);
+    } else {
+      console.warn('[Partnership Events] customEventEmitter not available for partnership invite notification');
+    }
     
     const response: PartnershipResponse = {
       success: true,

@@ -425,6 +425,17 @@ async function bootstrap() {
         };
         break;
         
+      // ===== PARTNERSHIP EVENTS (ADMIN-ONLY) =====
+      
+      case 'partnershipInviteReceived':
+      case 'partnershipStatusChanged':
+        config = {
+          globalRoom: false,             // 🎯 ADMIN-ONLY: No cross-community broadcasting
+          specificRooms: [room],         // Already targets admin room (community:X:admins)
+          invalidateForAllUsers: false   // Admin-only, no general React Query invalidation
+        };
+        break;
+        
       // userJoinedBoard and userLeftBoard events removed - presence system handles this
         
       default:
@@ -503,6 +514,12 @@ async function bootstrap() {
     
     // Auto-join user to community room only (no more global spam!)
     socket.join(`community:${user.cid}`);
+    
+    // 🆕 JOIN ADMIN ROOM if user is admin
+    if (user.adm) {
+      socket.join(`community:${user.cid}:admins`);
+      console.log(`[Socket.IO] Admin ${user.sub} joined admin room: community:${user.cid}:admins`);
+    }
     
     // Extract frameUID from JWT for device identification
     const frameUID = user.uid || `fallback-${socket.id}`;

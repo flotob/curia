@@ -338,8 +338,39 @@ async function updatePartnershipHandler(req: AuthenticatedRequest, context: Rout
     
     console.log(`[API PUT /api/communities/partnerships/${partnershipId}] Partnership updated: status=${status || 'unchanged'} by user ${currentUserId}`);
     
-    // TODO: Emit real-time event for partnership update
-    // TODO: Send notifications for status changes
+    // 🚀 EMIT REAL-TIME EVENT: Partnership status changed (to both communities' admins)
+    if (status) {
+      const emitter = process.customEventEmitter;
+      if (emitter && typeof emitter.emit === 'function') {
+        // Notify source community admins
+        emitter.emit('broadcastEvent', {
+          room: `community:${updatedPartnership.sourceCommunityId}:admins`, // 🎯 ADMIN-ONLY SOURCE COMMUNITY
+          eventName: 'partnershipStatusChanged',
+          payload: {
+            type: status,
+            partnership: updatedPartnership,
+            actor_name: currentUserId, // Could enhance with actual user name if available
+            communityId: updatedPartnership.sourceCommunityId
+          }
+        });
+        
+        // Notify target community admins
+        emitter.emit('broadcastEvent', {
+          room: `community:${updatedPartnership.targetCommunityId}:admins`, // 🎯 ADMIN-ONLY TARGET COMMUNITY  
+          eventName: 'partnershipStatusChanged',
+          payload: {
+            type: status,
+            partnership: updatedPartnership,
+            actor_name: currentUserId, // Could enhance with actual user name if available
+            communityId: updatedPartnership.targetCommunityId
+          }
+        });
+        
+        console.log(`[Partnership Events] Emitted partnershipStatusChanged (${status}) to both community admins: ${updatedPartnership.sourceCommunityId}, ${updatedPartnership.targetCommunityId}`);
+      } else {
+        console.warn('[Partnership Events] customEventEmitter not available for partnership status change notification');
+      }
+    }
     
     const response: PartnershipResponse = {
       success: true,

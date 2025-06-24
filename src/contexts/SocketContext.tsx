@@ -596,9 +596,75 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['accessibleBoardsMove'] });
     });
 
-    // ===== PARTNERSHIP NOTIFICATION HANDLERS =====
+    // ===== PARTNERSHIP NOTIFICATION HANDLERS (ADMIN-ONLY) =====
     
-    // Special handler for partnership status changes
+    // Partnership invitation received (admin-only)
+    newSocket.on('partnershipInviteReceived', (data: {
+      type: 'created';
+      partnership: {
+        id: number;
+        sourceCommunityName?: string;
+        targetCommunityName?: string;
+        relationshipType: string;
+      };
+      actor_name?: string;
+      communityId: string;
+    }) => {
+      console.log('[Socket Admin] Partnership invitation received:', data);
+      
+      const partnerName = data.partnership.sourceCommunityName || 'Unknown Community';
+      
+      toast.info(`🤝 Partnership invitation from ${partnerName}`, {
+        description: 'Review and respond in the partnerships page',
+        action: { 
+          label: 'Review Invitation', 
+          onClick: () => router.push(preserveCgParams('/partnerships', { filter: 'pending' }))
+        }
+      });
+      
+      // Invalidate partnership queries for real-time updates
+      console.log('[RQ Invalidate] Invalidating partnership queries for new invitation');
+      queryClient.invalidateQueries({ queryKey: ['partnerships'] });
+    });
+
+    // Partnership status changed (admin-only)
+    newSocket.on('partnershipStatusChanged', (data: {
+      type: 'accepted' | 'rejected' | 'cancelled' | 'suspended' | 'resumed';
+      partnership: {
+        id: number;
+        sourceCommunityName?: string;
+        targetCommunityName?: string;
+        relationshipType: string;
+      };
+      actor_name?: string;
+      communityId: string;
+    }) => {
+      console.log('[Socket Admin] Partnership status changed:', data);
+      
+      // Determine the partner community name based on context
+      const partnerName = data.partnership.sourceCommunityName || data.partnership.targetCommunityName || 'Unknown Community';
+      
+      const messages = {
+        accepted: `✅ Partnership with ${partnerName} is now active!`,
+        rejected: `❌ Partnership invitation to ${partnerName} was declined`,
+        suspended: `⏸️ Partnership with ${partnerName} suspended`,
+        cancelled: `🚫 Partnership invitation cancelled`,
+        resumed: `▶️ Partnership with ${partnerName} resumed`
+      };
+      
+      toast.info(messages[data.type] || `🔗 Partnership status updated: ${data.type}`, {
+        action: { 
+          label: 'View Partnerships', 
+          onClick: () => router.push(preserveCgParams('/partnerships'))
+        }
+      });
+      
+      // Invalidate partnership queries for real-time updates
+      console.log('[RQ Invalidate] Invalidating partnership queries for status change');
+      queryClient.invalidateQueries({ queryKey: ['partnerships'] });
+    });
+    
+    // Legacy partnership handler (keeping for backward compatibility)
     newSocket.on('partnershipUpdate', (partnershipData: {
       type: 'created' | 'accepted' | 'rejected' | 'cancelled' | 'suspended' | 'resumed';
       partnership: {
@@ -609,7 +675,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       };
       actor_name?: string;
     }) => {
-      console.log('[Socket] Partnership update received:', partnershipData);
+      console.log('[Socket Legacy] Partnership update received:', partnershipData);
       
       const { type, partnership } = partnershipData;
       let message = '';
@@ -637,7 +703,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       toast.info(message, {
         action: type === 'created' ? {
           label: 'View Partnerships',
-          onClick: () => router.push('/partnerships')
+          onClick: () => router.push(preserveCgParams('/partnerships'))
         } : undefined
       });
       
