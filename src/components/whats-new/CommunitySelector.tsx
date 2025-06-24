@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown, Globe } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
+import { CommunityPartnership } from '@/types/partnerships';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,14 +41,37 @@ export function CommunitySelector({
   const { token } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Fetch user's communities
+  // Fetch user's communities filtered by partnerships
   const { data: communitiesResponse, isLoading } = useQuery({
-    queryKey: ['userCommunities'],
+    queryKey: ['userCommunitiesForWhatsNew'],
     queryFn: async () => {
       if (!token) throw new Error('No token available');
-      return authFetchJson<{ success: boolean; communities: Community[] }>('/api/me/communities', { token });
+      
+      // Get all user communities
+      const allCommunitiesResponse = await authFetchJson<{ success: boolean; communities: Community[] }>('/api/me/communities', { token });
+      const allCommunities = allCommunitiesResponse.communities || [];
+      
+      // Get partnerships for current community to filter communities
+      const partnershipsResponse = await authFetchJson<{ success: boolean; data: CommunityPartnership[] }>('/api/communities/partnerships', { token });
+      const partnerships = partnershipsResponse.data || [];
+      
+      // Create set of partner community IDs (both source and target)
+      const partnerCommunityIds = new Set<string>();
+      partnerships.forEach(partnership => {
+        if (partnership.status === 'accepted') {
+          partnerCommunityIds.add(partnership.sourceCommunityId);
+          partnerCommunityIds.add(partnership.targetCommunityId);
+        }
+      });
+      
+      // Filter communities: current community + accepted partner communities only
+      const filteredCommunities = allCommunities.filter(community => 
+        community.id === currentCommunityId || partnerCommunityIds.has(community.id)
+      );
+      
+      return { success: true, communities: filteredCommunities };
     },
-    enabled: !!token,
+    enabled: !!token && !!currentCommunityId,
     staleTime: 60000, // Cache for 1 minute
   });
 
@@ -134,46 +158,61 @@ export function CommunitySelector({
         align="start" 
         className="w-[200px] sm:w-[280px] max-h-[400px] overflow-y-auto"
       >
-        {communities.map((community) => (
-          <DropdownMenuItem
-            key={community.id}
-            onClick={() => handleCommunitySelect(community.id)}
-            className="p-3 cursor-pointer"
-          >
-            <div className="flex items-center gap-3 w-full">
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                {community.logoUrl && (
-                  <AvatarImage src={community.logoUrl} alt={community.name} />
-                )}
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-semibold">
-                  {getCommunityInitials(community.name)}
-                </AvatarFallback>
-              </Avatar>
-              
-              <div className="flex flex-col flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm truncate">
-                    {community.name}
-                  </span>
-                  {community.id === currentCommunityId && (
-                    <Check className="h-4 w-4 text-primary flex-shrink-0" />
+        {communities.map((community) => {
+          const isCurrentCommunity = community.id === currentCommunityId;
+          const isPartnerCommunity = !isCurrentCommunity;
+          
+          return (
+            <DropdownMenuItem
+              key={community.id}
+              onClick={() => handleCommunitySelect(community.id)}
+              className="p-3 cursor-pointer"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <Avatar className="h-8 w-8 flex-shrink-0">
+                  {community.logoUrl && (
+                    <AvatarImage src={community.logoUrl} alt={community.name} />
                   )}
-                </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{formatLastVisited(community.lastVisitedAt)}</span>
-                  <span>•</span>
-                  <span>{community.visitCount} visits</span>
+                  <AvatarFallback className={cn(
+                    "text-white text-sm font-semibold",
+                    isCurrentCommunity 
+                      ? "bg-gradient-to-br from-blue-500 to-purple-600"
+                      : "bg-gradient-to-br from-emerald-500 to-teal-600"
+                  )}>
+                    {getCommunityInitials(community.name)}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm truncate">
+                      {community.name}
+                    </span>
+                    {isCurrentCommunity && (
+                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                    )}
+                    {isPartnerCommunity && (
+                      <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 rounded-full flex-shrink-0">
+                        Partner
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{formatLastVisited(community.lastVisitedAt)}</span>
+                    <span>•</span>
+                    <span>{community.visitCount} visits</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </DropdownMenuItem>
-        ))}
+            </DropdownMenuItem>
+          );
+        })}
         
         {communities.length === 0 && (
           <div className="p-6 text-center text-muted-foreground">
             <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No communities found</p>
-            <p className="text-xs">Visit some communities to see them here</p>
+            <p className="text-sm">No partner communities</p>
+            <p className="text-xs">Create partnerships with other communities to see them here</p>
           </div>
         )}
       </DropdownMenuContent>

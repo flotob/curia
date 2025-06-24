@@ -30,7 +30,8 @@ import { Search, Loader2, Users, ArrowRight, Info } from 'lucide-react';
 import { 
   CreatePartnershipRequest, 
   PartnershipType, 
-  PartnershipPermissions 
+  PartnershipPermissions,
+  CommunityPartnership
 } from '@/types/partnerships';
 import { toast } from '@/hooks/use-toast';
 
@@ -60,23 +61,39 @@ export default function CreatePartnershipModal({
   // Permission states
   const [sourceToTargetPermissions, setSourceToTargetPermissions] = useState<PartnershipPermissions>({
     allowCrossCommunityNavigation: true,
-    allowCrossCommunityNotifications: false,
-    allowCrossCommunitySearch: false,
+    allowCrossCommunityNotifications: true,
+    allowCrossCommunitySearch: true,
     allowPresenceSharing: true
   });
   
   const [targetToSourcePermissions, setTargetToSourcePermissions] = useState<PartnershipPermissions>({
     allowCrossCommunityNavigation: true,
-    allowCrossCommunityNotifications: false,
-    allowCrossCommunitySearch: false,
+    allowCrossCommunityNotifications: true,
+    allowCrossCommunitySearch: true,
     allowPresenceSharing: true
   });
 
-  // Fetch communities for selection
+  // Fetch communities for selection (excluding current community and existing partnerships)
   const { data: communities, isLoading: isLoadingCommunities } = useQuery({
-    queryKey: ['communities'],
+    queryKey: ['communities-available-for-partnership'],
     queryFn: async (): Promise<Community[]> => {
-      return authFetchJson<Community[]>('/api/communities', { token });
+      // First, get all communities
+      const allCommunities = await authFetchJson<Community[]>('/api/communities', { token });
+      
+      // Then, get existing partnerships to filter out
+      const partnershipsData = await authFetchJson<{ data: CommunityPartnership[] }>('/api/communities/partnerships', { token });
+      const existingPartnershipCommunityIds = new Set<string>();
+      
+      // Add communities with any active partnership status (pending, accepted, suspended)
+      partnershipsData.data?.forEach(partnership => {
+        existingPartnershipCommunityIds.add(partnership.sourceCommunityId);
+        existingPartnershipCommunityIds.add(partnership.targetCommunityId);
+      });
+      
+      // Filter out current community and communities with existing partnerships
+      return allCommunities.filter(community => 
+        !existingPartnershipCommunityIds.has(community.id)
+      );
     },
     enabled: isOpen && !!token
   });
@@ -115,14 +132,14 @@ export default function CreatePartnershipModal({
     setSearchQuery('');
     setSourceToTargetPermissions({
       allowCrossCommunityNavigation: true,
-      allowCrossCommunityNotifications: false,
-      allowCrossCommunitySearch: false,
+      allowCrossCommunityNotifications: true,
+      allowCrossCommunitySearch: true,
       allowPresenceSharing: true
     });
     setTargetToSourcePermissions({
       allowCrossCommunityNavigation: true,
-      allowCrossCommunityNotifications: false,
-      allowCrossCommunitySearch: false,
+      allowCrossCommunityNotifications: true,
+      allowCrossCommunitySearch: true,
       allowPresenceSharing: true
     });
     onClose();
@@ -213,21 +230,21 @@ export default function CreatePartnershipModal({
   );
 
   const renderPartnershipDetails = () => (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Selected Community */}
-      <div>
-        <Label>Selected Community</Label>
-        <Card className="mt-2">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback>
+      <div className="space-y-3">
+        <Label className="text-sm font-semibold">Selected Community</Label>
+        <Card className="border-2 border-blue-100 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-900/10">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-12 w-12 ring-2 ring-blue-200 dark:ring-blue-700">
+                <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200 font-semibold">
                   {selectedCommunity?.name.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <p className="font-medium">{selectedCommunity?.name}</p>
-                <p className="text-sm text-gray-500">Partnership invitation target</p>
+              <div className="flex-1">
+                <p className="font-semibold text-lg">{selectedCommunity?.name}</p>
+                <p className="text-sm text-blue-600 dark:text-blue-400">Partnership invitation target</p>
               </div>
             </div>
           </CardContent>
@@ -235,31 +252,35 @@ export default function CreatePartnershipModal({
       </div>
 
       {/* Relationship Type */}
-      <div>
-        <Label htmlFor="relationship-type">Partnership Type</Label>
+      <div className="space-y-3">
+        <Label htmlFor="relationship-type" className="text-sm font-semibold">Partnership Type</Label>
         <Select 
           value={relationshipType} 
           onValueChange={(value: PartnershipType) => setRelationshipType(value)}
         >
-          <SelectTrigger className="mt-2">
+          <SelectTrigger className="h-12 border-2 hover:border-blue-300 focus:border-blue-500 transition-colors">
             <SelectValue placeholder="Select partnership type" />
           </SelectTrigger>
-          <SelectContent className="p-1">
-            <SelectItem value="partner" className="py-3 px-3 cursor-pointer">
-              <div className="flex items-center gap-2">
-                <span>🤝</span>
-                <div>
-                  <p className="font-medium">Partner</p>
-                  <p className="text-xs text-gray-500">Equal collaboration partnership</p>
+          <SelectContent className="w-full min-w-[400px]">
+            <SelectItem value="partner" className="p-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20">
+              <div className="flex items-center gap-3 w-full">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-800">
+                  <span className="text-lg">🤝</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold">Partner</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Equal collaboration partnership</p>
                 </div>
               </div>
             </SelectItem>
-            <SelectItem value="ecosystem" className="py-3 px-3 cursor-pointer">
-              <div className="flex items-center gap-2">
-                <span>🌐</span>
-                <div>
-                  <p className="font-medium">Ecosystem</p>
-                  <p className="text-xs text-gray-500">Part of broader ecosystem network</p>
+            <SelectItem value="ecosystem" className="p-4 cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+              <div className="flex items-center gap-3 w-full">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800">
+                  <span className="text-lg">🌐</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold">Ecosystem</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Part of broader ecosystem network</p>
                 </div>
               </div>
             </SelectItem>
@@ -268,18 +289,18 @@ export default function CreatePartnershipModal({
       </div>
 
       {/* Invite Message */}
-      <div>
-        <Label htmlFor="invite-message">Invitation Message (Optional)</Label>
+      <div className="space-y-3">
+        <Label htmlFor="invite-message" className="text-sm font-semibold">Invitation Message (Optional)</Label>
         <Textarea
           id="invite-message"
-          placeholder="Tell them why you'd like to partner..."
+          placeholder="Tell them why you'd like to partner with their community..."
           value={inviteMessage}
           onChange={(e) => setInviteMessage(e.target.value)}
-          className="mt-2"
-          rows={3}
+          className="min-h-[100px] border-2 hover:border-blue-300 focus:border-blue-500 transition-colors resize-none"
+          rows={4}
         />
-        <p className="text-xs text-gray-500 mt-1">
-          This message will be visible to the target community admins.
+        <p className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded-md border">
+          💡 This message will be visible to the target community admins and helps them understand your partnership goals.
         </p>
       </div>
     </div>

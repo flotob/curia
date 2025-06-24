@@ -8,6 +8,9 @@ export interface ApiCommunity {
   created_at: string;
   updated_at: string;
   settings: Record<string, unknown>;
+  logoUrl?: string;
+  communityShortId?: string;
+  pluginId?: string;
 }
 
 interface CommunityRow {
@@ -16,6 +19,9 @@ interface CommunityRow {
   created_at: string;
   updated_at: string;
   settings: Record<string, unknown> | null;
+  logo_url: string | null;
+  community_short_id: string | null;
+  plugin_id: string | null;
 }
 
 async function getCommunitiesHandler(req: AuthenticatedRequest) {
@@ -27,7 +33,7 @@ async function getCommunitiesHandler(req: AuthenticatedRequest) {
     }
     
     const result = await query(
-      'SELECT id, name, created_at, updated_at, settings FROM communities WHERE id != $1 ORDER BY name ASC',
+      'SELECT id, name, created_at, updated_at, settings, logo_url, community_short_id, plugin_id FROM communities WHERE id != $1 ORDER BY name ASC',
       [currentCommunityId]
     );
 
@@ -36,7 +42,10 @@ async function getCommunitiesHandler(req: AuthenticatedRequest) {
       name: row.name,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      settings: row.settings || {}
+      settings: row.settings || {},
+      logoUrl: row.logo_url || undefined,
+      communityShortId: row.community_short_id || undefined,
+      pluginId: row.plugin_id || undefined
     }));
 
     return NextResponse.json(communities);

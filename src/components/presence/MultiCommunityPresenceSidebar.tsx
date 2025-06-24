@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ContextualNavigationCard } from './ContextualNavigationCard';
+import { PartnerCommunitiesWidget } from '@/components/partnerships/PartnerCommunitiesWidget';
 import { TypingIndicator } from './TypingIndicator';
 import { useTypingContext } from '@/hooks/useTypingContext';
 import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
@@ -503,6 +504,9 @@ export function MultiCommunityPresenceSidebar({
           }}
         />
       )}
+      
+      {/* Partner Communities Widget */}
+      <PartnerCommunitiesWidget />
       
       {/* Header */}
       <Card>
