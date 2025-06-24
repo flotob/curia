@@ -449,7 +449,8 @@ async function createPostHandler(req: AuthenticatedRequest) {
           comment_count: newPost.comment_count,
           board_id: validBoardId,
           lock_id: validLockId,
-          // Add community context for Telegram notifications
+          // ✅ Add community context for community-scoped broadcasting
+          communityId: currentCommunityId,
           communityShortId: user.communityShortId,
           pluginId: user.pluginId
         }

@@ -146,7 +146,8 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
           board_id, 
           post_title, 
           board_name,
-          // Add community context for Telegram notifications
+          // ✅ Add community context for community-scoped broadcasting
+          communityId: userCommunityId,
           communityShortId: user.communityShortId,
           pluginId: user.pluginId
         }
@@ -298,7 +299,8 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
           board_id, 
           post_title, 
           board_name,
-          // Add community context for Telegram notifications
+          // ✅ Add community context for community-scoped broadcasting
+          communityId: userCommunityId,
           communityShortId: user.communityShortId,
           pluginId: user.pluginId
         }

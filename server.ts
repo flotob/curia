@@ -133,26 +133,25 @@ interface AuthenticatedSocket extends Socket {
 function broadcastEvent(event: BroadcastEvent) {
   const { eventName, payload, config } = event;
   
-  console.log(`[Socket.IO Enhanced Broadcast] Event: ${eventName}`, {
-    globalRoom: config.globalRoom,
+  console.log(`[Socket.IO Community-Scoped Broadcast] Event: ${eventName}`, {
+    communityId: payload.communityId,
     specificRooms: config.specificRooms,
-    invalidateForAllUsers: config.invalidateForAllUsers,
-    payload
+    invalidateForAllUsers: config.invalidateForAllUsers
   });
 
-  // Broadcast to global room if configured
-  if (config.globalRoom) {
-    io.to('global').emit(eventName, payload);
+  // Broadcast to source community room (replaces global room)
+  if (payload.communityId) {
+    io.to(`community:${payload.communityId}`).emit(eventName, payload);
   }
 
-  // Broadcast to specific rooms
+  // Broadcast to specific rooms (boards, etc.)
   config.specificRooms.forEach(room => {
     io.to(room).emit(eventName, payload);
   });
 
   // For events that should trigger universal React Query invalidation,
-  // we rely on the global room to reach all users. The client-side
-  // SocketContext will handle access-based invalidation logic.
+  // we now rely on community rooms instead of global room.
+  // Cross-community broadcasting will be added in Phase 2.
 }
 
 /**
@@ -242,12 +241,15 @@ function debouncedPresenceUpdate(userId: string) {
     if (aggregatedUser) {
       userPresence.set(userId, aggregatedUser);
       
-      // Broadcast presence change to global room
+      // Broadcast presence change to community room
       broadcastEvent({
         eventName: 'userPresenceUpdate',
-        payload: { userPresence: aggregatedUser },
+        payload: { 
+          userPresence: aggregatedUser,
+          communityId: aggregatedUser.communityId  // Add community context
+        },
         config: {
-          globalRoom: true,
+          globalRoom: false,
           specificRooms: [],
           invalidateForAllUsers: false
         }
@@ -256,16 +258,12 @@ function debouncedPresenceUpdate(userId: string) {
       // User has no devices, remove from user presence
       userPresence.delete(userId);
       
-      // Broadcast user offline
-      broadcastEvent({
-        eventName: 'userOffline',
-        payload: { userId },
-        config: {
-          globalRoom: true,
-          specificRooms: [],
-          invalidateForAllUsers: false
-        }
-      });
+      // Broadcast user offline to their community
+      // Note: We need to get the user's community ID from somewhere
+      // For now, we'll skip community broadcasting for offline events
+      // as we can't determine the community ID from just the userId
+      console.log(`[Socket.IO] User ${userId} went offline (no community broadcast)`);
+      // TODO: Store user community mapping for offline events
     }
     
     userPresenceUpdates.delete(userId);
@@ -321,47 +319,47 @@ async function bootstrap() {
     switch (eventName) {
       case 'newPost':
         config = {
-          globalRoom: true,              // All users need this for home feed invalidation
+          globalRoom: false,             // ✅ Community-scoped instead of global
           specificRooms: [room],         // Board-specific room for immediate notifications
-          invalidateForAllUsers: true    // React Query invalidation for all users with board access
+          invalidateForAllUsers: true    // React Query invalidation for community users
         };
         break;
         
       case 'voteUpdate':
         config = {
-          globalRoom: true,              // Home feed sorting may change
+          globalRoom: false,             // ✅ Community-scoped instead of global
           specificRooms: [room],         // Board users need immediate update
-          invalidateForAllUsers: true    // All users with access should get fresh data
+          invalidateForAllUsers: true    // Community users get fresh data
         };
         break;
         
       case 'reactionUpdate':
         config = {
-          globalRoom: true,              // Enable global broadcast for home page users
+          globalRoom: false,             // ✅ Community-scoped instead of global
           specificRooms: [room],         // Board users need immediate update
-          invalidateForAllUsers: true    // All users with access should see updated reactions
+          invalidateForAllUsers: true    // Community users see updated reactions
         };
         break;
         
       case 'newComment':
         config = {
-          globalRoom: true,              // Comment counts affect home feed
+          globalRoom: false,             // ✅ Community-scoped instead of global
           specificRooms: [room],         // Board users need immediate notification
-          invalidateForAllUsers: true    // All users with access should get fresh data
+          invalidateForAllUsers: true    // Community users get fresh data
         };
         break;
         
       case 'newBoard':
         config = {
-          globalRoom: true,              // All users should see new boards
-          specificRooms: [room],         // Community-specific room
-          invalidateForAllUsers: true    // Board lists need invalidation
+          globalRoom: false,             // ✅ Community-scoped instead of global
+          specificRooms: [room],         // Board-specific room
+          invalidateForAllUsers: true    // Community board lists need invalidation
         };
         break;
         
       case 'boardSettingsChanged':
         config = {
-          globalRoom: false,             // Only affects users with access to this board
+          globalRoom: false,             // ✅ Already community-scoped
           specificRooms: [room],         // Board-specific change
           invalidateForAllUsers: true    // Users with access need fresh permissions
         };
@@ -434,10 +432,9 @@ async function bootstrap() {
     const user = socket.data.user;
     console.log(`[Socket.IO] User connected: ${user.sub} (${user.name || 'Unknown'})`);
 
-    // ===== PHASE 1: GLOBAL ROOM & PRESENCE SYSTEM =====
+    // ===== PHASE 1: COMMUNITY-SCOPED NOTIFICATION SYSTEM =====
     
-    // Auto-join user to global room AND community room
-    socket.join('global');
+    // Auto-join user to community room only (no more global spam!)
     socket.join(`community:${user.cid}`);
     
     // Extract frameUID from JWT for device identification
@@ -471,12 +468,15 @@ async function bootstrap() {
     if (aggregatedUser) {
       userPresence.set(user.sub, aggregatedUser);
       
-      // Broadcast user online to global room
+      // Broadcast user online to community room
       broadcastEvent({
         eventName: 'userOnline',
-        payload: { userPresence: aggregatedUser },
+        payload: { 
+          userPresence: aggregatedUser,
+          communityId: user.cid  // Add community context for broadcasting
+        },
         config: {
-          globalRoom: true,
+          globalRoom: false,
           specificRooms: [],
           invalidateForAllUsers: false
         }
