@@ -718,7 +718,8 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
             post_title: post_title,
             board_id: board_id,
             board_name: board_name,
-            // Add community context for Telegram notifications
+            // Add community context for cross-community broadcasting
+            communityId: userCommunityId,
             communityShortId: user.communityShortId,
             pluginId: user.pluginId,
             comment: {

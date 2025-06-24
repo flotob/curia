@@ -203,7 +203,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, [router, buildInternalUrl]);
 
   // ✅ Smart navigation helper that detects cross-community notifications
-  const smartNavigateToPost = useCallback((
+  const smartNavigateToPost = useCallback(async (
     postId: number, 
     boardId: number, 
     eventData: { 
@@ -212,14 +212,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   ) => {
     if (eventData.isCrossCommunityNotification && eventData.crossCommunityNav) {
-      // Cross-community notification - use special navigation
+      // Cross-community notification - use special navigation with proper await
       console.log('[Socket] Cross-community notification detected, using cross-community navigation');
-      navigateToCrossCommunityPost(
-        eventData.crossCommunityNav.communityShortId,
-        eventData.crossCommunityNav.pluginId,
-        postId,
-        boardId
-      );
+      try {
+        await navigateToCrossCommunityPost(
+          eventData.crossCommunityNav.communityShortId,
+          eventData.crossCommunityNav.pluginId,
+          postId,
+          boardId
+        );
+        console.log('[Socket] Cross-community navigation completed successfully');
+      } catch (error) {
+        console.error('[Socket] Cross-community navigation failed:', error);
+      }
     } else {
       // Same community - use internal navigation
       navigateToPost(postId, boardId);
@@ -302,7 +307,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.success(`${communityPrefix}New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`, {
           action: {
             label: postData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
-            onClick: () => smartNavigateToPost(postData.id, postData.board_id, postData)
+            onClick: () => {
+              // Handle async navigation in toast action
+              smartNavigateToPost(postData.id, postData.board_id, postData).catch(error => {
+                console.error('[Socket] Navigation failed from toast:', error);
+              });
+            }
           }
         });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
@@ -333,7 +343,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.info(`${communityPrefix}"${voteData.post_title}" received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`, {
           action: {
             label: voteData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
-            onClick: () => smartNavigateToPost(voteData.postId, voteData.board_id, voteData)
+            onClick: () => {
+              // Handle async navigation in toast action
+              smartNavigateToPost(voteData.postId, voteData.board_id, voteData).catch(error => {
+                console.error('[Socket] Navigation failed from toast:', error);
+              });
+            }
           }
         });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
@@ -347,7 +362,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('reactionUpdate', (reactionData: { postId: number; emoji: string; action: string; userId: string; reactions: unknown[]; board_id: number; post_title: string; board_name: string }) => {
+    newSocket.on('reactionUpdate', (reactionData: { 
+      postId: number; 
+      emoji: string; 
+      action: string; 
+      userId: string; 
+      reactions: unknown[]; 
+      board_id: number; 
+      post_title: string; 
+      board_name: string;
+      isCrossCommunityNotification?: boolean;
+      sourceCommunityName?: string;
+      crossCommunityNav?: { communityShortId: string; pluginId: string };
+    }) => {
       console.log(`[Socket] Reaction update for post "${reactionData.post_title}": ${reactionData.action} ${reactionData.emoji} by ${reactionData.userId}`);
       if (reactionData.userId !== userId) {
         // Skip toast notifications for reactions (they're frequent and less important than votes)
@@ -393,7 +420,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         toast.info(`${communityPrefix}${commentData.comment.author_name || 'Unknown'} commented on "${commentData.post_title}"`, {
           action: {
             label: commentData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
-            onClick: () => smartNavigateToPost(commentData.postId, commentData.board_id, commentData)
+            onClick: () => {
+              // Handle async navigation in toast action
+              smartNavigateToPost(commentData.postId, commentData.board_id, commentData).catch(error => {
+                console.error('[Socket] Navigation failed from toast:', error);
+              });
+            }
           }
         });
         console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
@@ -504,20 +536,46 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       toast.info('Board settings have been updated');
     });
 
-    newSocket.on('newBoard', (boardData: { board: { id: number; name: string; community_id: string }; author_user_id: string; community_id: string }) => {
+    newSocket.on('newBoard', (boardData: { 
+      board: { id: number; name: string; community_id: string }; 
+      author_user_id: string; 
+      communityId: string;
+      isCrossCommunityNotification?: boolean;
+      sourceCommunityName?: string;
+      crossCommunityNav?: { communityShortId: string; pluginId: string };
+    }) => {
       console.log('[Socket] New board created:', boardData);
       if (boardData.author_user_id !== userId) {
-        toast.success(`New board created: "${boardData.board.name}"`, {
+        const communityPrefix = boardData.isCrossCommunityNotification 
+          ? `🔗 ${boardData.sourceCommunityName}: ` 
+          : '';
+        
+        toast.success(`${communityPrefix}New board created: "${boardData.board.name}"`, {
           action: {
-            label: 'View Board',
-            onClick: () => navigateToBoard(boardData.board.id)
+            label: boardData.isCrossCommunityNotification ? 'View in Partner' : 'View Board',
+            onClick: () => {
+              if (boardData.isCrossCommunityNotification && boardData.crossCommunityNav) {
+                // Cross-community board - navigate to community root with proper await handling
+                navigateToCrossCommunityPost(
+                  boardData.crossCommunityNav.communityShortId,
+                  boardData.crossCommunityNav.pluginId,
+                  -1, // No specific post
+                  -1  // No specific board - go to community root
+                ).catch(error => {
+                  console.error('[Socket] Cross-community board navigation failed:', error);
+                });
+              } else {
+                // Same community - navigate to board
+                navigateToBoard(boardData.board.id);
+              }
+            }
           }
         });
       }
       
       // Invalidate board-related queries
-      console.log(`[RQ Invalidate] Invalidating board queries for community: ${boardData.community_id}`);
-      queryClient.invalidateQueries({ queryKey: ['boards', boardData.community_id] });
+      console.log(`[RQ Invalidate] Invalidating board queries for community: ${boardData.communityId}`);
+      queryClient.invalidateQueries({ queryKey: ['boards', boardData.communityId] });
       queryClient.invalidateQueries({ queryKey: ['boards'] }); // For queries without community ID
       queryClient.invalidateQueries({ queryKey: ['accessibleBoards'] });
       queryClient.invalidateQueries({ queryKey: ['accessibleBoardsNewPost'] });

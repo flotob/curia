@@ -310,6 +310,8 @@ async function toggleReactionHandler(req: AuthenticatedRequest, context: RouteCo
           board_id, 
           post_title, 
           board_name,
+          // Add community context for cross-community broadcasting
+          communityId: userCommunityId,
           communityShortId: user.communityShortId,
           pluginId: user.pluginId
         }

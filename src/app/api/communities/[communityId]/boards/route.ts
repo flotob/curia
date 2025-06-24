@@ -159,7 +159,10 @@ async function createBoardHandler(req: AuthenticatedRequest, context: RouteConte
         payload: { 
           board: boardResponse, 
           author_user_id: requestingUserId,
-          community_id: communityId 
+          // Add community context for cross-community broadcasting
+          communityId: communityId,
+          communityShortId: req.user?.communityShortId,
+          pluginId: req.user?.pluginId
         }
       });
       console.log('[API POST /api/communities/.../boards] Successfully emitted newBoard event.');

@@ -380,7 +380,7 @@ async function bootstrap() {
       case 'newPost':
         config = {
           globalRoom: false,             // ✅ Community + partner communities
-          specificRooms: [room],         // Board-specific room for immediate notifications
+          specificRooms: [],             // 🔧 PHASE 3A: Community-only broadcasting
           invalidateForAllUsers: true    // React Query invalidation for community users
         };
         break;
@@ -388,23 +388,23 @@ async function bootstrap() {
       case 'voteUpdate':
         config = {
           globalRoom: false,             // ✅ Community + partner communities
-          specificRooms: [room],         // Board users need immediate update
+          specificRooms: [],             // 🔧 PHASE 3A: Community-only broadcasting
           invalidateForAllUsers: true    // Community users get fresh data
         };
         break;
         
       case 'reactionUpdate':
         config = {
-          globalRoom: false,             // ✅ Community + partner communities
-          specificRooms: [room],         // Board users need immediate update
-          invalidateForAllUsers: true    // Community users see updated reactions
+          globalRoom: false,             // 🔧 SILENT EVENT: Community-only (no partners)
+          specificRooms: [],             // Silent events are pointless for cross-community
+          invalidateForAllUsers: false   // Community users only (no partner broadcasting)
         };
         break;
         
       case 'newComment':
         config = {
           globalRoom: false,             // ✅ Community + partner communities
-          specificRooms: [room],         // Board users need immediate notification
+          specificRooms: [],             // 🔧 PHASE 3A: Community-only broadcasting
           invalidateForAllUsers: true    // Community users get fresh data
         };
         break;
@@ -412,18 +412,20 @@ async function bootstrap() {
       case 'newBoard':
         config = {
           globalRoom: false,             // ✅ Community + partner communities
-          specificRooms: [room],         // Board-specific room
+          specificRooms: [],             // 🔧 PHASE 3A: Community-only broadcasting
           invalidateForAllUsers: true    // Community board lists need invalidation
         };
         break;
         
       case 'boardSettingsChanged':
         config = {
-          globalRoom: false,             // ✅ Already community-scoped
-          specificRooms: [room],         // Board-specific change
-          invalidateForAllUsers: true    // Users with access need fresh permissions
+          globalRoom: false,             // 🔧 COMMUNITY-ONLY: Partners can't see board settings impact
+          specificRooms: [],             // Board settings irrelevant to other communities
+          invalidateForAllUsers: false   // Community users only (no partner broadcasting)
         };
         break;
+        
+      // userJoinedBoard and userLeftBoard events removed - presence system handles this
         
       default:
         // Default: broadcast only to specific room
@@ -610,12 +612,8 @@ async function bootstrap() {
         // Notify user of successful join
         socket.emit('boardJoined', { boardId: boardIdNum });
         
-        // Broadcast user presence to others in the board room (NOT global)
-        socket.to(roomName).emit('userJoinedBoard', {
-          userId: user.sub,
-          userName: user.name,
-          boardId: boardIdNum
-        });
+        // ✅ Presence system handles board location tracking automatically via updateDevicePresence()
+        // No need for discrete join/leave events - presence shows "User X is in Board Y"
 
       } catch (error) {
         console.error('[Socket.IO] Error joining board:', error);
@@ -640,11 +638,8 @@ async function bootstrap() {
       
       console.log(`[Socket.IO] User ${user.sub} left board room: ${roomName}`);
       
-      // Notify others in the room
-      socket.to(roomName).emit('userLeftBoard', {
-        userId: user.sub,
-        boardId: boardIdNum
-      });
+      // ✅ Presence system handles board location tracking automatically via updateDevicePresence()
+      // No need for discrete join/leave events - presence shows when user leaves boards
     });
 
     // Enhanced typing indicators with post context and title resolution
@@ -677,7 +672,8 @@ async function bootstrap() {
           isActive: true
         });
         
-        // Broadcast enhanced typing data to board room
+        // 🔧 PHASE 3A: Commented out userTyping events (never worked, too frequent)
+        /*
         const roomName = `board:${data.boardId}`;
         socket.to(roomName).emit('userTyping', {
           userId: user.sub,
@@ -689,12 +685,14 @@ async function bootstrap() {
           context: data.context,
           timestamp: Date.now()
         });
+        */
         
         console.log(`[Socket.IO Enhanced Typing] User ${user.sub} ${data.isTyping ? 'started' : 'stopped'} typing${postTitle ? ` on "${postTitle}"` : ` in board ${data.boardId}`}`);
         
       } catch (error) {
         console.error('[Socket.IO] Error handling typing event:', error);
-        // Still broadcast basic typing event if database lookup fails
+        // 🔧 PHASE 3A: Commented out fallback userTyping events (never worked, too frequent)
+        /*
         const roomName = `board:${data.boardId}`;
         socket.to(roomName).emit('userTyping', {
           userId: user.sub,
@@ -705,6 +703,7 @@ async function bootstrap() {
           context: data.context,
           timestamp: Date.now()
         });
+        */
       }
     });
 
@@ -736,7 +735,10 @@ async function bootstrap() {
       // Update user presence (may remove user if no devices left)
       debouncedPresenceUpdate(user.sub);
       
-      // Broadcast leave presence to all board rooms user was in
+      // 🔧 PHASE 3A: Commented out board-specific userLeftBoard broadcasts on disconnect
+      // These would require async/await refactoring and proper community context
+      // Users will see presence updates through the main presence system instead
+      /* 
       for (const room of socket.rooms) {
         if (room.startsWith('board:')) {
           const boardId = room.split(':')[1];
@@ -746,6 +748,7 @@ async function bootstrap() {
           });
         }
       }
+      */
       
       console.log(`[Socket.IO Multi-Device Presence] Device ${frameUID} disconnected. Total devices: ${devicePresence.size}, Users: ${userPresence.size}`);
     });
