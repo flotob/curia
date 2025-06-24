@@ -127,31 +127,91 @@ interface AuthenticatedSocket extends Socket {
 }
 
 /**
- * Enhanced broadcasting system that handles both real-time notifications
+ * Get partner communities that allow cross-community notifications from the source community
+ */
+async function getNotificationPartners(sourceCommunityId: string): Promise<string[]> {
+  try {
+    const result = await query(`
+      SELECT DISTINCT
+        CASE 
+          -- If we're the source, check if target allows notifications from us
+          WHEN source_community_id = $1 AND (target_to_source_permissions->>'allowCrossCommunityNotifications')::boolean = true 
+          THEN target_community_id
+          -- If we're the target, check if source allows notifications to us  
+          WHEN target_community_id = $1 AND (source_to_target_permissions->>'allowCrossCommunityNotifications')::boolean = true
+          THEN source_community_id  
+        END as partner_community_id
+      FROM community_partnerships 
+      WHERE status = 'accepted' 
+        AND (source_community_id = $1 OR target_community_id = $1)
+        AND CASE 
+          WHEN source_community_id = $1 THEN (target_to_source_permissions->>'allowCrossCommunityNotifications')::boolean = true
+          WHEN target_community_id = $1 THEN (source_to_target_permissions->>'allowCrossCommunityNotifications')::boolean = true
+          ELSE false
+        END
+    `, [sourceCommunityId]);
+    
+    const partners = result.rows
+      .map(row => row.partner_community_id)
+      .filter(id => id && id !== sourceCommunityId); // Ensure no null values and no self-references
+    
+    console.log(`[Partnership Broadcasting] Community ${sourceCommunityId} has ${partners.length} notification partners:`, partners);
+    return partners;
+  } catch (error) {
+    console.error('[Partnership Broadcasting] Error fetching notification partners:', error);
+    return []; // Return empty array on error to prevent breaking notifications
+  }
+}
+
+/**
+ * Enhanced broadcasting system with partnership-aware cross-community notifications
  * and React Query cache invalidation based on user access permissions
  */
-function broadcastEvent(event: BroadcastEvent) {
+async function broadcastEvent(event: BroadcastEvent) {
   const { eventName, payload, config } = event;
   
-  console.log(`[Socket.IO Community-Scoped Broadcast] Event: ${eventName}`, {
+  console.log(`[Socket.IO Partnership-Aware Broadcast] Event: ${eventName}`, {
     communityId: payload.communityId,
     specificRooms: config.specificRooms,
     invalidateForAllUsers: config.invalidateForAllUsers
   });
 
-  // Broadcast to source community room (replaces global room)
+  // 1. Always broadcast to source community room
   if (payload.communityId) {
     io.to(`community:${payload.communityId}`).emit(eventName, payload);
+    
+    // 2. Get partner communities that allow cross-community notifications
+    const partnerCommunities = await getNotificationPartners(payload.communityId);
+    
+    if (partnerCommunities.length > 0) {
+      console.log(`[Partnership Broadcasting] Sending to ${partnerCommunities.length} partner communities:`, partnerCommunities);
+      
+      // 3. Broadcast to each partner community with cross-community metadata
+      partnerCommunities.forEach(partnerId => {
+        io.to(`community:${partnerId}`).emit(eventName, {
+          ...payload,
+          // 🔗 Cross-community metadata for client-side handling
+          isCrossCommunityNotification: true,
+          sourceCommunityId: payload.communityId,
+          sourceCommunityName: `Partner Community`, // TODO: Could fetch actual name
+          crossCommunityNav: {
+            communityShortId: payload.communityShortId,
+            pluginId: payload.pluginId
+          }
+        });
+      });
+    }
+  } else {
+    console.warn('[Partnership Broadcasting] No communityId in payload, skipping cross-community broadcast');
   }
 
-  // Broadcast to specific rooms (boards, etc.)
+  // 4. Broadcast to specific rooms (boards, etc.) - unchanged behavior
   config.specificRooms.forEach(room => {
     io.to(room).emit(eventName, payload);
   });
 
-  // For events that should trigger universal React Query invalidation,
-  // we now rely on community rooms instead of global room.
-  // Cross-community broadcasting will be added in Phase 2.
+  // For events that trigger universal React Query invalidation,
+  // we now broadcast to both source community and permitted partner communities.
 }
 
 /**
@@ -309,8 +369,8 @@ async function bootstrap() {
 
   // ===== ENHANCED EVENT SYSTEM =====
   
-  // Setup listeners for events from API routes with enhanced broadcasting
-  customEventEmitter.on('broadcastEvent', (eventDetails: { room: string; eventName: string; payload: any }) => {
+  // Setup listeners for events from API routes with partnership-aware broadcasting
+  customEventEmitter.on('broadcastEvent', async (eventDetails: { room: string; eventName: string; payload: any }) => {
     const { room, eventName, payload } = eventDetails;
     
     // Determine broadcasting strategy based on event type
@@ -319,7 +379,7 @@ async function bootstrap() {
     switch (eventName) {
       case 'newPost':
         config = {
-          globalRoom: false,             // ✅ Community-scoped instead of global
+          globalRoom: false,             // ✅ Community + partner communities
           specificRooms: [room],         // Board-specific room for immediate notifications
           invalidateForAllUsers: true    // React Query invalidation for community users
         };
@@ -327,7 +387,7 @@ async function bootstrap() {
         
       case 'voteUpdate':
         config = {
-          globalRoom: false,             // ✅ Community-scoped instead of global
+          globalRoom: false,             // ✅ Community + partner communities
           specificRooms: [room],         // Board users need immediate update
           invalidateForAllUsers: true    // Community users get fresh data
         };
@@ -335,7 +395,7 @@ async function bootstrap() {
         
       case 'reactionUpdate':
         config = {
-          globalRoom: false,             // ✅ Community-scoped instead of global
+          globalRoom: false,             // ✅ Community + partner communities
           specificRooms: [room],         // Board users need immediate update
           invalidateForAllUsers: true    // Community users see updated reactions
         };
@@ -343,7 +403,7 @@ async function bootstrap() {
         
       case 'newComment':
         config = {
-          globalRoom: false,             // ✅ Community-scoped instead of global
+          globalRoom: false,             // ✅ Community + partner communities
           specificRooms: [room],         // Board users need immediate notification
           invalidateForAllUsers: true    // Community users get fresh data
         };
@@ -351,7 +411,7 @@ async function bootstrap() {
         
       case 'newBoard':
         config = {
-          globalRoom: false,             // ✅ Community-scoped instead of global
+          globalRoom: false,             // ✅ Community + partner communities
           specificRooms: [room],         // Board-specific room
           invalidateForAllUsers: true    // Community board lists need invalidation
         };
@@ -374,11 +434,16 @@ async function bootstrap() {
         };
     }
     
-    broadcastEvent({
-      eventName,
-      payload,
-      config
-    });
+    try {
+      await broadcastEvent({
+        eventName,
+        payload,
+        config
+      });
+    } catch (error) {
+      console.error('[Partnership Broadcasting] Error in broadcastEvent:', error);
+      // Continue execution to prevent breaking the event system
+    }
   });
 
   // ===== TELEGRAM NOTIFICATION SYSTEM =====

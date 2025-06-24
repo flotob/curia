@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiCommunity } from '@/app/api/communities/route';
 import { useUPActivation } from './ConditionalUniversalProfileProvider';
+import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 
 // ===== ENHANCED SOCKET CONTEXT WITH MULTI-DEVICE PRESENCE =====
 
@@ -96,6 +97,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // ✅ Add cross-community navigation support for partnership notifications
+  const { navigateToPost: navigateToCrossCommunityPost } = useCrossCommunityNavigation();
   
   // Legacy presence state (for backward compatibility)
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<OnlineUser[]>([]);
@@ -198,6 +202,30 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     router.push(url);
   }, [router, buildInternalUrl]);
 
+  // ✅ Smart navigation helper that detects cross-community notifications
+  const smartNavigateToPost = useCallback((
+    postId: number, 
+    boardId: number, 
+    eventData: { 
+      isCrossCommunityNotification?: boolean; 
+      crossCommunityNav?: { communityShortId: string; pluginId: string }; 
+    }
+  ) => {
+    if (eventData.isCrossCommunityNotification && eventData.crossCommunityNav) {
+      // Cross-community notification - use special navigation
+      console.log('[Socket] Cross-community notification detected, using cross-community navigation');
+      navigateToCrossCommunityPost(
+        eventData.crossCommunityNav.communityShortId,
+        eventData.crossCommunityNav.pluginId,
+        postId,
+        boardId
+      );
+    } else {
+      // Same community - use internal navigation
+      navigateToPost(postId, boardId);
+    }
+  }, [navigateToPost, navigateToCrossCommunityPost]);
+
   useEffect(() => {
     if (!isAuthenticated || !token) {
       if (socket) {
@@ -255,13 +283,26 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       toast.error(`Connection error: ${message}`);
     });
 
-    newSocket.on('newPost', (postData: { id: number; title: string; author_name?: string; author_user_id: string; board_id: number }) => {
+    newSocket.on('newPost', (postData: { 
+      id: number; 
+      title: string; 
+      author_name?: string; 
+      author_user_id: string; 
+      board_id: number;
+      isCrossCommunityNotification?: boolean;
+      sourceCommunityName?: string;
+      crossCommunityNav?: { communityShortId: string; pluginId: string };
+    }) => {
       console.log('[Socket] New post received:', postData);
       if (postData.author_user_id !== userId) {
-        toast.success(`New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`, {
+        const communityPrefix = postData.isCrossCommunityNotification 
+          ? `🔗 ${postData.sourceCommunityName}: ` 
+          : '';
+        
+        toast.success(`${communityPrefix}New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`, {
           action: {
-            label: 'View Post',
-            onClick: () => navigateToPost(postData.id, postData.board_id)
+            label: postData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
+            onClick: () => smartNavigateToPost(postData.id, postData.board_id, postData)
           }
         });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
@@ -272,13 +313,27 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('voteUpdate', (voteData: { postId: number; newCount: number; userIdVoted: string; board_id: number; post_title: string; board_name: string }) => {
+    newSocket.on('voteUpdate', (voteData: { 
+      postId: number; 
+      newCount: number; 
+      userIdVoted: string; 
+      board_id: number; 
+      post_title: string; 
+      board_name: string;
+      isCrossCommunityNotification?: boolean;
+      sourceCommunityName?: string;
+      crossCommunityNav?: { communityShortId: string; pluginId: string };
+    }) => {
       console.log(`[Socket] Vote update for post "${voteData.post_title}": ${voteData.newCount} votes by ${voteData.userIdVoted}`);
       if (voteData.userIdVoted !== userId) {
-        toast.info(`"${voteData.post_title}" received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`, {
+        const communityPrefix = voteData.isCrossCommunityNotification 
+          ? `🔗 ${voteData.sourceCommunityName}: ` 
+          : '';
+        
+        toast.info(`${communityPrefix}"${voteData.post_title}" received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`, {
           action: {
-            label: 'View Post',
-            onClick: () => navigateToPost(voteData.postId, voteData.board_id)
+            label: voteData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
+            onClick: () => smartNavigateToPost(voteData.postId, voteData.board_id, voteData)
           }
         });
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
@@ -311,13 +366,34 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('newComment', (commentData: { postId: number; post_title: string; board_id: number; board_name: string; comment: { author_user_id: string; author_name?: string; id: number; post_id: number; board_id: number; post_title: string; board_name: string; /* other comment props */ } }) => {
+    newSocket.on('newComment', (commentData: {
+      postId: number;
+      post_title: string;
+      board_id: number;
+      board_name: string;
+      comment: {
+        author_user_id: string;
+        author_name?: string;
+        id: number;
+        post_id: number;
+        board_id: number;
+        post_title: string;
+        board_name: string;
+      };
+      isCrossCommunityNotification?: boolean;
+      sourceCommunityName?: string;
+      crossCommunityNav?: { communityShortId: string; pluginId: string };
+    }) => {
       console.log(`[Socket] New comment on post "${commentData.post_title}":`, commentData.comment);
       if (commentData.comment.author_user_id !== userId) {
-        toast.info(`${commentData.comment.author_name || 'Unknown'} commented on "${commentData.post_title}"`, {
+        const communityPrefix = commentData.isCrossCommunityNotification 
+          ? `🔗 ${commentData.sourceCommunityName}: ` 
+          : '';
+        
+        toast.info(`${communityPrefix}${commentData.comment.author_name || 'Unknown'} commented on "${commentData.post_title}"`, {
           action: {
-            label: 'View Post',
-            onClick: () => navigateToPost(commentData.postId, commentData.board_id)
+            label: commentData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
+            onClick: () => smartNavigateToPost(commentData.postId, commentData.board_id, commentData)
           }
         });
         console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
@@ -448,6 +524,56 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['accessibleBoardsMove'] });
     });
 
+    // ===== PARTNERSHIP NOTIFICATION HANDLERS =====
+    
+    // Special handler for partnership status changes
+    newSocket.on('partnershipUpdate', (partnershipData: {
+      type: 'created' | 'accepted' | 'rejected' | 'cancelled' | 'suspended' | 'resumed';
+      partnership: {
+        id: number;
+        sourceCommunityName: string;
+        targetCommunityName: string;
+        relationship_type: string;
+      };
+      actor_name?: string;
+    }) => {
+      console.log('[Socket] Partnership update received:', partnershipData);
+      
+      const { type, partnership } = partnershipData;
+      let message = '';
+      
+      switch (type) {
+        case 'created':
+          message = `🤝 New partnership invitation from ${partnership.sourceCommunityName}`;
+          break;
+        case 'accepted':
+          message = `✅ Partnership with ${partnership.sourceCommunityName} accepted!`;
+          break;
+        case 'rejected':
+          message = `❌ Partnership with ${partnership.sourceCommunityName} declined`;
+          break;
+        case 'suspended':
+          message = `⏸️ Partnership with ${partnership.sourceCommunityName} suspended`;
+          break;
+        case 'resumed':
+          message = `▶️ Partnership with ${partnership.sourceCommunityName} resumed`;
+          break;
+        default:
+          message = `🔗 Partnership update with ${partnership.sourceCommunityName}`;
+      }
+      
+      toast.info(message, {
+        action: type === 'created' ? {
+          label: 'View Partnerships',
+          onClick: () => router.push('/partnerships')
+        } : undefined
+      });
+      
+      // Invalidate partnership queries for real-time updates
+      console.log('[RQ Invalidate] Invalidating partnership queries');
+      queryClient.invalidateQueries({ queryKey: ['partnerships'] });
+    });
+
     // ===== ENHANCED MULTI-DEVICE PRESENCE EVENT HANDLERS =====
     
     newSocket.on('userOnline', ({ userPresence }: { userPresence: EnhancedUserPresence }) => {
@@ -544,7 +670,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setEnhancedUserPresence([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, token, userId, hasUserTriggeredConnection, queryClient, navigateToPost, navigateToBoard]); // Added hasUserTriggeredConnection to trigger reconnect with new transport
+  }, [isAuthenticated, token, userId, hasUserTriggeredConnection, queryClient, navigateToPost, navigateToBoard]); // Removed unstable smartNavigateToPost and router to prevent infinite loops
 
   const joinBoard = useCallback((boardId: number) => {
     if (socket && isConnected) {
