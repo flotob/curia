@@ -55,8 +55,12 @@ export default function ForwardingPage() {
   }, [postId, boardId, communityShortId, pluginId, postTitle, sourceCommunityName, navigateToPost, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="max-w-md w-full mx-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 relative">
+      {/* Background Blur Overlay */}
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60]" />
+      
+      {/* Modal Content */}
+      <div className="max-w-md w-full mx-4 relative z-[70]">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 text-center">
           {/* Loading Spinner */}
           <div className="mb-6">
