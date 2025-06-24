@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiCommunity } from '@/app/api/communities/route';
 import { useUPActivation } from './ConditionalUniversalProfileProvider';
-import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
+import { preserveCgParams } from '@/utils/urlBuilder';
 
 // ===== ENHANCED SOCKET CONTEXT WITH MULTI-DEVICE PRESENCE =====
 
@@ -98,8 +98,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // ✅ Add cross-community navigation support for partnership notifications
-  const { navigateToPost: navigateToCrossCommunityPost } = useCrossCommunityNavigation();
+  // Note: Cross-community navigation now handled via forwarding page instead of direct calls
   
   // Legacy presence state (for backward compatibility)
   const [globalOnlineUsers, setGlobalOnlineUsers] = useState<OnlineUser[]>([]);
@@ -202,34 +201,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     router.push(url);
   }, [router, buildInternalUrl]);
 
-  // ✅ Smart navigation helper that detects cross-community notifications
-  const smartNavigateToPost = useCallback(async (
-    postId: number, 
-    boardId: number, 
-    eventData: { 
-      isCrossCommunityNotification?: boolean; 
-      crossCommunityNav?: { communityShortId: string; pluginId: string }; 
-    }
-  ) => {
-    if (eventData.isCrossCommunityNotification && eventData.crossCommunityNav) {
-      // Cross-community notification - use special navigation with proper await
-      console.log('[Socket] Cross-community notification detected, using cross-community navigation');
-      try {
-        await navigateToCrossCommunityPost(
-          eventData.crossCommunityNav.communityShortId,
-          eventData.crossCommunityNav.pluginId,
-          postId,
-          boardId
-        );
-        console.log('[Socket] Cross-community navigation completed successfully');
-      } catch (error) {
-        console.error('[Socket] Cross-community navigation failed:', error);
-      }
-    } else {
-      // Same community - use internal navigation
-      navigateToPost(postId, boardId);
-    }
-  }, [navigateToPost, navigateToCrossCommunityPost]);
+  // Note: Removed smartNavigateToPost - now using forwarding page approach for cleaner cross-community navigation
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -308,10 +280,23 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           action: {
             label: postData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
             onClick: () => {
-              // Handle async navigation in toast action
-              smartNavigateToPost(postData.id, postData.board_id, postData).catch(error => {
-                console.error('[Socket] Navigation failed from toast:', error);
-              });
+              if (postData.isCrossCommunityNotification && postData.crossCommunityNav) {
+                // 🔄 Cross-community: Navigate to forwarding page with preserved CG params
+                const forwardingUrl = preserveCgParams('/forwarding', {
+                  postId: postData.id.toString(),
+                  boardId: postData.board_id.toString(),
+                  communityShortId: postData.crossCommunityNav.communityShortId,
+                  pluginId: postData.crossCommunityNav.pluginId,
+                  postTitle: postData.title,
+                  sourceCommunityName: postData.sourceCommunityName || 'Partner Community'
+                });
+                console.log('[Socket] Cross-community new post notification, navigating to forwarding page:', forwardingUrl);
+                router.push(forwardingUrl);
+              } else {
+                // Same community: Direct internal navigation
+                console.log('[Socket] Same-community new post notification, direct navigation');
+                navigateToPost(postData.id, postData.board_id);
+              }
             }
           }
         });
@@ -344,10 +329,23 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           action: {
             label: voteData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
             onClick: () => {
-              // Handle async navigation in toast action
-              smartNavigateToPost(voteData.postId, voteData.board_id, voteData).catch(error => {
-                console.error('[Socket] Navigation failed from toast:', error);
-              });
+              if (voteData.isCrossCommunityNotification && voteData.crossCommunityNav) {
+                // 🔄 Cross-community: Navigate to forwarding page with preserved CG params
+                const forwardingUrl = preserveCgParams('/forwarding', {
+                  postId: voteData.postId.toString(),
+                  boardId: voteData.board_id.toString(),
+                  communityShortId: voteData.crossCommunityNav.communityShortId,
+                  pluginId: voteData.crossCommunityNav.pluginId,
+                  postTitle: voteData.post_title,
+                  sourceCommunityName: voteData.sourceCommunityName || 'Partner Community'
+                });
+                console.log('[Socket] Cross-community vote notification, navigating to forwarding page:', forwardingUrl);
+                router.push(forwardingUrl);
+              } else {
+                // Same community: Direct internal navigation
+                console.log('[Socket] Same-community vote notification, direct navigation');
+                navigateToPost(voteData.postId, voteData.board_id);
+              }
             }
           }
         });
@@ -421,10 +419,23 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           action: {
             label: commentData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
             onClick: () => {
-              // Handle async navigation in toast action
-              smartNavigateToPost(commentData.postId, commentData.board_id, commentData).catch(error => {
-                console.error('[Socket] Navigation failed from toast:', error);
-              });
+              if (commentData.isCrossCommunityNotification && commentData.crossCommunityNav) {
+                // 🔄 Cross-community: Navigate to forwarding page with preserved CG params
+                const forwardingUrl = preserveCgParams('/forwarding', {
+                  postId: commentData.postId.toString(),
+                  boardId: commentData.board_id.toString(),
+                  communityShortId: commentData.crossCommunityNav.communityShortId,
+                  pluginId: commentData.crossCommunityNav.pluginId,
+                  postTitle: commentData.post_title,
+                  sourceCommunityName: commentData.sourceCommunityName || 'Partner Community'
+                });
+                console.log('[Socket] Cross-community comment notification, navigating to forwarding page:', forwardingUrl);
+                router.push(forwardingUrl);
+              } else {
+                // Same community: Direct internal navigation
+                console.log('[Socket] Same-community comment notification, direct navigation');
+                navigateToPost(commentData.postId, commentData.board_id);
+              }
             }
           }
         });
@@ -555,17 +566,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             label: boardData.isCrossCommunityNotification ? 'View in Partner' : 'View Board',
             onClick: () => {
               if (boardData.isCrossCommunityNotification && boardData.crossCommunityNav) {
-                // Cross-community board - navigate to community root with proper await handling
-                navigateToCrossCommunityPost(
-                  boardData.crossCommunityNav.communityShortId,
-                  boardData.crossCommunityNav.pluginId,
-                  -1, // No specific post
-                  -1  // No specific board - go to community root
-                ).catch(error => {
-                  console.error('[Socket] Cross-community board navigation failed:', error);
+                // 🔄 Cross-community: Navigate to forwarding page for community root
+                const forwardingUrl = preserveCgParams('/forwarding', {
+                  postId: '-1', // No specific post
+                  boardId: '-1', // No specific board - go to community root
+                  communityShortId: boardData.crossCommunityNav.communityShortId,
+                  pluginId: boardData.crossCommunityNav.pluginId,
+                  postTitle: `Community Home`,
+                  sourceCommunityName: boardData.sourceCommunityName || 'Partner Community'
                 });
+                console.log('[Socket] Cross-community board notification, navigating to forwarding page for community root:', forwardingUrl);
+                router.push(forwardingUrl);
               } else {
-                // Same community - navigate to board
+                // Same community: Direct internal navigation to board
+                console.log('[Socket] Same-community board notification, direct navigation');
                 navigateToBoard(boardData.board.id);
               }
             }
