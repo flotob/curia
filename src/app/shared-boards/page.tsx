@@ -18,14 +18,15 @@ import {
   Clock, 
   MessageSquare,
   AlertCircle,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import type { ImportableBoardsData, ImportableBoard, ImportBoardRequest } from '@/types/sharedBoards';
 
-export default function ImportBoardsPage() {
+export default function SharedBoardsPage() {
   const { token, user } = useAuth();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -57,16 +58,16 @@ export default function ImportBoardsPage() {
     },
     onSuccess: () => {
       toast({
-        title: 'Board Imported Successfully',
-        description: `The board has been imported and will appear in your sidebar.`
+        title: 'Board Added Successfully',
+        description: `The shared board has been added to your sidebar.`
       });
       // Invalidate and refetch relevant queries
       queryClient.invalidateQueries({ queryKey: ['importable-boards', communityId] });
-      queryClient.invalidateQueries({ queryKey: ['shared-boards'] });
+      queryClient.invalidateQueries({ queryKey: ['imported-boards', communityId] });
     },
     onError: (error: Error) => {
       toast({
-        title: 'Import Failed',
+        title: 'Failed to Add Board',
         description: error.message,
         variant: 'destructive'
       });
@@ -128,8 +129,8 @@ export default function ImportBoardsPage() {
           <CardContent className="p-6">
             <div className="text-center text-red-600 dark:text-red-400">
               <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">Failed to load importable boards</h3>
-              <p className="text-sm mb-4">There was an error loading available boards for import.</p>
+              <h3 className="text-lg font-semibold mb-2">Failed to load shared boards</h3>
+              <p className="text-sm mb-4">There was an error loading available boards to share.</p>
               <Button onClick={() => refetch()} variant="outline" size="sm">
                 Try Again
               </Button>
@@ -148,12 +149,28 @@ export default function ImportBoardsPage() {
           Back to Partnerships
         </Link>
         
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Import Boards
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 text-lg">
-          Import boards from partner communities that have enabled board sharing
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Shared Boards
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 text-lg">
+              Add boards from partner communities to your sidebar
+            </p>
+          </div>
+          
+          {/* Refresh Button */}
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="flex items-center gap-2 flex-shrink-0"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Search and filters */}
@@ -199,7 +216,7 @@ export default function ImportBoardsPage() {
               <Download className="h-16 w-16 mx-auto mb-4 opacity-50" />
               <h3 className="text-lg font-semibold mb-2">No partner communities found</h3>
               <p className="text-sm max-w-md mx-auto mb-6">
-                You need partnerships with board sharing enabled to import boards. 
+                You need partnerships with board sharing enabled to add shared boards. 
                 Create partnerships and enable board sharing permission.
               </p>
               <Button asChild>
@@ -219,7 +236,7 @@ export default function ImportBoardsPage() {
               <p className="text-sm max-w-md mx-auto">
                 {searchQuery || selectedCommunity !== 'all'
                   ? 'No boards match your search criteria.'
-                  : 'Partner communities have no importable boards available.'
+                  : 'Partner communities have no shareable boards available.'
                 }
               </p>
             </div>
@@ -279,7 +296,7 @@ export default function ImportBoardsPage() {
                     {board.is_already_imported ? (
                       <Badge variant="secondary" className="gap-1">
                         <CheckCircle className="h-3 w-3" />
-                        Already Imported
+                        Added to Sidebar
                       </Badge>
                     ) : (
                       <Button
@@ -290,12 +307,12 @@ export default function ImportBoardsPage() {
                         {importBoardMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Importing...
+                            Adding...
                           </>
                         ) : (
                           <>
                             <Download className="h-4 w-4 mr-2" />
-                            Import Board
+                            Add to Sidebar
                           </>
                         )}
                       </Button>
@@ -323,8 +340,8 @@ export default function ImportBoardsPage() {
               {partnerships.map(p => p.target_community_name).join(', ')}.
             </p>
             <p className="mt-2">
-              {boards.filter(b => !b.is_already_imported).length} boards available for import, {' '}
-              {boards.filter(b => b.is_already_imported).length} already imported.
+              {boards.filter(b => !b.is_already_imported).length} boards available to add, {' '}
+              {boards.filter(b => b.is_already_imported).length} already added.
             </p>
           </CardContent>
         </Card>

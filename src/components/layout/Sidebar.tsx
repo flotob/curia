@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake, Share2, Download } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake, Share2 } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSearchParams, usePathname } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
 import { useSharedBoards } from '@/hooks/useSharedBoards';
@@ -442,16 +443,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </Link>
               )}
               
-              {/* Shared Board Link - Admin Only */}
-              {user?.isAdmin && (
+              {/* Show "+ Shared Board" here only if there are no shared boards */}
+              {user?.isAdmin && (!sharedBoards || sharedBoards.length === 0) && (
                 <Link
-                  href={buildUrl('/create-shared-board')}
+                  href={buildUrl('/shared-boards')}
                   className={cn(
                     'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
                     theme === 'dark'
                       ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
                       : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                   )}
+                  title="Add Shared Board"
                 >
                   <div className={cn(
                     'p-1.5 rounded-lg mr-3 transition-all duration-200',
@@ -459,9 +461,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
                       : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
                   )}>
-                    <Download size={16} />
+                    <Plus size={16} />
                   </div>
-                  <span className="flex-1">Import Boards</span>
+                  <span className="flex-1">Shared Boards</span>
                 </Link>
               )}
             </div>
@@ -539,6 +541,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </Link>
             )}
+            
+            {/* Show "+ Shared Board" here only if there are no shared boards and we're in empty boards section */}
+            {user?.isAdmin && (!sharedBoards || sharedBoards.length === 0) && (
+              <Link
+                href={buildUrl('/shared-boards')}
+                className={cn(
+                  'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
+                  theme === 'dark'
+                    ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                )}
+                title="Add Shared Board"
+              >
+                <div className={cn(
+                  'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                  theme === 'dark'
+                    ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                    : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                )}>
+                  <Plus size={16} />
+                </div>
+                <span className="flex-1">Shared Boards</span>
+              </Link>
+            )}
           </div>
         )}
 
@@ -576,28 +602,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <div className="mr-3">
                         <div className="relative">
-                          {/* Shared board icon with visual distinction */}
-                          <div className={cn(
-                            'p-1.5 rounded-lg transition-all duration-200',
-                            isActive
-                              ? theme === 'dark'
-                                ? 'bg-cyan-500/20 text-cyan-300'
-                                : 'bg-cyan-500/10 text-cyan-600'
-                              : theme === 'dark'
-                                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
-                          )}>
-                            <LayoutDashboard size={16} />
-                          </div>
-                          
-                          {/* Shared indicator */}
-                          <div className={cn(
-                            'absolute -top-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200',
-                            theme === 'dark'
-                              ? 'bg-cyan-500/90 border-slate-800 text-cyan-100'
-                              : 'bg-cyan-500/90 border-white text-cyan-100'
-                          )} title={`Shared from ${sharedBoard.source_community_name}`}>
-                            <Share2 size={8} strokeWidth={2.5} />
+                          {/* Community logo with shared indicator */}
+                          <div className="relative">
+                            <Avatar className={cn(
+                              'w-8 h-8 border-2 transition-all duration-200',
+                              isActive
+                                ? theme === 'dark'
+                                  ? 'border-cyan-300/50'
+                                  : 'border-cyan-600/50'
+                                : theme === 'dark'
+                                  ? 'border-slate-600/50 group-hover:border-slate-500/50'
+                                  : 'border-slate-300/50 group-hover:border-slate-400/50'
+                            )}>
+                              {sharedBoard.source_community_logo_url && (
+                                <AvatarImage 
+                                  src={sharedBoard.source_community_logo_url} 
+                                  alt={sharedBoard.source_community_name}
+                                  className="object-cover"
+                                />
+                              )}
+                              <AvatarFallback className={cn(
+                                'text-xs font-semibold transition-all duration-200',
+                                isActive
+                                  ? theme === 'dark'
+                                    ? 'bg-cyan-500/20 text-cyan-300'
+                                    : 'bg-cyan-500/10 text-cyan-600'
+                                  : theme === 'dark'
+                                    ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                                    : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                              )}>
+                                {sharedBoard.source_community_name.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            
+                            {/* Shared indicator */}
+                            <div className={cn(
+                              'absolute -top-1 -right-1 flex items-center justify-center w-3.5 h-3.5 rounded-full border transition-all duration-200',
+                              theme === 'dark'
+                                ? 'bg-cyan-500/90 border-slate-800 text-cyan-100'
+                                : 'bg-cyan-500/90 border-white text-cyan-100'
+                            )} title={`Shared from ${sharedBoard.source_community_name}`}>
+                              <Share2 size={8} strokeWidth={2.5} />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -625,6 +671,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 );
               })}
+              
+              {/* Add Shared Board Link - Admin Only - at bottom of shared boards section */}
+              {user?.isAdmin && (
+                <Link
+                  href={buildUrl('/shared-boards')}
+                  className={cn(
+                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2 relative overflow-hidden',
+                    theme === 'dark'
+                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                  )}
+                  title="Add Shared Board"
+                >
+                  <div className={cn(
+                    'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                    theme === 'dark'
+                      ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                      : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                  )}>
+                    <Plus size={16} />
+                  </div>
+                  <span className="flex-1">Shared Boards</span>
+                </Link>
+              )}
             </div>
           </div>
         )}

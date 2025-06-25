@@ -9,6 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
+import { 
   Check, 
   X, 
   Clock, 
@@ -16,12 +23,15 @@ import {
   Play,
   Calendar,
   User,
-  MapPin
+  MapPin,
+  Settings,
+  MoreVertical
 } from 'lucide-react';
 
 import { CommunityPartnership, PartnershipStatus } from '@/types/partnerships';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+import EditPartnershipModal from './EditPartnershipModal';
 
 interface PartnershipCardProps {
   partnership: CommunityPartnership;
@@ -34,8 +44,9 @@ export default function PartnershipCard({
   mode = 'full', 
   onUpdate 
 }: PartnershipCardProps) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Status update mutation
   const updatePartnershipMutation = useMutation({
@@ -89,12 +100,26 @@ export default function PartnershipCard({
 
   const getPartnerCommunityName = () => {
     // Show the other community (not the current user's community)
-    return partnership.targetCommunityName || partnership.sourceCommunityName || 'Unknown Community';
+    const currentCommunityId = user?.cid;
+    if (currentCommunityId === partnership.sourceCommunityId) {
+      // Current user is from source community, show target community
+      return partnership.targetCommunityName || 'Unknown Community';
+    } else {
+      // Current user is from target community, show source community
+      return partnership.sourceCommunityName || 'Unknown Community';
+    }
   };
 
   const getPartnerCommunityLogo = () => {
     // Show the other community's logo (not the current user's community)
-    return partnership.targetCommunityLogoUrl || partnership.sourceCommunityLogoUrl;
+    const currentCommunityId = user?.cid;
+    if (currentCommunityId === partnership.sourceCommunityId) {
+      // Current user is from source community, show target community logo
+      return partnership.targetCommunityLogoUrl;
+    } else {
+      // Current user is from target community, show source community logo
+      return partnership.sourceCommunityLogoUrl;
+    }
   };
 
   const getTimeInfo = () => {
@@ -154,19 +179,6 @@ export default function PartnershipCard({
       );
     }
 
-    if (partnership.canSuspend) {
-      return (
-        <Button 
-          size="sm" 
-          variant="outline" 
-          onClick={() => handleStatusUpdate('suspended')}
-        >
-          <Pause className="h-4 w-4 mr-1" />
-          Suspend
-        </Button>
-      );
-    }
-
     if (partnership.canResume) {
       return (
         <Button 
@@ -178,6 +190,50 @@ export default function PartnershipCard({
           <Play className="h-4 w-4 mr-1" />
           Resume
         </Button>
+      );
+    }
+
+    // Active partnerships - show dropdown with actions
+    if (partnership.status === 'accepted') {
+      return (
+        <div className="flex gap-2">
+          {/* Primary action - Edit Permissions */}
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => setIsEditModalOpen(true)}
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            Edit Permissions
+          </Button>
+          
+          {/* Dropdown for additional actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="px-2">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsEditModalOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Edit Permissions
+              </DropdownMenuItem>
+              {partnership.canSuspend && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => handleStatusUpdate('suspended')}
+                    className="text-orange-600 focus:text-orange-600"
+                  >
+                    <Pause className="h-4 w-4 mr-2" />
+                    Suspend Partnership
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       );
     }
 
@@ -221,6 +277,71 @@ export default function PartnershipCard({
 
   // Compact mode for widget display
   if (mode === 'compact') {
+    const renderCompactActions = () => {
+      if (isUpdating) {
+        return (
+          <Button disabled size="sm">
+            <Clock className="h-4 w-4 animate-spin" />
+          </Button>
+        );
+      }
+
+      if (partnership.canRespond) {
+        return (
+          <div className="flex gap-1">
+            <Button 
+              size="sm" 
+              onClick={() => handleStatusUpdate('accepted')}
+              className="bg-green-600 hover:bg-green-700 px-2"
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => handleStatusUpdate('rejected')}
+              className="px-2"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      }
+
+      // For active partnerships, show dropdown only
+      if (partnership.status === 'accepted') {
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="px-2">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsEditModalOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Edit Permissions
+              </DropdownMenuItem>
+              {partnership.canSuspend && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => handleStatusUpdate('suspended')}
+                    className="text-orange-600 focus:text-orange-600"
+                  >
+                    <Pause className="h-4 w-4 mr-2" />
+                    Suspend Partnership
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      }
+
+      return null;
+    };
+
     return (
       <Card className="p-3">
         <div className="flex items-center gap-3">
@@ -249,7 +370,7 @@ export default function PartnershipCard({
             </div>
           </div>
           
-          {renderActionButtons()}
+          {renderCompactActions()}
         </div>
       </Card>
     );
@@ -347,6 +468,17 @@ export default function PartnershipCard({
           </div>
         )}
       </CardContent>
+
+      {/* Edit Partnership Modal */}
+      <EditPartnershipModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        partnership={partnership}
+        onSuccess={() => {
+          setIsEditModalOpen(false);
+          onUpdate();
+        }}
+      />
     </Card>
   );
 } 
