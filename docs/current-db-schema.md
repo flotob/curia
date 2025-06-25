@@ -99,8 +99,8 @@ CREATE TABLE "public"."community_partnerships" (
     "id" integer DEFAULT nextval('community_partnerships_id_seq') NOT NULL,
     "source_community_id" text NOT NULL,
     "target_community_id" text NOT NULL,
-    "status" character varying(20) DEFAULT '''pending''' NOT NULL,
-    "relationship_type" character varying(50) DEFAULT '''partner''',
+    "status" character varying(20) DEFAULT 'pending' NOT NULL,
+    "relationship_type" character varying(50) DEFAULT 'partner',
     "source_to_target_permissions" jsonb DEFAULT '{}',
     "target_to_source_permissions" jsonb DEFAULT '{}',
     "invited_by_user_id" text NOT NULL,
@@ -675,4 +675,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-23 21:24:29 UTC
+-- 2025-06-25 10:47:06 UTC
