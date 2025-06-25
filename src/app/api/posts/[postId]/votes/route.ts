@@ -97,18 +97,21 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
     await client.query('BEGIN');
 
     // Attempt to insert the vote
+    let newUpvoteCount = 0;
     try {
       await client.query('INSERT INTO votes (user_id, post_id) VALUES ($1, $2)', [userId, postId]);
-      // If insert successful, increment upvote_count
-      await client.query('UPDATE posts SET upvote_count = upvote_count + 1 WHERE id = $1', [postId]);
+      // If insert successful, increment upvote_count and get the new count
+      const updateResult = await client.query('UPDATE posts SET upvote_count = upvote_count + 1 WHERE id = $1 RETURNING upvote_count', [postId]);
+      newUpvoteCount = updateResult.rows[0]?.upvote_count || 0;
     } catch (voteInsertError: unknown) {
       // Check if it's a unique violation error (already voted)
       if ((voteInsertError as { code?: string }).code === '23505') { // 23505 is unique_violation in PostgreSQL
         // User already voted, this is not an error for the client, effectively a NOP for adding a vote.
         // The client-side should ideally prevent calling add if already voted.
         console.log(`[API] User ${userId} already voted for post ${postId}. No action taken.`);
-        // We don't throw an error here, let the transaction commit if this was the only op.
-        // Or, we could query current state and return it.
+        // Get current count without incrementing
+        const countResult = await client.query('SELECT upvote_count FROM posts WHERE id = $1', [postId]);
+        newUpvoteCount = countResult.rows[0]?.upvote_count || 0;
       } else {
         throw voteInsertError; // Re-throw other errors
       }
@@ -116,23 +119,14 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
     
     await client.query('COMMIT');
     
-    // Fetch the updated post data to return (including new count and userHasUpvoted status)
-    const updatedPostResult = await client.query(
-        `SELECT p.*, u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
-         CASE WHEN v.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS user_has_upvoted
-         FROM posts p
-         JOIN users u ON p.author_user_id = u.user_id
-         LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $1
-         WHERE p.id = $2`,
-        [userId, postId]
-    );
+    // 🚀 SIMPLIFIED RESPONSE: Return minimal data instead of expensive query
+    const simplifiedResponse = {
+      id: postId,
+      upvote_count: newUpvoteCount,
+      user_has_upvoted: true, // Always true after successful upvote
+      // Skip expensive author data, full post object, etc.
+    };
 
-    if (updatedPostResult.rows.length === 0) {
-        return NextResponse.json({ error: 'Post not found after voting' }, { status: 404 });
-    }
-
-    const updatedPost = updatedPostResult.rows[0];
-    
     const emitter = process.customEventEmitter;
     console.log('[API /api/posts/.../votes POST] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
     if (emitter && typeof emitter.emit === 'function') {
@@ -141,7 +135,7 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
         eventName: 'voteUpdate',
         payload: { 
           postId, 
-          newCount: updatedPost.upvote_count, 
+          newCount: newUpvoteCount, // Use the count we already have
           userIdVoted: userId, 
           board_id, 
           post_title, 
@@ -157,7 +151,7 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
       console.error('[API /api/posts/.../votes POST] ERROR: process.customEventEmitter not available.');
     }
 
-    return NextResponse.json({ post: updatedPost, message: 'Vote added successfully' });
+    return NextResponse.json({ post: simplifiedResponse, message: 'Vote added successfully' });
 
   } catch (error) {
     if (client) await client.query('ROLLBACK');
@@ -262,30 +256,28 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
     client = await getClient();
     await client.query('BEGIN');
 
+    let newUpvoteCount = 0;
     const deleteResult = await client.query('DELETE FROM votes WHERE user_id = $1 AND post_id = $2', [userId, postId]);
 
     if (deleteResult.rowCount && deleteResult.rowCount > 0) { // Check if rowCount is not null and then if > 0
-      await client.query('UPDATE posts SET upvote_count = GREATEST(0, upvote_count - 1) WHERE id = $1', [postId]);
+      const updateResult = await client.query('UPDATE posts SET upvote_count = GREATEST(0, upvote_count - 1) WHERE id = $1 RETURNING upvote_count', [postId]);
+      newUpvoteCount = updateResult.rows[0]?.upvote_count || 0;
+    } else {
+      // No vote was deleted (user wasn't voted), get current count
+      const countResult = await client.query('SELECT upvote_count FROM posts WHERE id = $1', [postId]);
+      newUpvoteCount = countResult.rows[0]?.upvote_count || 0;
     }
     
     await client.query('COMMIT');
 
-    // Fetch the updated post data to return
-    const updatedPostResult = await client.query(
-        `SELECT p.*, u.name AS author_name, u.profile_picture_url AS author_profile_picture_url,
-         FALSE AS user_has_upvoted -- After removing a vote, user_has_upvoted is false
-         FROM posts p
-         JOIN users u ON p.author_user_id = u.user_id
-         WHERE p.id = $1`,
-        [postId] // We don't need userId for this specific part of the query as user_has_upvoted is known
-    );
+    // 🚀 SIMPLIFIED RESPONSE: Return minimal data instead of expensive query
+    const simplifiedResponse = {
+      id: postId,
+      upvote_count: newUpvoteCount,
+      user_has_upvoted: false, // Always false after successful unvote
+      // Skip expensive author data, full post object, etc.
+    };
 
-    if (updatedPostResult.rows.length === 0) {
-        return NextResponse.json({ error: 'Post not found after unvoting' }, { status: 404 });
-    }
-
-    const updatedPost = updatedPostResult.rows[0];
-    
     const emitter = process.customEventEmitter;
     console.log('[API /api/posts/.../votes DELETE] Attempting to use process.customEventEmitter. Emitter available:', !!emitter);
     if (emitter && typeof emitter.emit === 'function') {
@@ -294,7 +286,7 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
         eventName: 'voteUpdate', // Same eventName, client can deduce based on newCount and user_has_upvoted
         payload: { 
           postId, 
-          newCount: updatedPost.upvote_count, 
+          newCount: newUpvoteCount, // Use the count we already have
           userIdVoted: userId, 
           board_id, 
           post_title, 
@@ -310,7 +302,7 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
       console.error('[API /api/posts/.../votes DELETE] ERROR: process.customEventEmitter not available.');
     }
 
-    return NextResponse.json({ post: updatedPost, message: 'Vote removed successfully' });
+    return NextResponse.json({ post: simplifiedResponse, message: 'Vote removed successfully' });
 
   } catch (error) {
     if (client) await client.query('ROLLBACK');
