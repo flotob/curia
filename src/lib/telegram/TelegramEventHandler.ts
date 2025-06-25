@@ -54,6 +54,24 @@ export class TelegramEventHandler {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
+
+  /**
+   * Fetch community short ID & plugin ID for a given communityId
+   */
+  private async getCommunityContext(communityId: string): Promise<{ shortId: string | null; pluginId: string | null }> {
+    try {
+      const result = await query(
+        'SELECT community_short_id, plugin_id FROM communities WHERE id = $1',
+        [communityId]
+      );
+      if (result.rows.length === 0) return { shortId: null, pluginId: null };
+      return { shortId: result.rows[0].community_short_id, pluginId: result.rows[0].plugin_id };
+    } catch (err) {
+      console.error('[TelegramEventHandler] Error fetching community context:', err);
+      return { shortId: null, pluginId: null };
+    }
+  }
+
   /**
    * Main event handler - routes events to appropriate processors
    */
@@ -158,14 +176,16 @@ export class TelegramEventHandler {
       const baseUrl = this.getBaseUrl();
       const imageBuffer = await generateTelegramOgImage(metadata, baseUrl);
       
-      // Generate shareable URL
+      // Determine correct community context (source community)
+      const { shortId: correctShortId, pluginId: correctPluginId } = await this.getCommunityContext(boardContext.communityId);
+
       const shareUrl = await generateTelegramShareUrl(
         postId,
         boardContext.boardId,
         postTitle,
         boardContext.boardName,
-        payload.communityShortId as string,
-        payload.pluginId as string
+        correctShortId || (payload.communityShortId as string),
+        correctPluginId || (payload.pluginId as string)
       );
       
       // Create caption with clickable title
@@ -194,13 +214,16 @@ export class TelegramEventHandler {
     const postId = payload.id as number;
     const postTitle = (payload.title as string) || 'Untitled Post';
     
+    // Determine correct community context (source community)
+    const { shortId: correctShortId, pluginId: correctPluginId } = await this.getCommunityContext(boardContext.communityId);
+
     const shareUrl = await generateTelegramShareUrl(
       postId,
       boardContext.boardId,
       postTitle,
       boardContext.boardName,
-      payload.communityShortId as string,
-      payload.pluginId as string
+      correctShortId || (payload.communityShortId as string),
+      correctPluginId || (payload.pluginId as string)
     );
     
     const notificationData: NotificationData = {
@@ -237,14 +260,16 @@ export class TelegramEventHandler {
     
     console.log(`[TelegramEventHandler] Processing vote milestone notification: ${newCount} votes for post ${postId}`);
     
-    // Generate shareable URL
+    // Determine correct community context (source community)
+    const { shortId: correctShortId, pluginId: correctPluginId } = await this.getCommunityContext(boardContext.communityId);
+
     const shareUrl = await generateTelegramShareUrl(
       postId,
       boardContext.boardId,
       post_title || 'Untitled Post',
       boardContext.boardName,
-      payload.communityShortId as string,
-      payload.pluginId as string
+      correctShortId || (payload.communityShortId as string),
+      correctPluginId || (payload.pluginId as string)
     );
     
     const notificationData: NotificationData = {
@@ -278,14 +303,16 @@ export class TelegramEventHandler {
     
     const comment = (payload.comment as Record<string, unknown>) || {};
     
-    // Generate shareable URL
+    // Determine correct community context (source community)
+    const { shortId: correctShortId, pluginId: correctPluginId } = await this.getCommunityContext(boardContext.communityId);
+
     const shareUrl = await generateTelegramShareUrl(
       postId,
       boardContext.boardId,
       post_title || 'Untitled Post', // ✅ Now uses real post title from payload
       boardContext.boardName,
-      payload.communityShortId as string,
-      payload.pluginId as string
+      correctShortId || (payload.communityShortId as string),
+      correctPluginId || (payload.pluginId as string)
     );
     
     const notificationData: NotificationData = {
