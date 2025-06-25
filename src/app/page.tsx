@@ -409,7 +409,7 @@ export default function HomePage() {
             </section>
           )}
                     
-          <FeedList boardId={boardId} />
+          <FeedList boardId={boardId} boardInfo={boardInfo} />
           </main>
         </div>
       </div>

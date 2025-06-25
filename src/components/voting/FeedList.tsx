@@ -10,9 +10,17 @@ import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 
 interface FeedListProps {
   boardId?: string | null;
+  boardInfo?: {               // Board context for shared board URL generation
+    id: number;
+    name: string;
+    community_id: string;
+    is_imported?: boolean;
+    source_community_id?: string;
+    source_community_name?: string;
+  } | null;
 }
 
-export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
+export const FeedList: React.FC<FeedListProps> = ({ boardId, boardInfo }) => {
   const { token, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   
   const {
@@ -93,7 +101,7 @@ export const FeedList: React.FC<FeedListProps> = ({ boardId }) => {
       {/* Posts List */}
       <div className="space-y-3 sm:space-y-4 w-full max-w-full">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} showBoardContext={!boardId} />
+          <PostCard key={post.id} post={post} showBoardContext={!boardId} boardInfo={boardInfo} />
         ))}
       </div>
 

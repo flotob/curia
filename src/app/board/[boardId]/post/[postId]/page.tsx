@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiPost } from '@/app/api/posts/route';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
+import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { PostCard } from '@/components/voting/PostCard';
 import { CommentList } from '@/components/voting/CommentList';
 import { NewCommentForm } from '@/components/voting/NewCommentForm';
@@ -31,7 +32,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const [isSharedLinkRedirecting, setIsSharedLinkRedirecting] = useState(false);
   
   // All hooks must be called at the top level
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { joinBoard, leaveBoard, isConnected } = useSocket();
@@ -105,6 +106,27 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
       leaveBoard(boardIdNum);
     };
   }, [isConnected, boardIdNum, joinBoard, leaveBoard, boardId]);
+
+  // Fetch board info for shared board context (skip if redirecting shared link)
+  const { data: boardInfo } = useQuery<ApiBoard | null>({
+    queryKey: ['board', boardIdNum],
+    queryFn: async () => {
+      if (!user?.cid || !token) return null;
+      
+      // Use direct board resolution approach that handles shared boards
+      try {
+        const response = await authFetchJson<{ board: ApiBoard | null }>(
+          `/api/communities/${user.cid}/boards/${boardIdNum}`, 
+          { token }
+        );
+        return response.board;
+      } catch (error) {
+        console.error('[PostDetailPage] Failed to resolve board info:', error);
+        return null;
+      }
+    },
+    enabled: !!token && !!user?.cid && !isNaN(boardIdNum) && !!boardId && !isSharedLinkRedirecting,
+  });
 
   // Fetch the specific post (skip if redirecting shared link)
   const { data: post, isLoading: isLoadingPost, error: postError } = useQuery<ApiPost>({
@@ -326,6 +348,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           post={post} 
           showBoardContext={false}
           showFullContent={true}
+          boardInfo={boardInfo}
         />
 
         {/* Comments Section */}

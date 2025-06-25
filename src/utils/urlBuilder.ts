@@ -192,7 +192,9 @@ export async function buildExternalShareUrl(
           postTitle,
           boardId,
           boardName,
-          shareSource: 'direct_share'
+          shareSource: 'direct_share',
+          communityShortId,
+          pluginId
         }),
       });
       

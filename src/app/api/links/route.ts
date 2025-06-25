@@ -18,7 +18,9 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       boardName,
       shareSource = 'direct_share',
       expiresIn,
-      customSlug
+      customSlug,
+      communityShortId: overrideCommunityShortId,
+      pluginId: overridePluginId
     } = body;
 
     // Validate required fields
@@ -39,9 +41,10 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
     }
 
     // Extract required context from user JWT
-    const communityShortId = user.communityShortId;
-    const pluginId = user.pluginId;
     const sharedByUserId = user.sub;
+
+    const communityShortId = overrideCommunityShortId || user.communityShortId;
+    const pluginId = overridePluginId || user.pluginId;
 
     if (!communityShortId || !pluginId) {
       return NextResponse.json(

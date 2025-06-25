@@ -33,7 +33,7 @@ async function getBoardHandler(req: AuthenticatedRequest, context: RouteContext)
       return NextResponse.json({ error: 'Board not found or not accessible' }, { status: 404 });
     }
 
-    // Convert to ApiBoard format
+    // Convert to ApiBoard format, including shared board fields
     const boardResponse: ApiBoard = {
       id: board.id,
       community_id: board.community_id,
@@ -43,7 +43,11 @@ async function getBoardHandler(req: AuthenticatedRequest, context: RouteContext)
       created_at: board.created_at,
       updated_at: board.updated_at,
       user_can_access: true, // If resolveBoard returned it, user can access it
-      user_can_post: true    // Same logic for now
+      user_can_post: true,   // Same logic for now
+      // Pass through shared board context
+      is_imported: board.is_imported,
+      source_community_id: board.source_community_id,
+      source_community_name: board.source_community_name
     };
 
     console.log(`[API GET /api/communities/${communityId}/boards/${boardId}] User ${requestingUserId} accessed board: ${board.name} (owned: ${!board.is_imported})`);

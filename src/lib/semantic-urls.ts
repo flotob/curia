@@ -633,10 +633,10 @@ export class SemanticUrlService {
   }
   
   /**
-   * Check if a slug already exists in the given community/board context
+   * Check if a slug already exists globally (due to unique constraint on slug field)
    * 
-   * @param communityShortId - Community identifier
-   * @param boardSlug - Board slug
+   * @param communityShortId - Community identifier (unused, kept for API compatibility)
+   * @param boardSlug - Board slug (unused, kept for API compatibility)
    * @param slug - Slug to check
    * @returns Promise resolving to true if slug exists
    */
@@ -646,14 +646,13 @@ export class SemanticUrlService {
     slug: string
   ): Promise<boolean> {
     try {
+      // Check for global slug uniqueness due to database constraint
       const result = await query(`
         SELECT 1 FROM links
-        WHERE community_short_id = $1 
-          AND board_slug = $2 
-          AND slug = $3
+        WHERE slug = $1
           AND (expires_at IS NULL OR expires_at > NOW())
         LIMIT 1
-      `, [communityShortId, boardSlug, slug]);
+      `, [slug]);
       
       return result.rows.length > 0;
       

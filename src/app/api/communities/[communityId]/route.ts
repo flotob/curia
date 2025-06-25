@@ -15,6 +15,9 @@ export interface ApiCommunity {
   settings: CommunitySettings;
   created_at: string;
   updated_at: string;
+  community_short_id: string | null;
+  plugin_id: string | null;
+  logo_url: string | null;
   telegram_groups_count: number; // Count of active Telegram groups for banner logic
 }
 
@@ -34,11 +37,14 @@ async function getCommunityHandler(req: AuthenticatedRequest, context: RouteCont
         c.settings, 
         c.created_at, 
         c.updated_at,
+        c.community_short_id,
+        c.plugin_id,
+        c.logo_url,
         COALESCE(COUNT(tg.id), 0)::integer as telegram_groups_count
       FROM communities c
       LEFT JOIN telegram_groups tg ON c.id = tg.community_id AND tg.is_active = true
       WHERE c.id = $1
-      GROUP BY c.id, c.name, c.settings, c.created_at, c.updated_at
+      GROUP BY c.id, c.name, c.settings, c.created_at, c.updated_at, c.community_short_id, c.plugin_id, c.logo_url
     `, [communityId]);
 
     if (result.rows.length === 0) {

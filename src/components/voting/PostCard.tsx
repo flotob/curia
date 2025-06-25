@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { VoteButton } from './VoteButton';
 import { ApiPost } from '@/app/api/posts/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
+import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -60,11 +61,19 @@ interface PostCardProps {
   post: ApiPost;
   showBoardContext?: boolean; // Whether to show "in BoardName" context
   showFullContent?: boolean;  // Whether to show full content (for detail pages)
+  boardInfo?: {               // Board context for shared board URL generation
+    id: number;
+    name: string;
+    community_id: string;
+    is_imported?: boolean;
+    source_community_id?: string;
+    source_community_name?: string;
+  } | null;
 }
 
 
 
-export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
@@ -94,6 +103,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const hasLockGating = !!post.lock_id;
   const hasGating = hasLegacyGating || hasLockGating;
   const requirements = hasLegacyGating ? SettingsUtils.getUPGatingRequirements(post.settings) : null;
+  
+  // -------------------------------------------------------------------
+  // 🆕 Per-post board context fetch (handles shared boards even when the
+  // page itself wasn't filtered by that board)
+  // -------------------------------------------------------------------
+  const { data: boardContext } = useQuery<ApiBoard | null>({
+    queryKey: ['postCardBoardContext', post.board_id],
+    queryFn: async () => {
+      if (!token || !user?.cid) return null;
+      try {
+        const response = await authFetchJson<{ board: ApiBoard | null }>(
+          `/api/communities/${user.cid}/boards/${post.board_id}`,
+          { token }
+        );
+        return response.board;
+      } catch (err) {
+        console.error('[PostCard] Failed to fetch per-post board context:', err);
+        return null;
+      }
+    },
+    enabled: !!token && !!user?.cid,
+    staleTime: 5 * 60 * 1000, // cache 5 min
+  });
   
   // For gated posts, redirect to detail view instead of inline comments
   const handleCommentClick = () => {
@@ -218,16 +250,53 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     try {
       console.log(`[PostCard] Generating share URL for post ${post.id}`);
       
+      const effectiveBoard = boardInfo ?? boardContext;
+      
+      // 🔍 DEBUG LOGS ---------------------------------------------------
+      console.log('[DEBUG-SHARE] effectiveBoard', effectiveBoard);
+      console.log('[DEBUG-SHARE] communityShortId BEFORE fetch', user?.communityShortId);
+      console.log('[DEBUG-SHARE] pluginId BEFORE fetch', user?.pluginId);
+      
+      // Detect shared board and get appropriate community context
+      let communityShortId = user?.communityShortId;
+      let pluginId = user?.pluginId;
+
+      // For shared boards, use source community context instead of importing community
+      if (effectiveBoard?.is_imported && effectiveBoard.source_community_id && token) {
+        try {
+          console.log(`[PostCard] Shared board detected, fetching source community context for ${effectiveBoard.source_community_id}`);
+          const sourceCommunity = await authFetchJson<ApiCommunity>(
+            `/api/communities/${effectiveBoard.source_community_id}`, 
+            { token }
+          );
+          communityShortId = sourceCommunity.community_short_id;
+          pluginId = sourceCommunity.plugin_id;
+          console.log(`[PostCard] Using source community context: ${communityShortId} / ${pluginId}`);
+          console.log('[DEBUG-SHARE] sourceCommunity response', sourceCommunity);
+        } catch (error) {
+          console.warn('[PostCard] Failed to fetch source community context, using importing community context:', error);
+          // Fall back to importing community context
+        }
+      }
+      
+      console.log('[DEBUG-SHARE] buildExternalShareUrl params', {
+        postId: post.id,
+        boardId: post.board_id,
+        communityShortId,
+        pluginId
+      });
+
       generatedShareUrl = await buildExternalShareUrl(
         post.id, 
         post.board_id, 
-        user?.communityShortId || undefined,
-        user?.pluginId || undefined,
+        communityShortId || undefined,
+        pluginId || undefined,
         post.title,
         post.board_name
       );
       
       console.log(`[PostCard] Successfully created semantic URL: ${generatedShareUrl}`);
+      console.log('[DEBUG-SHARE] communityShortId USED', communityShortId, 'pluginId USED', pluginId);
       
     } catch (shareUrlError) {
       console.warn('[PostCard] Failed to create semantic URL, using internal fallback:', shareUrlError);
@@ -287,7 +356,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     }
     
     setIsGeneratingShareUrl(false);
-  }, [post.id, post.board_id, post.title, post.board_name, user?.communityShortId, user?.pluginId, buildInternalUrl, isGeneratingShareUrl]);
+  }, [post.id, post.board_id, post.title, post.board_name, user?.communityShortId, user?.pluginId, buildInternalUrl, isGeneratingShareUrl, boardInfo?.is_imported, boardInfo?.source_community_id, boardContext?.is_imported, boardContext?.source_community_id, token]);
 
   // Update content expansion when showFullContent prop changes
   useEffect(() => {

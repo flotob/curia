@@ -18,6 +18,10 @@ export interface ApiBoard {
   // Computed fields:
   user_can_access?: boolean;  // Based on current user's roles (after community access)
   user_can_post?: boolean;    // Future: differentiate read vs write
+  // Shared board fields:
+  is_imported?: boolean;      // True if this is an imported/shared board
+  source_community_id?: string; // Original community ID for shared boards
+  source_community_name?: string; // Original community name for shared boards
 }
 
 async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: RouteContext) {
