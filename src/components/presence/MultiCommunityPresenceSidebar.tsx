@@ -517,7 +517,7 @@ export function MultiCommunityPresenceSidebar({
               <div>
                 <div className="font-medium text-sm">Online</div>
                 <div className="text-xs text-muted-foreground">
-                  {currentCommunityUsers.length} local • {totalOtherUsers} global • {totalDevices} devices
+                  {currentCommunityUsers.length} local • {totalOtherUsers} partners • {totalDevices} devices
                 </div>
               </div>
             </div>
@@ -547,11 +547,11 @@ export function MultiCommunityPresenceSidebar({
         </div>
       )}
       
-      {/* Other Communities Section */}
+      {/* Partner Communities Section */}
       {otherCommunityGroups.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between px-2">
-            <h3 className="font-semibold text-sm text-muted-foreground">Other Communities</h3>
+            <h3 className="font-semibold text-sm text-muted-foreground">Partner Communities</h3>
             <Badge variant="outline" className="text-xs">{totalOtherUsers}</Badge>
           </div>
           <div className="space-y-2">

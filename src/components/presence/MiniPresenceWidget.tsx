@@ -210,7 +210,7 @@ export function MiniPresenceWidget({ onExpand }: { onExpand?: () => void }) {
   const totalUsers = enhancedUserPresence.length;
   const totalDevices = enhancedUserPresence.reduce((sum, user) => sum + user.totalDevices, 0);
   const localUsers = currentCommunityUsers.length;
-  const globalUsers = otherCommunityGroups.reduce((sum, group) => sum + group.totalUsers, 0);
+  const partnerUsers = otherCommunityGroups.reduce((sum, group) => sum + group.totalUsers, 0);
   
   // Prioritize current community users in mini mode display
   const prioritizedUsers = [
@@ -262,9 +262,9 @@ export function MiniPresenceWidget({ onExpand }: { onExpand?: () => void }) {
               <span className="text-xs font-medium">
                 {localUsers} Local
               </span>
-              {globalUsers > 0 && (
+              {partnerUsers > 0 && (
                 <span className="text-[8px] text-muted-foreground">
-                  +{globalUsers} 🌐
+                  +{partnerUsers} 🤝
                 </span>
               )}
             </div>

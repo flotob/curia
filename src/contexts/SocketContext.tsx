@@ -123,6 +123,77 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     refetchOnWindowFocus: false
   });
 
+  // 🆕 Fetch active partnerships for presence filtering
+  interface Partnership {
+    id: number;
+    status: string;
+    sourceCommunityId: string;
+    targetCommunityId: string;
+    sourceToTargetPermissions?: Record<string, unknown>;
+    targetToSourcePermissions?: Record<string, unknown>;
+  }
+
+  const { data: partnershipsResponse } = useQuery<{success: boolean; data: Partnership[]}>({
+    queryKey: ['partnerships', 'accepted'],
+    queryFn: async () => {
+      if (!token) throw new Error('No auth token available');
+      console.log('[SocketContext DEBUG] Fetching partnerships for community:', currentCommunityId);
+      const response = await fetch('/api/communities/partnerships?status=accepted', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch partnerships');
+      const data = await response.json();
+      console.log('[SocketContext DEBUG] Partnership API response:', data);
+      return data;
+    },
+    enabled: !!isAuthenticated && !!token && !!currentCommunityId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false
+  });
+
+  // 🆕 Process partnerships into active partner community IDs using useMemo for stability
+  const activePartnershipIds = useMemo(() => {
+    console.log('[SocketContext DEBUG] Processing partnerships...', { 
+      currentCommunityId, 
+      partnershipsResponse, 
+      hasData: !!partnershipsResponse?.data,
+      dataLength: partnershipsResponse?.data?.length || 0
+    });
+
+    // Guard against undefined or missing data
+    if (!currentCommunityId || !partnershipsResponse?.data || !Array.isArray(partnershipsResponse.data) || partnershipsResponse.data.length === 0) {
+      console.log('[SocketContext DEBUG] No partnerships data or empty array');
+      return [];
+    }
+
+    const partnershipsData = partnershipsResponse.data;
+
+    // Extract partner community IDs with presence visibility permissions
+    const partnerIds = partnershipsData
+      .filter((p: Partnership) => {
+        console.log('[SocketContext DEBUG] Checking partnership:', p);
+        if (p.status !== 'accepted') {
+          console.log('[SocketContext DEBUG] Partnership not accepted:', p.status);
+          return false;
+        }
+        
+        // Check if current community can see partner presence
+        // For now, show all accepted partnerships (presence_visibility permission coming later)
+        return true; // TODO: Add permission checks when implemented
+      })
+      .map((p: Partnership) => {
+        const partnerId = p.sourceCommunityId === currentCommunityId 
+          ? p.targetCommunityId 
+          : p.sourceCommunityId;
+        console.log('[SocketContext DEBUG] Mapped partnership to partner ID:', partnerId);
+        return partnerId;
+      })
+      .filter((id: string) => id !== currentCommunityId);
+
+    console.log('[SocketContext DEBUG] Final active partnership IDs for presence:', partnerIds);
+    return partnerIds;
+  }, [partnershipsResponse, currentCommunityId]);
+
   // Compute community-grouped presence data
   const communityPresenceData = useMemo(() => {
     if (!allCommunities.length || !enhancedUserPresence.length) {
@@ -159,14 +230,45 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     // Separate current and other community groups
     const currentCommunityUsers = groupedByCommunity[currentCommunityId || ''] || [];
-    const otherCommunityGroups = communityGroups.filter(group => !group.isCurrentCommunity);
+    
+    console.log('[SocketContext DEBUG] All community groups before filtering:', communityGroups.map(g => ({
+      id: g.communityId,
+      name: g.communityName,
+      userCount: g.totalUsers,
+      isCurrentCommunity: g.isCurrentCommunity
+    })));
+    
+    console.log('[SocketContext DEBUG] Active partnership IDs for filtering:', activePartnershipIds);
+    
+    // 🆕 PARTNERSHIP FILTERING: Only show partner communities in "other" groups
+    const otherCommunityGroups = communityGroups.filter(group => {
+      const isOtherCommunity = !group.isCurrentCommunity;
+      const isPartnerCommunity = activePartnershipIds.includes(group.communityId);
+      
+      console.log('[SocketContext DEBUG] Filtering group:', {
+        communityId: group.communityId,
+        communityName: group.communityName,
+        userCount: group.totalUsers,
+        isOtherCommunity,
+        isPartnerCommunity,
+        willInclude: isOtherCommunity && isPartnerCommunity
+      });
+      
+      return isOtherCommunity && isPartnerCommunity;
+    });
+
+    console.log('[SocketContext DEBUG] Final other community groups after filtering:', otherCommunityGroups.map(g => ({
+      id: g.communityId,
+      name: g.communityName,
+      userCount: g.totalUsers
+    })));
 
     return {
       communityGroups,
       currentCommunityUsers,
       otherCommunityGroups
     };
-  }, [allCommunities, enhancedUserPresence, currentCommunityId]);
+  }, [allCommunities, enhancedUserPresence, currentCommunityId, activePartnershipIds]);
 
   // Helper function to build URLs while preserving current parameters
   const buildInternalUrl = useCallback((path: string, additionalParams: Record<string, string> = {}) => {
