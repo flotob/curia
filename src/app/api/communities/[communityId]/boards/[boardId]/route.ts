@@ -1,7 +1,60 @@
 import { NextResponse } from 'next/server';
 import { AuthenticatedRequest, withAuth, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
+import { resolveBoard } from '@/lib/boardPermissions';
 import { ApiBoard } from '../route';
+
+// GET /api/communities/[communityId]/boards/[boardId] - Get single board (handles both owned and shared boards)
+async function getBoardHandler(req: AuthenticatedRequest, context: RouteContext) {
+  const params = await context.params;
+  const { communityId, boardId } = params;
+  const requestingUserId = req.user?.sub;
+  const requestingUserCommunityId = req.user?.cid;
+
+  if (!communityId || !boardId) {
+    return NextResponse.json({ error: 'Community ID and Board ID are required' }, { status: 400 });
+  }
+
+  // Security check: Ensure the user is requesting board for their own community
+  if (communityId !== requestingUserCommunityId) {
+    return NextResponse.json({ error: 'Forbidden: You can only fetch boards for your own community.' }, { status: 403 });
+  }
+
+  try {
+    const boardIdNum = parseInt(boardId, 10);
+    if (isNaN(boardIdNum)) {
+      return NextResponse.json({ error: 'Invalid board ID' }, { status: 400 });
+    }
+
+    // Use resolveBoard function which handles both owned and shared boards
+    const board = await resolveBoard(boardIdNum, communityId);
+
+    if (!board) {
+      return NextResponse.json({ error: 'Board not found or not accessible' }, { status: 404 });
+    }
+
+    // Convert to ApiBoard format
+    const boardResponse: ApiBoard = {
+      id: board.id,
+      community_id: board.community_id,
+      name: board.name,
+      description: board.description,
+      settings: board.settings,
+      created_at: board.created_at,
+      updated_at: board.updated_at,
+      user_can_access: true, // If resolveBoard returned it, user can access it
+      user_can_post: true    // Same logic for now
+    };
+
+    console.log(`[API GET /api/communities/${communityId}/boards/${boardId}] User ${requestingUserId} accessed board: ${board.name} (owned: ${!board.is_imported})`);
+
+    return NextResponse.json({ board: boardResponse });
+
+  } catch (error) {
+    console.error(`[API] Error fetching board ${boardId}:`, error);
+    return NextResponse.json({ error: 'Failed to fetch board' }, { status: 500 });
+  }
+}
 
 // PATCH /api/communities/[communityId]/boards/[boardId] - Update board settings (Admin only)
 async function updateBoardHandler(req: AuthenticatedRequest, context: RouteContext) {
@@ -122,5 +175,6 @@ async function deleteBoardHandler(req: AuthenticatedRequest, context: RouteConte
   }
 }
 
+export const GET = withAuth(getBoardHandler, false); // Any authenticated user
 export const PATCH = withAuth(updateBoardHandler, true); // Admin only
 export const DELETE = withAuth(deleteBoardHandler, true); // Admin only

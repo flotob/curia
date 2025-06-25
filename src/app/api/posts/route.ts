@@ -144,12 +144,11 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
     // Build base query parameters
     const baseParams: (string | number)[] = [];
     if (currentUserId) baseParams.push(currentUserId);
-    baseParams.push(currentCommunityId);
     
-    // Build base WHERE clause - filter by community and accessible boards
-    let baseWhere = `WHERE b.community_id = $${currentUserId ? '2' : '1'}`;
+    // Build base WHERE clause - filter only by accessible boards (no community filter needed)
+    let baseWhere = `WHERE 1=1`;
     
-    // SECURITY: Only include posts from boards user can access
+    // SECURITY: Only include posts from boards user can access (both owned and imported)
     if (boardId) {
       // If specific board requested, we already verified access above
       baseWhere += ` AND p.board_id = $${baseParams.length + 1}`;

@@ -185,13 +185,23 @@ export default function HomePage() {
     enabled: !!cgInstance && !isInitializing,
   });
 
-  // If we have a boardId, fetch board info to display board name
+  // If we have a boardId, fetch board info to display board name (handles both owned and shared boards)
   const { data: boardInfo } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
       if (!boardId || !communityInfo?.id || !token) return null;
-      const boards = await authFetchJson<ApiBoard[]>(`/api/communities/${communityInfo.id}/boards`, { token });
-      return boards.find((board) => board.id.toString() === boardId) || null;
+      
+      // Use direct board resolution approach that handles shared boards
+      try {
+        const response = await authFetchJson<{ board: ApiBoard | null }>(
+          `/api/communities/${communityInfo.id}/boards/${boardId}`, 
+          { token }
+        );
+        return response.board;
+      } catch (error) {
+        console.error('[HomePage] Failed to resolve board info:', error);
+        return null;
+      }
     },
     enabled: !!boardId && !!communityInfo?.id && !!token,
   });

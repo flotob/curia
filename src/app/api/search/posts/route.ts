@@ -41,9 +41,9 @@ async function searchPostsHandler(req: AuthenticatedRequest) {
       return NextResponse.json([]);
     }
 
-    // Build query with community and board access filtering
-    let whereClause = `WHERE b.community_id = $1 AND (p.title ILIKE $2 OR p.content ILIKE $2)`;
-    const queryParams: (string | number)[] = [currentCommunityId, searchTerm];
+    // Build query with board access filtering (no community filter needed since we filter by accessible boards)
+    let whereClause = `WHERE (p.title ILIKE $1 OR p.content ILIKE $1)`;
+    const queryParams: (string | number)[] = [searchTerm];
     
     // SECURITY: Filter to only accessible boards
     if (boardId) {
