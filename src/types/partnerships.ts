@@ -46,6 +46,7 @@ export interface PartnershipPermissions {
   allowCrossCommunityNotifications?: boolean;
   allowCrossCommunitySearch?: boolean;
   allowPresenceSharing?: boolean;
+  allowBoardSharing?: boolean;
   customSettings?: Record<string, unknown>;
 }
 

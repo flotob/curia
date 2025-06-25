@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake, Share2, Download } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useSearchParams, usePathname } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
+import { useSharedBoards } from '@/hooks/useSharedBoards';
 
 interface SidebarProps {
   communityInfo: CommunityInfoResponsePayload | null;
@@ -32,6 +33,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
+  // Fetch shared boards data
+  const { data: sharedBoards, isLoading: sharedBoardsLoading } = useSharedBoards(communityInfo?.id);
   // const [bgColor, setBgColor] = useState('#ffffff');
 
   useEffect(() => {
@@ -437,6 +441,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </Link>
               )}
+              
+              {/* Shared Board Link - Admin Only */}
+              {user?.isAdmin && (
+                <Link
+                  href={buildUrl('/create-shared-board')}
+                  className={cn(
+                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
+                    theme === 'dark'
+                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                  )}
+                >
+                  <div className={cn(
+                    'p-1.5 rounded-lg mr-3 transition-all duration-200',
+                    theme === 'dark'
+                      ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                      : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                  )}>
+                    <Download size={16} />
+                  </div>
+                  <span className="flex-1">Import Boards</span>
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -512,6 +539,116 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </Link>
             )}
+          </div>
+        )}
+
+        {/* Shared Boards Section */}
+        {sharedBoards && sharedBoards.length > 0 && (
+          <div className="pt-6 pb-2">
+            <h3 className={cn(
+              'px-3 text-xs font-semibold uppercase tracking-wider mb-3',
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            )}>
+              Shared Boards
+            </h3>
+            <div className="space-y-1">
+              {sharedBoards.map((sharedBoard) => {
+                const isActive = currentBoardId === sharedBoard.source_board_id.toString();
+                return (
+                  <div key={sharedBoard.id} className="relative group">
+                    <Link
+                      href={buildUrl('/', { 
+                        communityId: communityInfo.id, 
+                        boardId: sharedBoard.source_board_id.toString(),
+                        // Add source community context for shared boards
+                        sourceCommunityId: sharedBoard.source_community_id
+                      })}
+                      className={cn(
+                        'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
+                        isActive
+                          ? theme === 'dark'
+                            ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 shadow-lg shadow-cyan-500/10'
+                            : 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10 text-cyan-700 shadow-lg shadow-cyan-500/10'
+                          : theme === 'dark'
+                            ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      )}
+                    >
+                      <div className="mr-3">
+                        <div className="relative">
+                          {/* Shared board icon with visual distinction */}
+                          <div className={cn(
+                            'p-1.5 rounded-lg transition-all duration-200',
+                            isActive
+                              ? theme === 'dark'
+                                ? 'bg-cyan-500/20 text-cyan-300'
+                                : 'bg-cyan-500/10 text-cyan-600'
+                              : theme === 'dark'
+                                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                          )}>
+                            <LayoutDashboard size={16} />
+                          </div>
+                          
+                          {/* Shared indicator */}
+                          <div className={cn(
+                            'absolute -top-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200',
+                            theme === 'dark'
+                              ? 'bg-cyan-500/90 border-slate-800 text-cyan-100'
+                              : 'bg-cyan-500/90 border-white text-cyan-100'
+                          )} title={`Shared from ${sharedBoard.source_community_name}`}>
+                            <Share2 size={8} strokeWidth={2.5} />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="truncate pr-2">{sharedBoard.board_name}</span>
+                          {isActive && (
+                            <ChevronRight size={14} className="opacity-60 flex-shrink-0" />
+                          )}
+                        </div>
+                        <div className={cn(
+                          'text-xs truncate',
+                          theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+                        )}>
+                          from {sharedBoard.source_community_name}
+                        </div>
+                      </div>
+                      
+                      {/* Active indicator */}
+                      {isActive && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-xl" />
+                      )}
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Shared Boards Loading State */}
+        {sharedBoardsLoading && (
+          <div className="pt-6 space-y-2">
+            <h3 className={cn(
+              'px-3 text-xs font-semibold uppercase tracking-wider mb-3',
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            )}>
+              Shared Boards
+            </h3>
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className={cn(
+                  'h-12 rounded-xl animate-pulse',
+                  theme === 'dark' 
+                    ? 'bg-gradient-to-r from-slate-800/50 to-slate-700/30' 
+                    : 'bg-gradient-to-r from-slate-200/50 to-slate-100/30'
+                )}
+              />
+            ))}
           </div>
         )}
 

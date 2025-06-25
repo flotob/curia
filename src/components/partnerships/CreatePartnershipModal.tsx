@@ -64,14 +64,16 @@ export default function CreatePartnershipModal({
     allowCrossCommunityNavigation: true,
     allowCrossCommunityNotifications: true,
     allowCrossCommunitySearch: true,
-    allowPresenceSharing: true
+    allowPresenceSharing: true,
+    allowBoardSharing: false
   });
   
   const [targetToSourcePermissions, setTargetToSourcePermissions] = useState<PartnershipPermissions>({
     allowCrossCommunityNavigation: true,
     allowCrossCommunityNotifications: true,
     allowCrossCommunitySearch: true,
-    allowPresenceSharing: true
+    allowPresenceSharing: true,
+    allowBoardSharing: false
   });
 
   // Fetch communities for selection (excluding current community and existing partnerships)
@@ -135,13 +137,15 @@ export default function CreatePartnershipModal({
       allowCrossCommunityNavigation: true,
       allowCrossCommunityNotifications: true,
       allowCrossCommunitySearch: true,
-      allowPresenceSharing: true
+      allowPresenceSharing: true,
+      allowBoardSharing: false
     });
     setTargetToSourcePermissions({
       allowCrossCommunityNavigation: true,
       allowCrossCommunityNotifications: true,
       allowCrossCommunitySearch: true,
-      allowPresenceSharing: true
+      allowPresenceSharing: true,
+      allowBoardSharing: false
     });
     onClose();
   };
@@ -343,7 +347,8 @@ export default function CreatePartnershipModal({
               { key: 'allowCrossCommunityNavigation', label: '🔗 Cross-community navigation', desc: 'Users can navigate between communities' },
               { key: 'allowCrossCommunityNotifications', label: '🔔 Cross-community notifications', desc: 'Receive notifications from other community' },
               { key: 'allowCrossCommunitySearch', label: '🔍 Cross-community search', desc: 'Search content across communities' },
-              { key: 'allowPresenceSharing', label: '👥 Presence sharing', desc: 'Share user presence information' }
+              { key: 'allowPresenceSharing', label: '👥 Presence sharing', desc: 'Share user presence information' },
+              { key: 'allowBoardSharing', label: '📋 Board sharing', desc: 'Allow this community to import your boards' }
             ].map(permission => (
               <div key={permission.key} className="flex items-start justify-between">
                 <div className="flex-1">
@@ -373,7 +378,8 @@ export default function CreatePartnershipModal({
               { key: 'allowCrossCommunityNavigation', label: '🔗 Cross-community navigation', desc: 'Users can navigate between communities' },
               { key: 'allowCrossCommunityNotifications', label: '🔔 Cross-community notifications', desc: 'Receive notifications from other community' },
               { key: 'allowCrossCommunitySearch', label: '🔍 Cross-community search', desc: 'Search content across communities' },
-              { key: 'allowPresenceSharing', label: '👥 Presence sharing', desc: 'Share user presence information' }
+              { key: 'allowPresenceSharing', label: '👥 Presence sharing', desc: 'Share user presence information' },
+              { key: 'allowBoardSharing', label: '📋 Board sharing', desc: 'Allow this community to import your boards' }
             ].map(permission => (
               <div key={permission.key} className="flex items-start justify-between">
                 <div className="flex-1">

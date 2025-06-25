@@ -76,7 +76,8 @@ function validatePermissions(permissions: unknown): { valid: boolean; errors: st
     'allowCrossCommunityNavigation',
     'allowCrossCommunityNotifications', 
     'allowCrossCommunitySearch',
-    'allowPresenceSharing'
+    'allowPresenceSharing',
+    'allowBoardSharing'
   ];
   
   for (const field of booleanFields) {
