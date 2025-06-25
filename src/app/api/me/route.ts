@@ -14,8 +14,8 @@ async function getCurrentUserHandler(req: AuthenticatedRequest) {
     // Fetch user activity stats - simplified query that doesn't require user to exist in users table
     const statsResult = await query(`
       SELECT 
-        COALESCE(p.post_count, 0) as post_count,
-        COALESCE(c.comment_count, 0) as comment_count
+        COALESCE(stats.post_count, 0) as post_count,
+        COALESCE(stats.comment_count, 0) as comment_count
       FROM (
         SELECT 
           (SELECT COUNT(*) FROM posts WHERE author_user_id = $1) as post_count,
