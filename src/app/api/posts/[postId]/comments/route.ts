@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query, getClient } from '@/lib/db';
-import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 import { ethers } from 'ethers';
 
 // Force Node.js runtime to avoid Edge Runtime restrictions
@@ -417,11 +417,12 @@ async function getCommentsHandler(req: AuthenticatedRequest, context: RouteConte
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, settings, community_id } = postBoardResult.rows[0];
+    const { board_id, settings } = postBoardResult.rows[0];
     
-    // Verify post belongs to user's community
-    if (community_id !== userCommunityId) {
-      console.warn(`[API GET /api/posts/${postId}/comments] User ${userId} from community ${userCommunityId} attempted to access post from community ${community_id}`);
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(board_id, userCommunityId || '');
+    if (!resolvedBoard) {
+      console.warn(`[API GET /api/posts/${postId}/comments] User ${userId} from community ${userCommunityId} attempted to access post from inaccessible board ${board_id}`);
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
@@ -501,13 +502,13 @@ async function createCommentHandler(req: AuthenticatedRequest, context: RouteCon
       lock_id,
       lock_gating_config,
       board_settings, 
-      community_id, 
       board_name 
     } = postBoardResult.rows[0];
     
-    // Verify post belongs to user's community
-    if (community_id !== userCommunityId) {
-      console.warn(`[API POST /api/posts/${postId}/comments] User ${user.sub} from community ${userCommunityId} attempted to comment on post from community ${community_id}`);
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(board_id, userCommunityId || '');
+    if (!resolvedBoard) {
+      console.warn(`[API POST /api/posts/${postId}/comments] User ${user.sub} from community ${userCommunityId} attempted to comment on post from inaccessible board ${board_id}`);
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 

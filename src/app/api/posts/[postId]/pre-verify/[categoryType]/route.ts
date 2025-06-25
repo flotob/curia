@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
+import { resolveBoard } from '@/lib/boardPermissions';
 import { SettingsUtils, PostSettings } from '@/types/settings';
 import { VerificationChallenge } from '@/lib/verification/types';
 import { ChallengeUtils, verifyPostGatingRequirements } from '@/lib/verification';
@@ -72,10 +73,11 @@ async function preVerifyHandler(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { post_settings, lock_id, lock_gating_config, community_id } = postResult.rows[0];
+    const { post_settings, board_id, lock_id, lock_gating_config } = postResult.rows[0];
 
-    // Verify user has access to this community
-    if (community_id !== user.cid) {
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(board_id, user.cid || '');
+    if (!resolvedBoard) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 

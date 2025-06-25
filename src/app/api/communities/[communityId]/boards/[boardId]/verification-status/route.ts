@@ -76,7 +76,7 @@ async function getBoardVerificationStatusHandler(
        LEFT JOIN lock_stats ls ON l.id = ls.id
        LEFT JOIN users u ON l.creator_user_id = u.user_id
        WHERE l.id IN (${lockIdsPlaceholders}) AND l.community_id = $${lockGating.lockIds.length + 1}`,
-      [...lockGating.lockIds, communityId]
+      [...lockGating.lockIds, board.community_id]  // Use board's actual community_id (source community)
     );
 
     if (locksResult.rows.length === 0) {

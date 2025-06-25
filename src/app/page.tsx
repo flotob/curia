@@ -86,7 +86,15 @@ export default function HomePage() {
     };
   }, [isConnected, boardId, joinBoard, leaveBoard]);
 
-  // Helper function to preserve existing URL params
+  /**
+   * Standard URL builder that preserves existing URL parameters.
+   * 
+   * USAGE: Use for ALL navigation except post creation success callbacks
+   * (For post creation, use buildPostUrlWithSharedBoardContext instead)
+   * 
+   * Preserves: cg_theme, boardId, and any other existing URL parameters
+   * Adds/overrides: any additional parameters provided
+   */
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
     const params = new URLSearchParams();
     
@@ -103,6 +111,34 @@ export default function HomePage() {
     });
     
     return `${path}?${params.toString()}`;
+  };
+
+  /**
+   * Builds post navigation URLs with shared board context awareness.
+   * 
+   * For OWNED boards: Uses standard buildUrl() - no special handling needed
+   * For SHARED boards: Adds 'sharedFrom' parameter to maintain user context
+   * 
+   * WHY: When users create posts in shared boards, they expect to stay in their
+   * importing community context, not get redirected to the source community.
+   * 
+   * USAGE: Only for post creation success navigation - use buildUrl() for everything else
+   */
+  const buildPostUrlWithSharedBoardContext = (newPost: ApiPost) => {
+    // Detect shared board: board belongs to different community than current context
+    const isSharedBoard = boardInfo && communityInfo && 
+                         boardInfo.community_id !== communityInfo.id;
+    
+    if (isSharedBoard) {
+      console.log(`[HomePage] Shared board detected: staying in importing community context`);
+      // Add 'sharedFrom' parameter so post detail page knows to preserve importing community context
+      return buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`, {
+        sharedFrom: communityInfo.id
+      });
+    } else {
+      // Owned boards: standard navigation (no shared board logic needed)
+      return buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
+    }
   };
 
   // Handle shared content detection (from external share links)
@@ -262,8 +298,8 @@ export default function HomePage() {
                   setInitialPostTitle('');
                 }}
                 onPostCreated={(newPost: ApiPost) => {
-                  // Navigate to the newly created post detail page
-                  const postUrl = buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
+                  // Navigate to the newly created post detail page (shared board aware)
+                  const postUrl = buildPostUrlWithSharedBoardContext(newPost);
                   console.log(`[HomePage] Navigating to new post: ${postUrl}`);
                   router.push(postUrl);
                 }}
@@ -276,8 +312,8 @@ export default function HomePage() {
                 enableGlobalSearch={true}
                 onCreatePostClick={handleCreatePostClick}
                 onPostCreated={(newPost: ApiPost) => {
-                  // Navigate to the newly created post detail page
-                  const postUrl = buildUrl(`/board/${newPost.board_id}/post/${newPost.id}`);
+                  // Navigate to the newly created post detail page (shared board aware)
+                  const postUrl = buildPostUrlWithSharedBoardContext(newPost);
                   console.log(`[HomePage] Navigating to new post from search: ${postUrl}`);
                   router.push(postUrl);
                 }}

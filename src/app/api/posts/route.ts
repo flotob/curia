@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { getAccessibleBoardIds, resolveBoard, getAccessibleBoards } from '@/lib/boardPermissions';
-// import { socketEvents } from '@/lib/socket'; // Ensure this is commented out or removed if not used
-
 import { PostSettings } from '@/types/settings';
 
 // Interface for the structure of a post when returned by the API
@@ -357,9 +355,9 @@ async function createPostHandler(req: AuthenticatedRequest) {
 
       const lock = lockResult.rows[0];
 
-      // Verify lock belongs to user's community
-      if (lock.community_id !== currentCommunityId) {
-        console.warn(`[API POST /api/posts] User ${user.sub} from community ${currentCommunityId} attempted to use lock from community ${lock.community_id}`);
+      // Verify lock belongs to board's community (handles shared boards correctly)
+      if (lock.community_id !== board.community_id) {
+        console.warn(`[API POST /api/posts] User ${user.sub} attempted to use lock from community ${lock.community_id} on board from community ${board.community_id}`);
         return NextResponse.json({ error: 'Lock not found' }, { status: 404 });
       }
 

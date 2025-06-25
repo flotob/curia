@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
-import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 import { SettingsUtils, PostSettings } from '@/types/settings';
 
 // POST - Generate a new challenge for Ethereum verification
@@ -52,13 +52,14 @@ async function generateEthereumChallengeHandler(req: AuthenticatedRequest, conte
     const { 
       post_settings, 
       board_settings, 
-      community_id,
+      board_id,
       lock_id,
       lock_gating_config
     } = postResult.rows[0];
 
-    // Verify post belongs to user's community
-    if (community_id !== userCommunityId) {
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(board_id, userCommunityId || '');
+    if (!resolvedBoard) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 

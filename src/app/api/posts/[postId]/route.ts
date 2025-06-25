@@ -1,7 +1,7 @@
 import { /* NextRequest, */ NextResponse } from 'next/server';
 import { AuthenticatedRequest, withAuth, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
-import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 import { ApiPost } from '@/app/api/posts/route';
 
 // GET a single post by ID with board access control and enhanced data
@@ -71,9 +71,10 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
 
     const postData = result.rows[0];
     
-    // Verify post belongs to user's community
-    if (postData.community_id !== userCommunityId) {
-      console.warn(`[API GET /api/posts/${postId}] User ${userId} from community ${userCommunityId} attempted to access post from community ${postData.community_id}`);
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(postData.board_id, userCommunityId || '');
+    if (!resolvedBoard) {
+      console.warn(`[API GET /api/posts/${postId}] User ${userId} from community ${userCommunityId} attempted to access post from inaccessible board ${postData.board_id}`);
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { getClient, query } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
-import { canUserAccessBoard } from '@/lib/boardPermissions';
+import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 import { SettingsUtils } from '@/types/settings';
 
 // POST to upvote a post (protected and permission-checked)
@@ -38,11 +38,12 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, post_title, settings, community_id, board_name } = postBoardResult.rows[0];
+    const { board_id, post_title, settings, board_name } = postBoardResult.rows[0];
     
-    // Verify post belongs to user's community
-    if (community_id !== userCommunityId) {
-      console.warn(`[API POST /api/posts/${postId}/votes] User ${userId} from community ${userCommunityId} attempted to vote on post from community ${community_id}`);
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(board_id, userCommunityId || '');
+    if (!resolvedBoard) {
+      console.warn(`[API POST /api/posts/${postId}/votes] User ${userId} from community ${userCommunityId} attempted to vote on post from inaccessible board ${board_id}`);
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
@@ -198,11 +199,12 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const { board_id, post_title, settings, community_id, board_name } = postBoardResult.rows[0];
+    const { board_id, post_title, settings, board_name } = postBoardResult.rows[0];
     
-    // Verify post belongs to user's community
-    if (community_id !== userCommunityId) {
-      console.warn(`[API DELETE /api/posts/${postId}/votes] User ${userId} from community ${userCommunityId} attempted to unvote on post from community ${community_id}`);
+    // Verify user can access the board (handles both owned and shared boards)
+    const resolvedBoard = await resolveBoard(board_id, userCommunityId || '');
+    if (!resolvedBoard) {
+      console.warn(`[API DELETE /api/posts/${postId}/votes] User ${userId} from community ${userCommunityId} attempted to unvote on post from inaccessible board ${board_id}`);
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
