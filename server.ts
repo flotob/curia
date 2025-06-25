@@ -461,15 +461,17 @@ async function bootstrap() {
 
   // ===== TELEGRAM NOTIFICATION SYSTEM =====
   
-  // Setup parallel listener for Telegram notifications (NEW)
-  customEventEmitter.on('broadcastEvent', async (eventDetails: { room: string; eventName: string; payload: any }) => {
-    try {
-      console.log(`[Telegram] Processing event: ${eventDetails.eventName} for room: ${eventDetails.room}`);
-      await telegramEventHandler.handleBroadcastEvent(eventDetails);
-    } catch (error) {
-      // Log error but don't crash the main event system
-      console.error('[Telegram] Event handling failed:', error);
-    }
+  // Setup parallel listener for Telegram notifications (NON-BLOCKING)
+  customEventEmitter.on('broadcastEvent', (eventDetails: { room: string; eventName: string; payload: any }) => {
+    // Fire and forget - don't await to avoid blocking HTTP responses
+    telegramEventHandler.handleBroadcastEvent(eventDetails)
+      .then(() => {
+        // Success - TelegramEventHandler already logs success details
+      })
+      .catch(error => {
+        // Log error but don't crash the main event system
+        console.error('[Telegram] Async notification failed:', error);
+      });
   });
 
   // JWT Authentication middleware
