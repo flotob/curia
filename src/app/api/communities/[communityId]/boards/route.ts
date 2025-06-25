@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { BoardSettings } from '@/types/settings';
-import { filterAccessibleBoards, canUserAccessBoard } from '@/lib/boardPermissions';
+import { filterAccessibleBoards, canUserAccessBoard, getAccessibleBoards } from '@/lib/boardPermissions';
 
 export interface ApiBoard {
   id: number;
@@ -41,14 +41,17 @@ async function getCommunityBoardsHandler(req: AuthenticatedRequest, context: Rou
   }
 
   try {
-    const result = await query(
-      'SELECT id, community_id, name, description, settings, created_at, updated_at FROM boards WHERE community_id = $1 ORDER BY name ASC',
-      [communityId]
-    );
-
-    const allBoards: ApiBoard[] = result.rows.map(row => ({
-      ...row,
-      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+    // Get all boards accessible to this community (owned + imported)
+    const accessibleBoardsData = await getAccessibleBoards(communityId);
+    
+    const allBoards: ApiBoard[] = accessibleBoardsData.map(row => ({
+      id: row.id,
+      community_id: row.community_id,
+      name: row.name,
+      description: row.description,
+      settings: row.settings as BoardSettings,
+      created_at: row.created_at,
+      updated_at: row.updated_at
     }));
     
     // SECURITY: Filter boards based on user permissions

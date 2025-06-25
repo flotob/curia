@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
-import { getAccessibleBoardIds } from '@/lib/boardPermissions';
+import { getAccessibleBoardIds, getAccessibleBoards } from '@/lib/boardPermissions';
 import { ApiPost } from '@/app/api/posts/route';
 
 // GET similar posts based on a query (now properly authenticated and community-scoped)
@@ -29,16 +29,8 @@ async function searchPostsHandler(req: AuthenticatedRequest) {
   const limit = 5; // Max number of suggestions to return
 
   try {
-    // SECURITY: Get accessible boards based on user permissions
-    const boardsResult = await query(
-      'SELECT id, settings FROM boards WHERE community_id = $1',
-      [currentCommunityId]
-    );
-    
-    const allBoards = boardsResult.rows.map(row => ({
-      ...row,
-      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
-    }));
+    // SECURITY: Get accessible boards based on user permissions (owned + imported)
+    const allBoards = await getAccessibleBoards(currentCommunityId);
     
     // Filter boards based on user permissions
     const accessibleBoardIds = getAccessibleBoardIds(allBoards, userRoles, isAdmin);

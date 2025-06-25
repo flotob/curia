@@ -8,7 +8,18 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
+import { resolveBoard } from '@/lib/boardPermissions';
 import { GatingCategory } from '@/types/gating';
+
+interface BoardSettingsWithLocks {
+  permissions?: {
+    locks?: {
+      lockIds: number[];
+      fulfillment?: 'any' | 'all';
+      verificationDuration?: number;
+    };
+  };
+}
 
 interface BoardLockVerificationStatusResponse {
   lockId: number;
@@ -64,18 +75,18 @@ async function getBoardLockVerificationStatusHandler(
       return NextResponse.json({ error: 'Community ID, Board ID, and Lock ID are required' }, { status: 400 });
     }
 
-    // Verify board exists and has lock gating with this lock
-    const boardResult = await query(
-      `SELECT id, settings FROM boards WHERE id = $1 AND community_id = $2`,
-      [boardId, communityId]
-    );
+    // Verify board is accessible and has lock gating with this lock
+    if (!user.cid) {
+      return NextResponse.json({ error: 'User community required' }, { status: 401 });
+    }
+    
+    const board = await resolveBoard(parseInt(boardId, 10), user.cid);
 
-    if (boardResult.rows.length === 0) {
-      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    if (!board) {
+      return NextResponse.json({ error: 'Board not found or not accessible' }, { status: 404 });
     }
 
-    const board = boardResult.rows[0];
-    const boardSettings = board.settings || {};
+    const boardSettings = board.settings as BoardSettingsWithLocks || {};
     const lockGating = boardSettings.permissions?.locks;
 
     if (!lockGating || !lockGating.lockIds || !lockGating.lockIds.includes(parseInt(lockId, 10))) {

@@ -21,7 +21,7 @@ import next from "next";
 import { createServer } from "node:http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import jwt from 'jsonwebtoken';
-import { canUserAccessBoard } from './src/lib/boardPermissions';
+import { canUserAccessBoard, isAccessibleBoard } from './src/lib/boardPermissions';
 import { query } from './src/lib/db';
 import { JwtPayload } from './src/lib/withAuth';
 import { EventEmitter } from 'events';
@@ -596,9 +596,15 @@ async function bootstrap() {
 
         const board = boardResult.rows[0];
         
-        // Verify board belongs to user's community
-        if (board.community_id !== user.cid) {
-          socket.emit('error', { message: 'Access denied: wrong community' });
+        // Verify user can access this board (owned or imported)
+        if (!user.cid) {
+          socket.emit('error', { message: 'Access denied: invalid user community' });
+          return;
+        }
+        
+        const canAccessBoard = await isAccessibleBoard(boardIdNum, user.cid);
+        if (!canAccessBoard) {
+          socket.emit('error', { message: 'Access denied: board not accessible' });
           return;
         }
 

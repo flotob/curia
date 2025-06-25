@@ -78,9 +78,15 @@ async function bootstrap() {
                     return;
                 }
                 const board = boardResult.rows[0];
-                // Verify board belongs to user's community
-                if (board.community_id !== user.cid) {
-                    socket.emit('error', { message: 'Access denied: wrong community' });
+                // Verify user can access this board (owned or imported)
+                if (!user.cid) {
+                    socket.emit('error', { message: 'Access denied: invalid user community' });
+                    return;
+                }
+                
+                const canAccessBoard = await (0, boardPermissions_1.isAccessibleBoard)(boardIdNum, user.cid);
+                if (!canAccessBoard) {
+                    socket.emit('error', { message: 'Access denied: board not accessible' });
                     return;
                 }
                 // Check board permissions

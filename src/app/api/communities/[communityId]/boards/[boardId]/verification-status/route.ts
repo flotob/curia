@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
+import { resolveBoard } from '@/lib/boardPermissions';
 import { SettingsUtils } from '@/types/settings';
 import { 
   BoardVerificationStatus, 
@@ -46,19 +47,16 @@ async function getBoardVerificationStatusHandler(
     console.log(`[API] Fetching board verification status for board ${boardId}, user ${currentUserId}`);
 
     // Get board settings to check if lock gating is configured
-    const boardResult = await query(
-      'SELECT settings FROM boards WHERE id = $1 AND community_id = $2',
-      [boardId, communityId]
-    );
+    const board = await resolveBoard(boardId, currentCommunityId);
 
-    if (boardResult.rows.length === 0) {
+    if (!board) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Board not found' 
+        error: 'Board not found or not accessible' 
       }, { status: 404 });
     }
 
-    const boardSettings = boardResult.rows[0].settings || {};
+    const boardSettings = board.settings || {};
     const lockGating = SettingsUtils.getBoardLockGating(boardSettings);
 
     if (!lockGating || !lockGating.lockIds || lockGating.lockIds.length === 0) {

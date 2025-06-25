@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
 import { query } from '@/lib/db';
-import { getAccessibleBoardIds } from '@/lib/boardPermissions';
+import { getAccessibleBoardIds, resolveBoard, getAccessibleBoards } from '@/lib/boardPermissions';
 // import { socketEvents } from '@/lib/socket'; // Ensure this is commented out or removed if not used
 
 import { PostSettings } from '@/types/settings';
@@ -117,16 +117,8 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
   }
 
   try {
-    // SECURITY: Get accessible boards based on user permissions
-    const boardsResult = await query(
-      'SELECT id, settings FROM boards WHERE community_id = $1',
-      [currentCommunityId]
-    );
-    
-    const allBoards = boardsResult.rows.map(row => ({
-      ...row,
-      settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
-    }));
+    // SECURITY: Get accessible boards based on user permissions (owned + imported)
+    const allBoards = await getAccessibleBoards(currentCommunityId);
     
     // Filter boards based on user permissions
     const accessibleBoardIds = getAccessibleBoardIds(allBoards, userRoles, isAdmin);
@@ -282,18 +274,14 @@ async function createPostHandler(req: AuthenticatedRequest) {
       }
     }
 
-    // Verify the board exists and belongs to the user's community
-    const boardResult = await query(
-      'SELECT id, settings FROM boards WHERE id = $1 AND community_id = $2',
-      [parseInt(boardId), currentCommunityId]
-    );
+    // Verify the board is accessible to the user (owned or imported)
+    const board = await resolveBoard(parseInt(boardId), currentCommunityId);
 
-    if (boardResult.rows.length === 0) {
-      return NextResponse.json({ error: 'Invalid board or board does not belong to your community' }, { status: 400 });
+    if (!board) {
+      return NextResponse.json({ error: 'Board not found or not accessible' }, { status: 400 });
     }
 
-    const board = boardResult.rows[0];
-    const boardSettings = typeof board.settings === 'string' ? JSON.parse(board.settings) : board.settings;
+    const boardSettings = board.settings;
     
     // SECURITY: Verify user can access this board before allowing post creation
     const { canUserAccessBoard } = await import('@/lib/boardPermissions');
