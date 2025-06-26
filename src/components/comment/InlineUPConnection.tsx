@@ -142,30 +142,96 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
             };
             setTokenBalances(prev => ({ ...prev, ...newTokenBalances }));
             
-            // Check token balance with proper decimals
-            const tokenData = await checkTokenBalance(tokenReq.contractAddress, tokenReq.tokenType);
-            
-            // Check if requirement is met
-            const userBalance = ethers.BigNumber.from(tokenData.balance);
-            
-            // Handle undefined minAmount for LSP8 tokens (default to "1")
-            let requiredAmount = tokenReq.minAmount;
-            if (tokenReq.tokenType === 'LSP8' && !requiredAmount) {
-              requiredAmount = '1';
+            // 🎯 LSP8 TOKEN ID FIX: Handle specific token ID verification
+            if (tokenReq.tokenType === 'LSP8' && tokenReq.tokenId) {
+              console.log(`[Inline-UP-LSP8] ✅ Starting specific token ID verification: ${tokenReq.tokenId}`);
+              
+              try {
+                // Use UniversalProfile context for token ID verification
+                const tokenData = await checkTokenBalance(tokenReq.contractAddress, tokenReq.tokenType);
+                
+                // For specific token ID, we need to check tokenOwnerOf instead of just balance
+                if (upAddress) {
+                  const provider = window.lukso;
+                  if (provider) {
+                    // Manual check for token ownership using tokenOwnerOf
+                    const contract = new ethers.Contract(tokenReq.contractAddress, [
+                      'function tokenOwnerOf(bytes32) view returns (address)'
+                    ], new ethers.providers.Web3Provider(provider));
+
+                    // ✅ Use ethers utilities instead of manual padding (research recommendation)
+                    const tokenIdBytes32 = ethers.utils.hexZeroPad(
+                      typeof tokenReq.tokenId === 'string' && tokenReq.tokenId.startsWith('0x')
+                        ? tokenReq.tokenId
+                        : ethers.BigNumber.from(tokenReq.tokenId).toHexString(),
+                      32
+                    );
+
+                    console.log(`[Inline-UP-LSP8] Token ID conversion: "${tokenReq.tokenId}" -> "${tokenIdBytes32}"`);
+                    console.log(`[Inline-UP-LSP8] Calling tokenOwnerOf on contract: ${tokenReq.contractAddress}`);
+
+                    const owner = await contract.tokenOwnerOf(tokenIdBytes32);
+                    const ownsSpecificToken = owner.toLowerCase() === upAddress.toLowerCase();
+                    
+                    console.log(`[Inline-UP-LSP8] TokenOwnerOf result: owner="${owner}", user="${upAddress}", owns=${ownsSpecificToken}`);
+                    
+                    newTokenBalances[contractAddress] = {
+                      balance: ownsSpecificToken ? '1' : '0',
+                      formattedBalance: ownsSpecificToken ? '1' : '0',
+                      decimals: undefined,
+                      name: tokenData.name || tokenReq.name,
+                      symbol: tokenData.symbol || tokenReq.symbol,
+                      isLoading: false,
+                      meetsRequirement: ownsSpecificToken
+                    };
+
+                    if (ownsSpecificToken) {
+                      console.log(`[Inline-UP-LSP8] ✅ User owns specific LSP8 token ID ${tokenReq.tokenId}`);
+                    } else {
+                      console.log(`[Inline-UP-LSP8] ❌ User does NOT own specific LSP8 token ID ${tokenReq.tokenId}`);
+                    }
+                  } else {
+                    throw new Error('Universal Profile provider not available');
+                  }
+                } else {
+                  throw new Error('No UP address available');
+                }
+              } catch (tokenIdError) {
+                console.error(`[Inline-UP-LSP8] ❌ Token ID verification failed:`, tokenIdError);
+                newTokenBalances[contractAddress] = {
+                  balance: '0',
+                  formattedBalance: '0',
+                  isLoading: false,
+                  error: 'Token ID verification failed',
+                  meetsRequirement: false
+                };
+              }
+            } else {
+              // Collection ownership or LSP7 token verification (existing logic)
+              const tokenData = await checkTokenBalance(tokenReq.contractAddress, tokenReq.tokenType);
+              
+              // Check if requirement is met
+              const userBalance = ethers.BigNumber.from(tokenData.balance);
+              
+              // Handle undefined minAmount for LSP8 tokens (default to "1")
+              let requiredAmount = tokenReq.minAmount;
+              if (tokenReq.tokenType === 'LSP8' && !requiredAmount) {
+                requiredAmount = '1';
+              }
+              
+              const requiredBalance = ethers.BigNumber.from(requiredAmount || '0');
+              const meetsRequirement = userBalance.gte(requiredBalance);
+              
+              newTokenBalances[contractAddress] = {
+                balance: tokenData.balance,
+                formattedBalance: tokenData.formattedBalance || '0',
+                decimals: tokenData.decimals,
+                name: tokenData.name || tokenReq.name,
+                symbol: tokenData.symbol || tokenReq.symbol,
+                isLoading: false,
+                meetsRequirement
+              };
             }
-            
-            const requiredBalance = ethers.BigNumber.from(requiredAmount || '0');
-            const meetsRequirement = userBalance.gte(requiredBalance);
-            
-            newTokenBalances[contractAddress] = {
-              balance: tokenData.balance,
-              formattedBalance: tokenData.formattedBalance || '0',
-              decimals: tokenData.decimals,
-              name: tokenData.name || tokenReq.name,
-              symbol: tokenData.symbol || tokenReq.symbol,
-              isLoading: false,
-              meetsRequirement
-            };
             
           } catch (error) {
             console.error(`Failed to load balance for ${tokenReq.symbol}:`, error);
@@ -190,7 +256,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       setTokenBalances({});
       setIsLoadingTokens(false);
     }
-  }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens]);
+  }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens, upAddress]);
 
   // Load follower data when connected and on correct chain
   React.useEffect(() => {
@@ -227,19 +293,26 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
             
             let status = false;
             
-            switch (followerReq.type) {
-              case 'minimum_followers':
-                const requiredCount = parseInt(followerReq.value);
-                status = (userFollowerCount || 0) >= requiredCount;
-                break;
-                
-              case 'followed_by':
-                status = await isFollowedBy(followerReq.value);
-                break;
-                
-              case 'following':
-                status = await isFollowing(followerReq.value);
-                break;
+            // 🎯 SELF-FOLLOW AUTO-PASS: Check if user is the required person
+            if (upAddress && followerReq.value.toLowerCase() === upAddress.toLowerCase()) {
+              console.log(`[InlineUPConnection] ✅ Auto-pass: User IS the required person (${upAddress}) for ${followerReq.type}`);
+              status = true;
+            } else {
+              // Normal verification logic
+              switch (followerReq.type) {
+                case 'minimum_followers':
+                  const requiredCount = parseInt(followerReq.value);
+                  status = (userFollowerCount || 0) >= requiredCount;
+                  break;
+                  
+                case 'followed_by':
+                  status = await isFollowedBy(followerReq.value);
+                  break;
+                  
+                case 'following':
+                  status = await isFollowing(followerReq.value);
+                  break;
+              }
             }
             
             newFollowerRequirements[reqKey] = {
@@ -277,9 +350,9 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       setFollowerData({
         followerRequirements: {},
         isLoadingFollowers: false
-             });
-     }
-   }, [isConnected, isCorrectChain, getFollowerCount, isFollowedBy, isFollowing, requirements?.followerRequirements]); // eslint-disable-line react-hooks/exhaustive-deps
+      });
+    }
+  }, [isConnected, isCorrectChain, getFollowerCount, isFollowedBy, isFollowing, requirements?.followerRequirements, upAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load UP profile names for follower requirements
   const fetchUPNames = React.useCallback(async (addresses: string[]) => {

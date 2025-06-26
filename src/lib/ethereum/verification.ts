@@ -479,6 +479,12 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_follow': {
+          // 🎯 SELF-FOLLOW AUTO-PASS: If user is the person they must follow, auto-pass
+          if (requirement.value.toLowerCase() === ethAddress.toLowerCase()) {
+            console.log(`[verifyEFPRequirements] ✅ Auto-pass: User IS the person they must follow (${ethAddress})`);
+            return { valid: true };
+          }
+
           // Use optimized pagination-based search
           const isFollowing = await checkEFPFollowing(ethAddress, requirement.value);
 
@@ -494,6 +500,12 @@ export async function verifyEFPRequirements(
         }
 
         case 'must_be_followed_by': {
+          // 🎯 SELF-FOLLOW AUTO-PASS: If user is the person who must do the following, auto-pass
+          if (requirement.value.toLowerCase() === ethAddress.toLowerCase()) {
+            console.log(`[verifyEFPRequirements] ✅ Auto-pass: User IS the required follower (${ethAddress})`);
+            return { valid: true };
+          }
+
           // Use optimized pagination-based search (check if requirement.value follows ethAddress)
           const isFollowedBy = await checkEFPFollowing(requirement.value, ethAddress);
 

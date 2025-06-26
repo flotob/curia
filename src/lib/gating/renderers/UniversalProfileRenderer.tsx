@@ -357,15 +357,29 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
         if (requirements.followerRequirements && requirements.followerRequirements.length > 0) {
           const newFollowerState: Record<string, boolean> = {};
           for (const req of requirements.followerRequirements) {
-            if (req.type === 'minimum_followers') {
-              const count = await upCtx.getFollowerCount(upCtx.upAddress);
-              newFollowerState[`minimum_followers-${req.value}`] = count >= parseInt(req.value);
-            } else if (req.type === 'followed_by') {
-              const status = await upCtx.isFollowedBy(req.value, upCtx.upAddress);
-              newFollowerState[`followed_by-${req.value}`] = status;
-            } else if (req.type === 'following') {
-              const status = await upCtx.isFollowing(req.value, upCtx.upAddress);
-              newFollowerState[`following-${req.value}`] = status;
+            // 🎯 SELF-FOLLOW AUTO-PASS: Check if user is the required person
+            if (upCtx.upAddress && req.value.toLowerCase() === upCtx.upAddress.toLowerCase()) {
+              console.log(`[UPConnectionComponent] ✅ Auto-pass: User IS the required person (${upCtx.upAddress}) for ${req.type}`);
+              
+              if (req.type === 'minimum_followers') {
+                newFollowerState[`minimum_followers-${req.value}`] = true;
+              } else if (req.type === 'followed_by') {
+                newFollowerState[`followed_by-${req.value}`] = true;
+              } else if (req.type === 'following') {
+                newFollowerState[`following-${req.value}`] = true;
+              }
+            } else {
+              // Normal verification logic
+              if (req.type === 'minimum_followers') {
+                const count = await upCtx.getFollowerCount(upCtx.upAddress);
+                newFollowerState[`minimum_followers-${req.value}`] = count >= parseInt(req.value);
+              } else if (req.type === 'followed_by') {
+                const status = await upCtx.isFollowedBy(req.value, upCtx.upAddress);
+                newFollowerState[`followed_by-${req.value}`] = status;
+              } else if (req.type === 'following') {
+                const status = await upCtx.isFollowing(req.value, upCtx.upAddress);
+                newFollowerState[`following-${req.value}`] = status;
+              }
             }
           }
           // Note: follower state is now handled through userStatus.followerStatus
@@ -701,13 +715,20 @@ This signature proves you control this Universal Profile and grants access to co
         bal = erc721Res.result as bigint;
       }
 
-      previewTokenBalances[req.contractAddress] = {
+      // 🎯 FIX: Use correct key for LSP8 tokens with specific token IDs
+      const tokenKey = req.tokenType === 'LSP8' && req.tokenId 
+        ? `${req.contractAddress}-${req.tokenId}` // Unique key for specific LSP8 tokens
+        : req.contractAddress; // Standard key for LSP7 and LSP8 collection verification
+
+      previewTokenBalances[tokenKey] = {
         raw: bal.toString(),
         formatted: ethers.utils.formatUnits(bal, 18),
         decimals: 18,
         name: req.name,
         symbol: req.symbol,
       };
+      
+      console.log(`[UP Renderer] 🔧 Preview token balance for ${req.contractAddress} (key: ${tokenKey}): raw=${bal.toString()}, tokenType=${req.tokenType}, tokenId=${req.tokenId || 'collection'}`);
     });
   }
 

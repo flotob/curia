@@ -326,6 +326,12 @@ export async function verifyFollowerRequirements(
         }
 
         case 'followed_by': {
+          // 🎯 SELF-FOLLOW AUTO-PASS: If user is the person who must do the following, auto-pass
+          if (requirement.value.toLowerCase() === upAddress.toLowerCase()) {
+            console.log(`[verifyFollowerRequirements] ✅ Auto-pass: User IS the required follower (${upAddress})`);
+            return { valid: true };
+          }
+
           // Call isFollowing(followerAddress, targetAddress) - check if requirement.value follows upAddress
           callData = iface.encodeFunctionData('isFollowing', [requirement.value, upAddress]);
           
@@ -353,6 +359,12 @@ export async function verifyFollowerRequirements(
         }
 
         case 'following': {
+          // 🎯 SELF-FOLLOW AUTO-PASS: If user is the person they must follow, auto-pass
+          if (requirement.value.toLowerCase() === upAddress.toLowerCase()) {
+            console.log(`[verifyFollowerRequirements] ✅ Auto-pass: User IS the person they must follow (${upAddress})`);
+            return { valid: true };
+          }
+
           // Call isFollowing(followerAddress, targetAddress) - check if upAddress follows requirement.value
           callData = iface.encodeFunctionData('isFollowing', [upAddress, requirement.value]);
           

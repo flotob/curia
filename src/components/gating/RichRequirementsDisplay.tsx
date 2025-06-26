@@ -249,9 +249,14 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   }> = {};
   if (requirements.requiredTokens) {
     requirements.requiredTokens.forEach(token => {
-      const tokenData = userStatus.balances?.tokens?.[token.contractAddress];
+      // 🎯 FIX: Use same tokenKey logic that matches data storage
+      const tokenKey = token.tokenType === 'LSP8' && token.tokenId 
+        ? `${token.contractAddress}-${token.tokenId}` // Unique key for specific LSP8 tokens
+        : token.contractAddress; // Standard key for LSP7 and LSP8 collection verification
+        
+      const tokenData = userStatus.balances?.tokens?.[tokenKey];
       const metadata = tokenMetadata[token.contractAddress.toLowerCase()];
-      tokenVerifications[token.contractAddress] = {
+      tokenVerifications[tokenKey] = {
         balance: tokenData?.raw || '0',
         formattedBalance: tokenData?.formatted || '0',
         name: metadata?.name || token.name,
@@ -262,6 +267,8 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
           ethers.BigNumber.from(tokenData.raw).gte(ethers.BigNumber.from(token.minAmount || '0')) : false,
         isLoading: isLoadingTokenMetadata && !metadata
       };
+      
+      console.log(`[RichRequirementsDisplay] 🔧 Token verification for ${token.contractAddress} (key: ${tokenKey}): balance=${tokenData?.raw || '0'}, meets=${tokenVerifications[tokenKey].meetsRequirement}`);
     });
   }
 
@@ -435,13 +442,22 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
           {requirements.requiredTokens && requirements.requiredTokens.length > 0 && (
             <>
               {requirements.requiredTokens.map((tokenReq, index) => {
-                const tokenData = tokenVerifications[tokenReq.contractAddress];
+                // 🎯 FIX: Use same tokenKey logic that matches data storage
+                const tokenKey = tokenReq.tokenType === 'LSP8' && tokenReq.tokenId 
+                  ? `${tokenReq.contractAddress}-${tokenReq.tokenId}` // Unique key for specific LSP8 tokens
+                  : tokenReq.contractAddress; // Standard key for LSP7 and LSP8 collection verification
+                  
+                const tokenData = tokenVerifications[tokenKey];
                 let displayAmount: string;
                 
                 if (tokenReq.tokenType === 'LSP7') {
                   displayAmount = ethers.utils.formatUnits(tokenReq.minAmount || '0', tokenData?.decimals || 18);
                 } else {
                   displayAmount = tokenReq.minAmount || '1';
+                  // For LSP8 with specific token ID, show token ID in display
+                  if (tokenReq.tokenId) {
+                    displayAmount = `Token #${tokenReq.tokenId}`;
+                  }
                 }
                 
                 return (
@@ -470,12 +486,15 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                         <div className="font-medium text-sm flex items-center space-x-2">
                           <span>{tokenData?.symbol || tokenReq.symbol || tokenReq.name}</span>
                           <Badge variant="outline" className="text-xs">
-                            {tokenReq.tokenType}
+                            {tokenReq.tokenType}{tokenReq.tokenId ? ` #${tokenReq.tokenId}` : ''}
                           </Badge>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Required: {displayAmount} {tokenData?.symbol || tokenReq.symbol || 'tokens'}
-                          {userStatus.connected && tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`}
+                          Required: {displayAmount} {tokenReq.tokenType === 'LSP8' && !tokenReq.tokenId ? tokenData?.symbol || tokenReq.symbol || 'tokens' : ''}
+                          {userStatus.connected && tokenData && tokenReq.tokenType === 'LSP8' && tokenReq.tokenId 
+                            ? (tokenData.formattedBalance === '1' ? ' • ✅ You own this token' : ' • ❌ You don\'t own this token')
+                            : userStatus.connected && tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`
+                          }
                         </div>
                       </div>
                     </div>

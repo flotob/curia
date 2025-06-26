@@ -396,48 +396,97 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
 
     try {
       for (const requirement of requirements) {
-        const balances = await getTokenBalances([requirement.contractAddress]);
-        const tokenBalance = balances.find(b => b.contractAddress.toLowerCase() === requirement.contractAddress.toLowerCase());
-        
-        if (!tokenBalance) {
-          result.isValid = false;
-          result.missingRequirements.push(`Missing token: ${requirement.name || requirement.contractAddress}`);
-          continue;
-        }
-        
-        // Handle minAmount check (with special LSP8 logic)
-        let requiredAmount = requirement.minAmount;
-        
-        // For LSP8 tokens without specified minAmount, default to "1" (must own at least 1 NFT)
-        if (requirement.tokenType === 'LSP8' && !requiredAmount) {
-          requiredAmount = '1';
-        }
-        
-        if (requiredAmount) {
+        // 🎯 LSP8 TOKEN ID FIX: Check for specific token ID verification
+        if (requirement.tokenType === 'LSP8' && requirement.tokenId) {
+          console.log(`[UP-Context-LSP8] ✅ Starting specific token ID verification: ${requirement.tokenId}`);
+          
           try {
-            const balanceBN = ethers.BigNumber.from(tokenBalance.balance);
-            const minAmountBN = ethers.BigNumber.from(requiredAmount);
-            
-            if (balanceBN.lt(minAmountBN)) {
-              result.isValid = false;
-              const tokenName = requirement.name || requirement.symbol || 'tokens';
-              
-              if (requirement.tokenType === 'LSP8') {
-                const nftCount = balanceBN.toString();
-                const requiredCount = minAmountBN.toString();
-                result.missingRequirements.push(
-                  `Insufficient ${tokenName} NFTs: need ${requiredCount}, have ${nftCount}`
-                );
-              } else {
-                result.missingRequirements.push(
-                  `Insufficient ${tokenName}: need ${requiredAmount}, have ${tokenBalance.balance}`
-                );
-              }
+            // Use tokenOwnerOf for specific token ownership
+            const provider = getProvider();
+            if (!provider) {
+              throw new Error('No provider available');
             }
-          } catch (bnError) {
-            console.error(`BigNumber error for token ${requirement.contractAddress}:`, bnError);
+
+            const contract = new ethers.Contract(requirement.contractAddress, [
+              'function tokenOwnerOf(bytes32) view returns (address)'
+            ], provider);
+
+            // ✅ Use ethers utilities instead of manual padding (research recommendation)
+            const tokenIdBytes32 = ethers.utils.hexZeroPad(
+              typeof requirement.tokenId === 'string' && requirement.tokenId.startsWith('0x')
+                ? requirement.tokenId
+                : ethers.BigNumber.from(requirement.tokenId).toHexString(),
+              32
+            );
+
+            console.log(`[UP-Context-LSP8] Token ID conversion: "${requirement.tokenId}" -> "${tokenIdBytes32}"`);
+            console.log(`[UP-Context-LSP8] Calling tokenOwnerOf on contract: ${requirement.contractAddress}`);
+
+            const owner = await contract.tokenOwnerOf(tokenIdBytes32);
+            const ownsSpecificToken = owner.toLowerCase() === upAddress.toLowerCase();
+            
+            console.log(`[UP-Context-LSP8] TokenOwnerOf result: owner="${owner}", user="${upAddress}", owns=${ownsSpecificToken}`);
+            
+            if (!ownsSpecificToken) {
+              result.isValid = false;
+              const tokenName = requirement.name || requirement.symbol || 'NFT';
+              result.missingRequirements.push(
+                `Does not own specific ${tokenName} with token ID ${requirement.tokenId}`
+              );
+            } else {
+              console.log(`[UP-Context-LSP8] ✅ User owns specific LSP8 token ID ${requirement.tokenId}`);
+            }
+          } catch (tokenError) {
+            console.error(`[UP-Context-LSP8] ❌ Token ID verification failed:`, tokenError);
             result.isValid = false;
-            result.errors.push(`Invalid token amount for ${requirement.name || requirement.contractAddress}`);
+            result.errors.push(`Failed to verify specific token ownership: ${tokenError}`);
+          }
+          
+        } else {
+          // Collection ownership or LSP7 token verification (existing logic)
+          const balances = await getTokenBalances([requirement.contractAddress]);
+          const tokenBalance = balances.find(b => b.contractAddress.toLowerCase() === requirement.contractAddress.toLowerCase());
+          
+          if (!tokenBalance) {
+            result.isValid = false;
+            result.missingRequirements.push(`Missing token: ${requirement.name || requirement.contractAddress}`);
+            continue;
+          }
+          
+          // Handle minAmount check (with special LSP8 logic)
+          let requiredAmount = requirement.minAmount;
+          
+          // For LSP8 tokens without specified minAmount, default to "1" (must own at least 1 NFT)
+          if (requirement.tokenType === 'LSP8' && !requiredAmount) {
+            requiredAmount = '1';
+          }
+          
+          if (requiredAmount) {
+            try {
+              const balanceBN = ethers.BigNumber.from(tokenBalance.balance);
+              const minAmountBN = ethers.BigNumber.from(requiredAmount);
+              
+              if (balanceBN.lt(minAmountBN)) {
+                result.isValid = false;
+                const tokenName = requirement.name || requirement.symbol || 'tokens';
+                
+                if (requirement.tokenType === 'LSP8') {
+                  const nftCount = balanceBN.toString();
+                  const requiredCount = minAmountBN.toString();
+                  result.missingRequirements.push(
+                    `Insufficient ${tokenName} NFTs: need ${requiredCount}, have ${nftCount}`
+                  );
+                } else {
+                  result.missingRequirements.push(
+                    `Insufficient ${tokenName}: need ${requiredAmount}, have ${tokenBalance.balance}`
+                  );
+                }
+              }
+            } catch (bnError) {
+              console.error(`BigNumber error for token ${requirement.contractAddress}:`, bnError);
+              result.isValid = false;
+              result.errors.push(`Invalid token amount for ${requirement.name || requirement.contractAddress}`);
+            }
           }
         }
       }
@@ -447,7 +496,7 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     }
 
     return result;
-  }, [upAddress, getTokenBalances]);
+  }, [upAddress, getTokenBalances, getProvider]);
 
   // LSP26 Follower verification methods
   const getFollowerCount = useCallback(async (address?: string): Promise<number> => {
@@ -488,6 +537,16 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
 
     try {
       console.log(`[UP Context] Verifying ${requirements.length} follower requirements`);
+      
+      // 🎯 SELF-FOLLOW AUTO-PASS: Check each requirement for self-follow cases
+      for (const requirement of requirements) {
+        if (requirement.value.toLowerCase() === upAddress.toLowerCase()) {
+          console.log(`[UP Context] ✅ Auto-pass: User IS the required person (${upAddress}) for requirement type: ${requirement.type}`);
+          // If user is the required person, they automatically pass this requirement
+          continue;
+        }
+      }
+      
       const lsp26Result = await lsp26Registry.verifyFollowerRequirements(upAddress, requirements);
       
       // Fix the error message mapping
