@@ -101,6 +101,19 @@
   }
 }
 
+/* Enhanced frosted glass notification animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* RainbowKit Modal Z-Index Fixes */
 /* Override RainbowKit's default z-index values to prevent overlay issues */
 [data-rk] {
