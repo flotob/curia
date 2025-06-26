@@ -170,7 +170,8 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
     if (selectedTags.length > 0) {
       // Use @> operator for "contains all" (AND logic) - posts must have ALL specified tags
       baseWhere += ` AND p.tags @> $${baseParams.length + 1}`;
-      baseParams.push(JSON.stringify(selectedTags)); // Pass as JSON string for PostgreSQL array
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      baseParams.push(selectedTags as any); // Cast to any - pg library supports arrays despite type limitation
       console.log(`[API GET /api/posts] Filtering by tags: [${selectedTags.join(', ')}] (AND logic)`);
     }
 
@@ -217,7 +218,8 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
 
     allParams.push(limit);
 
-    const result = await query(postsQueryText, allParams);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await query(postsQueryText, allParams as any); // Cast to bypass type limitation
     const posts: ApiPost[] = result.rows.map(row => ({
       ...row,
       user_has_upvoted: row.user_has_upvoted === undefined ? false : row.user_has_upvoted,

@@ -3,6 +3,7 @@
 import React from 'react';
 import { PostCard } from './PostCard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
@@ -22,6 +23,10 @@ interface FeedListProps {
 
 export const FeedList: React.FC<FeedListProps> = ({ boardId, boardInfo }) => {
   const { token, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const searchParams = useSearchParams();
+  
+  // 🏷️ Read tags from URL parameters for filtering
+  const tags = searchParams?.get('tags') || null;
   
   const {
     posts,
@@ -34,6 +39,7 @@ export const FeedList: React.FC<FeedListProps> = ({ boardId, boardInfo }) => {
   } = useInfiniteScroll({
     token,
     boardId,
+    tags,
     enabled: isAuthenticated
   });
 

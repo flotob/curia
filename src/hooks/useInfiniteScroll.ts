@@ -5,6 +5,7 @@ import { ApiPost } from '@/app/api/posts/route';
 interface UseInfiniteScrollOptions {
   token: string | null;
   boardId?: string | null;
+  tags?: string | null;
   enabled?: boolean;
 }
 
@@ -19,7 +20,8 @@ interface PostsResponse {
 
 async function fetchPostsWithCursor(
   cursor: string | null, 
-  boardId: string | null, 
+  boardId: string | null,
+  tags: string | null,
   token: string
 ): Promise<PostsResponse> {
   const params = new URLSearchParams({
@@ -28,16 +30,17 @@ async function fetchPostsWithCursor(
   
   if (cursor) params.append('cursor', cursor);
   if (boardId) params.append('boardId', boardId);
+  if (tags) params.append('tags', tags);
   
   return authFetchJson<PostsResponse>(`/api/posts?${params.toString()}`, { token });
 }
 
-export function useInfiniteScroll({ token, boardId, enabled = true }: UseInfiniteScrollOptions) {
+export function useInfiniteScroll({ token, boardId, tags, enabled = true }: UseInfiniteScrollOptions) {
   const query = useInfiniteQuery({
-    queryKey: ['posts', boardId],
+    queryKey: ['posts', boardId, tags],
     queryFn: ({ pageParam }: { pageParam: string | null | undefined }) => {
       const cursor = (pageParam ?? null) as string | null;
-      return fetchPostsWithCursor(cursor, boardId ?? null, token!);
+      return fetchPostsWithCursor(cursor, boardId ?? null, tags ?? null, token!);
     },
     getNextPageParam: (lastPage: PostsResponse) => lastPage.pagination.nextCursor,
     initialPageParam: null as string | null,
