@@ -162,53 +162,111 @@ export async function verifyLSP7Balance(
 /**
  * Verify LSP8 NFT ownership requirement using raw RPC calls
  * 
- * LSP8 tokens are NFTs (like ERC721) with balanceOf(address) function
- * For now, we check if user owns ANY NFT from the collection (balanceOf > 0)
+ * LSP8 tokens are NFTs (like ERC721) with balanceOf(address) and tokenOwnerOf(bytes32) functions
+ * Supports both collection ownership (any NFT) and specific token ID ownership
  */
 export async function verifyLSP8Ownership(
   upAddress: string,
   requirement: TokenRequirement
 ): Promise<TokenVerificationResult> {
   try {
-    console.log(`[verifyLSP8Ownership] Checking LSP8 NFT collection ${requirement.contractAddress} for ${upAddress}`);
+    console.log(`[verifyLSP8Ownership] Checking LSP8 NFT ${requirement.contractAddress} for ${upAddress}`);
 
-    // Manual ABI encoding for balanceOf(address) call (same as LSP7)
-    const balanceOfSelector = TOKEN_FUNCTION_SELECTORS.LSP8_BALANCE_OF;
-    const addressParam = upAddress.slice(2).padStart(64, '0'); // Remove 0x and pad to 32 bytes
-    const callData = balanceOfSelector + addressParam;
+    // Check if this is a specific token ID requirement
+    if (requirement.tokenId) {
+      console.log(`[verifyLSP8Ownership] Verifying ownership of specific token ID: ${requirement.tokenId}`);
+      
+      // Manual ABI encoding for tokenOwnerOf(bytes32 tokenId) call
+      const tokenOwnerOfSelector = TOKEN_FUNCTION_SELECTORS.LSP8_TOKEN_OWNER_OF;
+      
+      // Convert tokenId to bytes32 (LSP8 uses bytes32 instead of uint256)
+      let tokenIdBytes32: string;
+      if (requirement.tokenId.startsWith('0x')) {
+        // Already hex, pad to 32 bytes
+        tokenIdBytes32 = requirement.tokenId.slice(2).padStart(64, '0');
+      } else {
+        // Convert number to hex and pad to 32 bytes
+        const tokenIdBN = ethers.BigNumber.from(requirement.tokenId);
+        tokenIdBytes32 = tokenIdBN.toHexString().slice(2).padStart(64, '0');
+      }
+      
+      const callData = tokenOwnerOfSelector + tokenIdBytes32;
 
-    // Call balanceOf on the LSP8 NFT contract
-    const balanceHex = await rawLuksoCall('eth_call', [
-      {
-        to: requirement.contractAddress,
-        data: callData
-      },
-      'latest'
-    ]);
+      // Call tokenOwnerOf on the LSP8 NFT contract
+      const ownerHex = await rawLuksoCall('eth_call', [
+        {
+          to: requirement.contractAddress,
+          data: callData
+        },
+        'latest'
+      ]);
 
-    // Convert hex balance to number (for NFTs, this is the count of tokens owned)
-    const nftCount = ethers.BigNumber.from(balanceHex);
-    const minRequired = ethers.BigNumber.from(requirement.minAmount || '1'); // Default to 1 NFT if not specified
+      // Extract the owner address from the response
+      const owner = ethers.utils.getAddress('0x' + (ownerHex as string).slice(-40));
+      const ownsSpecificToken = owner.toLowerCase() === upAddress.toLowerCase();
+      
+      if (!ownsSpecificToken) {
+        return {
+          valid: false,
+          error: `Does not own specific ${requirement.symbol || requirement.name} NFT with token ID ${requirement.tokenId}`,
+          balance: '0'
+        };
+      }
 
-    if (nftCount.lt(minRequired)) {
+      console.log(`[verifyLSP8Ownership] ✅ Specific token ownership verified: ${upAddress} owns token ID ${requirement.tokenId}`);
       return {
-        valid: false,
-        error: `Insufficient ${requirement.symbol || requirement.name} NFTs. Required: ${minRequired.toString()}, Current: ${nftCount.toString()}`,
+        valid: true,
+        balance: '1' // Owns the specific token
+      };
+      
+    } else {
+      // Collection ownership check - existing logic
+      console.log(`[verifyLSP8Ownership] Verifying collection ownership (any NFT from collection)`);
+      
+      // Manual ABI encoding for balanceOf(address) call
+      const balanceOfSelector = TOKEN_FUNCTION_SELECTORS.LSP8_BALANCE_OF;
+      const addressParam = upAddress.slice(2).padStart(64, '0'); // Remove 0x and pad to 32 bytes
+      const callData = balanceOfSelector + addressParam;
+
+      // Call balanceOf on the LSP8 NFT contract
+      const balanceHex = await rawLuksoCall('eth_call', [
+        {
+          to: requirement.contractAddress,
+          data: callData
+        },
+        'latest'
+      ]);
+
+      // Convert hex balance to number (for NFTs, this is the count of tokens owned)
+      const nftCount = ethers.BigNumber.from(balanceHex);
+      const minRequired = ethers.BigNumber.from(requirement.minAmount || '1'); // Default to 1 NFT if not specified
+
+      if (nftCount.lt(minRequired)) {
+        return {
+          valid: false,
+          error: `Insufficient ${requirement.symbol || requirement.name} NFTs. Required: ${minRequired.toString()}, Current: ${nftCount.toString()}`,
+          balance: nftCount.toString()
+        };
+      }
+
+      console.log(`[verifyLSP8Ownership] ✅ Collection ownership verified: owns ${nftCount.toString()} NFTs >= ${minRequired.toString()} required`);
+      return {
+        valid: true,
         balance: nftCount.toString()
       };
     }
 
-    console.log(`[verifyLSP8Ownership] NFT ownership check passed: owns ${nftCount.toString()} NFTs >= ${minRequired.toString()} required`);
-    return {
-      valid: true,
-      balance: nftCount.toString()
-    };
-
   } catch (error) {
     console.error(`[verifyLSP8Ownership] Failed to verify LSP8 NFT ${requirement.contractAddress}:`, error);
+    
+    // Provide more specific error message
+    const errorMessage = requirement.tokenId 
+      ? `Unable to verify ownership of specific ${requirement.symbol || requirement.name} NFT (ID: ${requirement.tokenId}). Please check your connection and try again.`
+      : `Unable to verify ${requirement.symbol || requirement.name} NFT ownership. Please check your connection and try again.`;
+      
     return {
       valid: false,
-      error: `Unable to verify ${requirement.symbol || requirement.name} NFT ownership. Please check your connection and try again.`,
+      error: errorMessage,
     };
   }
 }
