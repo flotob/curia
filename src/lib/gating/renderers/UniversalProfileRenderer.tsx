@@ -396,6 +396,9 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
 
   // Check if requirements are met based on fulfillment mode
   const allRequirementsMet = useMemo(() => {
+    // 🔍 DEBUG: Log fulfillment prop value in UPConnectionComponent
+    console.log(`[UPConnectionComponent] 🔧 Fulfillment mode: "${fulfillment}" (${typeof fulfillment}), connected: ${userStatus?.connected}`);
+    
     if (!userStatus?.connected) return false;
     
     // 🚀 NEW: Dynamic ANY/ALL logic based on fulfillment mode
@@ -417,14 +420,17 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
       }
     }
     
-    // Check token requirements
+    // Check token requirements - 🚀 FIX: Handle individual tokens based on fulfillment mode
     if (requirements.requiredTokens?.length) {
       if (!userStatus.tokenBalances) {
-        requirementResults.push(false); // No token data loaded
+        // If no token data loaded, push false for each token requirement
+        requirements.requiredTokens.forEach(() => {
+          requirementResults.push(false);
+        });
       } else {
         const balancesArr = userStatus.tokenBalances as unknown as { status: string; result?: unknown }[];
-        let allTokensSatisfied = true;
         
+        // 🚀 NEW: Check each token individually for proper ANY/ALL logic
         for (let i = 0; i < requirements.requiredTokens.length; i++) {
           const req = requirements.requiredTokens[i];
           const erc20Res = balancesArr[i * 2];
@@ -440,12 +446,11 @@ const UPConnectionComponent: React.FC<UPConnectionComponentProps> = ({
           const requiredAmount = ethers.BigNumber.from(req.minAmount || '0');
           const userAmount = ethers.BigNumber.from(bal.toString());
           
-          if (userAmount.lt(requiredAmount)) {
-            allTokensSatisfied = false; 
-            break;
-          }
+          const tokenSatisfied = userAmount.gte(requiredAmount);
+          requirementResults.push(tokenSatisfied);
+          
+          console.log(`[UPConnectionComponent] Token ${req.contractAddress}${req.tokenId ? `-${req.tokenId}` : ''}: ${tokenSatisfied ? 'PASSED' : 'FAILED'} (has: ${userAmount.toString()}, needs: ${requiredAmount.toString()})`);
         }
-        requirementResults.push(allTokensSatisfied);
       }
     }
     
