@@ -11,7 +11,6 @@ import {
   MessageSquare, 
   Share2,
   ExternalLink,
-  Copy,
   Users2,
   Shield,
   Lock,
@@ -30,6 +29,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { BoardVerificationApiResponse } from '@/types/boardVerification';
+import { buildExternalShareUrl } from '@/utils/urlBuilder';
+import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 
 // Navigation context interface
 interface NavigationContext {
@@ -104,8 +105,20 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
 
   // Navigation handlers
   const handleHomeClick = () => {
-    const url = buildInternalUrl('/');
-    router.push(url);
+    // Go to home, removing boardId parameter but preserving others
+    const params = new URLSearchParams();
+    
+    // Preserve existing params except boardId
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        if (key !== 'boardId') {
+          params.set(key, value);
+        }
+      });
+    }
+    
+    const homeUrl = params.toString() ? `/?${params.toString()}` : '/';
+    router.push(homeUrl);
   };
 
   const handleBoardClick = () => {
@@ -122,46 +135,102 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
     }
   };
 
-  // Copy post link to clipboard
-  const handleCopyPostLink = async () => {
-    if (currentPost && currentBoard) {
-      const url = `${window.location.origin}/board/${currentBoard.id}/post/${currentPost.id}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success('Post link copied to clipboard');
-      } catch (err) {
-        console.error('Failed to copy link:', err);
-        toast.error('Failed to copy link');
-      }
-    }
-  };
-
-  // Share post (Web Share API if available)
+  // Share post using the same sophisticated logic as PostCard
   const handleSharePost = async () => {
-    if (currentPost && currentBoard) {
-      const url = `${window.location.origin}/board/${currentBoard.id}/post/${currentPost.id}`;
-      const shareData = {
-        title: currentPost.title,
-        text: `Check out this discussion: ${currentPost.title}`,
-        url: url,
-      };
+    if (!currentPost || !currentBoard) {
+      console.error('[ContextualNavigationCard] Cannot share post: missing post or board data');
+      return;
+    }
 
-      try {
-        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-        } else {
-          // Fallback to copy
-          await handleCopyPostLink();
-        }
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Sharing failed:', err);
-          // Fallback to copy
-          await handleCopyPostLink();
+    let generatedShareUrl: string;
+    
+    try {
+      console.log(`[ContextualNavigationCard] Generating share URL for post ${currentPost.id}`);
+      
+      // Detect shared board and get appropriate community context
+      let communityShortId = user?.communityShortId;
+      let pluginId = user?.pluginId;
+
+      // For shared boards, use source community context instead of importing community
+      if (currentBoard.is_imported && currentBoard.source_community_id && token) {
+        try {
+          console.log(`[ContextualNavigationCard] Shared board detected, fetching source community context for ${currentBoard.source_community_id}`);
+          const sourceCommunity = await authFetchJson<ApiCommunity>(
+            `/api/communities/${currentBoard.source_community_id}`, 
+            { token }
+          );
+                     communityShortId = sourceCommunity.community_short_id;
+           pluginId = sourceCommunity.plugin_id;
+          console.log(`[ContextualNavigationCard] Using source community context: ${communityShortId} / ${pluginId}`);
+        } catch (error) {
+          console.warn('[ContextualNavigationCard] Failed to fetch source community context, using importing community context:', error);
+          // Fall back to importing community context
         }
       }
+
+      generatedShareUrl = await buildExternalShareUrl(
+        currentPost.id, 
+        currentBoard.id, 
+        communityShortId || undefined,
+        pluginId || undefined,
+        currentPost.title,
+        currentBoard.name
+      );
+      
+      console.log(`[ContextualNavigationCard] Successfully created semantic URL: ${generatedShareUrl}`);
+      
+    } catch (shareUrlError) {
+      console.warn('[ContextualNavigationCard] Failed to create semantic URL, using internal fallback:', shareUrlError);
+      
+      // Fallback to internal URL if semantic URL generation fails
+      try {
+        generatedShareUrl = `${window.location.origin}/board/${currentBoard.id}/post/${currentPost.id}`;
+        console.log(`[ContextualNavigationCard] Using internal fallback URL: ${generatedShareUrl}`);
+      } catch (fallbackError) {
+        console.error('[ContextualNavigationCard] Failed to generate any URL:', fallbackError);
+        return;
+      }
+    }
+
+    // Try Web Share API first (mobile-friendly)
+    const isWebShareSupported = typeof navigator.share === 'function';
+    const isMobileDevice = 'ontouchstart' in window || 
+                          navigator.maxTouchPoints > 0 ||
+                          /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isWebShareSupported && isMobileDevice) {
+      try {
+        await navigator.share({
+          title: currentPost.title,
+          text: `Check out this discussion: "${currentPost.title}"`,
+          url: generatedShareUrl,
+        });
+        console.log('[ContextualNavigationCard] Successfully shared using Web Share API');
+        return;
+        
+      } catch (webShareError) {
+        // Check if this is a user cancellation (not an error we should log)
+        if (webShareError instanceof Error && webShareError.name === 'AbortError') {
+          console.log('[ContextualNavigationCard] User cancelled Web Share');
+          return;
+        }
+        
+        console.warn('[ContextualNavigationCard] Web Share API failed, falling back to clipboard:', webShareError);
+        // Continue to clipboard fallback
+      }
+    }
+
+    // Fallback: Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(generatedShareUrl);
+      toast.success('Post link copied to clipboard');
+    } catch (err) {
+      console.error('[ContextualNavigationCard] Failed to copy link:', err);
+      toast.error('Failed to copy link');
     }
   };
+
+
 
   // Render based on navigation context
   switch (navigationContext.type) {
@@ -174,26 +243,15 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                 <FileText className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
                 <span>Current Post</span>
               </div>
-              <div className="flex items-center space-x-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyPostLink}
-                  className="h-6 w-6 p-0"
-                  title="Copy post link"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSharePost}
-                  className="h-6 w-6 p-0"
-                  title="Share post"
-                >
-                  <Share2 className="h-3 w-3" />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSharePost}
+                className="h-6 w-6 p-0"
+                title="Share post"
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
