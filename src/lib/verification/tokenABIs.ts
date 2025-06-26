@@ -129,7 +129,7 @@ export const TOKEN_FUNCTION_SELECTORS = {
   
   // LSP8 functions  
   LSP8_BALANCE_OF: '0x70a08231',     // balanceOf(address) - same as LSP7
-  LSP8_TOKEN_OWNER_OF: '0x6352211e', // tokenOwnerOf(bytes32)
+  LSP8_TOKEN_OWNER_OF: '0x217b2270', // tokenOwnerOf(bytes32) - 🎯 FIXED: was using ERC721 ownerOf selector
   LSP8_NAME: '0x06fdde03',           // name() - same as LSP7
   LSP8_SYMBOL: '0x95d89b41',         // symbol() - same as LSP7
   LSP8_TOTAL_SUPPLY: '0x18160ddd',   // totalSupply()

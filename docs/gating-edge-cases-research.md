@@ -214,7 +214,7 @@ if (requirement.tokenId) {
 *Research conducted: January 2025*
 *Status: Investigation Complete, Implementation Complete*
 
-## ✅ FINAL IMPLEMENTATION STATUS - ALL 4 CRITICAL ISSUES RESOLVED ✅
+## ✅ FINAL IMPLEMENTATION STATUS - ALL 5 CRITICAL ISSUES RESOLVED ✅
 
 ### Issue 1: Self-Follow Paradox - FULLY FIXED ✅
 **Implementation**: Added address comparison checks with **auto-pass logic** in both LSP26 and EFP verification functions
@@ -255,6 +255,8 @@ if (requirement.tokenId) {
 - Frontend verification: Direct `window.lukso` provider calls with wagmi integration
 - Data structure: Uses `${contractAddress}-${tokenId}` keys for unique token identification
 - UI components: Updated to handle both collection and specific token ID verification
+
+**Result**: Frontend now correctly shows "Requirements met (3/4) - ready to comment!" and enables verify button for ANY fulfillment mode in both preview AND post contexts
 
 ### 🚨 Issue 3: Fulfillment Mode Bug - NEWLY DISCOVERED & FIXED ✅
 **Problem**: Backend token verification was hardcoded to require ALL tokens (AND logic) instead of respecting category fulfillment mode
@@ -364,7 +366,7 @@ All critical gating edge cases have been identified and fixed:
 
 *Research conducted: January 2025*  
 *Status: Investigation Complete, Implementation Complete*  
-*All 4 critical gating edge cases successfully resolved* ✅
+*All 5 critical gating edge cases successfully resolved* ✅
 
 ## 🔍 CRITICAL FINDING: Frontend/Backend Verification Architecture Divergence
 
@@ -511,3 +513,41 @@ Based on code analysis, the divergence likely occurred when:
 
 *Status: Investigation Complete, Ready for Implementation*
 *Next Steps: Choose implementation approach and begin Phase 1* 
+
+### 🚨 Issue 5: LSP8 Function Selector Bug - NEWLY DISCOVERED & FIXED ✅
+**Problem**: Backend verification was failing for ALL LSP8 tokens with "execution reverted" RPC errors
+
+**Root Cause**: Critical function selector bug in `src/lib/verification/tokenABIs.ts`
+- **Used WRONG selector**: `0x6352211e` (ERC721's `ownerOf(uint256)`)
+- **Should use**: `0x217b2270` (LSP8's `tokenOwnerOf(bytes32)`)
+
+**Technical Details**:
+```typescript
+// ❌ WRONG: ERC721 function
+ownerOf(uint256) → 0x6352211e
+
+// ✅ CORRECT: LSP8 function  
+tokenOwnerOf(bytes32) → 0x217b2270
+```
+
+**Symptoms**:
+- ALL backend RPC calls failed with "execution reverted"  
+- Error: "Unable to verify ownership of specific BASED NFT (ID: 4222)"
+- Frontend verification worked, backend verification completely broken
+
+**Logs Evidence**:
+```
+[rawLuksoCall] Failed eth_call on https://rpc.mainnet.lukso.network: Error: execution reverted
+[rawLuksoCall] Failed eth_call on https://42.rpc.thirdweb.com: Error: execution reverted
+[verifyLSP8Ownership] Failed to verify LSP8 NFT: Error: All RPC endpoints failed for eth_call
+```
+
+**Fix Implementation**: `src/lib/verification/tokenABIs.ts`
+- **Calculated correct selector**: `ethers.utils.id('tokenOwnerOf(bytes32)').slice(0,10)`
+- **Updated TOKEN_FUNCTION_SELECTORS.LSP8_TOKEN_OWNER_OF**: `0x6352211e` → `0x217b2270`
+
+**Result**: Backend verification now correctly calls LSP8 `tokenOwnerOf` function, RPC calls succeed, and ANY fulfillment mode works end-to-end
+
+---
+
+## ✅ FINAL IMPLEMENTATION STATUS - ALL 5 CRITICAL ISSUES RESOLVED ✅ 
