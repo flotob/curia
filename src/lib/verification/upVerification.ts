@@ -413,13 +413,18 @@ export async function verifyFollowerRequirements(
 
 /**
  * Verify token requirements for both LSP7 and LSP8 tokens
+ * 
+ * @param upAddress - Universal Profile address to verify
+ * @param requirements - Array of token requirements to check
+ * @param fulfillment - Fulfillment mode: "any" (OR logic) or "all" (AND logic). Defaults to "all" for backward compatibility.
  */
 export async function verifyTokenRequirements(
   upAddress: string,
-  requirements: TokenRequirement[]
+  requirements: TokenRequirement[],
+  fulfillment: "any" | "all" = "all"
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    console.log(`[verifyTokenRequirements] Checking ${requirements.length} token requirements for ${upAddress}`);
+    console.log(`[verifyTokenRequirements] Checking ${requirements.length} token requirements for ${upAddress} with fulfillment mode: ${fulfillment}`);
 
     // Process all token requirements in parallel for better performance
     const verificationPromises = requirements.map(async (requirement) => {
@@ -437,18 +442,35 @@ export async function verifyTokenRequirements(
 
     const results = await Promise.all(verificationPromises);
 
-    // Check if all requirements are met
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      if (!result.valid) {
-        const requirement = requirements[i];
-        console.log(`[verifyTokenRequirements] Token requirement failed: ${requirement.symbol || requirement.name} - ${result.error}`);
-        return { valid: false, error: result.error };
+    // 🚀 NEW: Apply fulfillment logic instead of hardcoded "all" requirement
+    const validResults = results.filter(result => result.valid);
+    const failedResults = results.filter(result => !result.valid);
+
+    if (fulfillment === 'any') {
+      // ANY mode: At least one token requirement must pass
+      if (validResults.length > 0) {
+        console.log(`[verifyTokenRequirements] ✅ ANY mode satisfied: ${validResults.length}/${requirements.length} token requirements met`);
+        return { valid: true };
+      } else {
+        console.log(`[verifyTokenRequirements] ❌ ANY mode failed: 0/${requirements.length} token requirements met`);
+        
+        // For ANY mode, show the first error as representative
+        const firstError = failedResults.length > 0 ? failedResults[0].error : 'No token requirements satisfied';
+        return { valid: false, error: firstError };
+      }
+    } else {
+      // ALL mode: All token requirements must pass (original behavior)
+      if (validResults.length === requirements.length) {
+        console.log(`[verifyTokenRequirements] ✅ ALL mode satisfied: ${validResults.length}/${requirements.length} token requirements met`);
+        return { valid: true };
+      } else {
+        console.log(`[verifyTokenRequirements] ❌ ALL mode failed: ${validResults.length}/${requirements.length} token requirements met`);
+        
+        // For ALL mode, show the first failure
+        const firstFailure = failedResults.find(result => !result.valid);
+        return { valid: false, error: firstFailure?.error || 'Not all token requirements satisfied' };
       }
     }
-
-    console.log(`[verifyTokenRequirements] All ${requirements.length} token requirements met`);
-    return { valid: true };
 
   } catch (error) {
     console.error('[verifyTokenRequirements] Error verifying token requirements:', error);
@@ -496,7 +518,7 @@ export async function verifyPostGatingRequirements(
 
     // Verify token requirements (LSP7/LSP8)
     if (requirements.requiredTokens && requirements.requiredTokens.length > 0) {
-      const tokenResult = await verifyTokenRequirements(upAddress, requirements.requiredTokens);
+      const tokenResult = await verifyTokenRequirements(upAddress, requirements.requiredTokens, fulfillment);
       requirementResults.push(tokenResult);
       console.log(`[verifyPostGatingRequirements] Token requirements check: ${tokenResult.valid ? '✅' : '❌'} ${tokenResult.error || ''}`);
     }

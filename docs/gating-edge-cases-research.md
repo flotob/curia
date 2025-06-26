@@ -148,7 +148,7 @@ export async function verifyLSP8Ownership(
 - **Backend Verification**: Completely ignores `tokenId` field ❌
 
 ### Required Fix
-Implement LSP8 specific token verification using `tokenOwnerOf(bytes32 tokenId)` function:
+Implement LSP8 specific token verification using `tokenOwnerOf(bytes32)` function:
 
 ```typescript
 if (requirement.tokenId) {
@@ -214,10 +214,10 @@ if (requirement.tokenId) {
 *Research conducted: January 2025*
 *Status: Investigation Complete, Implementation Complete*
 
-## ✅ FINAL IMPLEMENTATION STATUS - BOTH ISSUES RESOLVED ✅
+## ✅ FINAL IMPLEMENTATION STATUS - ALL 4 CRITICAL ISSUES RESOLVED ✅
 
 ### Issue 1: Self-Follow Paradox - FULLY FIXED ✅
-**Implementation**: Added address comparison checks with **auto-pass logic** in all verification systems:
+**Implementation**: Added address comparison checks with **auto-pass logic** in both LSP26 and EFP verification functions
 - **Backend**: `src/lib/verification/upVerification.ts` + `src/lib/ethereum/verification.ts` ✅
 - **Frontend**: All 6 frontend verification systems patched ✅
   - `UniversalProfileContext.tsx` ✅
@@ -229,40 +229,126 @@ if (requirement.tokenId) {
 
 **Behavior**: When a user verifies and they ARE the required person:
 - **Auto-passes immediately** with `{ valid: true }`
-- **Clear logging**: \"Auto-pass: User IS the required person\"
+- **Clear logging**: "Auto-pass: User IS the required person"
 - **Enables legitimate use cases**: Community owners can pass gates requiring others to follow them
+- **Only checks follow relationships** when the user is NOT the required person
 
-### Issue 2: LSP8 Token ID Gating Bug - FULLY FIXED ✅
-**Root Cause Discovery**: Frontend used `useUPVerificationData` hook which **only supported collection-level verification** and **did NOT call** the fixed backend verification functions.
+**Examples**:
+- Gate: "Must be followed by @alice" → When @alice verifies: ✅ Auto-pass
+- Gate: "Must follow @bob" → When @bob verifies: ✅ Auto-pass  
+- Gate: "Must follow @alice" → When @bob verifies: ❌ Check if @bob follows @alice
 
-**Implementation**: Complete LSP8 token ID verification across all systems:
-- **Backend**: `src/lib/verification/upVerification.ts` - `verifyLSP8Ownership()` with `tokenOwnerOf(bytes32)` ✅
-- **Frontend Context**: `src/contexts/UniversalProfileContext.tsx` - `verifyTokenRequirements()` ✅
-- **Frontend Hook**: `src/hooks/useUPVerificationData.ts` - Added LSP8 token ID verification logic ✅
-- **Frontend Components**: `InlineUPConnection.tsx` and other components ✅
+### Issue 2: LSP8 Token ID Gating Bug - FULLY FIXED ✅  
+**Implementation**: Complete rewrite of LSP8 verification to support specific token ID ownership
+- **Backend**: `src/lib/verification/upVerification.ts` - `verifyLSP8Ownership()` ✅
+- **Frontend**: `src/hooks/useUPVerificationData.ts` - Added LSP8 token ID verification ✅
 
-**Technical Solution**: 
-1. **Enhanced `useUPVerificationData` hook** with dedicated LSP8 token ID verification effect
-2. **Proper token ID conversion** using `ethers.utils.hexZeroPad()` to bytes32 format
-3. **Merged verification results** - overrides collection verification with specific token verification when `tokenId` present
-4. **Clear logging** with `useUPVerificationData-LSP8` tags for debugging
+**Features**: 
+- **Specific token ID verification**: Uses `tokenOwnerOf(bytes32)` when `tokenId` is present
+- **Collection verification fallback**: Uses `balanceOf(address)` when no specific token ID
+- **Proper bytes32 conversion**: Uses `ethers.utils.hexZeroPad()` for token ID formatting
+- **Enhanced frontend support**: Unique keys for LSP8 tokens to prevent data collision
+- **Clear logging**: Detailed verification status for each token ID
 
-**Result**: Frontend now correctly verifies specific LSP8 token ownership instead of just collection ownership.
+**Technical Details**:
+- Backend verification: Raw RPC calls via `rawLuksoCall()` for optimal performance
+- Frontend verification: Direct `window.lukso` provider calls with wagmi integration
+- Data structure: Uses `${contractAddress}-${tokenId}` keys for unique token identification
+- UI components: Updated to handle both collection and specific token ID verification
 
----
+### 🚨 Issue 3: Fulfillment Mode Bug - NEWLY DISCOVERED & FIXED ✅
+**Problem**: Backend token verification was hardcoded to require ALL tokens (AND logic) instead of respecting category fulfillment mode
 
-## 📊 Final Verification
+**Root Cause**: The `verifyTokenRequirements()` function didn't support fulfillment parameters and always used AND logic
 
-### ✅ **Console Log Tags for Testing**
-- **Self-Follow Auto-Pass**: `[useUPVerificationData] ✅ Auto-pass: User IS the required person`
-- **LSP8 Token ID**: `[useUPVerificationData-LSP8] ✅ Starting specific token ID verification`
+**Database Evidence**: 
+```json
+{
+  "fulfillment": "any",  // ← Category says ANY
+  "requiredTokens": [4222, 4205, 4220, 4000], // 4 tokens
+  "requireAll": false    // ← Root level says ANY
+}
+```
 
-### ✅ **Build Status**: Successful (only standard warnings)
-### ✅ **Backward Compatibility**: Maintained across all systems
-### ✅ **Error Handling**: Comprehensive logging and error messages
-### ✅ **Architecture**: Both frontend and backend verification unified
+**Symptoms**:
+- Preview mode: ✅ Correctly shows pass (3/4 tokens owned, needs any 1)
+- Post verification: ❌ Incorrectly treats as requireAll (fails because missing 1)
 
-Both critical gating edge cases are now **fully resolved** across the entire verification architecture.
+**Fix Implementation**: `src/lib/verification/upVerification.ts`
+- **Added fulfillment parameter** to `verifyTokenRequirements()` function
+- **Updated caller** `verifyPostGatingRequirements()` to pass fulfillment mode
+- **Implemented ANY/ALL logic**: Supports both OR and AND logic for multiple token requirements
+
+**Code Changes**:
+```typescript
+// Before: Hardcoded ALL logic
+for (let i = 0; i < results.length; i++) {
+  if (!results[i].valid) {
+    return { valid: false, error: results[i].error }; // Fail on first failure
+  }
+}
+
+// After: Configurable fulfillment logic  
+if (fulfillment === 'any') {
+  if (validResults.length > 0) {
+    return { valid: true }; // Pass if ANY requirement met
+  }
+} else {
+  if (validResults.length === requirements.length) {
+    return { valid: true }; // Pass if ALL requirements met
+  }
+}
+```
+
+**Result**: Backend now correctly respects category-level fulfillment settings, matching frontend preview behavior
+
+### 🚨 Issue 4: Frontend Fulfillment Mode Bug - NEWLY DISCOVERED & FIXED ✅
+**Problem**: Frontend verification status calculation showed "Need all requirements (0/4 completed)" instead of respecting ANY fulfillment mode
+
+**Root Cause**: Two separate bugs in the data flow chain:
+1. **Prop Propagation Bug**: `GatingRequirementsPanel` component wasn't passing `category.fulfillment` prop to child components, while `GatingRequirementsPreview` was passing it correctly
+2. **Key Mismatch Bug**: Overall status calculation used wrong key lookup for LSP8 tokens with specific token IDs
+
+**Detailed Analysis**:
+```
+DATABASE: "fulfillment": "any" ✅
+↓
+API: /api/posts/[postId]/gating-requirements ✅  
+↓
+GatingRequirementsPanel (missing fulfillment prop) ❌
+↓
+UPVerificationWrapper / EthereumConnectionWidget (gets undefined) ❌
+↓
+RichRequirementsDisplay (defaults to "all" mode) ❌
+```
+
+**Symptoms**:
+- Preview mode: ✅ Shows "Requirements met (3/4) - ready to comment!" 
+- Post verification: ❌ Shows "Need all requirements (0/4 completed)" + disabled verify button
+- Individual tokens showed green checkmarks but displayed "❌ You don't own this token"
+
+**Fix Implementation**:
+1. **`src/components/gating/GatingRequirementsPanel.tsx`**:
+   - Added `fulfillment={category.fulfillment}` to `UPVerificationWrapper` call
+   - Added `fulfillment={category.fulfillment}` to `renderer.renderConnection` call
+2. **`src/components/gating/RichRequirementsDisplay.tsx`**:
+   - Fixed overall status calculation to use correct `tokenKey` logic (same as data storage)
+   - Fixed LSP8 token text display to use `tokenData.balance` instead of `tokenData.formattedBalance`
+
+**Result**: Frontend now correctly shows "Requirements met (3/4) - ready to comment!" and enables verify button for ANY fulfillment mode in both preview AND post contexts
+
+### 🎯 System Status: Production Ready ✅
+All critical gating edge cases have been identified and fixed:
+- ✅ **Self-follow auto-pass logic** working across all 8 verification systems
+- ✅ **LSP8 token ID verification** working for both backend and frontend
+- ✅ **Backend fulfillment mode support** working for category-level ANY/ALL logic
+- ✅ **Frontend status calculation** correctly recognizing token ownership with unique keys
+- ✅ **Contract address collision prevention** with unique key structures
+- ✅ **Build passing** with only standard warnings
+
+**Backward Compatibility**: All fixes maintain full backward compatibility with existing locks and verification logic
+
+**Enhanced Logging**: Comprehensive debug logging across all verification paths for easier troubleshooting
 
 ## 🎯 User Experience Improvements
 
@@ -278,7 +364,7 @@ Both critical gating edge cases are now **fully resolved** across the entire ver
 
 *Research conducted: January 2025*  
 *Status: Investigation Complete, Implementation Complete*  
-*Both critical gating edge cases successfully resolved* ✅ 
+*All 4 critical gating edge cases successfully resolved* ✅
 
 ## 🔍 CRITICAL FINDING: Frontend/Backend Verification Architecture Divergence
 

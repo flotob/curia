@@ -95,6 +95,9 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   isPreviewMode = false
 }) => {
   
+  // 🔍 DEBUG: Log fulfillment prop value
+  console.log(`[RichRequirementsDisplay] 🔧 Fulfillment mode: "${fulfillment}" (${typeof fulfillment})`);
+  
   // ===== REACT QUERY DATA FETCHING =====
   
   // Get all addresses we need profiles for
@@ -492,7 +495,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                         <div className="text-xs text-muted-foreground">
                           Required: {displayAmount} {tokenReq.tokenType === 'LSP8' && !tokenReq.tokenId ? tokenData?.symbol || tokenReq.symbol || 'tokens' : ''}
                           {userStatus.connected && tokenData && tokenReq.tokenType === 'LSP8' && tokenReq.tokenId 
-                            ? (tokenData.formattedBalance === '1' ? ' • ✅ You own this token' : ' • ❌ You don\'t own this token')
+                            ? (tokenData.balance === '1' ? ' • ✅ You own this token' : ' • ❌ You don\'t own this token')
                             : userStatus.connected && tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`
                           }
                         </div>
@@ -670,7 +673,11 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
               // Check token requirements
               if (requirements.requiredTokens) {
                 requirements.requiredTokens.forEach(token => {
-                  const tokenData = tokenVerifications[token.contractAddress];
+                  // 🎯 FIX: Use same tokenKey logic that matches data storage
+                  const tokenKey = token.tokenType === 'LSP8' && token.tokenId 
+                    ? `${token.contractAddress}-${token.tokenId}` // Unique key for specific LSP8 tokens
+                    : token.contractAddress; // Standard key for LSP7 and LSP8 collection verification
+                  const tokenData = tokenVerifications[tokenKey];
                   requirementChecks.push(tokenData?.meetsRequirement || false);
                 });
               }
