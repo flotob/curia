@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { jwtDecode } from 'jwt-decode'; // Utility to decode JWTs on the client-side
 import { AuthService } from '@/services/AuthService';
 import { useCgLib } from '@/contexts/CgLibContext';
+import { fetchAllFriendsFromCgLib } from '@/utils/friendsSync';
 
 // Interface for CG lib instance with friends method
 interface CgInstanceWithFriends {
@@ -113,29 +114,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     console.log(`[AuthContext] ${isRefresh ? 'REFRESHING TOKEN' : 'LOGIN ATTEMPT'}. User roles from input:`, loginData.roles, 'Community roles from input:', loginData.communityRoles);
     setIsLoading(true);
 
-    // 🆕 Fetch friends from CG lib for automatic sync
+    // 🆕 Fetch ALL friends from CG lib for automatic sync (with pagination)
     let friends: Array<{ id: string; name: string; image?: string }> = [];
     if (cgInstance && !isRefresh && !isCgLibInitializing && cgIframeUid) { // All prerequisites met
       try {
         // Check if getUserFriends method exists
         if (typeof (cgInstance as unknown as CgInstanceWithFriends).getUserFriends === 'function') {
-          console.log('[AuthContext] Fetching friends from CG lib for session sync...');
-          const friendsResponse = await (cgInstance as unknown as CgInstanceWithFriends).getUserFriends(100, 0); // Fetch up to 100 friends
+          console.log('[AuthContext] Fetching ALL friends from CG lib for session sync (with pagination)...');
           
-          // Access the correct nested structure: response.data.friends
-          const friendsData = friendsResponse?.data?.friends || [];
+          // Use the new utility function to fetch all friends with pagination
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          friends = await fetchAllFriendsFromCgLib(cgInstance as any);
           
-          if (Array.isArray(friendsData)) {
-            friends = friendsData.map((friend: { id: string; name: string; imageUrl?: string }) => ({
-              id: friend.id,
-              name: friend.name,
-              image: friend.imageUrl // Map imageUrl to image
-            })).filter((friend) => friend.id && friend.name); // Filter out invalid entries
-            
-            console.log(`[AuthContext] Fetched ${friends.length} friends from CG lib`);
-          } else {
-            console.warn('[AuthContext] Friends response data is not an array:', friendsData);
-          }
+          // Filter out invalid entries
+          friends = friends.filter((friend) => friend.id && friend.name);
+          
+          console.log(`[AuthContext] Fetched ${friends.length} total friends from CG lib (paginated)`);
         } else {
           console.log('[AuthContext] getUserFriends method not available on cgInstance');
         }

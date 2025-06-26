@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetch } from '@/utils/authFetch';
+import { fetchAllFriendsFromCgLib } from '@/utils/friendsSync';
 
 export interface Friend {
   id: string;
@@ -39,32 +40,17 @@ export function useFriends() {
     source: 'none'
   });
 
-  // Fetch friends from CG lib
-  const fetchFromCgLib = useCallback(async (limit = 100, offset = 0): Promise<Friend[]> => {
+
+
+  // Fetch ALL friends from CG lib using pagination (shared utility)
+  const fetchAllFromCgLib = useCallback(async (): Promise<Friend[]> => {
     if (!cgInstance) {
       throw new Error('CG lib instance not available');
     }
 
-    try {
-      const response = await cgInstance.getUserFriends(limit, offset);
-      
-      // Handle different possible response structures
-      const friendsData = response?.data || response || [];
-      
-      if (!Array.isArray(friendsData)) {
-        throw new Error('Invalid response from CG lib - expected array of friends');
-      }
-
-      return friendsData.map((friend: { id: string; name: string; image?: string }) => ({
-        id: friend.id,
-        name: friend.name,
-        image: friend.image
-      }));
-      
-    } catch (error) {
-      console.error('[useFriends] Error fetching from CG lib:', error);
-      throw error;
-    }
+    // Use the shared utility function for consistent pagination logic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return await fetchAllFriendsFromCgLib(cgInstance as any);
   }, [cgInstance]);
 
   // Fetch friends from database
@@ -127,14 +113,14 @@ export function useFriends() {
     }
   }, [token]);
 
-  // Full sync: CG lib → Database
+  // Full sync: CG lib → Database (with complete pagination)
   const performFullSync = useCallback(async (): Promise<FriendsSyncResult> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // 1. Fetch from CG lib
-      const cgFriends = await fetchFromCgLib();
-      console.log(`[useFriends] Fetched ${cgFriends.length} friends from CG lib`);
+      // 1. Fetch ALL friends from CG lib using pagination
+      const cgFriends = await fetchAllFromCgLib();
+      console.log(`[useFriends] Fetched ${cgFriends.length} total friends from CG lib (paginated)`);
 
       // 2. Sync to database
       const syncResult = await syncToDatabase(cgFriends, true); // Clear existing for full sync
@@ -161,7 +147,7 @@ export function useFriends() {
       }));
       throw error;
     }
-  }, [fetchFromCgLib, syncToDatabase]);
+  }, [fetchAllFromCgLib, syncToDatabase]);
 
   // Load friends with fallback strategy
   const loadFriends = useCallback(async () => {
@@ -171,7 +157,7 @@ export function useFriends() {
       // Primary: Try CG lib if available
       if (cgInstance && !isInitializing) {
         try {
-          const cgFriends = await fetchFromCgLib();
+          const cgFriends = await fetchAllFromCgLib();
           
           setState(prev => ({
             ...prev,
@@ -229,7 +215,7 @@ export function useFriends() {
         error: error instanceof Error ? error.message : 'Failed to load friends'
       }));
     }
-  }, [cgInstance, isInitializing, token, fetchFromCgLib, fetchFromDatabase, syncToDatabase]);
+  }, [cgInstance, isInitializing, token, fetchAllFromCgLib, fetchFromDatabase, syncToDatabase]);
 
   // Auto-load friends when dependencies are ready
   useEffect(() => {
