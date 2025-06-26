@@ -157,7 +157,7 @@ const DeviceCard = ({ device, isPrimary = false, isCurrentCommunity = true }: { 
         {device.currentBoardId && (
           <button
             onClick={() => navigateToBoard(device)}
-            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors hover:underline"
+            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors hover:underline text-left"
           >
             {!isCurrentCommunity && "🔗 "}
             📋 {device.currentBoardName || `Board ${device.currentBoardId}`}
@@ -293,7 +293,7 @@ const UserPresenceCard = ({
                     {user.primaryDevice.currentBoardId && (
                       <button
                         onClick={() => navigateToBoard(user.primaryDevice)}
-                        className="text-xs hover:underline transition-colors text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        className="text-xs hover:underline transition-colors text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-left"
                         title={isCurrentCommunity ? undefined : `Navigate to ${user.primaryDevice.currentBoardName} in other community`}
                       >
                         {!isCurrentCommunity && "🔗 "}

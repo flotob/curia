@@ -119,7 +119,7 @@ const DeviceCard = ({ device, isPrimary = false }: { device: DevicePresence; isP
         {device.currentBoardId && (
           <button
             onClick={() => navigateToBoard(device.currentBoardId!)}
-            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors hover:underline"
+            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center group transition-colors hover:underline text-left"
           >
             📋 {device.currentBoardName || `Board ${device.currentBoardId}`}
             <ExternalLink size={8} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -203,12 +203,12 @@ const UserPresenceCard = ({ user }: { user: EnhancedUserPresence }) => {
             {!expanded && (
               <>
                 {user.primaryDevice.currentBoardId && (
-                  <button
-                    onClick={() => navigateToBoard(user.primaryDevice.currentBoardId!)}
-                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer hover:underline transition-colors"
-                  >
-                    📋 {user.primaryDevice.currentBoardName || `Board ${user.primaryDevice.currentBoardId}`}
-                  </button>
+                                        <button
+                        onClick={() => navigateToBoard(user.primaryDevice.currentBoardId!)}
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer hover:underline transition-colors text-left"
+                      >
+                        📋 {user.primaryDevice.currentBoardName || `Board ${user.primaryDevice.currentBoardId}`}
+                      </button>
                 )}
                 <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                   <Activity size={10} />
