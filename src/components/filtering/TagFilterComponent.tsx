@@ -36,6 +36,7 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const prevBoardIdRef = useRef(boardId);
 
   // Read initial tags from URL
   useEffect(() => {
@@ -120,6 +121,16 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
     setIsExpanded(false);
     setSearchQuery('');
   }, [updateTagsInUrl]);
+
+  // 🚀 Clear tags when switching between boards
+  useEffect(() => {
+    // If boardId has changed from previous value, clear tags (but not on initial mount)
+    if (prevBoardIdRef.current !== boardId && prevBoardIdRef.current !== undefined) {
+      console.log(`[TagFilterComponent] Board changed from ${prevBoardIdRef.current} to ${boardId}, clearing tag filters`);
+      clearAllTags();
+    }
+    prevBoardIdRef.current = boardId;
+  }, [boardId, clearAllTags]);
 
   const toggleExpanded = useCallback(() => {
     setIsExpanded(!isExpanded);
