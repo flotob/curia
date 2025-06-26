@@ -137,7 +137,9 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
         payload: { 
           postId, 
           newCount: newUpvoteCount, // Use the count we already have
-          userIdVoted: userId, 
+          userIdVoted: userId,
+          voter_name: user.name || 'Unknown',
+          voter_profile_picture_url: user.picture || null,
           board_id, 
           post_title, 
           board_name,
@@ -289,7 +291,9 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
         payload: { 
           postId, 
           newCount: newUpvoteCount, // Use the count we already have
-          userIdVoted: userId, 
+          userIdVoted: userId,
+          voter_name: user.name || 'Unknown',
+          voter_profile_picture_url: user.picture || null,
           board_id, 
           post_title, 
           board_name,

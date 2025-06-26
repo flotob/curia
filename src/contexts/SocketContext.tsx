@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { showSocketNotification } from '@/components/ui/socket-notification';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authFetchJson } from '@/utils/authFetch';
@@ -367,6 +368,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       title: string; 
       author_name?: string; 
       author_user_id: string; 
+      author_profile_picture_url?: string | null;
       board_id: number;
       isCrossCommunityNotification?: boolean;
       sourceCommunityName?: string;
@@ -378,8 +380,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           ? `🔗 ${postData.sourceCommunityName}: ` 
           : '';
         
-        toast.success(`${communityPrefix}New post: "${postData.title}" by ${postData.author_name || 'Unknown'}`, {
-          action: {
+        // Use enhanced notification with profile image
+        showSocketNotification(
+          postData.author_name || 'Unknown',
+          postData.author_profile_picture_url || null,
+          `${communityPrefix}posted: "${postData.title}"`,
+          {
             label: postData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
             onClick: () => {
               if (postData.isCrossCommunityNotification && postData.crossCommunityNav) {
@@ -401,7 +407,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-        });
+        );
         console.log(`[RQ Invalidate] Invalidating posts for board: ${postData.board_id}`);
         queryClient.invalidateQueries({ queryKey: ['posts', postData.board_id?.toString()] });
         // Also invalidate home feed (aggregated view from all boards)
@@ -413,7 +419,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     newSocket.on('voteUpdate', (voteData: { 
       postId: number; 
       newCount: number; 
-      userIdVoted: string; 
+      userIdVoted: string;
+      voter_name?: string;
+      voter_profile_picture_url?: string | null;
       board_id: number; 
       post_title: string; 
       board_name: string;
@@ -427,8 +435,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           ? `🔗 ${voteData.sourceCommunityName}: ` 
           : '';
         
-        toast.info(`${communityPrefix}"${voteData.post_title}" received ${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''}`, {
-          action: {
+        // Use enhanced notification with profile image
+        showSocketNotification(
+          voteData.voter_name || 'Someone',
+          voteData.voter_profile_picture_url || null,
+          `${communityPrefix}upvoted "${voteData.post_title}" (${voteData.newCount} vote${voteData.newCount !== 1 ? 's' : ''})`,
+          {
             label: voteData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
             onClick: () => {
               if (voteData.isCrossCommunityNotification && voteData.crossCommunityNav) {
@@ -450,7 +462,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-        });
+        );
         console.log(`[RQ Invalidate] Invalidating posts for board: ${voteData.board_id} due to vote.`);
         queryClient.invalidateQueries({ queryKey: ['posts', voteData.board_id?.toString()] });
         // Also invalidate home feed (vote count changes affect sorting order)
@@ -501,6 +513,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       comment: {
         author_user_id: string;
         author_name?: string;
+        author_profile_picture_url?: string | null;
         id: number;
         post_id: number;
         board_id: number;
@@ -517,8 +530,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           ? `🔗 ${commentData.sourceCommunityName}: ` 
           : '';
         
-        toast.info(`${communityPrefix}${commentData.comment.author_name || 'Unknown'} commented on "${commentData.post_title}"`, {
-          action: {
+        // Use enhanced notification with profile image
+        showSocketNotification(
+          commentData.comment.author_name || 'Unknown',
+          commentData.comment.author_profile_picture_url || null,
+          `${communityPrefix}commented on "${commentData.post_title}"`,
+          {
             label: commentData.isCrossCommunityNotification ? 'View in Partner' : 'View Post',
             onClick: () => {
               if (commentData.isCrossCommunityNotification && commentData.crossCommunityNav) {
@@ -540,7 +557,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-        });
+        );
         console.log(`[RQ Invalidate] Invalidating comments for post: ${commentData.postId}`);
         queryClient.invalidateQueries({ queryKey: ['comments', commentData.postId] });
         
@@ -560,10 +577,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    newSocket.on('userJoinedBoard', ({ userId: joinedUserId, userName: joinedUserName, boardId }: { userId: string; userName?: string; boardId: number }) => {
+    newSocket.on('userJoinedBoard', ({ userId: joinedUserId, userName: joinedUserName, userProfilePicture, boardId }: { 
+      userId: string; 
+      userName?: string; 
+      userProfilePicture?: string | null;
+      boardId: number 
+    }) => {
       console.log(`[Socket] User ${joinedUserName || joinedUserId} joined board ${boardId}`);
       if (joinedUserId !== userId) {
-        toast.info(`${joinedUserName || 'Someone'} joined the discussion`);
+        // Use enhanced notification with profile image
+        showSocketNotification(
+          joinedUserName || 'Someone',
+          userProfilePicture || null,
+          'joined the discussion'
+        );
       }
       
       // Update board presence
