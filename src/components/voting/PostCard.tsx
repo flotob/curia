@@ -53,6 +53,7 @@ import TiptapLink from '@tiptap/extension-link'; // For rendering links
 import TiptapImage from '@tiptap/extension-image'; // Aliased Tiptap Image to TiptapImage
 import { Markdown } from 'tiptap-markdown';
 import { MarkdownUtils } from '@/utils/markdownUtils';
+import { MentionExtension } from '@/components/mentions/MentionExtension';
 // highlight.js CSS is imported globally in layout.tsx
 
 const lowlight = createLowlight(common);
@@ -528,6 +529,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       TiptapImage, // Use aliased TiptapImage for rendering images
       CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
       Markdown.configure({ html: false, tightLists: true }), // <-- Enable markdown parsing for display
+      // 🏷️ User mentions extension for rendering mentions in content
+      MentionExtension,
     ],
     content: '', // Initial content, will be updated by useEffect
     editable: false,

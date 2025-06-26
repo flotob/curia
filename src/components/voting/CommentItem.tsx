@@ -23,8 +23,9 @@ import { Markdown } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import TiptapLink from '@tiptap/extension-link'; // For rendering links
-import TiptapImage from '@tiptap/extension-image'; // For rendering images (though comments might not use images often)
+import TiptapImage from '@tiptap/extension-image'; // For rendering images, if they ever appear in comments
 import { MarkdownUtils } from '@/utils/markdownUtils';
+import { MentionExtension } from '@/components/mentions/MentionExtension';
 // import { cn } from '@/lib/utils';
 // Ensure highlight.js theme is available. If not imported globally, import here.
 // For now, assuming it might be covered by NewCommentForm's import or a global one.
@@ -124,6 +125,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       TiptapImage, // For rendering images, if they ever appear in comments
       CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
       Markdown.configure({ html: false, tightLists: true }),
+      MentionExtension,
     ],
     content: '', // Will be set by useEffect
     editable: false,

@@ -27,6 +27,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TiptapLink from '@tiptap/extension-link';
 import TiptapImage from '@tiptap/extension-image';
 import { EditorToolbar } from './EditorToolbar'; // Import the toolbar
+import { MentionExtension } from '@/components/mentions/MentionExtension';
 // highlight.js CSS is now in layout.tsx
 
 const lowlight = createLowlight(common);
@@ -173,6 +174,8 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
       Placeholder.configure({
         placeholder: 'Describe your post in detail... Use the toolbar below to format your content!',
       }),
+      // 🏷️ User mentions extension
+      MentionExtension,
       // REMOVED: Standalone Heading.configure(...) - StarterKit now handles headings
     ],
     content: '',

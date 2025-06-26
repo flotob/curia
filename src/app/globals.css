@@ -332,3 +332,20 @@ a {
   touch-action: pan-y !important;
   -webkit-overflow-scrolling: touch !important;
 }
+
+/* Tippy.js mention suggestion styling */
+.tippy-box[data-theme~='light-border'] {
+  background-color: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--popover-foreground));
+  border-radius: var(--radius);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.tippy-box[data-theme~='light-border'] .tippy-arrow {
+  color: hsl(var(--popover));
+}
+
+.tippy-box[data-theme~='light-border'] .tippy-arrow:before {
+  border-color: hsl(var(--border));
+}

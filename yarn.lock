@@ -2765,6 +2765,11 @@
   resolved "https://registry.yarnpkg.com/@tiptap/extension-list-item/-/extension-list-item-2.22.0.tgz#d1474fcd042abe911cde787ef78e7a7a9407e0a8"
   integrity sha512-9fUdXqfuApoQQLEtP2Y9Q4QTROmPU+c64o1Dt5/sZzOh/gSknYJKOlwY6+0Fn56in5E8pCKUlQotGjEeH0UaFw==
 
+"@tiptap/extension-mention@^2.22.3":
+  version "2.22.3"
+  resolved "https://registry.yarnpkg.com/@tiptap/extension-mention/-/extension-mention-2.22.3.tgz#ffe679354eb5317967192a5c6e52226138516f54"
+  integrity sha512-5OX2o8Ss0PaBAZdeOjesCKwVK63Sfvw+AA1h7Yxs+i3sODofIpkjb2Y/t5mFzR1ltlBnrPmAiCMDAp1V01k+vg==
+
 "@tiptap/extension-ordered-list@^2.12.0", "@tiptap/extension-ordered-list@^2.22.0":
   version "2.22.0"
   resolved "https://registry.yarnpkg.com/@tiptap/extension-ordered-list/-/extension-ordered-list-2.22.0.tgz#4a2204f3d4017f1f53c72697e3b956e84afab2cd"
@@ -2856,6 +2861,11 @@
     "@tiptap/extension-text" "^2.22.0"
     "@tiptap/extension-text-style" "^2.22.0"
     "@tiptap/pm" "^2.22.0"
+
+"@tiptap/suggestion@^2.22.3":
+  version "2.22.3"
+  resolved "https://registry.yarnpkg.com/@tiptap/suggestion/-/suggestion-2.22.3.tgz#d7ef47ffa803095fea3b6f9b12a3b328ab020a9b"
+  integrity sha512-B/X1U4HXXos6h7qqdf0MgWhlB8G4CFLJUiGBuVySlLG7BIyr9KfLrE+/G/5iaLWjAlQC5HgxB8uIO7wfCQl6fA==
 
 "@truffle/hdwallet-provider@latest":
   version "2.1.15"

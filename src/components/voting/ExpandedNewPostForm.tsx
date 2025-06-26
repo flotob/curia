@@ -28,6 +28,7 @@ import TiptapLink from '@tiptap/extension-link';
 import TiptapImage from '@tiptap/extension-image';
 import { EditorToolbar } from './EditorToolbar';
 import { MarkdownUtils } from '@/utils/markdownUtils';
+import { MentionExtension } from '@/components/mentions/MentionExtension';
 
 const lowlight = createLowlight(common);
 
@@ -172,6 +173,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       Placeholder.configure({
         placeholder: 'Describe your post in detail... Use the toolbar below to format your content!',
       }),
+      MentionExtension,
     ],
     content: '',
     immediatelyRender: false, // Fix SSR hydration warnings

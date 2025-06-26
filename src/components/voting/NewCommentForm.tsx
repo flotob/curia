@@ -29,6 +29,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import { MarkdownUtils } from '@/utils/markdownUtils';
+import { MentionExtension } from '@/components/mentions/MentionExtension';
 // highlight.js CSS is in layout.tsx
 
 const lowlight = createLowlight(common);
@@ -110,6 +111,8 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       Placeholder.configure({
         placeholder: 'Share your thoughts, questions, or feedback... Use the toolbar below to format your comment!',
       }),
+      // 🏷️ User mentions extension
+      MentionExtension,
     ],
     content: '',
     immediatelyRender: false, // Fix SSR hydration warnings
