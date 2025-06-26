@@ -16,7 +16,8 @@ import {
   Shield,
   Lock,
   CheckCircle,
-  XCircle
+  XCircle,
+  Link as LinkIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -207,14 +208,25 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                 </h3>
               </button>
               {currentBoard && (
-                <button 
-                  onClick={handleBoardClick}
-                  className="text-xs text-muted-foreground mt-1 hover:text-primary transition-colors flex items-center"
-                >
-                  <Hash className="h-3 w-3 mr-1" />
-                  {currentBoard.name}
-                  <ExternalLink className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                <div className="mt-1">
+                  <button 
+                    onClick={handleBoardClick}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center group"
+                  >
+                    {currentBoard.is_imported ? (
+                      <LinkIcon className="h-3 w-3 mr-1 text-cyan-600 dark:text-cyan-400" />
+                    ) : (
+                      <Hash className="h-3 w-3 mr-1" />
+                    )}
+                    {currentBoard.name}
+                    <ExternalLink className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                  {currentBoard.is_imported && currentBoard.source_community_name && (
+                    <div className="text-xs text-cyan-600 dark:text-cyan-400 mt-0.5 flex items-center">
+                      <span className="opacity-75">shared from {currentBoard.source_community_name}</span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -248,7 +260,11 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                   <div className="flex items-center gap-2">
                     <Lock className="h-3 w-3" />
                     <span className="text-xs font-medium">
-                      Board Lock Progress
+                      {currentBoard.is_imported && currentBoard.source_community_name ? (
+                        `${currentBoard.source_community_name} Lock Progress`
+                      ) : (
+                        'Board Lock Progress'
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -306,9 +322,17 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                 <>
                   <button 
                     onClick={handleBoardClick}
-                    className="hover:text-primary transition-colors truncate"
+                    className="hover:text-primary transition-colors truncate flex items-center"
                   >
+                    {currentBoard.is_imported ? (
+                      <LinkIcon className="h-3 w-3 mr-1 text-cyan-600 dark:text-cyan-400" />
+                    ) : null}
                     {currentBoard.name}
+                    {currentBoard.is_imported && (
+                      <span className="text-cyan-600 dark:text-cyan-400 ml-1 opacity-75">
+                        ({currentBoard.source_community_name})
+                      </span>
+                    )}
                   </button>
                   <span>›</span>
                   <span className="truncate">Post</span>
@@ -324,8 +348,12 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
         <Card className={cn("mb-4", className)}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center">
-              <Hash className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-              <span>Current Board</span>
+              {currentBoard?.is_imported ? (
+                <LinkIcon className="h-4 w-4 mr-2 text-cyan-600 dark:text-cyan-400" />
+              ) : (
+                <Hash className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
+              )}
+              <span>{currentBoard?.is_imported ? 'Shared Board' : 'Current Board'}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -338,6 +366,11 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                 <h3 className="font-medium text-sm group-hover:text-primary transition-colors">
                   {currentBoard?.name || 'Loading board...'}
                 </h3>
+                {currentBoard?.is_imported && currentBoard?.source_community_name && (
+                  <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1 opacity-75">
+                    shared from {currentBoard.source_community_name}
+                  </p>
+                )}
                 {currentBoard?.description && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                     {currentBoard.description}
@@ -349,6 +382,14 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
             {/* Board Access Status */}
             {currentBoard && (
               <div className="flex flex-wrap gap-2">
+                {/* Shared board indicator */}
+                {currentBoard.is_imported && (
+                  <Badge variant="secondary" className="text-xs bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700">
+                    <LinkIcon className="h-3 w-3 mr-1" />
+                    Shared Board
+                  </Badge>
+                )}
+                
                 {/* Role-based access restrictions */}
                 {SettingsUtils.hasPermissionRestrictions(currentBoard.settings) && (
                   <Badge variant="secondary" className="text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700">
@@ -387,7 +428,11 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                   <div className="flex items-center gap-2">
                     <Lock className="h-3 w-3" />
                     <span className="text-xs font-medium">
-                      Lock Progress
+                      {currentBoard.is_imported && currentBoard.source_community_name ? (
+                        `${currentBoard.source_community_name} Lock Progress`
+                      ) : (
+                        'Lock Progress'
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -449,7 +494,16 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
                 Home
               </button>
               <span>›</span>
-              <span className="truncate">Board</span>
+              <span className="truncate flex items-center">
+                {currentBoard?.is_imported ? (
+                  <>
+                    <LinkIcon className="h-3 w-3 mr-1 text-cyan-600 dark:text-cyan-400" />
+                    Board ({currentBoard.source_community_name})
+                  </>
+                ) : (
+                  'Board'
+                )}
+              </span>
             </div>
           </CardContent>
         </Card>

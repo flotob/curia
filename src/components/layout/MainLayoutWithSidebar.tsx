@@ -213,8 +213,38 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   const currentBoardId = navigationContext.boardId;
   const currentPostId = navigationContext.postId;
 
-  // Get current board info for header display
-  const currentBoard = accessibleBoardsList?.find(board => board.id.toString() === currentBoardId);
+  // PHASE 1: Enhanced board resolution for shared boards support
+  // Use direct board API that handles both owned and shared boards
+  const { data: currentBoard } = useQuery<ApiBoard>({
+    queryKey: ['board', currentBoardId, communityIdForBoards],
+    queryFn: async () => {
+      if (!currentBoardId || !communityIdForBoards || !token) {
+        throw new Error('Board ID, community ID, or token not available');
+      }
+      
+      try {
+        // Use direct board resolution endpoint that handles both owned and shared boards
+        const response = await authFetchJson<{ board: ApiBoard }>(
+          `/api/communities/${communityIdForBoards}/boards/${currentBoardId}`, 
+          { token }
+        );
+        return response.board;
+      } catch (error) {
+        console.error('[MainLayout] Failed to resolve board info:', error);
+        
+        // Fallback: try to find in accessible boards list (for owned boards)
+        const fallbackBoard = accessibleBoardsList?.find(board => board.id.toString() === currentBoardId);
+        if (fallbackBoard) {
+          console.log('[MainLayout] Using fallback board from accessible boards list');
+          return fallbackBoard;
+        }
+        
+        throw error;
+      }
+    },
+    enabled: !!currentBoardId && !!communityIdForBoards && !!token,
+    staleTime: 30000, // 30 seconds - boards don't change frequently
+  });
 
   // Fetch current post info if in post detail route
   const { data: currentPost } = useQuery<ApiPost>({
