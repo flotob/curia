@@ -9,6 +9,12 @@ async function searchPostsHandler(req: AuthenticatedRequest) {
   const searchParams = req.nextUrl.searchParams;
   const searchQuery = searchParams.get('q');
   const boardId = searchParams.get('boardId'); // Optional board filtering
+  const tagsParam = searchParams.get('tags'); // Tag filtering (comma-separated)
+  
+  // Parse tags parameter into array (AND logic - posts must have ALL specified tags)
+  const selectedTags = tagsParam 
+    ? tagsParam.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+    : [];
   
   const currentUserId = req.user?.sub;
   const currentCommunityId = req.user?.cid; // Get communityId from JWT
@@ -60,6 +66,14 @@ async function searchPostsHandler(req: AuthenticatedRequest) {
       const boardIdPlaceholders = accessibleBoardIds.map((_, index) => `$${queryParams.length + index + 1}`).join(', ');
       whereClause += ` AND p.board_id IN (${boardIdPlaceholders})`;
       queryParams.push(...accessibleBoardIds);
+    }
+
+    // 🏷️ TAG FILTERING: Add tag filtering using PostgreSQL array operators (AND logic)
+    if (selectedTags.length > 0) {
+      // Use @> operator for "contains all" (AND logic) - posts must have ALL specified tags
+      whereClause += ` AND p.tags @> $${queryParams.length + 1}`;
+      queryParams.push(JSON.stringify(selectedTags)); // Pass as JSON string for PostgreSQL array
+      console.log(`[API GET /api/search/posts] Filtering by tags: [${selectedTags.join(', ')}] (AND logic)`);
     }
 
     const result = await query(

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
 import { SearchFirstPostInput } from '@/components/voting/SearchFirstPostInput';
+import { TagFilterComponent } from '@/components/filtering/TagFilterComponent';
 import { ModalContainer } from '@/components/modals/ModalContainer';
 import { TelegramSetupBanner } from '@/components/banners/TelegramSetupBanner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -331,6 +332,15 @@ export default function HomePage() {
             )}
           </section>
 
+          {/* Tag Filtering */}
+          <section className="max-w-2xl mx-auto">
+            <TagFilterComponent
+              boardId={boardId}
+              theme={theme}
+              className="mb-4"
+            />
+          </section>
+
           {/* Board Verification Modal - Show when user needs to verify before posting */}
           {showVerificationModal && boardId && communityInfo?.id && (
             <BoardVerificationModal
@@ -354,8 +364,6 @@ export default function HomePage() {
               />
             </section>
           )}
-
-
 
           {/* Feed Section */}
           <main className="max-w-2xl mx-auto space-y-6">

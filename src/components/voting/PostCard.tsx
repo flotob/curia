@@ -230,6 +230,42 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     }
   }, [isDetailView, post.board_id, post.id, buildInternalUrl, router]);
 
+  // 🏷️ Tag click handler with context-aware navigation
+  const handleTagClick = React.useCallback((tag: string) => {
+    console.log(`[PostCard] Tag clicked: "${tag}" in context:`, { isDetailView, currentBoardId, postBoardId: post.board_id });
+    
+    if (isDetailView) {
+      // In post details view: Navigate to board page with tag active
+      const url = buildInternalUrl('/', { 
+        boardId: post.board_id.toString(),
+        tags: tag 
+      });
+      console.log(`[PostCard] Navigating from post detail to board with tag: ${url}`);
+      router.push(url);
+    } else {
+      // In board view: Scroll to top and activate tag
+      const currentTags = searchParams?.get('tags');
+      const tagList = currentTags ? currentTags.split(',').map(t => t.trim()) : [];
+      
+      // Add tag if not already present
+      if (!tagList.includes(tag)) {
+        tagList.push(tag);
+        const url = buildInternalUrl('/', { tags: tagList.join(',') });
+        console.log(`[PostCard] Adding tag filter and scrolling to top: ${url}`);
+        router.push(url);
+        
+        // Scroll to top after a brief delay to allow navigation
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+      } else {
+        // Tag already active, just scroll to top
+        console.log(`[PostCard] Tag already active, scrolling to top`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [isDetailView, currentBoardId, post.board_id, buildInternalUrl, router, searchParams]);
+
   // Share handler with modal for desktop and Web Share API for mobile
   const handleShare = React.useCallback(async () => {
     if (!post.board_id) {
@@ -700,7 +736,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             <CardContent className="py-2 px-3 sm:px-6">
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {post.tags.map((tag, index) => (
-                  <Badge key={index} variant="secondary" className="text-xs">{tag}</Badge>
+                  <Button
+                    key={index}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleTagClick(tag)}
+                    className="h-auto px-2 py-1 text-xs font-normal bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:text-foreground transition-colors rounded-full border border-transparent hover:border-primary/20"
+                    title={`Filter by "${tag}" tag`}
+                  >
+                    #{tag}
+                  </Button>
                 ))}
               </div>
             </CardContent>

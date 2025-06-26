@@ -104,6 +104,12 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
   const cursor = searchParams.get('cursor'); // Replace page param with cursor
   const limit = parseInt(searchParams.get('limit') || '20', 10); // Increase default for infinite scroll
   const boardId = searchParams.get('boardId'); // Board filtering
+  const tagsParam = searchParams.get('tags'); // Tag filtering (comma-separated)
+  
+  // Parse tags parameter into array (AND logic - posts must have ALL specified tags)
+  const selectedTags = tagsParam 
+    ? tagsParam.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+    : [];
 
   // If no community context, we cannot fetch relevant posts.
   if (!currentCommunityId) {
@@ -158,6 +164,14 @@ async function getAllPostsHandler(req: AuthenticatedRequest) {
       const boardIdPlaceholders = accessibleBoardIds.map((_, index) => `$${baseParams.length + index + 1}`).join(', ');
       baseWhere += ` AND p.board_id IN (${boardIdPlaceholders})`;
       baseParams.push(...accessibleBoardIds);
+    }
+
+    // 🏷️ TAG FILTERING: Add tag filtering using PostgreSQL array operators (AND logic)
+    if (selectedTags.length > 0) {
+      // Use @> operator for "contains all" (AND logic) - posts must have ALL specified tags
+      baseWhere += ` AND p.tags @> $${baseParams.length + 1}`;
+      baseParams.push(JSON.stringify(selectedTags)); // Pass as JSON string for PostgreSQL array
+      console.log(`[API GET /api/posts] Filtering by tags: [${selectedTags.join(', ')}] (AND logic)`);
     }
 
     // Build cursor-based WHERE clause
