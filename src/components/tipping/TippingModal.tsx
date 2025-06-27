@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Gift, Wallet, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { useUniversalProfile, UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 import { TipAssetSelector } from './TipAssetSelector';
+import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 
 interface TippingModalProps {
   open: boolean;
@@ -54,6 +55,10 @@ const TippingModalContent: React.FC<{
 
   // Local state for tipping flow
   const [currentStep, setCurrentStep] = useState<'connect' | 'tip_interface' | 'sending' | 'success'>('connect');
+  
+  // Sender profile state
+  const [senderProfile, setSenderProfile] = useState<UPSocialProfile | null>(null);
+  const [isLoadingSenderProfile, setIsLoadingSenderProfile] = useState(false);
 
   // Reset to connection step when modal opens if not connected
   useEffect(() => {
@@ -65,6 +70,36 @@ const TippingModalContent: React.FC<{
       }
     }
   }, [open, isConnected, isCorrectChain]);
+
+  // Load sender profile when UP address changes
+  useEffect(() => {
+    if (upAddress && isConnected) {
+      const loadSenderProfile = async () => {
+        setIsLoadingSenderProfile(true);
+        try {
+          console.log('[TippingModal] Loading sender profile for:', upAddress);
+          const profile = await getUPSocialProfile(upAddress);
+          setSenderProfile(profile);
+        } catch (error) {
+          console.error('[TippingModal] Failed to load sender profile:', error);
+          // Create fallback profile
+          setSenderProfile({
+            address: upAddress,
+            displayName: `${upAddress.slice(0, 6)}...${upAddress.slice(-4)}`,
+            username: `@${upAddress.slice(2, 6)}${upAddress.slice(-4)}.lukso`,
+            isVerified: false,
+            lastFetched: new Date()
+          });
+        } finally {
+          setIsLoadingSenderProfile(false);
+        }
+      };
+
+      loadSenderProfile();
+    } else {
+      setSenderProfile(null);
+    }
+  }, [upAddress, isConnected]);
 
   // Handle UP connection
   const handleConnect = async () => {
@@ -207,24 +242,65 @@ const TippingModalContent: React.FC<{
       <Separator />
 
       {/* Sender Account Info & Controls */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">Sending from:</p>
-            <p className="text-sm font-mono font-medium">
-              {upAddress?.slice(0, 8)}...{upAddress?.slice(-6)}
-            </p>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-3">
+            {isLoadingSenderProfile ? (
+              <>
+                <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-3 bg-muted rounded w-2/3 animate-pulse" />
+                </div>
+              </>
+            ) : senderProfile ? (
+              <>
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={senderProfile.profileImage} alt={senderProfile.displayName} />
+                  <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-teal-500 text-white font-medium">
+                    {senderProfile.displayName.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-semibold text-sm truncate">{senderProfile.displayName}</h3>
+                    {senderProfile.isVerified && (
+                      <CheckCircle2 className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{senderProfile.username}</p>
+                  <Badge variant="outline" className="text-xs mt-1">
+                    Sending from
+                  </Badge>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-sm font-medium">
+                  {upAddress ? upAddress.charAt(2).toUpperCase() : '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm">Universal Profile</h3>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {upAddress?.slice(0, 8)}...{upAddress?.slice(-6)}
+                  </p>
+                  <Badge variant="outline" className="text-xs mt-1">
+                    Sending from
+                  </Badge>
+                </div>
+              </>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={chooseAccount}
+              className="text-xs"
+            >
+              Choose Account
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={chooseAccount}
-            className="text-xs"
-          >
-            Choose Account
-          </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <Separator />
 
