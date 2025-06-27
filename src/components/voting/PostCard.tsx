@@ -590,7 +590,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     <Card 
       id={`postcard-${post.id}`}
       className={cn(
-        "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200",
+        "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200 group",
         hasGating && "border-l-4 border-l-blue-500"
       )} 
       style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
@@ -611,22 +611,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           <CardHeader className="pb-2 px-3 sm:px-6">
             <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
               <div className="flex items-center min-w-0">
-                <UserProfilePopover
-                  userId={post.author_user_id}
-                  username={authorDisplayName}
-                  open={isAuthorPopoverOpen}
-                  onOpenChange={setIsAuthorPopoverOpen}
-                >
-                  <div className="flex items-center min-w-0 cursor-pointer group">
-                    <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0 group-hover:ring-2 group-hover:ring-primary group-hover:ring-opacity-30 transition-all">
-                      <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                      <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium text-foreground truncate min-w-0 group-hover:text-primary transition-colors">
-                      {authorDisplayName}
-                    </span>
-                  </div>
-                </UserProfilePopover>
+                              <UserProfilePopover
+                userId={post.author_user_id}
+                username={authorDisplayName}
+                open={isAuthorPopoverOpen}
+                onOpenChange={setIsAuthorPopoverOpen}
+              >
+                <div className="flex items-center min-w-0 cursor-pointer group/author">
+                  <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
+                    <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                    <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium text-foreground truncate min-w-0 group-hover/author:text-primary transition-colors">
+                    {authorDisplayName}
+                  </span>
+                </div>
+              </UserProfilePopover>
               </div>
               {showBoardContext && (
                 <div className="flex items-center min-w-0">
@@ -835,7 +835,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           </CardFooter>
           
           {/* ReactionBar */}
-          <div className="px-3 sm:px-6 pb-3">
+          <div className="px-3 sm:px-6 pb-3 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
             <ReactionBar 
               postId={post.id}
             />
