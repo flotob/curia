@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Users, MessageSquare, Calendar, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { preserveCgParams } from '@/utils/urlBuilder';
 
 interface UserProfile {
   id: string;
@@ -274,18 +276,19 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
 
             {/* Actions */}
             <div className="p-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full"
-                onClick={() => {
-                  // TODO: Navigate to user profile or start conversation
-                  console.log('View full profile:', profile.id);
-                }}
+              <Link 
+                href={preserveCgParams(`/profile/${profile.id}`)}
+                onClick={() => onOpenChange(false)} // Close popover when navigating
               >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View Full Profile
-              </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View Full Profile
+                </Button>
+              </Link>
             </div>
           </div>
         ) : null}
