@@ -18,7 +18,6 @@ interface UserProfile {
   source: 'friend' | 'user';
   friendship_status?: string;
   // Extended profile data
-  bio?: string;
   communities?: Array<{
     id: string;
     name: string;
@@ -60,7 +59,15 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
       setError(null);
 
       try {
-        const cleanUserId = userId.split('#')[0]; // Remove # suffix for search
+        // Clean the userId for direct lookup - handle backward compatibility
+        let cleanUserId = userId;
+        
+        // Handle old hash format for backward compatibility
+        if (userId.includes('#') && !userId.startsWith('{')) {
+          cleanUserId = userId.split('#')[0];
+        }
+        
+        // For JSON format, userId is already clean since MentionNode passes node.attrs.id directly
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
@@ -69,7 +76,7 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch(`/api/users/search?q=${encodeURIComponent(cleanUserId)}&limit=1`, {
+        const response = await fetch(`/api/users/${encodeURIComponent(cleanUserId)}?detailed=true`, {
           method: 'GET',
           headers,
         });
@@ -77,32 +84,29 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
         if (response.ok) {
           const data = await response.json();
           console.log('[UserProfilePopover] API Response:', data);
-          console.log('[UserProfilePopover] Searching for:', cleanUserId);
+          console.log('[UserProfilePopover] Looking up user ID:', cleanUserId);
           
-          if (data.users && data.users.length > 0) {
-            // Since we're searching with a specific query, just take the first result
-            // The API already handles the matching logic
-            const user = data.users[0];
+          if (data.user) {
+            const user = data.user;
             console.log('[UserProfilePopover] Found user:', user);
             
-            // Transform to our profile format and add mock extended data
+            // Use real data from API (communities and stats are now real!)
             setProfile({
               ...user,
-              bio: "Building cool things with Web3 and AI", // Mock for now
-              communities: [
-                { id: "1", name: "Common Ground", logo_url: null },
-                { id: "2", name: "LUKSO Community", logo_url: null },
-              ], // Mock for now
-              stats: {
-                posts_count: Math.floor(Math.random() * 100) + 1,
-                comments_count: Math.floor(Math.random() * 500) + 10,
-                joined_date: "2024-01-15", // Mock for now
+              communities: user.communities || [],
+              stats: user.stats || {
+                posts_count: 0,
+                comments_count: 0,
+                joined_date: new Date().toISOString(),
               },
             });
           } else {
-            console.log('[UserProfilePopover] No users in response');
+            console.log('[UserProfilePopover] No user in response');
             setError("User not found");
           }
+        } else if (response.status === 404) {
+          console.log('[UserProfilePopover] User not found (404)');
+          setError("User not found");
         } else {
           console.log('[UserProfilePopover] API response not ok:', response.status);
           setError("Failed to load profile");
@@ -204,15 +208,6 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* Bio section */}
-            {profile.bio && (
-              <div className="p-4">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  &ldquo;{profile.bio}&rdquo;
-                </p>
-              </div>
-            )}
 
             <Separator />
 

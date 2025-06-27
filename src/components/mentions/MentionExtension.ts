@@ -87,8 +87,13 @@ export const MentionExtension = Node.create<MentionOptions>({
   },
 
   renderText({ node }) {
-    // This is used for markdown serialization
-    return `@${node.attrs.label}`;
+    // Store both username and user ID as JSON for bulletproof parsing
+    // Format: @{"id":"user123","label":"alice#hashtag"}
+    const mentionData = {
+      id: node.attrs.id,
+      label: node.attrs.label
+    };
+    return `@${JSON.stringify(mentionData)}`;
   },
 
   addNodeView() {

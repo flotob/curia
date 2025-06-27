@@ -42,10 +42,13 @@ export class MarkdownUtils {
   private static serializeToMarkdown(node: any): string {
     if (!node) return '';
 
-    // Handle mention nodes
+    // Handle mention nodes - store both username and user ID as JSON
     if (node.type === 'mention') {
-      const label = node.attrs?.label || node.attrs?.id || 'unknown';
-      return `@${label}`;
+      const mentionData = {
+        id: node.attrs?.id || 'unknown',
+        label: node.attrs?.label || 'unknown'
+      };
+      return `@${JSON.stringify(mentionData)}`;
     }
 
     // Handle text nodes
@@ -138,8 +141,8 @@ export class MarkdownUtils {
         editor.commands.setContent(content);
       }
     } else {
-      // Check if markdown content has mentions
-      const hasMentions = /@\w+(?:#[a-fA-F0-9]+)?/g.test(content);
+      // Check if markdown content has mentions (supports old @username, old @username#userId, and new JSON formats)
+      const hasMentions = /@(\w+(?:#[\w-]+)?|\{[^}]+\})/g.test(content);
       
       if (hasMentions) {
         // Pre-process markdown to convert @username patterns to mention placeholders
@@ -175,11 +178,12 @@ export class MarkdownUtils {
   }
 
   /**
-   * Pre-process markdown to replace @username patterns with mention placeholders
+   * Pre-process markdown to replace mention patterns with placeholders
+   * Supports: @username, @username#userId, and @{"id":"...","label":"..."} formats
    */
   private static preprocessMentionsInMarkdown(content: string): string {
-    // Replace @username patterns with special placeholders that won't be processed as markdown
-    return content.replace(/@(\w+(?:#[a-fA-F0-9]+)?)/g, '{{MENTION:$1}}');
+    // Replace all mention formats with special placeholders
+    return content.replace(/@(\w+(?:#[\w-]+)?|\{[^}]+\})/g, '{{MENTION:$1}}');
   }
 
   /**
@@ -193,23 +197,49 @@ export class MarkdownUtils {
     // Find and replace mention placeholders
     state.doc.descendants((node, pos) => {
       if (node.type.name === 'text' && node.text) {
-        const mentionPattern = /\{\{MENTION:(\w+(?:#[a-fA-F0-9]+)?)\}\}/g;
+        const mentionPattern = /\{\{MENTION:(\w+(?:#[\w-]+)?|\{[^}]+\})\}\}/g;
         let match;
-        const replacements: Array<{ from: number; to: number; username: string }> = [];
+        const replacements: Array<{ from: number; to: number; mentionData: string }> = [];
 
         while ((match = mentionPattern.exec(node.text)) !== null) {
           replacements.push({
             from: pos + match.index,
             to: pos + match.index + match[0].length,
-            username: match[1]
+            mentionData: match[1]
           });
         }
 
         // Apply replacements in reverse order to maintain positions
-        replacements.reverse().forEach(({ from, to, username }) => {
+        replacements.reverse().forEach(({ from, to, mentionData }) => {
+          let username: string;
+          let userId: string;
+          
+          try {
+            // Try to parse as JSON first (new format)
+            if (mentionData.startsWith('{')) {
+              const parsed = JSON.parse(mentionData);
+              username = parsed.label || 'unknown';
+              userId = parsed.id || 'unknown';
+            } else if (mentionData.includes('#')) {
+              // Old format: username#userId
+              const [name, id] = mentionData.split('#');
+              username = name;
+              userId = id;
+            } else {
+              // Oldest format: just username (for backward compatibility)
+              username = mentionData;
+              userId = mentionData; // Use username as ID for old mentions
+            }
+          } catch (error) {
+            // Fallback if JSON parsing fails
+            console.warn('[MarkdownUtils] Failed to parse mention data:', mentionData, error);
+            username = mentionData;
+            userId = mentionData;
+          }
+
           const mentionNode = state.schema.nodes.mention?.create({
-            id: username,
-            label: username.split('#')[0] // Remove the # suffix for display
+            id: userId,
+            label: username
           });
 
           if (mentionNode) {
@@ -272,7 +302,21 @@ export class MarkdownUtils {
         .replace(/\*(.*?)\*/g, '$1')       // Remove italic markers
         .replace(/`([^`]+)`/g, '$1')       // Remove inline code markers
         .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Extract link text
-        .replace(/@(\w+)(?:#[a-fA-F0-9]+)?/g, '@$1') // Simplify mentions for preview
+        .replace(/@(\w+(?:#[\w-]+)?|\{[^}]+\})/g, (match, mentionData) => {
+          // Simplify mentions for preview - extract just the username
+          try {
+            if (mentionData.startsWith('{')) {
+              const parsed = JSON.parse(mentionData);
+              return `@${parsed.label || 'unknown'}`;
+            } else if (mentionData.includes('#')) {
+              return `@${mentionData.split('#')[0]}`;
+            } else {
+              return `@${mentionData}`;
+            }
+          } catch {
+            return `@${mentionData}`;
+          }
+        }) // Simplify mentions for preview
         .replace(/^\s*[-*+]\s+/gm, '')     // Remove list markers
         .replace(/^\s*\d+\.\s+/gm, '')     // Remove numbered list markers
         .replace(/\n+/g, ' ')              // Replace newlines with spaces

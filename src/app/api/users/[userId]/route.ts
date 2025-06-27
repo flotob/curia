@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 
-interface SearchUser {
+interface UserProfile {
   id: string;
   name: string;
   profile_picture_url: string | null;
   source: 'friend' | 'user';
   friendship_status?: string;
-  // Extended profile data (when detailed=true)
+  // Extended profile data
   communities?: Array<{
     id: string;
     name: string;
@@ -70,36 +70,34 @@ async function fetchExtendedProfileData(userId: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function handler(req: AuthenticatedRequest, _context: RouteContext) {
+async function handler(req: AuthenticatedRequest, context: RouteContext) {
   try {
-    const userId = req.user?.sub;
+    const currentUserId = req.user?.sub;
+    const params = await context.params;
+    const { userId } = params;
     const url = new URL(req.url);
-    const searchQuery = url.searchParams.get('q')?.trim();
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '15'), 20); // Max 20 results
     const detailed = url.searchParams.get('detailed') === 'true';
 
-    if (!userId) {
+    if (!currentUserId) {
       return NextResponse.json(
         { error: 'User ID not found in authentication token' },
         { status: 401 }
       );
     }
 
-    if (!searchQuery || searchQuery.length < 2) {
-      return NextResponse.json({
-        users: [],
-        message: 'Query must be at least 2 characters'
-      });
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID parameter is required' },
+        { status: 400 }
+      );
     }
 
-    console.log(`[User Search API] Searching for "${searchQuery}" by user ${userId}`);
+    console.log(`[User Profile API] Getting user ${userId} for current user ${currentUserId}`);
 
-    const searchPattern = `%${searchQuery}%`;
-
-    // Combined query that searches both tables and deduplicates
-    const searchResult = await query(
-      `WITH friend_search AS (
-        -- Search friends first (prioritized)
+    // Look up user by ID - check both friends and general users
+    const userResult = await query(
+      `WITH friend_lookup AS (
+        -- Check if this user is a friend first (prioritized)
         SELECT 
           uf.friend_user_id as id,
           uf.friend_name as name,
@@ -110,11 +108,10 @@ async function handler(req: AuthenticatedRequest, _context: RouteContext) {
         FROM user_friends uf
         WHERE uf.user_id = $1 
           AND uf.friendship_status = 'active'
-          AND uf.friend_name ILIKE $2
-        LIMIT $3
+          AND uf.friend_user_id = $2
       ),
-      user_search AS (
-        -- Search general users (lower priority)
+      user_lookup AS (
+        -- Check general users table (lower priority)
         SELECT 
           u.user_id as id,
           u.name,
@@ -123,61 +120,56 @@ async function handler(req: AuthenticatedRequest, _context: RouteContext) {
           NULL as friendship_status,
           2 as priority
         FROM users u
-        WHERE u.name ILIKE $2
+        WHERE u.user_id = $2
           AND u.user_id != $1  -- Exclude self
-        LIMIT $3
       ),
       combined_results AS (
-        SELECT * FROM friend_search
+        SELECT * FROM friend_lookup
         UNION ALL
-        SELECT * FROM user_search
-      ),
-      deduplicated AS (
-        -- Deduplicate by user ID, prioritizing friends
-        SELECT DISTINCT ON (id) 
-          id, name, profile_picture_url, source, friendship_status
-        FROM combined_results
-        ORDER BY id, priority ASC  -- Lower priority number = higher priority
+        SELECT * FROM user_lookup
       )
-      SELECT * FROM deduplicated
-      ORDER BY 
-        CASE WHEN source = 'friend' THEN 1 ELSE 2 END,  -- Friends first
-        name ASC
-      LIMIT $3;`,
-      [userId, searchPattern, limit]
+      SELECT DISTINCT ON (id) 
+        id, name, profile_picture_url, source, friendship_status
+      FROM combined_results
+      ORDER BY id, priority ASC  -- Lower priority number = higher priority
+      LIMIT 1;`,
+      [currentUserId, userId]
     );
 
-    let users: SearchUser[] = searchResult.rows.map(row => ({
-      id: row.id,
-      name: row.name || 'Unknown User',
-      profile_picture_url: row.profile_picture_url,
-      source: row.source,
-      friendship_status: row.friendship_status
-    }));
+    if (userResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    const user = userResult.rows[0];
+    let userProfile: UserProfile = {
+      id: user.id,
+      name: user.name || 'Unknown User',
+      profile_picture_url: user.profile_picture_url,
+      source: user.source,
+      friendship_status: user.friendship_status
+    };
 
     // Fetch extended profile data if detailed=true
     if (detailed) {
-      users = await Promise.all(users.map(async (user) => {
-        const extendedData = await fetchExtendedProfileData(user.id);
-        return {
-          ...user,
-          ...extendedData
-        };
-      }));
+      const extendedData = await fetchExtendedProfileData(user.id);
+      userProfile = {
+        ...userProfile,
+        ...extendedData
+      };
     }
 
-    console.log(`[User Search API] Found ${users.length} users (${users.filter(u => u.source === 'friend').length} friends, ${users.filter(u => u.source === 'user').length} general users)${detailed ? ' with detailed data' : ''}`);
+    console.log(`[User Profile API] Found user: ${userProfile.name} (${userProfile.source})`);
 
     return NextResponse.json({
-      users,
-      query: searchQuery,
-      count: users.length,
-      detailed,
+      user: userProfile,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('[User Search API] Error:', error);
+    console.error('[User Profile API] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error },
       { status: 500 }
