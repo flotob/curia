@@ -119,6 +119,10 @@ CREATE TABLE "public"."community_partnerships" (
     CONSTRAINT "no_self_partnership" CHECK (source_community_id <> target_community_id)
 ) WITH (oids = false);
 
+COMMENT ON COLUMN "public"."community_partnerships"."source_to_target_permissions" IS 'Permissions that source community grants to target community. Includes: allowPresenceSharing, allowCrossCommunitySearch, allowCrossCommunityNavigation, allowCrossCommunityNotifications, allowBoardSharing';
+
+COMMENT ON COLUMN "public"."community_partnerships"."target_to_source_permissions" IS 'Permissions that target community grants to source community. Includes: allowPresenceSharing, allowCrossCommunitySearch, allowCrossCommunityNavigation, allowCrossCommunityNotifications, allowBoardSharing';
+
 CREATE INDEX idx_community_partnerships_lookup ON public.community_partnerships USING btree (source_community_id, target_community_id, status);
 
 CREATE UNIQUE INDEX unique_community_partnership ON public.community_partnerships USING btree (source_community_id, target_community_id);
@@ -131,6 +135,56 @@ CREATE INDEX idx_community_partnerships_status ON public.community_partnerships 
 
 CREATE INDEX idx_community_partnerships_invited_at ON public.community_partnerships USING btree (invited_at);
 
+
+DROP TABLE IF EXISTS "imported_boards";
+DROP SEQUENCE IF EXISTS imported_boards_id_seq;
+CREATE SEQUENCE imported_boards_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
+
+CREATE TABLE "public"."imported_boards" (
+    "id" integer DEFAULT nextval('imported_boards_id_seq') NOT NULL,
+    "source_board_id" integer NOT NULL,
+    "source_community_id" text NOT NULL,
+    "importing_community_id" text NOT NULL,
+    "imported_by_user_id" text NOT NULL,
+    "imported_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "imported_boards_pkey" PRIMARY KEY ("id")
+) WITH (oids = false);
+
+COMMENT ON TABLE "public"."imported_boards" IS 'Tracks boards imported from partner communities via permission-based sharing';
+
+COMMENT ON COLUMN "public"."imported_boards"."source_board_id" IS 'Board being imported from the source community';
+
+COMMENT ON COLUMN "public"."imported_boards"."source_community_id" IS 'Community that owns the original board';
+
+COMMENT ON COLUMN "public"."imported_boards"."importing_community_id" IS 'Community that is importing the board';
+
+COMMENT ON COLUMN "public"."imported_boards"."imported_by_user_id" IS 'User who performed the import';
+
+COMMENT ON COLUMN "public"."imported_boards"."imported_at" IS 'When the board was imported';
+
+COMMENT ON COLUMN "public"."imported_boards"."is_active" IS 'Whether the import is currently active';
+
+CREATE UNIQUE INDEX imported_boards_unique_import ON public.imported_boards USING btree (importing_community_id, source_board_id);
+
+CREATE INDEX idx_imported_boards_importing_community ON public.imported_boards USING btree (importing_community_id);
+
+CREATE INDEX idx_imported_boards_source_community ON public.imported_boards USING btree (source_community_id);
+
+CREATE INDEX idx_imported_boards_source_board ON public.imported_boards USING btree (source_board_id);
+
+CREATE INDEX idx_imported_boards_active_by_community ON public.imported_boards USING btree (importing_community_id, is_active) WHERE (is_active = true);
+
+CREATE INDEX idx_imported_boards_imported_at ON public.imported_boards USING btree (imported_at);
+
+
+DELIMITER ;;
+
+CREATE TRIGGER "set_timestamp_imported_boards" BEFORE UPDATE ON "public"."imported_boards" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
+
+DELIMITER ;
 
 DROP TABLE IF EXISTS "links";
 DROP SEQUENCE IF EXISTS links_id_seq;
@@ -442,6 +496,23 @@ CREATE TRIGGER "set_timestamp_reactions" BEFORE UPDATE ON "public"."reactions" F
 
 DELIMITER ;
 
+DROP TABLE IF EXISTS "shared_boards_backup";
+CREATE TABLE "public"."shared_boards_backup" (
+    "id" integer,
+    "board_id" integer,
+    "source_community_id" text,
+    "target_community_id" text,
+    "partnership_id" integer,
+    "shared_by_user_id" text,
+    "shared_at" timestamptz,
+    "sharing_settings" jsonb,
+    "created_at" timestamptz,
+    "updated_at" timestamptz
+) WITH (oids = false);
+
+COMMENT ON TABLE "public"."shared_boards_backup" IS 'Backup of original shared_boards table before migration to imported_boards model';
+
+
 DROP TABLE IF EXISTS "telegram_groups";
 DROP SEQUENCE IF EXISTS telegram_groups_id_seq;
 CREATE SEQUENCE telegram_groups_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -572,6 +643,10 @@ COMMENT ON COLUMN "public"."user_friends"."friendship_status" IS 'Status: active
 
 COMMENT ON COLUMN "public"."user_friends"."synced_at" IS 'When this friendship data was last synced from CG lib';
 
+CREATE INDEX idx_user_friends_name_search ON public.user_friends USING gin (to_tsvector('english'::regconfig, friend_name)) WHERE (friendship_status = 'active'::text);
+
+CREATE INDEX idx_user_friends_name_prefix ON public.user_friends USING btree (friend_name text_pattern_ops) WHERE (friendship_status = 'active'::text);
+
 CREATE UNIQUE INDEX user_friends_unique_friendship ON public.user_friends USING btree (user_id, friend_user_id);
 
 CREATE INDEX idx_user_friends_user_id ON public.user_friends USING btree (user_id);
@@ -600,6 +675,10 @@ CREATE TABLE "public"."users" (
     CONSTRAINT "users_pkey" PRIMARY KEY ("user_id")
 ) WITH (oids = false);
 
+CREATE INDEX idx_users_name_search ON public.users USING gin (to_tsvector('english'::regconfig, name)) WHERE (name IS NOT NULL);
+
+CREATE INDEX idx_users_name_prefix ON public.users USING btree (name text_pattern_ops) WHERE (name IS NOT NULL);
+
 
 DROP TABLE IF EXISTS "votes";
 CREATE TABLE "public"."votes" (
@@ -620,6 +699,11 @@ ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_par
 ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_responded_by_fkey" FOREIGN KEY (responded_by_user_id) REFERENCES users(user_id) NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_source_community_id_fkey" FOREIGN KEY (source_community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."community_partnerships" ADD CONSTRAINT "community_partnerships_target_community_id_fkey" FOREIGN KEY (target_community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+
+ALTER TABLE ONLY "public"."imported_boards" ADD CONSTRAINT "imported_boards_imported_by_user_id_fkey" FOREIGN KEY (imported_by_user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."imported_boards" ADD CONSTRAINT "imported_boards_importing_community_id_fkey" FOREIGN KEY (importing_community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."imported_boards" ADD CONSTRAINT "imported_boards_source_board_id_fkey" FOREIGN KEY (source_board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."imported_boards" ADD CONSTRAINT "imported_boards_source_community_id_fkey" FOREIGN KEY (source_community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
@@ -675,4 +759,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-25 10:47:06 UTC
+-- 2025-06-27 11:27:12 UTC
