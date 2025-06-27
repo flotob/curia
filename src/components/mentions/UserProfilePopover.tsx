@@ -38,6 +38,9 @@ interface UserProfilePopoverProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  // NEW: Community context for partner users
+  userCommunityName?: string;
+  isCurrentCommunity?: boolean;
 }
 
 export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
@@ -46,6 +49,8 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
   open,
   onOpenChange,
   children,
+  userCommunityName,
+  isCurrentCommunity = true,
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -197,12 +202,17 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
                 </Avatar>
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-wrap">
                     <h3 className="font-semibold text-base truncate">{profile.name}</h3>
                     {profile.source === 'friend' && (
                       <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
                         <Users className="h-3 w-3 mr-1" />
                         Friend
+                      </Badge>
+                    )}
+                    {!isCurrentCommunity && userCommunityName && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+                        From {userCommunityName}
                       </Badge>
                     )}
                   </div>

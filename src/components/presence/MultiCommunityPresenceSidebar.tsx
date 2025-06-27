@@ -29,6 +29,7 @@ import { useTypingContext } from '@/hooks/useTypingContext';
 import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
+import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
 
 // Enhanced interfaces (Socket.IO serializes dates as strings)
 interface DevicePresence {
@@ -177,12 +178,15 @@ const DeviceCard = ({ device, isPrimary = false, isCurrentCommunity = true }: { 
 // Individual user presence card component
 const UserPresenceCard = ({ 
   user, 
-  isCurrentCommunity = true 
+  isCurrentCommunity = true,
+  communityName
 }: { 
   user: EnhancedUserPresence; 
   isCurrentCommunity?: boolean;
+  communityName?: string;
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const hasMultipleDevices = user.totalDevices > 1;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -220,31 +224,42 @@ const UserPresenceCard = ({
     <Card className="transition-all duration-200 hover:shadow-sm">
       <CardContent className="p-3">
         <div className="flex items-center space-x-3">
-          <div className="relative">
-            <Avatar className={cn(
-              "h-8 w-8 transition-all duration-300",
-              typingContext.isTyping && "ring-2 ring-amber-400 ring-opacity-50 animate-pulse"
-            )}>
-              <AvatarImage src={user.avatarUrl} alt={user.userName} />
-              <AvatarFallback className="text-xs font-medium">
-                {user.userName.substring(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
-              user.isOnline ? "bg-green-500" : "bg-gray-400"
-            )} />
-            {/* Community indicator */}
-            {!isCurrentCommunity && (
-              <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full border-2 border-background flex items-center justify-center">
-                <Building2 size={8} className="text-white" />
+          <UserProfilePopover
+            userId={user.userId}
+            username={user.userName}
+            open={popoverOpen}
+            onOpenChange={setPopoverOpen}
+            userCommunityName={!isCurrentCommunity ? communityName : undefined}
+            isCurrentCommunity={isCurrentCommunity}
+          >
+            <div className="flex items-center space-x-3 cursor-pointer">
+              <div className="relative">
+                <Avatar className={cn(
+                  "h-8 w-8 transition-all duration-300",
+                  typingContext.isTyping && "ring-2 ring-amber-400 ring-opacity-50 animate-pulse"
+                )}>
+                  <AvatarImage src={user.avatarUrl} alt={user.userName} />
+                  <AvatarFallback className="text-xs font-medium">
+                    {user.userName.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className={cn(
+                  "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+                  user.isOnline ? "bg-green-500" : "bg-gray-400"
+                )} />
+                {/* Community indicator */}
+                {!isCurrentCommunity && (
+                  <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full border-2 border-background flex items-center justify-center">
+                    <Building2 size={8} className="text-white" />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+              <span className="font-medium truncate">{user.userName}</span>
+            </div>
+          </UserProfilePopover>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2">
-              <span className="font-medium truncate">{user.userName}</span>
               
               {/* Multi-device indicator */}
               {hasMultipleDevices && (
@@ -433,6 +448,7 @@ const CommunityGroupSection = ({ group }: { group: CommunityPresenceGroup }) => 
               key={user.userId} 
               user={user} 
               isCurrentCommunity={false}
+              communityName={group.communityName}
             />
           ))}
         </div>
@@ -541,6 +557,7 @@ export function MultiCommunityPresenceSidebar({
                 key={user.userId} 
                 user={user} 
                 isCurrentCommunity={true}
+                communityName={undefined}
               />
             ))}
           </div>
