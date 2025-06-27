@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake, Share2, UserCircle } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, Plus, X, Lock, Shield, Bell, Handshake, Share2 } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -800,18 +800,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
           )}
         >
-          <div className={cn(
-            'p-1.5 rounded-lg mr-3 transition-all duration-200',
+          <Avatar className={cn(
+            'w-7 h-7 mr-3 transition-all duration-200 border-2',
             pathname === `/profile/${user?.userId}`
               ? theme === 'dark'
-                ? 'bg-emerald-500/20 text-emerald-300'
-                : 'bg-emerald-500/10 text-emerald-600'
+                ? 'border-emerald-300/50'
+                : 'border-emerald-600/50'
               : theme === 'dark'
-                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+                ? 'border-slate-600/50 group-hover:border-slate-500/50'
+                : 'border-slate-300/50 group-hover:border-slate-400/50'
           )}>
-            <UserCircle size={16} />
-          </div>
+            <AvatarImage 
+              src={user?.picture || undefined} 
+              alt={user?.name || 'User profile'}
+              className="object-cover"
+            />
+            <AvatarFallback className={cn(
+              'text-xs font-semibold transition-all duration-200',
+              pathname === `/profile/${user?.userId}`
+                ? theme === 'dark'
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : 'bg-emerald-500/10 text-emerald-600'
+                : theme === 'dark'
+                  ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                  : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+            )}>
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </AvatarFallback>
+          </Avatar>
           <span className="flex-1 text-sm font-medium">My Profile</span>
           {pathname === `/profile/${user?.userId}` && (
             <ChevronRight size={14} className="opacity-60" />
