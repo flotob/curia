@@ -37,6 +37,7 @@ export interface UniversalProfileContextType {
   // Connection methods
   connect: () => Promise<void>;
   disconnect: () => void;
+  chooseAccount: () => Promise<void>;
   switchToLukso: () => Promise<void>;
   checkConnectionState: () => Promise<void>;
   
@@ -117,6 +118,7 @@ const InternalUniversalProfileProvider: React.FC<{ children: React.ReactNode }> 
       isCorrectChain: false,
       connect: async () => { throw new Error('Still initializing...'); },
       disconnect: () => {},
+      chooseAccount: async () => {},
       switchToLukso: async () => {},
       checkConnectionState: async () => {},
       verifyLyxBalance: async () => false,
@@ -290,6 +292,47 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     setIsConnected(false);
     setConnectionError(null);
     console.log('[UP Context] Disconnected from Universal Profile');
+  }, []);
+
+  // Choose account - triggers UP extension account selection
+  const handleChooseAccount = useCallback(async () => {
+    try {
+      setConnectionError(null);
+      
+      // Check if UP extension is installed
+      if (!window.lukso) {
+        throw new Error('Universal Profile extension not installed');
+      }
+      
+      console.log('[UP Context] Triggering account selection...');
+      
+      // Call eth_requestAccounts to open account selection dialog
+      const accounts = await window.lukso.request({ 
+        method: 'eth_requestAccounts' 
+      });
+      
+      if (accounts && accounts.length > 0) {
+        console.log('[UP Context] Account selected:', accounts[0]);
+        
+        // Update state with new account
+        setUpAddress(accounts[0]);
+        setIsConnected(true);
+        
+        // Check network
+        const currentChainId = await window.lukso.request({ method: 'eth_chainId' });
+        setChainId(currentChainId);
+        
+        console.log('[UP Context] Account selection completed successfully');
+      }
+    } catch (error: unknown) {
+      const err = error as { code?: number; message?: string };
+      console.error('Failed to choose account:', error);
+      if (err?.code === 4001) {
+        setConnectionError('Account selection cancelled by user.');
+      } else {
+        setConnectionError(err?.message || 'Failed to select account. Please try again.');
+      }
+    }
   }, []);
 
   // Switch to LUKSO network
@@ -1020,8 +1063,9 @@ const InitializedUniversalProfileProvider: React.FC<{ children: React.ReactNode 
     isCorrectChain,
     
     // Connection methods
-    connect: handleConnect,
-    disconnect: handleDisconnect,
+          connect: handleConnect,
+      disconnect: handleDisconnect,
+      chooseAccount: handleChooseAccount,
     switchToLukso,
     checkConnectionState,
     

@@ -52,6 +52,9 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
       throw new Error('Universal Profile not activated. Call initializeConnection() first.');
     },
     disconnect: () => {},
+    chooseAccount: async () => {
+      throw new Error('Universal Profile not activated. Call initializeConnection() first.');
+    },
     switchToLukso: async () => {},
     verifyLyxBalance: async () => false,
     verifyTokenRequirements: async () => ({ isValid: false, missingRequirements: [], errors: ['UP not activated'] }),

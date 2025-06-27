@@ -58,6 +58,10 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tippingModalOpen, setTippingModalOpen] = useState(false);
+  const [capturedProfileData, setCapturedProfileData] = useState<{
+    name?: string;
+    avatarUrl?: string;
+  } | null>(null);
   const { token } = useAuth();
 
   // Check tipping eligibility for this user
@@ -349,6 +353,13 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
                   className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
                   onClick={() => {
                     console.log('🎁 Tip button clicked! Recipient:', tippingEligibility.upAddress);
+                    
+                    // Capture current profile data to prevent race conditions
+                    setCapturedProfileData({
+                      name: profile?.name,
+                      avatarUrl: profile?.profile_picture_url || undefined
+                    });
+                    
                     // Close the profile popover and open tipping modal
                     onOpenChange(false);
                     setTippingModalOpen(true);
@@ -381,14 +392,14 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
     </DropdownMenu>
 
     {/* Tipping Modal */}
-    {tippingEligibility?.eligible && tippingEligibility.upAddress && (
+    {tippingEligibility?.eligible && tippingEligibility.upAddress && capturedProfileData && (
       <TippingModal
         open={tippingModalOpen}
         onOpenChange={setTippingModalOpen}
         recipientUserId={userId}
         recipientUsername={username}
-        recipientName={profile?.name}
-        recipientAvatar={profile?.profile_picture_url || undefined}
+        recipientName={capturedProfileData.name}
+        recipientAvatar={capturedProfileData.avatarUrl}
         recipientUpAddress={tippingEligibility.upAddress}
       />
     )}

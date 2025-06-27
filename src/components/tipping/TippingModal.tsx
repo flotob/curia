@@ -49,6 +49,7 @@ const TippingModalContent: React.FC<{
     isCorrectChain,
     connect,
     switchToLukso,
+    chooseAccount,
   } = useUniversalProfile();
 
   // Local state for tipping flow
@@ -202,6 +203,28 @@ const TippingModalContent: React.FC<{
           </div>
         </CardContent>
       </Card>
+
+      <Separator />
+
+      {/* Sender Account Info & Controls */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Sending from:</p>
+            <p className="text-sm font-mono font-medium">
+              {upAddress?.slice(0, 8)}...{upAddress?.slice(-6)}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={chooseAccount}
+            className="text-xs"
+          >
+            Choose Account
+          </Button>
+        </div>
+      </div>
 
       <Separator />
 
