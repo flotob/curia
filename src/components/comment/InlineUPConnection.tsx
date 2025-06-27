@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-import { useConditionalUniversalProfile, useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
+import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { 
   Wallet, 
   CheckCircle, 
@@ -31,9 +31,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   postSettings,
   className = '' 
 }) => {
-  const { activateUP, initializeConnection, hasUserTriggeredConnection } = useUPActivation();
   const {
-    isInitialized,
     isConnected,
     upAddress,
     isConnecting,
@@ -47,7 +45,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     getFollowerCount,
     isFollowedBy,
     isFollowing
-  } = useConditionalUniversalProfile();
+  } = useUniversalProfile();
 
   const [lyxBalance, setLyxBalance] = React.useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
@@ -94,15 +92,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
   const hasGating = postSettings ? SettingsUtils.hasUPGating(postSettings) : false;
   const requirements = hasGating && postSettings ? SettingsUtils.getUPGatingRequirements(postSettings) : null;
 
-  // Activate UP functionality when gating is detected (but don't initialize yet)
-  React.useEffect(() => {
-    if (hasGating) {
-      console.log('[InlineUPConnection] Gating detected, marking UP as needed');
-      activateUP();
-    }
-  }, [hasGating, activateUP]);
-
-  // Load LYX balance when connected and on correct chain
+  // Load LYX balance when connected and on correct chain (removed getLyxBalance from deps to prevent infinite loop)
   React.useEffect(() => {
     if (isConnected && isCorrectChain && requirements?.minLyxBalance) {
       setIsLoadingBalance(true);
@@ -120,9 +110,9 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     } else {
       setLyxBalance(null);
     }
-  }, [isConnected, isCorrectChain, getLyxBalance, requirements?.minLyxBalance]);
+  }, [isConnected, isCorrectChain, requirements?.minLyxBalance]); // Removed getLyxBalance to prevent infinite loop
 
-  // Load token balances when connected and on correct chain
+  // Load token balances when connected and on correct chain (removed checkTokenBalance from deps to prevent infinite loop)
   React.useEffect(() => {
     if (isConnected && isCorrectChain && requirements?.requiredTokens && requirements.requiredTokens.length > 0) {
       setIsLoadingTokens(true);
@@ -256,9 +246,9 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
       setTokenBalances({});
       setIsLoadingTokens(false);
     }
-  }, [isConnected, isCorrectChain, checkTokenBalance, requirements?.requiredTokens, upAddress]);
+  }, [isConnected, isCorrectChain, requirements?.requiredTokens, upAddress]); // Removed checkTokenBalance to prevent infinite loop
 
-  // Load follower data when connected and on correct chain
+  // Load follower data when connected and on correct chain (removed functions from deps to prevent infinite loop)
   React.useEffect(() => {
     if (isConnected && isCorrectChain && requirements?.followerRequirements && requirements.followerRequirements.length > 0) {
       setFollowerData(prev => ({ ...prev, isLoadingFollowers: true }));
@@ -352,7 +342,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
         isLoadingFollowers: false
       });
     }
-  }, [isConnected, isCorrectChain, getFollowerCount, isFollowedBy, isFollowing, requirements?.followerRequirements, upAddress]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isConnected, isCorrectChain, requirements?.followerRequirements, upAddress]); // Removed all UP functions to prevent infinite loop
 
   // Load UP profile names for follower requirements
   const fetchUPNames = React.useCallback(async (addresses: string[]) => {
@@ -460,23 +450,13 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     }
   }, [requirements?.followerRequirements, upAddress, fetchSocialProfiles, socialProfiles]);
 
-  // Handle explicit connection request (triggers Web3-Onboard initialization)
-  const handleConnectWallet = React.useCallback((event?: React.MouseEvent) => {
-    if (event) {
-      event.stopPropagation(); // Prevent event bubbling that collapses comment section
-      event.preventDefault();
-    }
-    console.log('[InlineUPConnection] User requested wallet connection');
-    initializeConnection();
-  }, [initializeConnection]);
-  
-  // Handle actual wallet connection (after Web3-Onboard is initialized)
+  // Handle connection request
   const handleConnect = React.useCallback(async (event?: React.MouseEvent) => {
     if (event) {
       event.stopPropagation(); // Prevent event bubbling that collapses comment section
       event.preventDefault();
     }
-    console.log('[InlineUPConnection] Attempting wallet connection via Web3-Onboard');
+    console.log('[InlineUPConnection] Attempting wallet connection');
     try {
       await connect();
     } catch (error) {
@@ -511,14 +491,6 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Auto-trigger connection once Web3-Onboard is initialized (seamless UX)
-  React.useEffect(() => {
-    if (hasUserTriggeredConnection && isInitialized && !isConnected && !isConnecting) {
-      console.log('[InlineUPConnection] Web3-Onboard initialized, auto-triggering connection');
-      handleConnect();
-    }
-  }, [hasUserTriggeredConnection, isInitialized, isConnected, isConnecting, handleConnect]);
-
   const formatAddress = (address: string): string => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
@@ -546,221 +518,7 @@ export const InlineUPConnection: React.FC<InlineUPConnectionProps> = ({
     return null;
   }
 
-  // Show requirements and connect button if UP hasn't been triggered yet
-  if (!hasUserTriggeredConnection) {
-    return (
-      <Card className={`border-2 ${className}`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center text-sm">
-            <Shield className="h-4 w-4 mr-2" />
-            Universal Profile Required
-          </CardTitle>
-          <CardDescription className="text-xs">
-            This post requires verification to comment
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent className="space-y-3">
-          {/* Preview Requirements - Same styling as connected version */}
-          <div className="space-y-1">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              Requirements
-            </h4>
-            
-            {/* LYX Balance Requirement */}
-            {requirements.minLyxBalance && (
-              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[60px]">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                    <Coins className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-sm">LYX Balance</div>
-                    <div className="text-xs text-muted-foreground">
-                      Required: {ethers.utils.formatEther(requirements.minLyxBalance)} LYX
-                    </div>
-                  </div>
-                </div>
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-              </div>
-            )}
-            
-            {/* Token Requirements */}
-            {requirements.requiredTokens && requirements.requiredTokens.length > 0 && (
-              <>
-                {requirements.requiredTokens.map((tokenReq, index) => {
-                  let displayAmount: string;
-                  if (tokenReq.tokenType === 'LSP7') {
-                    displayAmount = ethers.utils.formatUnits(tokenReq.minAmount || '0', 18);
-                  } else {
-                    displayAmount = tokenReq.minAmount || '1';
-                  }
-                  
-                  return (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[60px]">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                          <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm flex items-center space-x-2">
-                            <span>{tokenReq.symbol || tokenReq.name}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {tokenReq.tokenType}
-                            </Badge>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Required: {displayAmount} {tokenReq.symbol || 'tokens'}
-                          </div>
-                        </div>
-                      </div>
-                      <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    </div>
-                  );
-                })}
-              </>
-            )}
-
-            {/* Follower Requirements */}
-            {requirements.followerRequirements && requirements.followerRequirements.length > 0 && (
-              <>
-                {requirements.followerRequirements.map((followerReq, index) => {
-                  if (followerReq.type === 'minimum_followers') {
-                    return (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[60px]">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                            <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm">Minimum Followers</div>
-                            <div className="text-xs text-muted-foreground">
-                              Required: {followerReq.value} followers
-                            </div>
-                          </div>
-                        </div>
-                        <AlertTriangle className="h-5 w-5 text-amber-500" />
-                      </div>
-                    );
-                  } else {
-                    // Address-based requirement with social profile
-                    const socialProfile = socialProfiles[followerReq.value];
-                    
-                    return (
-                      <div key={index} className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[80px]">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3 flex-1">
-                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center flex-shrink-0">
-                              {followerReq.type === 'followed_by' ? (
-                                <UserCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              ) : (
-                                <UserX className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm mb-1">
-                                {followerReq.type === 'followed_by' ? 'Must be followed by' : 'Must follow'}
-                              </div>
-                              {/* Social Profile Display */}
-                              {socialProfile ? (
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
-                                    {socialProfile.profileImage ? (
-                                      <img 
-                                        src={socialProfile.profileImage} 
-                                        alt={socialProfile.displayName}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                                        {socialProfile.displayName.charAt(0).toUpperCase()}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center space-x-1 min-w-0">
-                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                      {socialProfile.displayName}
-                                    </span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                      {socialProfile.username}
-                                    </span>
-                                  </div>
-                                </div>
-                              ) : isLoadingSocialProfiles ? (
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
-                                  <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
-                                </div>
-                              ) : (
-                                <div className="text-xs text-muted-foreground font-mono">
-                                  {followerReq.value.slice(0, 6)}...{followerReq.value.slice(-4)}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center ml-3">
-                            <AlertTriangle className="h-5 w-5 text-amber-500" />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                })}
-              </>
-            )}
-          </div>
-
-          {/* Connection Actions */}
-          {isMobile ? (
-            <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield className="h-3 w-3" />
-                <span className="font-medium">Desktop Required</span>
-              </div>
-              Universal Profile connection is currently only available on desktop devices. Please use a desktop browser to verify your token requirements and participate in this discussion.
-            </div>
-          ) : (
-            <>
-              <Button
-                onClick={handleConnectWallet}
-                className="w-full"
-                size="sm"
-              >
-                <Wallet className="h-4 w-4 mr-2" />
-                Connect Universal Profile
-              </Button>
-              
-              <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                Connect your Universal Profile to verify token requirements and participate in this discussion.
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Show initializing/connecting state if triggered but not connected yet
-  if (hasUserTriggeredConnection && (!isInitialized || (!isConnected && !connectionError))) {
-    return (
-      <div className={`border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 rounded-lg p-4 ${className}`}>
-        <div className="flex items-center gap-2 mb-3">
-          <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-spin" />
-          <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
-            {!isInitialized ? 'Initializing Universal Profile' : 'Connecting to Wallet'}
-          </span>
-        </div>
-        
-        <div className="text-xs text-amber-700 dark:text-amber-300">
-          {!isInitialized 
-            ? 'Setting up Web3-Onboard connection interface...' 
-            : 'Opening wallet connection dialog...'}
-        </div>
-      </div>
-    );
-  }
-
-  // Once initialization is complete, show the full UP interface
+  // Show the full UP interface
   return (
     <Card className={`border-2 ${className}`}>
       <CardHeader className="pb-3">

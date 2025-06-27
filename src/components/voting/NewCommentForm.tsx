@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
 import { useTypingEvents } from '@/hooks/useTypingEvents';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
@@ -17,6 +16,7 @@ import { EditorToolbar } from './EditorToolbar';
 // Import our verification types
 import { SettingsUtils } from '@/types/settings';
 import { GatingRequirementsPanel } from '@/components/gating/GatingRequirementsPanel';
+import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -58,7 +58,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   post, // New optional prop
 }) => {
   const { token, isAuthenticated } = useAuth();
-  const { activateUP } = useUPActivation();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
@@ -75,13 +74,6 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     onTypingStart: () => console.log('[NewCommentForm] Started typing on post', postId),
     onTypingStop: () => console.log('[NewCommentForm] Stopped typing on post', postId)
   });
-
-  // Activate UP functionality when gating is detected (but don't initialize yet)
-  useEffect(() => {
-    if (hasGating) {
-      activateUP();
-    }
-  }, [hasGating, activateUP]);
 
   const editor = useEditor({
     extensions: [
@@ -221,9 +213,11 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
     <div className="mt-6 space-y-4">
       {/* Show gating requirements panel for gated posts */}
       {hasGating && (
-        <GatingRequirementsPanel 
-          postId={postId}
-        />
+        <UniversalProfileProvider>
+          <GatingRequirementsPanel 
+            postId={postId}
+          />
+        </UniversalProfileProvider>
       )}
       
       {/* Authentication check for comment form */}
