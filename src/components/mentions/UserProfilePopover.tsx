@@ -13,6 +13,7 @@ import { Users, MessageSquare, ExternalLink, Gift } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { preserveCgParams } from '@/utils/urlBuilder';
 import { useTippingEligibility } from '@/hooks/useTippingEligibility';
+import { TippingModal } from '@/components/tipping/TippingModal';
 
 interface UserProfile {
   id: string;
@@ -56,6 +57,7 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tippingModalOpen, setTippingModalOpen] = useState(false);
   const { token } = useAuth();
 
   // Check tipping eligibility for this user
@@ -151,10 +153,11 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
 
 
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger asChild>
-        {children}
-      </DropdownMenuTrigger>
+    <>
+      <DropdownMenu open={open} onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger asChild>
+          {children}
+        </DropdownMenuTrigger>
       <DropdownMenuContent 
         className="w-80 p-0" 
         side="left" 
@@ -345,10 +348,10 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
                   size="default" 
                   className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
                   onClick={() => {
-                    // TODO: Sprint 2 - Navigate to tip interface
                     console.log('🎁 Tip button clicked! Recipient:', tippingEligibility.upAddress);
-                    // For now, just close the popover
+                    // Close the profile popover and open tipping modal
                     onOpenChange(false);
+                    setTippingModalOpen(true);
                   }}
                   title={`Send a tip to ${profile?.name || username}`}
                 >
@@ -376,5 +379,19 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {/* Tipping Modal */}
+    {tippingEligibility?.eligible && tippingEligibility.upAddress && (
+      <TippingModal
+        open={tippingModalOpen}
+        onOpenChange={setTippingModalOpen}
+        recipientUserId={userId}
+        recipientUsername={username}
+        recipientName={profile?.name}
+        recipientAvatar={profile?.profile_picture_url || undefined}
+        recipientUpAddress={tippingEligibility.upAddress}
+      />
+    )}
+    </>
   );
 }; 
