@@ -223,7 +223,8 @@ const UserPresenceCard = ({
   return (
     <Card className="transition-all duration-200 hover:shadow-sm">
       <CardContent className="p-3">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-start space-x-3">
+          {/* Avatar with status indicators */}
           <UserProfilePopover
             userId={user.userId}
             username={user.userName}
@@ -232,68 +233,94 @@ const UserPresenceCard = ({
             userCommunityName={!isCurrentCommunity ? communityName : undefined}
             isCurrentCommunity={isCurrentCommunity}
           >
-            <div className="flex items-center space-x-3 cursor-pointer">
-              <div className="relative">
-                <Avatar className={cn(
-                  "h-8 w-8 transition-all duration-300",
-                  typingContext.isTyping && "ring-2 ring-amber-400 ring-opacity-50 animate-pulse"
-                )}>
-                  <AvatarImage src={user.avatarUrl} alt={user.userName} />
-                  <AvatarFallback className="text-xs font-medium">
-                    {user.userName.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
-                  user.isOnline ? "bg-green-500" : "bg-gray-400"
-                )} />
-                {/* Community indicator */}
-                {!isCurrentCommunity && (
-                  <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full border-2 border-background flex items-center justify-center">
-                    <Building2 size={8} className="text-white" />
-                  </div>
-                )}
-              </div>
-              <span className="font-medium truncate">{user.userName}</span>
+            <div className="relative cursor-pointer">
+              <Avatar className={cn(
+                "h-8 w-8 transition-all duration-300",
+                typingContext.isTyping && "ring-2 ring-amber-400 ring-opacity-50 animate-pulse"
+              )}>
+                <AvatarImage src={user.avatarUrl} alt={user.userName} />
+                <AvatarFallback className="text-xs font-medium">
+                  {user.userName.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className={cn(
+                "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+                user.isOnline ? "bg-green-500" : "bg-gray-400"
+              )} />
+              {/* Community indicator */}
+              {!isCurrentCommunity && (
+                <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full border-2 border-background flex items-center justify-center">
+                  <Building2 size={8} className="text-white" />
+                </div>
+              )}
             </div>
           </UserProfilePopover>
           
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2">
-              
-              {/* Multi-device indicator */}
-              {hasMultipleDevices && (
-                <Badge 
-                  variant="secondary" 
-                  className="text-xs cursor-pointer h-5 px-1.5 flex items-center space-x-1 hover:bg-secondary/80 transition-colors"
-                  onClick={() => setExpanded(!expanded)}
-                  title="Click to see all devices"
-                >
-                  <span>{user.totalDevices}</span>
-                  <div className="flex space-x-0.5">
-                    {user.devices.slice(0, 3).map((device) => (
-                      <DeviceIcon 
-                        key={device.frameUID} 
-                        deviceType={device.deviceType}
-                        className="h-2.5 w-2.5"
-                      />
-                    ))}
-                    {user.devices.length > 3 && (
-                      <span className="text-xs">+</span>
-                    )}
+          {/* Main content area */}
+          <div className="flex-1 min-w-0 space-y-1">
+            {/* Username and community info */}
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">{user.userName}</div>
+                {!isCurrentCommunity && communityName && (
+                  <div className="text-xs text-blue-600 dark:text-blue-400">
+                    {communityName}
                   </div>
-                </Badge>
-              )}
+                )}
+              </div>
               
-              {/* Single device indicator */}
-              {!hasMultipleDevices && (
-                <DeviceIcon deviceType={user.primaryDevice.deviceType} />
-              )}
+              {/* Device indicators and expand button */}
+              <div className="flex items-center space-x-1 flex-shrink-0">
+                {/* Multi-device indicator */}
+                {hasMultipleDevices && (
+                  <Badge 
+                    variant="secondary" 
+                    className="text-xs cursor-pointer h-5 px-1.5 flex items-center space-x-1 hover:bg-secondary/80 transition-colors"
+                    onClick={() => setExpanded(!expanded)}
+                    title="Click to see all devices"
+                  >
+                    <span>{user.totalDevices}</span>
+                    <div className="flex space-x-0.5">
+                      {user.devices.slice(0, 3).map((device) => (
+                        <DeviceIcon 
+                          key={device.frameUID} 
+                          deviceType={device.deviceType}
+                          className="h-2.5 w-2.5"
+                        />
+                      ))}
+                      {user.devices.length > 3 && (
+                        <span className="text-xs">+</span>
+                      )}
+                    </div>
+                  </Badge>
+                )}
+                
+                {/* Single device indicator */}
+                {!hasMultipleDevices && (
+                  <DeviceIcon deviceType={user.primaryDevice.deviceType} />
+                )}
+                
+                {/* Expand/collapse button for multi-device users */}
+                {hasMultipleDevices && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpanded(!expanded)}
+                    className="h-6 w-6 p-0"
+                  >
+                    {expanded ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
             
-            {/* Primary activity (collapsed view) */}
+            {/* Activity info (collapsed view) */}
             {!expanded && (
-              <>
+              <div className="space-y-1">
                 {/* Show typing indicator if user is typing */}
                 {typingContext.isTyping ? (
                   <TypingIndicator 
@@ -308,7 +335,7 @@ const UserPresenceCard = ({
                     {user.primaryDevice.currentBoardId && (
                       <button
                         onClick={() => navigateToBoard(user.primaryDevice)}
-                        className="text-xs hover:underline transition-colors text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-left"
+                        className="text-xs hover:underline transition-colors text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-left block w-full truncate"
                         title={isCurrentCommunity ? undefined : `Navigate to ${user.primaryDevice.currentBoardName} in other community`}
                       >
                         {!isCurrentCommunity && "🔗 "}
@@ -321,25 +348,9 @@ const UserPresenceCard = ({
                     </div>
                   </>
                 )}
-              </>
+              </div>
             )}
           </div>
-          
-          {/* Expand/collapse button for multi-device users */}
-          {hasMultipleDevices && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setExpanded(!expanded)}
-              className="h-6 w-6 p-0"
-            >
-              {expanded ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
-              )}
-            </Button>
-          )}
         </div>
         
         {/* Expanded device list */}
