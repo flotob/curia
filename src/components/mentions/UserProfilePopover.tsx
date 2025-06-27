@@ -9,9 +9,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Users, MessageSquare, ExternalLink } from 'lucide-react';
+import { Users, MessageSquare, ExternalLink, Gift } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { preserveCgParams } from '@/utils/urlBuilder';
+import { useTippingEligibility } from '@/hooks/useTippingEligibility';
 
 interface UserProfile {
   id: string;
@@ -56,6 +57,12 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { token } = useAuth();
+
+  // Check tipping eligibility for this user
+  const { 
+    data: tippingEligibility, 
+    isLoading: isTippingLoading 
+  } = useTippingEligibility(userId, open && !!userId);
 
   // Fetch user profile data when popover opens
   useEffect(() => {
@@ -329,7 +336,28 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
             <Separator />
 
             {/* Actions */}
-            <div className="p-4">
+            <div className="p-4 space-y-4">
+              {/* Tipping Button - Only show when eligible */}
+              {isTippingLoading ? (
+                <div className="w-full h-8 bg-muted/50 rounded animate-pulse" />
+              ) : tippingEligibility?.eligible ? (
+                <Button 
+                  size="default" 
+                  className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
+                  onClick={() => {
+                    // TODO: Sprint 2 - Navigate to tip interface
+                    console.log('🎁 Tip button clicked! Recipient:', tippingEligibility.upAddress);
+                    // For now, just close the popover
+                    onOpenChange(false);
+                  }}
+                  title={`Send a tip to ${profile?.name || username}`}
+                >
+                  <Gift className="h-4 w-4 mr-2" />
+                  Send Tip
+                </Button>
+              ) : null}
+
+              {/* View Profile Button */}
               <Link 
                 href={preserveCgParams(`/profile/${profile.id}`)}
                 onClick={() => onOpenChange(false)} // Close popover when navigating
