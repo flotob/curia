@@ -213,24 +213,19 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         open={isAuthorPopoverOpen}
         onOpenChange={setIsAuthorPopoverOpen}
       >
-        <Avatar className="h-8 w-8 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-primary hover:ring-opacity-30 transition-all">
-          <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-          <AvatarFallback>{avatarFallback}</AvatarFallback>
-        </Avatar>
+        <div className="flex items-center space-x-2 cursor-pointer group/author">
+          <Avatar className="h-8 w-8 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
+            <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+            <AvatarFallback>{avatarFallback}</AvatarFallback>
+          </Avatar>
+          <span className="font-semibold text-foreground group-hover/author:text-primary transition-colors text-xs">
+            {authorDisplayName}
+          </span>
+        </div>
       </UserProfilePopover>
       <div className="flex-grow">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-            <UserProfilePopover
-              userId={comment.author_user_id}
-              username={authorDisplayName}
-              open={isAuthorPopoverOpen}
-              onOpenChange={setIsAuthorPopoverOpen}
-            >
-              <span className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors">
-                {authorDisplayName}
-              </span>
-            </UserProfilePopover>
             <span className="mx-1">•</span>
             <Clock size={12} className="mr-0.5 flex-shrink-0" />
             <span>{timeSinceText}</span>
