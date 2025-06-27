@@ -611,19 +611,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           <CardHeader className="pb-2 px-3 sm:px-6">
             <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
               <div className="flex items-center min-w-0">
-                <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0">
-                  <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                  <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
-                </Avatar>
                 <UserProfilePopover
                   userId={post.author_user_id}
                   username={authorDisplayName}
                   open={isAuthorPopoverOpen}
                   onOpenChange={setIsAuthorPopoverOpen}
                 >
-                  <span className="font-medium text-foreground truncate min-w-0 cursor-pointer hover:text-primary transition-colors">
-                    {authorDisplayName}
-                  </span>
+                  <div className="flex items-center min-w-0 cursor-pointer group">
+                    <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0 group-hover:ring-2 group-hover:ring-primary group-hover:ring-opacity-30 transition-all">
+                      <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                      <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium text-foreground truncate min-w-0 group-hover:text-primary transition-colors">
+                      {authorDisplayName}
+                    </span>
+                  </div>
                 </UserProfilePopover>
               </div>
               {showBoardContext && (
