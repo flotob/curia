@@ -43,6 +43,7 @@ import { getUPDisplayName } from '@/lib/upProfile';
 import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
 import { ReactionBar } from '../reactions/ReactionBar';
+import { UserProfilePopover } from '../mentions/UserProfilePopover';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -89,6 +90,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const [shareUrl, setShareUrl] = useState('');
   const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
   const [isWebShareFallback, setIsWebShareFallback] = useState(false);
+  const [isAuthorPopoverOpen, setIsAuthorPopoverOpen] = useState(false);
   
   // UP profile names for follower requirements (address -> display name)
   const [upProfileNames, setUpProfileNames] = useState<Record<string, string>>({});
@@ -613,7 +615,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
                   <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
                 </Avatar>
-                <span className="font-medium text-foreground truncate min-w-0">{authorDisplayName}</span>
+                <UserProfilePopover
+                  userId={post.author_user_id}
+                  username={authorDisplayName}
+                  open={isAuthorPopoverOpen}
+                  onOpenChange={setIsAuthorPopoverOpen}
+                >
+                  <span className="font-medium text-foreground truncate min-w-0 cursor-pointer hover:text-primary transition-colors">
+                    {authorDisplayName}
+                  </span>
+                </UserProfilePopover>
               </div>
               {showBoardContext && (
                 <div className="flex items-center min-w-0">

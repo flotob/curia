@@ -111,7 +111,7 @@ async function handler(req: AuthenticatedRequest, context: RouteContext) {
           AND uf.friend_user_id = $2
       ),
       user_lookup AS (
-        -- Check general users table (lower priority)
+        -- Check general users table (lower priority, allows self-lookup)
         SELECT 
           u.user_id as id,
           u.name,
@@ -121,7 +121,6 @@ async function handler(req: AuthenticatedRequest, context: RouteContext) {
           2 as priority
         FROM users u
         WHERE u.user_id = $2
-          AND u.user_id != $1  -- Exclude self
       ),
       combined_results AS (
         SELECT * FROM friend_lookup

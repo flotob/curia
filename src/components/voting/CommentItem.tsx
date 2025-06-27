@@ -26,6 +26,7 @@ import TiptapLink from '@tiptap/extension-link'; // For rendering links
 import TiptapImage from '@tiptap/extension-image'; // For rendering images, if they ever appear in comments
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
+import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
 // import { cn } from '@/lib/utils';
 // Ensure highlight.js theme is available. If not imported globally, import here.
 // For now, assuming it might be covered by NewCommentForm's import or a global one.
@@ -58,6 +59,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
   // Highlight animation state
   const [showHighlight, setShowHighlight] = React.useState(false);
+  const [isAuthorPopoverOpen, setIsAuthorPopoverOpen] = React.useState(false);
 
   // Trigger highlight animation when isHighlighted becomes true
   React.useEffect(() => {
@@ -212,7 +214,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       <div className="flex-grow">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{authorDisplayName}</span>
+            <UserProfilePopover
+              userId={comment.author_user_id}
+              username={authorDisplayName}
+              open={isAuthorPopoverOpen}
+              onOpenChange={setIsAuthorPopoverOpen}
+            >
+              <span className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors">
+                {authorDisplayName}
+              </span>
+            </UserProfilePopover>
             <span className="mx-1">•</span>
             <Clock size={12} className="mr-0.5 flex-shrink-0" />
             <span>{timeSinceText}</span>
