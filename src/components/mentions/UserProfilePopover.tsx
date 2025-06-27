@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Users, MessageSquare, Calendar, ExternalLink } from 'lucide-react';
+import { Users, MessageSquare, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { preserveCgParams } from '@/utils/urlBuilder';
 
@@ -141,16 +141,7 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
     }
   }, [open]);
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-      });
-    } catch {
-      return 'Recently';
-    }
-  };
+
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -159,14 +150,63 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent 
         className="w-80 p-0" 
-        side="top" 
-        align="start"
-        sideOffset={8}
+        side="left" 
+        align="center"
+        sideOffset={12}
       >
         {isLoading ? (
-          <div className="p-6 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">Loading profile...</span>
+          <div className="p-0">
+            {/* Header skeleton */}
+            <div className="p-4 bg-gradient-to-r from-primary/5 to-primary/10">
+              <div className="flex items-start space-x-3">
+                <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+                    <div className="h-4 w-12 bg-muted rounded animate-pulse" />
+                  </div>
+                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Stats skeleton */}
+            <div className="p-4">
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                  <div className="h-6 w-8 bg-muted rounded animate-pulse mx-auto mb-1" />
+                  <div className="h-3 w-12 bg-muted rounded animate-pulse mx-auto" />
+                </div>
+                <div>
+                  <div className="h-6 w-8 bg-muted rounded animate-pulse mx-auto mb-1" />
+                  <div className="h-3 w-16 bg-muted rounded animate-pulse mx-auto" />
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Communities skeleton */}
+            <div className="p-4">
+              <div className="flex items-center mb-3">
+                <div className="h-4 w-4 bg-muted rounded animate-pulse mr-1" />
+                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <div className="h-7 w-24 bg-muted rounded-full animate-pulse" />
+                <div className="h-7 w-20 bg-muted rounded-full animate-pulse" />
+                <div className="h-7 w-28 bg-muted rounded-full animate-pulse" />
+              </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Actions skeleton */}
+            <div className="p-4">
+              <div className="h-8 w-full bg-muted rounded animate-pulse" />
+            </div>
           </div>
         ) : error ? (
           <div className="p-6 text-center">
@@ -250,34 +290,38 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
             {/* Communities section */}
             {profile.communities && profile.communities.length > 0 && (
               <div className="p-4">
-                <div className="flex items-center text-sm text-muted-foreground mb-2">
+                <div className="flex items-center text-sm text-muted-foreground mb-3">
                   <Users className="h-4 w-4 mr-1" />
                   Member of {profile.communities.length} {profile.communities.length === 1 ? 'community' : 'communities'}
                 </div>
-                <div className="space-y-1">
-                  {profile.communities.slice(0, 3).map((community) => (
-                    <div key={community.id} className="flex items-center space-x-2 text-sm">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                      <span className="truncate">{community.name}</span>
+                <div className="flex flex-wrap gap-2">
+                  {profile.communities.slice(0, 4).map((community) => (
+                    <div 
+                      key={community.id} 
+                      className="inline-flex items-center space-x-2 bg-secondary/50 hover:bg-secondary/70 transition-colors rounded-full px-3 py-1.5 text-xs"
+                    >
+                      {community.logo_url ? (
+                        <Avatar className="h-4 w-4">
+                          <AvatarImage src={community.logo_url} alt={community.name} />
+                          <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                            {community.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      ) : (
+                        <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-xs font-medium text-primary">
+                            {community.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <span className="truncate max-w-24 font-medium">{community.name}</span>
                     </div>
                   ))}
-                  {profile.communities.length > 3 && (
-                    <div className="text-xs text-muted-foreground pl-3.5">
-                      +{profile.communities.length - 3} more
+                  {profile.communities.length > 4 && (
+                    <div className="inline-flex items-center bg-muted/50 rounded-full px-3 py-1.5 text-xs text-muted-foreground font-medium">
+                      +{profile.communities.length - 4} more
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            <Separator />
-
-            {/* Joined date */}
-            {profile.stats?.joined_date && (
-              <div className="p-4">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Joined {formatDate(profile.stats.joined_date)}
                 </div>
               </div>
             )}
