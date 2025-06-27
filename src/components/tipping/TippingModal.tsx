@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Gift, Wallet, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { useUniversalProfile, UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
-import { useUPActivation } from '@/contexts/ConditionalUniversalProfileProvider';
+import { TipAssetSelector } from './TipAssetSelector';
 
 interface TippingModalProps {
   open: boolean;
@@ -51,8 +51,6 @@ const TippingModalContent: React.FC<{
     switchToLukso,
   } = useUniversalProfile();
 
-  const { initializeConnection } = useUPActivation();
-
   // Local state for tipping flow
   const [currentStep, setCurrentStep] = useState<'connect' | 'tip_interface' | 'sending' | 'success'>('connect');
 
@@ -70,18 +68,8 @@ const TippingModalContent: React.FC<{
   // Handle UP connection
   const handleConnect = async () => {
     try {
-      // Activate UP context if not already active
-      initializeConnection();
-      
-      // Small delay to ensure context switches
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Connect UP
+      // Connect UP directly (we're already inside UniversalProfileProvider)
       await connect();
-      
-      if (isConnected && isCorrectChain) {
-        setCurrentStep('tip_interface');
-      }
     } catch (error) {
       console.error('Failed to connect Universal Profile:', error);
     }
@@ -217,28 +205,16 @@ const TippingModalContent: React.FC<{
 
       <Separator />
 
-      {/* Tip Interface Placeholder */}
-      <div className="text-center space-y-4">
-        <div className="p-8 border-2 border-dashed border-muted rounded-lg">
-          <Gift className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Tip Interface Coming Soon</h3>
-          <p className="text-muted-foreground text-sm">
-            Asset selection, amount input, and transaction execution will be implemented in Sprint 3
-          </p>
-          <div className="mt-4 text-xs text-muted-foreground">
-            <p>Connected: {upAddress?.slice(0, 6)}...{upAddress?.slice(-4)}</p>
-            <p>Recipient: {recipientUpAddress.slice(0, 6)}...{recipientUpAddress.slice(-4)}</p>
-          </div>
-        </div>
-
-        <Button
-          onClick={() => onOpenChange(false)}
-          variant="outline"
-          className="w-full"
-        >
-          Close for Now
-        </Button>
-      </div>
+      {/* Asset Selection */}
+      <TipAssetSelector 
+        upAddress={upAddress!}
+        recipientAddress={recipientUpAddress}
+        onTipSent={() => {
+          // TODO: Handle success
+          console.log('Tip sent successfully!');
+        }}
+        onClose={() => onOpenChange(false)}
+      />
     </div>
   );
 
