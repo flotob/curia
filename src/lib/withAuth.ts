@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { query } from '@/lib/db'; // Assuming @/lib path alias is set up or use relative path
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -63,33 +62,6 @@ export function withAuth(
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
       console.log('[withAuth] Token verified successfully. Decoded exp:', decoded.exp, 'Current time:', Math.floor(Date.now() / 1000));
-
-      // --- User Profile UPSERT Logic --- //
-      const userId = decoded.sub;
-      const userName = decoded.name ?? null; // Use nullish coalescing for optional claims
-      const profilePictureUrl = decoded.picture ?? null;
-
-      if (userId) {
-        try {
-          await query(
-            `INSERT INTO users (user_id, name, profile_picture_url, updated_at)
-             VALUES ($1, $2, $3, NOW())
-             ON CONFLICT (user_id)
-             DO UPDATE SET
-               name = EXCLUDED.name,
-               profile_picture_url = EXCLUDED.profile_picture_url,
-               updated_at = NOW();`,
-            [userId, userName, profilePictureUrl]
-          );
-        } catch (profileError) {
-          console.error(
-            'Error updating user profile during auth (non-critical):',
-            profileError
-          );
-          // Non-critical error, so we don't block the request for this.
-        }
-      }
-      // --- END User Profile UPSERT Logic --- //
 
       const authReq = req as AuthenticatedRequest;
       authReq.user = decoded;

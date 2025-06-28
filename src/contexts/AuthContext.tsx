@@ -70,6 +70,13 @@ interface UserDataFromCgLib {
   communityShortId?: string | null;  // 🆕 Short ID for URL construction
   pluginId?: string | null;          // 🆕 Plugin ID from context
   communityLogoUrl?: string | null;  // 🆕 Community logo from CG
+  // 🆕 Common Ground profile data (undefined if plugin lacks permissions)
+  lukso?: { username: string; address: string };
+  ethereum?: { address: string };
+  twitter?: { username: string };
+  farcaster?: { displayName: string; username: string; fid: number };
+  premium?: string;
+  email?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -160,6 +167,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         pluginId: loginData.pluginId,                  // 🆕 Plugin ID from context
         communityLogoUrl: loginData.communityLogoUrl,  // 🆕 Community logo from CG
         friends: friends.length > 0 ? friends : undefined, // 🆕 Include friends if available
+        // 🆕 Pass through Common Ground profile data
+        lukso: loginData.lukso,
+        ethereum: loginData.ethereum,
+        twitter: loginData.twitter,
+        farcaster: loginData.farcaster,
+        premium: loginData.premium,
+        email: loginData.email,
     };
 
     try {
@@ -271,6 +285,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             communityShortId: communityInfoResponse.data.url,  // 🆕 Short ID for URLs
             pluginId: pluginId,                                // 🆕 Plugin ID from context
             communityLogoUrl: communityInfoResponse.data.smallLogoUrl, // 🆕 Community logo from CG
+            // 🆕 Extract Common Ground profile data for refresh
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            lukso: (userInfoResponse.data as any).lukso,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ethereum: (userInfoResponse.data as any).ethereum,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            twitter: (userInfoResponse.data as any).twitter,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            farcaster: (userInfoResponse.data as any).farcaster,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            premium: (userInfoResponse.data as any).premium,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            email: (userInfoResponse.data as any).email,
           };
           
           console.log('[AuthContext] Extracted data for refresh:', {

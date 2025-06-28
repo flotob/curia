@@ -20,10 +20,10 @@ async function syncFriendsInBackground(
         continue;
       }
 
-      // Ensure friend user exists in users table
+      // Ensure friend user exists in users table (with empty settings for friends)
       await query(
-        `INSERT INTO users (user_id, name, profile_picture_url, updated_at)
-         VALUES ($1, $2, $3, NOW())
+        `INSERT INTO users (user_id, name, profile_picture_url, settings, updated_at)
+         VALUES ($1, $2, $3, '{}', NOW())
          ON CONFLICT (user_id) DO UPDATE SET 
            name = COALESCE(EXCLUDED.name, users.name),
            profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, users.profile_picture_url),
@@ -69,6 +69,28 @@ interface CommunityRole {
   // Add other properties from Community Info roles if needed by the backend
 }
 
+// User settings interface for Common Ground profile data
+interface UserSettings {
+  lukso?: {
+    username: string;  // "florian#0a60"
+    address: string;   // "0x0a607f902CAa16a27AA3Aabd968892aa89ABDa92"
+  };
+  ethereum?: {
+    address: string;
+  };
+  twitter?: {
+    username: string; // "heckerhut"
+  };
+  farcaster?: {
+    displayName: string; // "Florian"
+    username: string;    // "flx"
+    fid: number;         // 13216
+  };
+  premium?: string;      // "GOLD"
+  email?: string;        // "fg@blockchain.lawyer"
+  // Future: Add other social platforms as needed
+}
+
 interface SessionRequestBody {
   userId: string;
   name?: string | null;
@@ -86,6 +108,24 @@ interface SessionRequestBody {
     name: string;
     image?: string;
   }>;
+  // 🆕 Common Ground profile data
+  lukso?: {
+    username: string;
+    address: string;
+  };
+  ethereum?: {
+    address: string;
+  };
+  twitter?: {
+    username: string;
+  };
+  farcaster?: {
+    displayName: string;
+    username: string;
+    fid: number;
+  };
+  premium?: string;
+  email?: string;
 }
 
 // This should match or be compatible with JwtPayload in withAuth.ts
@@ -188,18 +228,54 @@ export async function POST(req: NextRequest) {
         );
         console.log(`[/api/auth/session] Upserted default board for community ${communityId}. Board ID: ${boardResult.rows[0]?.id}`);
 
-        // 3. Ensure user record exists before creating user-community relationship
+        // 3. Extract and prepare Common Ground profile data for settings
+        const userSettings: UserSettings = {};
+        
+        // Capture LUKSO profile data if available
+        if (body.lukso?.address && body.lukso?.username) {
+          userSettings.lukso = {
+            username: body.lukso.username,
+            address: body.lukso.address
+          };
+          console.log(`[/api/auth/session] Captured LUKSO profile for ${userId}: ${body.lukso.address} (${body.lukso.username})`);
+        }
+        
+        // Capture other social/blockchain data if available
+        if (body.ethereum?.address) {
+          userSettings.ethereum = { address: body.ethereum.address };
+        }
+        if (body.twitter?.username) {
+          userSettings.twitter = { username: body.twitter.username };
+        }
+        if (body.farcaster?.displayName && body.farcaster?.username && body.farcaster?.fid) {
+          userSettings.farcaster = {
+            displayName: body.farcaster.displayName,
+            username: body.farcaster.username,
+            fid: body.farcaster.fid
+          };
+        }
+        if (body.premium) {
+          userSettings.premium = body.premium;
+        }
+        if (body.email) {
+          userSettings.email = body.email;
+        }
+
+        console.log(`[/api/auth/session] User settings for ${userId}:`, userSettings);
+
+        // 4. Ensure user record exists with Common Ground profile data
         await query(
-          `INSERT INTO users (user_id, name, profile_picture_url, updated_at)
-           VALUES ($1, $2, $3, NOW())
+          `INSERT INTO users (user_id, name, profile_picture_url, settings, updated_at)
+           VALUES ($1, $2, $3, $4, NOW())
            ON CONFLICT (user_id) DO UPDATE SET 
              name = COALESCE(EXCLUDED.name, users.name),
              profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, users.profile_picture_url),
+             settings = EXCLUDED.settings,
              updated_at = NOW();`,
-          [userId, name ?? null, profilePictureUrl ?? null]
+          [userId, name ?? null, profilePictureUrl ?? null, JSON.stringify(userSettings)]
         );
 
-        // 4. Track user-community relationship for cross-device "What's New"
+        // 5. Track user-community relationship for cross-device "What's New"
         const userCommunityResult = await query(
           `INSERT INTO user_communities (user_id, community_id, first_visited_at, last_visited_at, visit_count, created_at, updated_at)
            VALUES ($1, $2, NOW(), NOW(), 1, NOW(), NOW())
@@ -214,7 +290,7 @@ export async function POST(req: NextRequest) {
         const visitInfo = userCommunityResult.rows[0];
         console.log(`[/api/auth/session] Updated user-community relationship for ${userId} in ${communityId}. Visit count: ${visitInfo?.visit_count}, First visit: ${visitInfo?.first_visited_at}`);
 
-        // 5. Auto-sync friends if provided (non-blocking)
+        // 6. Auto-sync friends if provided (non-blocking)
         if (body.friends && Array.isArray(body.friends) && body.friends.length > 0) {
           console.log(`[/api/auth/session] Starting automatic friends sync for ${userId} (${body.friends.length} friends)`);
           
