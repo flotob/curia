@@ -1,27 +1,38 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { GatingCategoryStatus, UPGatingRequirements } from '@/types/gating';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { useUPRequirementVerification } from '@/hooks/gating/up/useUPRequirementVerification';
 import { RichRequirementsDisplay } from '@/components/gating/RichRequirementsDisplay';
+import { EthereumSmartVerificationButton } from '../ethereum/EthereumSmartVerificationButton';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UniversalProfileGatingPanelProps {
   requirements: UPGatingRequirements;
   fulfillment: 'any' | 'all';
   onStatusUpdate: (status: GatingCategoryStatus) => void;
+  onVerificationComplete?: () => void;
   isPreviewMode?: boolean;
+  postId?: number;
 }
 
-export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelProps> = ({ 
+export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelProps> = ({
   requirements,
   fulfillment,
   onStatusUpdate,
+  onVerificationComplete,
   isPreviewMode,
+  postId
 }) => {
-  const { upAddress, connect, disconnect } = useUniversalProfile();
+  const { upAddress, connect, disconnect, signMessage } = useUniversalProfile();
+  const { token } = useAuth();
   
-  // Use our new, single logic hook
-  const { isLoading, verificationStatus } = useUPRequirementVerification(upAddress, requirements);
+  const { isLoading, verificationStatus, error: localVerificationError } = useUPRequirementVerification(upAddress, requirements);
   
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const allRequirementsMet = !isLoading && verificationStatus.requirements.every(r => r.isMet);
+
   // Report status up to the parent component
   useEffect(() => {
     if (isLoading) return;
@@ -70,29 +81,88 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
     });
   }, [verificationStatus, fulfillment, onStatusUpdate, requirements]);
 
-  // The 'connect' function from the context can be used directly.
+  const handleBackendVerification = useCallback(async () => {
+    if (!upAddress || !token || isPreviewMode || !postId) return;
+
+    setIsVerifying(true);
+    setServerError(null);
+    try {
+      const message = `Verify Universal Profile for post ${postId}\nAddress: ${upAddress}\nTimestamp: ${Date.now()}`;
+      const signature = await signMessage(message);
+
+      const response = await fetch(`/api/posts/${postId}/pre-verify/universal_profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          challenge: {
+            message,
+            signature,
+            address: upAddress,
+            requirements,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Server verification failed');
+      }
+
+      onVerificationComplete?.();
+    } catch (e) {
+      console.error(e);
+      setServerError(e instanceof Error ? e.message : 'An unknown error occurred.');
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [upAddress, token, isPreviewMode, postId, signMessage, requirements, onVerificationComplete]);
+
   const handleConnect = async () => {
     try {
       await connect();
-      // Potentially call onVerificationComplete here if auto-verification is desired after connect
     } catch (error) {
       console.error("Failed to connect Universal Profile:", error);
     }
   };
 
+  const getButtonState = () => {
+    if (isVerifying) return 'verifying';
+    if (!allRequirementsMet) return 'requirements_not_met';
+    if (isPreviewMode && allRequirementsMet) return 'preview_mode_complete';
+    return 'ready_to_verify';
+  }
+
   return (
-    <RichRequirementsDisplay
-      requirements={requirements}
-      fulfillment={fulfillment}
-      userStatus={verificationStatus}
-      metadata={{
-        icon: '⬡',
-        name: 'Universal Profile',
-        brandColor: '#F20079' // LUKSO Pink
-      }}
-      onConnect={handleConnect}
-      onDisconnect={disconnect}
-      isPreviewMode={isPreviewMode}
-    />
+    <div className="space-y-4">
+      <RichRequirementsDisplay
+        requirements={requirements}
+        fulfillment={fulfillment}
+        userStatus={verificationStatus}
+        metadata={{
+          icon: '⬡',
+          name: 'Universal Profile',
+          brandColor: '#F20079'
+        }}
+        onConnect={handleConnect}
+        onDisconnect={disconnect}
+        isPreviewMode={isPreviewMode}
+      />
+      
+      {!isPreviewMode && verificationStatus.connected && (
+        <EthereumSmartVerificationButton
+            state={getButtonState()}
+            allRequirementsMet={allRequirementsMet}
+            isConnected={verificationStatus.connected}
+            isCorrectChain={true}
+            isVerifying={isVerifying}
+            verified={false}
+            onClick={handleBackendVerification}
+            error={serverError || localVerificationError || undefined}
+        />
+      )}
+    </div>
   );
 }; 

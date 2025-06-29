@@ -36,7 +36,7 @@ export const useUpTokenVerification = (
   const [isLoadingLsp8, setIsLoadingLsp8] = useState(false);
 
   // Wagmi's useReadContracts for standard balance checks (LSP7 & LSP8 collections)
-  const { data: balanceResults, isLoading: isLoadingBalances } = useReadContracts({
+  const { data: balanceResults, isLoading: isLoadingBalances, refetch } = useReadContracts({
     contracts: wagmiRequirements.flatMap(req => {
       if (!connectedAddress) return [];
       const abi = req.tokenType === 'LSP7' ? erc20Abi : erc721Abi;
@@ -51,6 +51,14 @@ export const useUpTokenVerification = (
       enabled: !!connectedAddress && wagmiRequirements.length > 0,
     }
   });
+
+  // Force a refetch when the user connects to avoid stale cached data
+  useEffect(() => {
+    if (connectedAddress) {
+      console.log('[useUpTokenVerification] Address connected, refetching token balances to avoid stale cache.');
+      refetch();
+    }
+  }, [connectedAddress, refetch]);
 
   // Manual verification for specific LSP8 token IDs
   useEffect(() => {

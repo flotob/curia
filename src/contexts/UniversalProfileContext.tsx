@@ -41,6 +41,7 @@ export interface UniversalProfileContextType {
   disconnect: () => void;
   getLyxBalance: () => Promise<string>;
   getTokenBalances: (tokenAddresses: string[]) => Promise<TokenBalance[]>;
+  signMessage: (message: string) => Promise<string>;
 }
 
 // ===== CONTEXT DEFINITION =====
@@ -280,6 +281,14 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
     return balances;
   }, [provider, fetchTokenIcon]);
 
+  const signMessage = useCallback(async (message: string): Promise<string> => {
+    if (!provider) {
+      throw new Error("Provider not available. Please connect your wallet.");
+    }
+    const signer = provider.getSigner();
+    return await signer.signMessage(message);
+  }, [provider]);
+
   const value: UniversalProfileContextType = {
     upAddress,
     isConnecting,
@@ -288,6 +297,7 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
     disconnect,
     getLyxBalance,
     getTokenBalances,
+    signMessage,
   };
 
   return (
