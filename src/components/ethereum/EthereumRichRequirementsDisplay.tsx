@@ -185,11 +185,6 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
 
   // ===== HELPER FUNCTIONS =====
   
-  const formatBalance = (balance: string): string => {
-    const num = parseFloat(balance);
-    return num < 0.001 ? '< 0.001' : num.toFixed(3);
-  };
-
   const formatAddress = (address: string): string => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
@@ -240,9 +235,9 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
   // ETH balance verification
   const ethVerification = requirements.minimumETHBalance ? {
     userBalance: userStatus.balances?.eth || '0',
-    formattedBalance: userStatus.balances?.eth ? formatBalance(ethers.utils.formatEther(userStatus.balances.eth)) : '0',
+    formattedBalance: userStatus.balances?.eth || '0', // Already formatted
     meetsRequirement: userStatus.balances?.eth ? 
-      ethers.BigNumber.from(userStatus.balances.eth).gte(ethers.BigNumber.from(requirements.minimumETHBalance)) : false,
+      ethers.utils.parseEther(userStatus.balances.eth).gte(ethers.BigNumber.from(requirements.minimumETHBalance)) : false,
     isLoading: false
   } : undefined;
 

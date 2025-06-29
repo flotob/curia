@@ -100,7 +100,8 @@ export const useEthereumRequirementVerification = (
         // 1. ETH Balance
         if (requirements.minimumETHBalance) {
           const required = ethers.BigNumber.from(requirements.minimumETHBalance);
-          const current = ethers.BigNumber.from(ethBalance);
+          // Convert formatted ETH balance back to wei for comparison
+          const current = ethers.utils.parseEther(ethBalance);
           newState.verificationStatus.ethBalance = {
             isMet: current.gte(required),
             isLoading: false,
