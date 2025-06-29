@@ -52,7 +52,6 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
   serverVerified = false,
   onVerificationComplete,
   isPreviewMode = false,
-  verificationContext
 }) => {
   const {
     isConnected,
@@ -137,54 +136,54 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
     }
 
     try {
-      // Create challenge object
-      const challenge = {
-        type: 'ethereum_profile' as const,
-        nonce: crypto.randomUUID().replace(/-/g, ''), // Simple nonce
-        timestamp: Date.now(),
-        postId,
-        ethAddress,
-        address: ethAddress,
-        chainId: 1, // Ethereum mainnet
-      };
-
-      // Create signing message
-      const message = `Verify access to post ${postId} on Ethereum mainnet
-
-Address: ${ethAddress}
-Chain ID: 1
-Timestamp: ${challenge.timestamp}
-Nonce: ${challenge.nonce}
-
-This signature proves you control this Ethereum address and grants access to comment on this gated post.`;
-
-      // Sign the message
-      const signature = await signMessage(message);
-
-      // Add signature to challenge
-      const signedChallenge = {
-        ...challenge,
-        signature
-      };
-
-      // Submit to pre-verification API
-      const response = await fetch(`/api/posts/${postId}/pre-verify/ethereum_profile`, {
+      // Step 1: Generate proper challenge from server (like UP verification does)
+      console.log('[Ethereum] Generating challenge from server...');
+      const challengeResponse = await fetch(`/api/posts/${postId}/ethereum-challenge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          challenge: signedChallenge
-        })
+          ethAddress,
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Verification failed');
+      if (!challengeResponse.ok) {
+        const errorData = await challengeResponse.json();
+        throw new Error(errorData.error || 'Failed to generate challenge');
       }
 
-      const result = await response.json();
+      const { challenge, message } = await challengeResponse.json();
+      console.log('[Ethereum] Challenge generated successfully:', challenge);
+
+      // Step 2: Sign the challenge message
+      console.log('[Ethereum] Signing challenge message...');
+      const signature = await signMessage(message);
+
+      // Step 3: Send complete challenge with signature for verification
+      console.log('[Ethereum] Submitting signed challenge for verification...');
+      const verificationResponse = await fetch(`/api/posts/${postId}/pre-verify/ethereum_profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          challenge: {
+            ...challenge,
+            signature,
+            message, // Add the message to the challenge object for validation
+          },
+        }),
+      });
+
+      if (!verificationResponse.ok) {
+        const errorData = await verificationResponse.json();
+        throw new Error(errorData.error || 'Server verification failed');
+      }
+
+      const result = await verificationResponse.json();
 
       if (result.success) {
         console.log('[Ethereum] ✅ Verification completed successfully');
@@ -200,7 +199,7 @@ This signature proves you control this Ethereum address and grants access to com
       console.error('[Ethereum] Backend verification failed:', error);
       throw error; // Let EthereumSmartVerificationButton handle the error display
     }
-  }, [ethAddress, isConnected, isCorrectChain, stableRequirements, signMessage, token, postId, verificationContext, onVerificationComplete, isPreviewMode, invalidateVerificationStatus]);
+  }, [ethAddress, isConnected, isCorrectChain, signMessage, token, postId, onVerificationComplete, isPreviewMode, invalidateVerificationStatus]);
 
   // Format ETH amount for display
   const formatETHAmount = (weiAmount: string): string => {
