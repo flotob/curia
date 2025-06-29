@@ -247,6 +247,17 @@ const TippingModalContent: React.FC<{
                     Sending from
                   </Badge>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    disconnect();
+                    setCurrentStep('connect');
+                  }}
+                  className="text-xs"
+                >
+                  Change Account
+                </Button>
               </>
             ) : (
               <>
@@ -262,6 +273,17 @@ const TippingModalContent: React.FC<{
                     Sending from
                   </Badge>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    disconnect();
+                    setCurrentStep('connect');
+                  }}
+                  className="text-xs"
+                >
+                  Change Account
+                </Button>
               </>
             )}
           </div>
@@ -284,19 +306,10 @@ const TippingModalContent: React.FC<{
   );
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center space-x-2">
-          <Gift className="h-5 w-5 text-pink-500" />
-          <span>Send Tip</span>
-        </DialogTitle>
-      </DialogHeader>
-
-      <div className="py-4">
-        {currentStep === 'connect' && renderConnectionStep()}
-        {currentStep === 'tip_interface' && renderTipInterface()}
-      </div>
-    </>
+    <div className="py-4">
+      {currentStep === 'connect' && renderConnectionStep()}
+      {currentStep === 'tip_interface' && renderTipInterface()}
+    </div>
   );
 };
 
@@ -314,6 +327,12 @@ export const TippingModal: React.FC<TippingModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <Gift className="h-5 w-5 text-pink-500" />
+            <span>Send Tip</span>
+          </DialogTitle>
+        </DialogHeader>
         <UniversalProfileProvider>
           <TippingModalContent
             recipientUsername={recipientUsername}
