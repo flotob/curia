@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { WagmiProvider } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +23,7 @@ import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 import { RichCategoryHeader } from '@/components/gating/RichCategoryHeader';
 import { cn } from '@/lib/utils';
-import { UPVerificationWrapper, createUPWagmiConfig } from '../verification/UPVerificationWrapper';
+import { UPVerificationWrapper } from '../verification/UPVerificationWrapper';
 
 // Ensure categories are registered when this module loads
 ensureCategoriesRegistered();
@@ -34,7 +33,7 @@ interface GatingRequirementsPreviewProps {
   className?: string;
 }
 
-const PreviewInternal: React.FC<GatingRequirementsPreviewProps> = ({
+const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
   gatingConfig,
   className = ''
 }) => {
@@ -177,7 +176,7 @@ const PreviewInternal: React.FC<GatingRequirementsPreviewProps> = ({
             <div className="p-4">
               {(() => {
                 if (category.type === 'universal_profile') {
-                  // No need to re-wrap with UPVerificationWrapper as provider is at top level
+                  // Use existing UP verification wrapper - it manages its own wagmi context
                   return (
                     <UPVerificationWrapper
                       requirements={category.requirements as UPGatingRequirements}
@@ -185,8 +184,7 @@ const PreviewInternal: React.FC<GatingRequirementsPreviewProps> = ({
                       onStatusUpdate={handleUPStatusUpdate}
                       postId={-1}
                       isPreviewMode={true}
-                      // Pass a dummy storage key as context is already handled
-                      storageKey="--none--" 
+                      storageKey="wagmi_up_preview"
                     />
                   );
                 }
@@ -208,6 +206,7 @@ const PreviewInternal: React.FC<GatingRequirementsPreviewProps> = ({
                     ethereumProfile?.disconnect?.();
                   };
 
+                  // Ethereum renderer will create its own wagmi context via EthereumProfileProvider
                   return renderer.renderConnection({
                     requirements: category.requirements,
                     fulfillment: category.fulfillment,
@@ -319,15 +318,4 @@ const PreviewInternal: React.FC<GatingRequirementsPreviewProps> = ({
   );
 };
 
-export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
-  gatingConfig,
-  className = ''
-}) => {
-  const config = useMemo(() => createUPWagmiConfig('wagmi_up_preview'), []);
-
-  return (
-    <WagmiProvider config={config}>
-      <PreviewInternal gatingConfig={gatingConfig} className={className} />
-    </WagmiProvider>
-  );
-}; 
+export { GatingRequirementsPreview }; 

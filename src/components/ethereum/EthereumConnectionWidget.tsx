@@ -17,7 +17,7 @@ import {
   Users,
   Shield
 } from 'lucide-react';
-import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
+import { useEthereumProfile, EthereumProfileProvider } from '@/contexts/EthereumProfileContext';
 import { EthereumGatingRequirements, GatingCategoryStatus } from '@/types/gating';
 import { formatEther } from 'viem';
 import { EthereumRichRequirementsDisplay, EthereumExtendedVerificationStatus } from './EthereumRichRequirementsDisplay';
@@ -43,7 +43,8 @@ interface EthereumConnectionWidgetProps {
   };
 }
 
-export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
+// Internal component that uses the Ethereum context
+const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> = ({
   requirements,
   fulfillment = 'all',
   onStatusUpdate,
@@ -291,5 +292,22 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
         />
       )}
     </div>
+  );
+};
+
+// Main component that wraps with isolated Ethereum provider
+export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = (props) => {
+  // Generate unique storage key based on context
+  const storageKey = useMemo(() => {
+    if (props.isPreviewMode) return 'wagmi_ethereum_preview';
+    if (props.verificationContext?.type === 'board') return `wagmi_ethereum_board_${props.verificationContext.boardId}`;
+    if (props.postId) return `wagmi_ethereum_post_${props.postId}`;
+    return 'wagmi_ethereum_default';
+  }, [props.isPreviewMode, props.verificationContext, props.postId]);
+
+  return (
+    <EthereumProfileProvider storageKey={storageKey}>
+      <EthereumConnectionWidgetInternal {...props} />
+    </EthereumProfileProvider>
   );
 }; 
