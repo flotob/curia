@@ -142,28 +142,37 @@ export const useEthereumRequirementVerification = (
         
         // 3. EFP Requirements
         if (requirements.efpRequirements) {
+            console.log('[EFP Debug] Processing EFP requirements:', requirements.efpRequirements);
             for (const req of requirements.efpRequirements) {
                 const key = `${req.type}-${req.value}`;
+                console.log(`[EFP Debug] Processing requirement: ${key}`);
                 let isMet = false;
                 let current: number | boolean = false;
 
                 if (req.type === 'minimum_followers') {
                     current = efpStats.followers;
                     isMet = efpStats.followers >= parseInt(req.value, 10);
+                    console.log(`[EFP Debug] Minimum followers: ${efpStats.followers} >= ${req.value} = ${isMet}`);
                 } else if (req.type === 'must_follow') {
                     if (req.value.toLowerCase() === ethAddress.toLowerCase()) {
+                        console.log('[EFP Debug] Self-follow auto-pass for must_follow');
                         isMet = true; // Self-follow auto-pass
                     } else {
                         // We need to check this async
+                        console.log(`[EFP Debug] Checking if ${ethAddress} is following ${req.value}`);
                         isMet = await checkEFPFollowing(ethAddress, req.value);
+                        console.log(`[EFP Debug] Result: ${ethAddress} following ${req.value} = ${isMet}`);
                     }
                     current = isMet;
                 } else if (req.type === 'must_be_followed_by') {
                      if (req.value.toLowerCase() === ethAddress.toLowerCase()) {
+                        console.log('[EFP Debug] Self-follow auto-pass for must_be_followed_by');
                         isMet = true; // Self-follow auto-pass
                     } else {
                         // We need to check this async
+                        console.log(`[EFP Debug] Checking if ${req.value} is following ${ethAddress}`);
                         isMet = await checkEFPFollowing(req.value, ethAddress);
+                        console.log(`[EFP Debug] Result: ${req.value} following ${ethAddress} = ${isMet}`);
                     }
                     current = isMet;
                 }
@@ -174,7 +183,11 @@ export const useEthereumRequirementVerification = (
                     current,
                     required: req.value,
                 };
+                
+                console.log(`[EFP Debug] Final verification result for ${key}:`, newState.verificationStatus.efp![key]);
             }
+        } else {
+            console.log('[EFP Debug] No EFP requirements found');
         }
 
         setState(newState);

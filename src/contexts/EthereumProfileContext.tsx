@@ -176,27 +176,57 @@ const EthereumProfileProviderInternal: React.FC<{ children: ReactNode }> = ({ ch
   }, [signMessageAsync]);
 
   const checkEFPFollowing = useCallback(async (userAddress: string, targetAddress: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`https://api.ethfollow.xyz/api/v1/users/${userAddress}/following`);
-      if (!response.ok) return false;
-      
-      const data = await response.json();
-      
-      // Handle the actual EFP API response format where following is an array of objects
-      if (!data.following || !Array.isArray(data.following)) {
-        console.warn('[EthereumProfileContext] EFP following data is not an array:', data.following);
-        return false;
+    const CHUNK_SIZE = 1000; // Process 1000 records at a time
+    let offset = 0;
+    let hasMore = true;
+
+    console.log(`[EFP API Debug] Searching if ${userAddress} follows ${targetAddress} using optimized pagination`);
+
+    while (hasMore) {
+      try {
+        const response = await fetch(`https://api.ethfollow.xyz/api/v1/users/${userAddress}/following?limit=${CHUNK_SIZE}&offset=${offset}`);
+        if (!response.ok) {
+          console.log(`[EFP API Debug] Response not OK: ${response.status} ${response.statusText}`);
+          throw new Error(`EFP API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const followingList = data.following || [];
+        
+        console.log(`[EFP API Debug] Chunk ${offset}-${offset + CHUNK_SIZE}: ${followingList.length} items`);
+        
+        // Check current chunk for the target address
+        const found = followingList
+          .filter((item: unknown): item is EFPFollowingItem => 
+            item != null && typeof item === 'object' && ('address' in item || 'data' in item))
+          .some((item: EFPFollowingItem) => {
+            const itemAddress = typeof item === 'string' ? item : (item.address || item.data);
+            if (!itemAddress) return false;
+            
+            const matches = itemAddress.toLowerCase() === targetAddress.toLowerCase();
+            if (matches) {
+              console.log(`[EFP API Debug] ✅ Found match in chunk ${offset}-${offset + CHUNK_SIZE}`);
+            }
+            return matches;
+          });
+
+        if (found) {
+          return true;
+        }
+
+        // Check if we have more data
+        hasMore = followingList.length === CHUNK_SIZE;
+        offset += CHUNK_SIZE;
+
+        console.log(`[EFP API Debug] Checked ${offset} records, continuing...`);
+      } catch (error) {
+        console.error(`[EFP API Debug] Error in chunk ${offset}:`, error);
+        throw error;
       }
-      
-      return data.following.some((item: EFPFollowingItem) => {
-        // EFP API returns objects with address field, not plain strings
-        const address = item?.address || item?.data;
-        return address && address.toLowerCase() === targetAddress.toLowerCase();
-      });
-    } catch (error) {
-      console.error('[EthereumProfileContext] EFP following check failed:', error);
-      return false;
     }
+
+    console.log(`[EFP API Debug] ❌ No match found after checking ${offset} records`);
+    return false;
   }, []);
 
   // ===== VERIFICATION METHODS =====
