@@ -99,11 +99,36 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
 
     setIsVerifying(true);
     setServerError(null);
+    
     try {
-      const message = `Verify Universal Profile for post ${postId}\nAddress: ${upAddress}\nTimestamp: ${Date.now()}`;
+      // Step 1: Generate proper challenge from server (like Ethereum does)
+      console.log('[UP] Generating challenge from server...');
+      const challengeResponse = await fetch(`/api/posts/${postId}/challenge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          upAddress,
+        }),
+      });
+
+      if (!challengeResponse.ok) {
+        const errorData = await challengeResponse.json();
+        throw new Error(errorData.error || 'Failed to generate challenge');
+      }
+
+      const { challenge, message } = await challengeResponse.json();
+      console.log('[UP] Challenge generated successfully:', challenge);
+
+      // Step 2: Sign the challenge message
+      console.log('[UP] Signing challenge message...');
       const signature = await signMessage(message);
 
-      const response = await fetch(`/api/posts/${postId}/pre-verify/universal_profile`, {
+      // Step 3: Send complete challenge with signature for verification
+      console.log('[UP] Submitting signed challenge for verification...');
+      const verificationResponse = await fetch(`/api/posts/${postId}/pre-verify/universal_profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -111,19 +136,18 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
         },
         body: JSON.stringify({
           challenge: {
-            message,
+            ...challenge,
             signature,
-            address: upAddress,
-            requirements,
           },
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!verificationResponse.ok) {
+        const errorData = await verificationResponse.json();
         throw new Error(errorData.error || 'Server verification failed');
       }
 
+      console.log('[UP] ✅ Verification completed successfully');
       setServerVerified(true);
       onVerificationComplete?.();
     } catch (e) {
@@ -132,7 +156,7 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
     } finally {
       setIsVerifying(false);
     }
-  }, [upAddress, token, isPreviewMode, postId, signMessage, requirements, onVerificationComplete]);
+  }, [upAddress, token, isPreviewMode, postId, signMessage, onVerificationComplete]);
 
   const handleConnect = async () => {
     try {
