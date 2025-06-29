@@ -157,7 +157,8 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                   return (
                     <UPVerificationWrapper
                       requirements={category.requirements as UPGatingRequirements}
-                      fulfillment={category.fulfillment} // 🚀 FIX: Pass fulfillment mode
+                      fulfillment={category.fulfillment || 'all'}
+                      onStatusUpdate={() => {}} // TODO: Implement status handling if needed for this panel
                       postId={postId}
                       isPreviewMode={false}
                       onVerificationComplete={handleVerificationComplete}
@@ -170,7 +171,7 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                   const renderer = ensureRegistered(category.type);
                   return renderer.renderConnection({
                     requirements: category.requirements,
-                    fulfillment: category.fulfillment, // 🚀 FIX: Pass fulfillment mode
+                    fulfillment: category.fulfillment || 'all',
                     onConnect: ethereumProfile?.connect,
                     onDisconnect: ethereumProfile?.disconnect,
                     userStatus: {

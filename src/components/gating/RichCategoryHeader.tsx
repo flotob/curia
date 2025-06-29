@@ -18,10 +18,12 @@ import {
   ChevronUp,
   User,
   Coins,
-  Users
+  Users,
+  XCircle
 } from 'lucide-react';
 import { CategoryStatus } from '@/hooks/useGatingData';
 import { UPGatingRequirements, EthereumGatingRequirements } from '@/types/gating';
+import { Button } from '@/components/ui/button';
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -148,6 +150,7 @@ interface RichCategoryHeaderProps {
   category: CategoryStatus;
   isExpanded: boolean;
   onToggle: () => void;
+  onDisconnect?: () => void;
 }
 
 // ===== UNIVERSAL PROFILE RICH HEADER =====
@@ -155,7 +158,8 @@ interface RichCategoryHeaderProps {
 export const UniversalProfileRichHeader: React.FC<RichCategoryHeaderProps> = ({
   category,
   isExpanded,
-  onToggle
+  onToggle,
+  onDisconnect
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -200,6 +204,11 @@ export const UniversalProfileRichHeader: React.FC<RichCategoryHeaderProps> = ({
                   {category.verificationData.verifiedProfiles?.username || 
                    `LUKSO • ${formatAddress(category.verificationData.walletAddress)}`}
                 </div>
+                {onDisconnect && (
+                  <Button variant="ghost" size="icon" onClick={onDisconnect} className="ml-2 h-6 w-6">
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -301,7 +310,8 @@ export const UniversalProfileRichHeader: React.FC<RichCategoryHeaderProps> = ({
 export const EthereumRichHeader: React.FC<RichCategoryHeaderProps> = ({
   category,
   isExpanded,
-  onToggle
+  onToggle,
+  onDisconnect
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -334,6 +344,11 @@ export const EthereumRichHeader: React.FC<RichCategoryHeaderProps> = ({
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                   Ethereum • {formatAddress(category.verificationData.walletAddress)}
                 </div>
+                {onDisconnect && (
+                  <Button variant="ghost" size="icon" onClick={onDisconnect} className="ml-2 h-6 w-6">
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -443,12 +458,14 @@ interface RichCategoryHeaderMainProps {
   category: CategoryStatus;
   isExpanded: boolean;
   onToggle: () => void;
+  onDisconnect?: () => void;
 }
 
 export const RichCategoryHeader: React.FC<RichCategoryHeaderMainProps> = ({
   category,
   isExpanded,
-  onToggle
+  onToggle,
+  onDisconnect
 }) => {
   switch (category.type) {
     case 'universal_profile':
@@ -457,6 +474,7 @@ export const RichCategoryHeader: React.FC<RichCategoryHeaderMainProps> = ({
           category={category}
           isExpanded={isExpanded}
           onToggle={onToggle}
+          onDisconnect={onDisconnect}
         />
       );
     case 'ethereum_profile':
@@ -465,6 +483,7 @@ export const RichCategoryHeader: React.FC<RichCategoryHeaderMainProps> = ({
           category={category}
           isExpanded={isExpanded}
           onToggle={onToggle}
+          onDisconnect={onDisconnect}
         />
       );
     default:

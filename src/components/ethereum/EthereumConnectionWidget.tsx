@@ -24,10 +24,12 @@ import { EthereumRichRequirementsDisplay, EthereumExtendedVerificationStatus } f
 import { EthereumSmartVerificationButton } from './EthereumSmartVerificationButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
+import { GatingCategoryStatus } from '@/types/gating';
 
 interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
   fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
+  onStatusUpdate?: (status: GatingCategoryStatus) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
   postId?: number;
@@ -50,6 +52,7 @@ interface EthereumConnectionWidgetProps {
 export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> = ({
   requirements,
   fulfillment = 'all', // 🚀 NEW: Default to 'all' for backward compatibility (will be used in backend verification)
+  onStatusUpdate,
   onConnect,
   onDisconnect,
   postId,
@@ -116,6 +119,35 @@ export const EthereumConnectionWidget: React.FC<EthereumConnectionWidgetProps> =
       onConnectRef.current();
     }
   }, [isConnected]);
+
+  // When local verification results change, report status up to parent
+  useEffect(() => {
+    if (!onStatusUpdate) return;
+
+    // A more robust way to count requirements
+    const totalCount = [
+      requirements.requiresENS ? 1 : 0,
+      requirements.minimumETHBalance ? 1 : 0,
+      (requirements.requiredERC20Tokens || []).length,
+      (requirements.requiredERC721Collections || []).length,
+      (requirements.requiredERC1155Tokens || []).length,
+      (requirements.efpRequirements || []).length,
+    ].reduce((sum, count) => sum + count, 0);
+
+    if (!verificationResult) {
+      // Not connected or not yet verified
+      onStatusUpdate({ met: 0, total: totalCount, isMet: false });
+      return;
+    }
+
+    const metCount = totalCount - (verificationResult.missingRequirements?.length || 0);
+
+    onStatusUpdate({
+      met: metCount,
+      total: totalCount,
+      isMet: verificationResult.isValid
+    });
+  }, [verificationResult, requirements, onStatusUpdate]);
 
   // Server pre-verification function
   const verifyRequirements = useCallback(async () => {

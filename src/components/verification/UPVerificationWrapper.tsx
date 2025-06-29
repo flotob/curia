@@ -16,7 +16,7 @@ import {
 } from 'wagmi';
 import { lukso, luksoTestnet } from 'viem/chains';
 import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
-import { UPGatingRequirements } from '@/types/gating';
+import { UPGatingRequirements, GatingCategoryStatus } from '@/types/gating';
 import { UniversalProfileGatingPanel } from '../gating/UniversalProfileGatingPanel';
 import { Button } from '@/components/ui/button';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
@@ -54,7 +54,8 @@ export const createUPWagmiConfig = (storageKey: string = 'wagmi_up_verification'
 
 export interface UPVerificationWrapperProps {
   requirements: UPGatingRequirements;
-  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
+  fulfillment: "any" | "all"; // Fulfillment is now mandatory
+  onStatusUpdate: (status: GatingCategoryStatus) => void; // Callback is now mandatory
   postId?: number;
   isPreviewMode?: boolean;
   onVerificationComplete?: () => void;
@@ -74,6 +75,8 @@ type UPVerificationInternalProps = Omit<UPVerificationWrapperProps, 'storageKey'
 
 const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
   requirements,
+  fulfillment,
+  onStatusUpdate,
 }) => {
   const { upAddress, connect, isConnecting } = useUniversalProfile();
 
@@ -91,7 +94,13 @@ const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
     );
   }
 
-  return <UniversalProfileGatingPanel requirements={requirements} />;
+  return (
+    <UniversalProfileGatingPanel 
+      requirements={requirements} 
+      fulfillment={fulfillment}
+      onStatusUpdate={onStatusUpdate}
+    />
+  );
 };
 
 // ===== MAIN WRAPPER COMPONENT =====

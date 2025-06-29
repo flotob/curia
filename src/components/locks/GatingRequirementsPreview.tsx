@@ -1,25 +1,30 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { WagmiProvider } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { 
   Shield, 
-  RefreshCw
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  CircleDashed
 } from 'lucide-react';
 
 import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
-import { VerificationStatus } from '@/types/gating';
+import { VerificationStatus, UPGatingRequirements, GatingCategoryStatus } from '@/types/gating';
 import { LockGatingConfig } from '@/types/locks';
 import { CategoryStatus } from '@/hooks/useGatingData';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
+import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 import { RichCategoryHeader } from '@/components/gating/RichCategoryHeader';
 import { cn } from '@/lib/utils';
-import { UPGatingRequirements } from '@/types/gating';
-import { UPVerificationWrapper } from '../verification/UPVerificationWrapper';
+import { UPVerificationWrapper, createUPWagmiConfig } from '../verification/UPVerificationWrapper';
 
 // Ensure categories are registered when this module loads
 ensureCategoriesRegistered();
@@ -29,103 +34,162 @@ interface GatingRequirementsPreviewProps {
   className?: string;
 }
 
-export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
+const PreviewInternal: React.FC<GatingRequirementsPreviewProps> = ({
   gatingConfig,
   className = ''
 }) => {
-  
   // ===== PROFILE CONTEXTS =====
-  
   const ethereumProfile = useEthereumProfile();
-  
+  const { upAddress, disconnect: disconnectUP } = useUniversalProfile();
+
   // ===== LOCAL STATE =====
-  
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  
+  const [userProfile, setUserProfile] = useState<UPSocialProfile | null>(null);
+  const [categoryStatuses, setCategoryStatuses] = useState<Record<string, GatingCategoryStatus>>({});
+
+  // Fetch UP social profile when address is available
+  useEffect(() => {
+    if (upAddress) {
+      getUPSocialProfile(upAddress).then(setUserProfile);
+    } else {
+      setUserProfile(null);
+      // Clear status on disconnect
+      setCategoryStatuses(prev => ({...prev, universal_profile: { met: 0, total: 0, isMet: false}}));
+    }
+  }, [upAddress]);
+
+  // Clear ethereum status on disconnect
+  useEffect(() => {
+    if (!ethereumProfile.isConnected) {
+      setCategoryStatuses(prev => ({ ...prev, ethereum_profile: { met: 0, total: 0, isMet: false }}));
+    }
+  }, [ethereumProfile.isConnected]);
+
   // ===== DERIVED DATA =====
-  
-  const categories: CategoryStatus[] = gatingConfig.categories?.map(category => ({
-    type: category.type,
-    enabled: category.enabled,
-    fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode
-    requirements: category.requirements,
-    verificationStatus: 'not_started' as const // Always start as not started in preview
-  })) || [];
-  
+  const categories: CategoryStatus[] = useMemo(() => gatingConfig.categories?.map(category => {
+    let verificationData: CategoryStatus['verificationData'] = undefined;
+    if (category.type === 'universal_profile' && upAddress && userProfile) {
+      verificationData = {
+        walletAddress: upAddress,
+        verifiedProfiles: {
+          displayName: userProfile.displayName,
+          username: userProfile.username,
+          avatar: userProfile.profileImage,
+          isVerified: userProfile.isVerified,
+        }
+      };
+    }
+    
+    return {
+      type: category.type,
+      enabled: category.enabled,
+      fulfillment: category.fulfillment,
+      requirements: category.requirements,
+      verificationStatus: 'not_started' as const,
+      verificationData,
+    };
+  }) || [], [gatingConfig.categories, upAddress, userProfile]);
+
   const enabledCategories = categories.filter(cat => cat.enabled);
-  
-  // Backward compatibility: handle both requireAll and requireAny fields
-  let requireAll: boolean;
-  if (gatingConfig.requireAll !== undefined) {
-    requireAll = gatingConfig.requireAll;
-  } else if (gatingConfig.requireAny !== undefined) {
-    requireAll = !gatingConfig.requireAny; // requireAny: false means requireAll: true
-  } else {
-    requireAll = false; // Default to requireAny behavior for backward compatibility
-  }
-  
+
+  // Backward compatibility for top-level fulfillment
+  const requireAll = gatingConfig.requireAll ?? !gatingConfig.requireAny ?? false;
+
+  // ===== OVERALL STATUS CALCULATION =====
+  const overallStatus = useMemo(() => {
+    const statuses = Object.values(categoryStatuses);
+    if (statuses.length < enabledCategories.length) {
+      // Not all categories have reported their status yet
+      const unverifiedCount = enabledCategories.length - statuses.length;
+      return { 
+        isMet: false, 
+        message: `Waiting for ${unverifiedCount} more category checks...`,
+        Icon: CircleDashed,
+        color: 'text-muted-foreground',
+        bgColor: 'bg-muted/50',
+      };
+    }
+
+    const finalChecks = statuses.map(s => s.isMet);
+    const isMet = requireAll ? finalChecks.every(c => c) : finalChecks.some(c => c);
+    
+    if (isMet) {
+      return { 
+        isMet: true, 
+        message: 'Preview verification passed!',
+        Icon: CheckCircle,
+        color: 'text-green-700',
+        bgColor: 'bg-green-50',
+      };
+    }
+    
+    const metCount = statuses.filter(s => s.isMet).length;
+    const totalCount = enabledCategories.length;
+    return {
+      isMet: false,
+      message: `Verification incomplete (${metCount}/${totalCount} categories met)`,
+      Icon: XCircle,
+      color: 'text-red-700',
+      bgColor: 'bg-red-50',
+    };
+  }, [categoryStatuses, enabledCategories, requireAll]);
+
   // ===== AUTO-EXPAND LOGIC =====
-  
-  // Auto-expand first category that needs verification (accordion pattern)
-  React.useEffect(() => {
+  useEffect(() => {
     if (enabledCategories.length > 0 && expandedCategory === null) {
-      // SIMPLIFIED: Always expand first enabled category to show connection UI
       setExpandedCategory(enabledCategories[0].type);
     }
   }, [enabledCategories, expandedCategory]);
-  
+
   // ===== HANDLERS =====
+  const handleUPStatusUpdate = useCallback((status: GatingCategoryStatus) => {
+    setCategoryStatuses(prev => ({ ...prev, universal_profile: status }));
+  }, []);
+
+  const handleEthStatusUpdate = useCallback((status: GatingCategoryStatus) => {
+    setCategoryStatuses(prev => ({ ...prev, ethereum_profile: status }));
+  }, []);
 
   const toggleCategoryExpanded = useCallback((categoryType: string) => {
-    setExpandedCategory(prev => {
-      // If clicking already expanded category → collapse it
-      if (prev === categoryType) {
-        return null;
-      }
-      // If clicking different category → expand that one (closes others)
-      return categoryType;
-    });
+    setExpandedCategory(prev => (prev === categoryType ? null : categoryType));
   }, []);
 
   const refreshData = useCallback(async () => {
     setRefreshing(true);
-    // Simulate refresh delay for preview
     await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshing(false);
   }, []);
 
   // ===== RENDER HELPERS =====
-
   const renderCategorySlot = (category: CategoryStatus) => {
     const isExpanded = expandedCategory === category.type;
-    
     return (
       <div key={category.type} className="border rounded-lg overflow-hidden">
-        {/* Rich Category Header */}
         <RichCategoryHeader
           category={category}
           isExpanded={isExpanded}
           onToggle={() => toggleCategoryExpanded(category.type)}
+          onDisconnect={category.type === 'universal_profile' ? disconnectUP : undefined}
         />
-
-        {/* Category Content (Expanded) */}
         {isExpanded && (
           <div className="border-t bg-muted/20">
             <div className="p-4">
               {(() => {
                 if (category.type === 'universal_profile') {
+                  // No need to re-wrap with UPVerificationWrapper as provider is at top level
                   return (
                     <UPVerificationWrapper
                       requirements={category.requirements as UPGatingRequirements}
-                      fulfillment={category.fulfillment} // 🚀 NEW: Pass fulfillment mode
+                      fulfillment={category.fulfillment || 'all'}
+                      onStatusUpdate={handleUPStatusUpdate}
                       postId={-1}
                       isPreviewMode={true}
-                      storageKey="wagmi_up_preview"
+                      // Pass a dummy storage key as context is already handled
+                      storageKey="--none--" 
                     />
                   );
                 }
-
                 if (category.type === 'ethereum_profile') {
                   const renderer = ensureRegistered(category.type);
                   const userStatus: VerificationStatus = {
@@ -146,7 +210,8 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
 
                   return renderer.renderConnection({
                     requirements: category.requirements,
-                    fulfillment: category.fulfillment, // 🚀 NEW: Pass fulfillment mode
+                    fulfillment: category.fulfillment,
+                    onStatusUpdate: handleEthStatusUpdate,
                     onConnect: handleConnect,
                     onDisconnect: handleDisconnect,
                     userStatus,
@@ -155,8 +220,6 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
                     isPreviewMode: true,
                   });
                 }
-
-                // Fallback for other category types if any
                 return (
                   <div className="text-sm text-muted-foreground">
                     Preview for this category type is not available.
@@ -219,13 +282,14 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
         </div>
 
         {/* Overall Status - Preview Mode */}
-        <div className="mt-3 p-3 rounded-lg bg-muted/50">
+        <div className={cn("mt-3 p-3 rounded-lg", overallStatus.bgColor)}>
           <div className="flex items-center justify-between">
             <div className="text-sm">
-              <div className="font-medium">
-                Preview Mode - No verification saved
+              <div className={cn("font-medium flex items-center", overallStatus.color)}>
+                <overallStatus.Icon className="h-4 w-4 mr-2" />
+                {overallStatus.message}
               </div>
-              <div className="text-muted-foreground text-xs">
+              <div className="text-muted-foreground text-xs pl-6">
                 Connect your wallets to test the verification flow
               </div>
             </div>
@@ -252,5 +316,18 @@ export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps>
         </div>
       </CardContent>
     </Card>
+  );
+};
+
+export const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
+  gatingConfig,
+  className = ''
+}) => {
+  const config = useMemo(() => createUPWagmiConfig('wagmi_up_preview'), []);
+
+  return (
+    <WagmiProvider config={config}>
+      <PreviewInternal gatingConfig={gatingConfig} className={className} />
+    </WagmiProvider>
   );
 }; 

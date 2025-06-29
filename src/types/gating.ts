@@ -75,6 +75,15 @@ export interface VerificationStatus {
 }
 
 /**
+ * The status of an entire gating category, used for child-to-parent communication.
+ */
+export interface GatingCategoryStatus {
+  met: number;      // How many individual requirements are met
+  total: number;    // How many total requirements exist
+  isMet: boolean;   // The final status based on the fulfillment mode ('any' or 'all')
+}
+
+/**
  * Status of individual requirement within a category
  */
 export interface RequirementStatus {
@@ -116,6 +125,7 @@ export interface CategoryConfigProps {
 export interface CategoryConnectionProps {
   requirements: unknown;
   fulfillment?: "any" | "all"; // 🚀 NEW: How to fulfill requirements within this category
+  onStatusUpdate?: (status: GatingCategoryStatus) => void; // For child-to-parent status reporting
   onConnect: () => Promise<void>;
   onDisconnect: () => void;
   userStatus?: VerificationStatus;
