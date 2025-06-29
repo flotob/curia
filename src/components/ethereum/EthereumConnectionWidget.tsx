@@ -119,7 +119,87 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
 
   // Server pre-verification function
   const verifyRequirements = useCallback(async () => {
-    // ... (server verification logic remains the same for now)
+    // In preview mode, don't do backend verification
+    if (isPreviewMode) {
+      console.log('[Ethereum] Preview mode - no backend verification needed');
+      return;
+    }
+
+    // For post verification, we need ethAddress, token, and postId
+    if (!ethAddress || !token || !postId) {
+      console.error('[Ethereum] Missing required data for verification:', { ethAddress: !!ethAddress, token: !!token, postId });
+      return;
+    }
+
+    if (!isConnected || !isCorrectChain) {
+      console.error('[Ethereum] Not connected or wrong chain');
+      return;
+    }
+
+    try {
+      // Create challenge object
+      const challenge = {
+        type: 'ethereum_profile' as const,
+        nonce: crypto.randomUUID().replace(/-/g, ''), // Simple nonce
+        timestamp: Date.now(),
+        postId,
+        ethAddress,
+        address: ethAddress,
+        chainId: 1, // Ethereum mainnet
+      };
+
+      // Create signing message
+      const message = `Verify access to post ${postId} on Ethereum mainnet
+
+Address: ${ethAddress}
+Chain ID: 1
+Timestamp: ${challenge.timestamp}
+Nonce: ${challenge.nonce}
+
+This signature proves you control this Ethereum address and grants access to comment on this gated post.`;
+
+      // Sign the message
+      const signature = await signMessage(message);
+
+      // Add signature to challenge
+      const signedChallenge = {
+        ...challenge,
+        signature
+      };
+
+      // Submit to pre-verification API
+      const response = await fetch(`/api/posts/${postId}/pre-verify/ethereum_profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          challenge: signedChallenge
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Verification failed');
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('[Ethereum] ✅ Verification completed successfully');
+        // Invalidate verification status to refetch
+        invalidateVerificationStatus(postId);
+        // Notify parent component
+        onVerificationComplete?.(true);
+      } else {
+        throw new Error(result.error || 'Verification failed');
+      }
+
+    } catch (error) {
+      console.error('[Ethereum] Backend verification failed:', error);
+      throw error; // Let EthereumSmartVerificationButton handle the error display
+    }
   }, [ethAddress, isConnected, isCorrectChain, stableRequirements, signMessage, token, postId, verificationContext, onVerificationComplete, isPreviewMode, invalidateVerificationStatus]);
 
   // Format ETH amount for display

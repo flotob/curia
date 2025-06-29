@@ -191,7 +191,7 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
       />
       
       {/* Show verification button in both preview and post contexts */}
-      {verificationStatus.connected && (
+      {verificationStatus.connected && !isPreviewMode && (
         <EthereumSmartVerificationButton
             state={getButtonState()}
             allRequirementsMet={allRequirementsMet}
