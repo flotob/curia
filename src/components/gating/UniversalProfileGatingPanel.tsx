@@ -30,6 +30,7 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [serverVerified, setServerVerified] = useState(false);
 
   const { allRequirementsMet, checks } = useMemo(() => {
     if (isLoading || !verificationStatus.connected) {
@@ -84,7 +85,17 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
   }, [allRequirementsMet, checks, onStatusUpdate, isLoading]);
 
   const handleBackendVerification = useCallback(async () => {
-    if (!upAddress || !token || isPreviewMode || !postId) return;
+    // In preview mode, don't do backend verification
+    if (isPreviewMode) {
+      console.log('[UP] Preview mode - no backend verification needed');
+      return;
+    }
+
+    // For post verification, we need upAddress, token, and postId
+    if (!upAddress || !token || !postId) {
+      console.error('[UP] Missing required data for verification:', { upAddress: !!upAddress, token: !!token, postId });
+      return;
+    }
 
     setIsVerifying(true);
     setServerError(null);
@@ -113,9 +124,10 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
         throw new Error(errorData.error || 'Server verification failed');
       }
 
+      setServerVerified(true);
       onVerificationComplete?.();
     } catch (e) {
-      console.error(e);
+      console.error('[UP] Backend verification failed:', e);
       setServerError(e instanceof Error ? e.message : 'An unknown error occurred.');
     } finally {
       setIsVerifying(false);
@@ -132,6 +144,7 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
 
   const getButtonState = () => {
     if (isVerifying) return 'verifying';
+    if (serverVerified) return 'verification_complete';
     if (!allRequirementsMet) return 'requirements_not_met';
     if (isPreviewMode && allRequirementsMet) return 'preview_mode_complete';
     return 'ready_to_verify';
@@ -153,14 +166,15 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
         isPreviewMode={isPreviewMode}
       />
       
-      {!isPreviewMode && verificationStatus.connected && (
+      {/* Show verification button in both preview and post contexts */}
+      {verificationStatus.connected && (
         <EthereumSmartVerificationButton
             state={getButtonState()}
             allRequirementsMet={allRequirementsMet}
             isConnected={verificationStatus.connected}
             isCorrectChain={true}
             isVerifying={isVerifying}
-            verified={false}
+            verified={serverVerified}
             onClick={handleBackendVerification}
             error={serverError || localVerificationError || undefined}
         />

@@ -77,6 +77,9 @@ const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
   requirements,
   fulfillment,
   onStatusUpdate,
+  postId,
+  isPreviewMode,
+  onVerificationComplete,
 }) => {
   const { upAddress, connect, isConnecting } = useUniversalProfile();
 
@@ -99,6 +102,9 @@ const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
       requirements={requirements} 
       fulfillment={fulfillment}
       onStatusUpdate={onStatusUpdate}
+      postId={postId}
+      isPreviewMode={isPreviewMode}
+      onVerificationComplete={onVerificationComplete}
     />
   );
 };
