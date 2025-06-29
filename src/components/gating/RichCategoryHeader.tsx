@@ -21,6 +21,7 @@ import {
   Users
 } from 'lucide-react';
 import { CategoryStatus } from '@/hooks/useGatingData';
+import { UPGatingRequirements, EthereumGatingRequirements } from '@/types/gating';
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -277,6 +278,20 @@ export const UniversalProfileRichHeader: React.FC<RichCategoryHeaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* Fulfillment Summary */}
+      {(() => {
+        const upReqs = category.requirements as UPGatingRequirements;
+        const reqCount = (upReqs.minLyxBalance ? 1 : 0) + (upReqs.requiredTokens?.length ?? 0) + (upReqs.followerRequirements?.length ?? 0);
+        if (reqCount > 1 && category.fulfillment) {
+          return (
+            <div className="mt-2 pt-3 border-t border-dashed text-xs text-muted-foreground">
+              Condition: Complete <span className="font-semibold">{category.fulfillment === 'any' ? 'ANY' : 'ALL'}</span> of the {reqCount} requirements below.
+            </div>
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 };
@@ -397,6 +412,27 @@ export const EthereumRichHeader: React.FC<RichCategoryHeaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* Fulfillment Summary */}
+      {(() => {
+        const ethReqs = category.requirements as EthereumGatingRequirements;
+        const reqCount = (ethReqs.requiresENS ? 1 : 0) +
+                         (ethReqs.ensDomainPatterns?.length ?? 0) +
+                         (ethReqs.minimumETHBalance ? 1 : 0) +
+                         (ethReqs.requiredERC20Tokens?.length ?? 0) +
+                         (ethReqs.requiredERC721Collections?.length ?? 0) +
+                         (ethReqs.requiredERC1155Tokens?.length ?? 0) +
+                         (ethReqs.efpRequirements?.length ?? 0);
+
+        if (reqCount > 1 && category.fulfillment) {
+          return (
+            <div className="mt-2 pt-3 border-t border-dashed text-xs text-muted-foreground">
+              Condition: Complete <span className="font-semibold">{category.fulfillment === 'any' ? 'ANY' : 'ALL'}</span> of the {reqCount} requirements below.
+            </div>
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 };
