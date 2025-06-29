@@ -11,6 +11,15 @@ import { mainnet } from 'wagmi/chains';
 import { VerificationResult } from '@/types/gating';
 import { EthereumWagmiProvider } from '@/components/ethereum/EthereumWagmiProvider';
 
+// Interface for EFP following item
+interface EFPFollowingItem {
+  version?: number;
+  record_type?: string;
+  data?: string;
+  address?: string;
+  tags?: string[];
+}
+
 // ===== TYPES =====
 
 interface EthereumProfileContextType {
@@ -172,7 +181,18 @@ const EthereumProfileProviderInternal: React.FC<{ children: ReactNode }> = ({ ch
       if (!response.ok) return false;
       
       const data = await response.json();
-      return data.following?.some((addr: string) => addr.toLowerCase() === targetAddress.toLowerCase()) || false;
+      
+      // Handle the actual EFP API response format where following is an array of objects
+      if (!data.following || !Array.isArray(data.following)) {
+        console.warn('[EthereumProfileContext] EFP following data is not an array:', data.following);
+        return false;
+      }
+      
+      return data.following.some((item: EFPFollowingItem) => {
+        // EFP API returns objects with address field, not plain strings
+        const address = item?.address || item?.data;
+        return address && address.toLowerCase() === targetAddress.toLowerCase();
+      });
     } catch (error) {
       console.error('[EthereumProfileContext] EFP following check failed:', error);
       return false;
