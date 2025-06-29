@@ -76,6 +76,7 @@ export interface EthereumRichRequirementsDisplayProps {
   onDisconnect?: () => void;
   disabled?: boolean;
   className?: string;
+  showHeader?: boolean; // NEW: Default to true for backward compatibility
 }
 
 // ===== MAIN COMPONENT =====
@@ -88,7 +89,8 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
   onConnect,
   onDisconnect,
   disabled = false,
-  className = ''
+  className = '',
+  showHeader = true // NEW: Default to true for backward compatibility
 }) => {
   // ===== STATE FOR EFP PROFILES =====
   
@@ -304,64 +306,66 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
 
   return (
     <Card className={`border-2 ${className}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center text-sm">
-              <Shield className="h-4 w-4 mr-2" />
-              {metadata.name} Required
-            </CardTitle>
-            <CardDescription className="text-xs">
-              This post requires verification to comment
-            </CardDescription>
-          </div>
-          
-          {/* Connected Profile Status Bar */}
-          {userStatus.connected && userStatus.ethAddress && (
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                {/* Profile Avatar or Ethereum Icon */}
-                {userStatus.ensAvatar ? (
-                  <img 
-                    src={userStatus.ensAvatar} 
-                    alt="ENS Avatar"
-                    className="w-10 h-10 rounded-full object-cover border border-gray-300"
-                    onError={(e) => {
-                      // Fallback to Ethereum icon if avatar fails to load
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold">
-                    ⟠
-                  </div>
-                )}
-                {/* ENS Name or Address */}
-                <div className="flex-1">
-                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                    {userStatus.ensName || 'Ethereum Wallet'}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                    {formatAddress(userStatus.ethAddress)}
-                  </div>
-                </div>
-                {/* Disconnect Button */}
-                {onDisconnect && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onDisconnect}
-                    className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
-                    title="Disconnect"
-                  >
-                    <XCircle size={14} />
-                  </Button>
-                )}
-              </div>
+      {showHeader && (
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center text-sm">
+                <Shield className="h-4 w-4 mr-2" />
+                {metadata.name} Required
+              </CardTitle>
+              <CardDescription className="text-xs">
+                This post requires verification to comment
+              </CardDescription>
             </div>
-          )}
-        </div>
-      </CardHeader>
+            
+            {/* Connected Profile Status Bar */}
+            {userStatus.connected && userStatus.ethAddress && (
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  {/* Profile Avatar or Ethereum Icon */}
+                  {userStatus.ensAvatar ? (
+                    <img 
+                      src={userStatus.ensAvatar} 
+                      alt="ENS Avatar"
+                      className="w-10 h-10 rounded-full object-cover border border-gray-300"
+                      onError={(e) => {
+                        // Fallback to Ethereum icon if avatar fails to load
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold">
+                      ⟠
+                    </div>
+                  )}
+                  {/* ENS Name or Address */}
+                  <div className="flex-1">
+                    <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                      {userStatus.ensName || 'Ethereum Wallet'}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                      {formatAddress(userStatus.ethAddress)}
+                    </div>
+                  </div>
+                  {/* Disconnect Button */}
+                  {onDisconnect && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onDisconnect}
+                      className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
+                      title="Disconnect"
+                    >
+                      <XCircle size={14} />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+      )}
       
       <CardContent className="space-y-3">
         {/* Requirements Section */}

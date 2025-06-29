@@ -67,6 +67,7 @@ export interface RichRequirementsDisplayProps {
   disabled?: boolean;
   className?: string;
   isPreviewMode?: boolean;
+  showHeader?: boolean;
 }
 
 // Simplified state - only for follower counts (user-specific data)
@@ -92,7 +93,8 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   onDisconnect,
   disabled = false,
   className = '',
-  isPreviewMode = false
+  isPreviewMode = false,
+  showHeader = true // NEW: Default to true for backward compatibility
 }) => {
   // 🔍 DEBUG: Log fulfillment prop value
   console.log(`[RichRequirementsDisplay] 🔧 Fulfillment mode: "${fulfillment}" (${typeof fulfillment})`);
@@ -307,112 +309,114 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
 
   return (
     <Card className={`border-2 ${className}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center text-sm">
-              <Shield className="h-4 w-4 mr-2" />
-              {metadata.name} Required
-            </CardTitle>
-            <CardDescription className="text-xs">
-              This post requires verification to comment
-            </CardDescription>
-          </div>
-          
-          {/* Connected Profile Status Bar */}
-          {userStatus.connected && userStatus.address && (
-            <div className="flex items-center space-x-2">
-              {(() => {
-                const connectedProfile = socialProfiles[userStatus.address!.toLowerCase()];
-                return connectedProfile ? (
-                  <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                    {/* Profile Picture */}
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
-                      {connectedProfile.profileImage ? (
-                        <img 
-                          src={connectedProfile.profileImage} 
-                          alt={connectedProfile.displayName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                          {connectedProfile.displayName.charAt(0).toUpperCase()}
+      {showHeader && (
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center text-sm">
+                <Shield className="h-4 w-4 mr-2" />
+                {metadata.name} Required
+              </CardTitle>
+              <CardDescription className="text-xs">
+                This post requires verification to comment
+              </CardDescription>
+            </div>
+            
+            {/* Connected Profile Status Bar */}
+            {userStatus.connected && userStatus.address && (
+              <div className="flex items-center space-x-2">
+                {(() => {
+                  const connectedProfile = socialProfiles[userStatus.address!.toLowerCase()];
+                  return connectedProfile ? (
+                    <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                      {/* Profile Picture */}
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+                        {connectedProfile.profileImage ? (
+                          <img 
+                            src={connectedProfile.profileImage} 
+                            alt={connectedProfile.displayName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                            {connectedProfile.displayName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      {/* Name and Username */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                          {connectedProfile.displayName}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {connectedProfile.username}
+                        </div>
+                      </div>
+                      {/* Verification Badge */}
+                      {connectedProfile.isVerified && (
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                          <CheckCircle className="w-3 h-3 text-white" />
                         </div>
                       )}
+                      {/* Disconnect Button */}
+                      {onDisconnect && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={onDisconnect}
+                          className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
+                          title="Disconnect"
+                        >
+                          <XCircle size={14} />
+                        </Button>
+                      )}
                     </div>
-                    {/* Name and Username */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
-                        {connectedProfile.displayName}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {connectedProfile.username}
-                      </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      {/* Loading or fallback */}
+                      {isLoadingSocialProfiles ? (
+                        <>
+                          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                          <div className="flex-1">
+                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
+                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-sm font-medium">
+                            {userStatus.address!.charAt(2).toUpperCase()}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                              {metadata.name}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                              {formatAddress(userStatus.address!)}
+                            </div>
+                          </div>
+                          {/* Disconnect Button */}
+                          {onDisconnect && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={onDisconnect}
+                              className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
+                              title="Disconnect"
+                            >
+                              <XCircle size={14} />
+                            </Button>
+                          )}
+                        </>
+                      )}
                     </div>
-                    {/* Verification Badge */}
-                    {connectedProfile.isVerified && (
-                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <CheckCircle className="w-3 h-3 text-white" />
-                      </div>
-                    )}
-                    {/* Disconnect Button */}
-                    {onDisconnect && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onDisconnect}
-                        className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
-                        title="Disconnect"
-                      >
-                        <XCircle size={14} />
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                    {/* Loading or fallback */}
-                    {isLoadingSocialProfiles ? (
-                      <>
-                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
-                        <div className="flex-1">
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1"></div>
-                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-sm font-medium">
-                          {userStatus.address!.charAt(2).toUpperCase()}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                            {metadata.name}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                            {formatAddress(userStatus.address!)}
-                          </div>
-                        </div>
-                        {/* Disconnect Button */}
-                        {onDisconnect && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onDisconnect}
-                            className="h-auto p-1 opacity-60 hover:opacity-100 text-gray-500 hover:text-red-500"
-                            title="Disconnect"
-                          >
-                            <XCircle size={14} />
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-        </div>
-      </CardHeader>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </CardHeader>
+      )}
       
       <CardContent className="space-y-3">
         {/* Requirements Section */}

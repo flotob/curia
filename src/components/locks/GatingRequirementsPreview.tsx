@@ -19,8 +19,6 @@ import { VerificationStatus, UPGatingRequirements, GatingCategoryStatus } from '
 import { LockGatingConfig } from '@/types/locks';
 import { CategoryStatus } from '@/hooks/useGatingData';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
-import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
-import { getUPSocialProfile, UPSocialProfile } from '@/lib/upProfile';
 import { RichCategoryHeader } from '@/components/gating/RichCategoryHeader';
 import { cn } from '@/lib/utils';
 import { UPVerificationWrapper } from '../verification/UPVerificationWrapper';
@@ -39,24 +37,11 @@ const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
 }) => {
   // ===== PROFILE CONTEXTS =====
   const ethereumProfile = useEthereumProfile();
-  const { upAddress, disconnect: disconnectUP } = useUniversalProfile();
 
   // ===== LOCAL STATE =====
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [userProfile, setUserProfile] = useState<UPSocialProfile | null>(null);
   const [categoryStatuses, setCategoryStatuses] = useState<Record<string, GatingCategoryStatus>>({});
-
-  // Fetch UP social profile when address is available
-  useEffect(() => {
-    if (upAddress) {
-      getUPSocialProfile(upAddress).then(setUserProfile);
-    } else {
-      setUserProfile(null);
-      // Clear status on disconnect
-      setCategoryStatuses(prev => ({...prev, universal_profile: { met: 0, total: 0, isMet: false}}));
-    }
-  }, [upAddress]);
 
   // Clear ethereum status on disconnect
   useEffect(() => {
@@ -67,28 +52,17 @@ const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
 
   // ===== DERIVED DATA =====
   const categories: CategoryStatus[] = useMemo(() => gatingConfig.categories?.map(category => {
-    let verificationData: CategoryStatus['verificationData'] = undefined;
-    if (category.type === 'universal_profile' && upAddress && userProfile) {
-      verificationData = {
-        walletAddress: upAddress,
-        verifiedProfiles: {
-          displayName: userProfile.displayName,
-          username: userProfile.username,
-          avatar: userProfile.profileImage,
-          isVerified: userProfile.isVerified,
-        }
-      };
-    }
-    
+    // Don't populate verificationData in preview mode to get clean headers
+    // The RichCategoryHeader will show clean "Universal Profile" text instead of connection status
     return {
       type: category.type,
       enabled: category.enabled,
       fulfillment: category.fulfillment,
       requirements: category.requirements,
       verificationStatus: 'not_started' as const,
-      verificationData,
+      verificationData: undefined, // Keep clean for consistent headers
     };
-  }) || [], [gatingConfig.categories, upAddress, userProfile]);
+  }) || [], [gatingConfig.categories]);
 
   const enabledCategories = categories.filter(cat => cat.enabled);
 
@@ -169,7 +143,6 @@ const GatingRequirementsPreview: React.FC<GatingRequirementsPreviewProps> = ({
           category={category}
           isExpanded={isExpanded}
           onToggle={() => toggleCategoryExpanded(category.type)}
-          onDisconnect={category.type === 'universal_profile' ? disconnectUP : undefined}
         />
         {isExpanded && (
           <div className="border-t bg-muted/20">
