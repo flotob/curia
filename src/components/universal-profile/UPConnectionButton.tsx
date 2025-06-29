@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,38 +18,36 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
   className = '' 
 }) => {
   const {
-    isConnected,
     upAddress,
     isConnecting,
-    connectionError,
-    isCorrectChain,
     connect,
     disconnect,
-    switchToLukso,
-    getLyxBalance
+    getLyxBalance,
   } = useUniversalProfile();
 
-  const [lyxBalance, setLyxBalance] = React.useState<string | null>(null);
+  const isConnected = !!upAddress;
+
+  const [balance, setBalance] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
 
   // Load LYX balance when connected (removed getLyxBalance from deps to prevent infinite loop)
   React.useEffect(() => {
-    if (isConnected && isCorrectChain && upAddress) {
+    if (isConnected && upAddress) {
       setIsLoadingBalance(true);
       getLyxBalance()
         .then(balance => {
           const formatted = ethers.utils.formatEther(balance);
-          setLyxBalance(parseFloat(formatted).toFixed(4));
+          setBalance(parseFloat(formatted).toFixed(4));
         })
         .catch(error => {
           console.error('Failed to load LYX balance:', error);
-          setLyxBalance(null);
+          setBalance(null);
         })
         .finally(() => setIsLoadingBalance(false));
     } else {
-      setLyxBalance(null);
+      setBalance(null);
     }
-  }, [isConnected, isCorrectChain, upAddress]); // Removed getLyxBalance to prevent infinite loop
+  }, [isConnected, upAddress]);
 
   const handleConnect = async (event?: React.MouseEvent) => {
     // Prevent modal closing when clicking wallet connection buttons
@@ -88,8 +86,8 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
           </Button>
         ) : (
           <div className="flex items-center space-x-2">
-            <Badge variant={isCorrectChain ? 'default' : 'secondary'} className="flex items-center space-x-1">
-              {isCorrectChain ? (
+            <Badge variant={isConnected ? 'default' : 'secondary'} className="flex items-center space-x-1">
+              {isConnected ? (
                 <CheckCircle className="h-3 w-3 text-green-500" />
               ) : (
                 <AlertTriangle className="h-3 w-3 text-yellow-500" />
@@ -97,15 +95,15 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
               <span className="text-xs">{formatAddress(upAddress!)}</span>
             </Badge>
             
-            {isCorrectChain && lyxBalance && (
+            {isConnected && balance && (
               <Badge variant="outline" className="text-xs">
-                {lyxBalance} LYX
+                {balance} LYX
               </Badge>
             )}
             
-            {!isCorrectChain && (
-              <Button variant="outline" size="sm" onClick={switchToLukso}>
-                Switch to LUKSO
+            {!isConnected && (
+              <Button variant="outline" size="sm" onClick={handleConnect}>
+                Connect UP
               </Button>
             )}
             
@@ -113,10 +111,6 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
               <XCircle className="h-4 w-4" />
             </Button>
           </div>
-        )}
-        
-        {connectionError && (
-          <span className="text-xs text-red-500">{connectionError}</span>
         )}
       </div>
     );
@@ -160,13 +154,9 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                {isCorrectChain ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                )}
+                <CheckCircle className="h-4 w-4 text-green-500" />
                 <span className="text-sm font-medium">
-                  {isCorrectChain ? 'Connected' : 'Wrong Network'}
+                  Connected
                 </span>
               </div>
               <Button variant="ghost" size="sm" onClick={disconnect}>
@@ -180,14 +170,14 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
                 <span className="font-mono">{formatAddress(upAddress!)}</span>
               </div>
               
-              {isCorrectChain && (
+              {isConnected && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">LYX Balance:</span>
                   <span className="font-mono">
                     {isLoadingBalance ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : lyxBalance ? (
-                      `${lyxBalance} LYX`
+                    ) : balance ? (
+                      `${balance} LYX`
                     ) : (
                       'Unable to load'
                     )}
@@ -195,19 +185,6 @@ export const UPConnectionButton: React.FC<UPConnectionButtonProps> = ({
                 </div>
               )}
             </div>
-            
-            {!isCorrectChain && (
-              <Button variant="outline" onClick={switchToLukso} className="w-full">
-                Switch to LUKSO Network
-              </Button>
-            )}
-          </div>
-        )}
-        
-        {connectionError && (
-          <div className="flex items-center space-x-2 text-sm text-red-500">
-            <XCircle className="h-3 w-3" />
-            <span>{connectionError}</span>
           </div>
         )}
       </CardContent>

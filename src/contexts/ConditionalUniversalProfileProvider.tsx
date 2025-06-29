@@ -46,8 +46,7 @@ export const useConditionalUniversalProfile = (): UniversalProfileContextType =>
     isConnected: false,
     upAddress: null,
     isConnecting: false,
-    connectionError: null,
-    isCorrectChain: false,
+    provider: null,
     connect: async () => {
       throw new Error('Universal Profile not activated. Call initializeConnection() first.');
     },

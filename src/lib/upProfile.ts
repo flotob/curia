@@ -886,6 +886,9 @@ export const getUPTokenMetadata = async (contractAddress: string): Promise<UPTok
 
   const metadata: UPTokenMetadata = { name, symbol, iconUrl, decimals };
 
+  // 🐛 DEBUG: Log the final metadata to see if iconUrl is included
+  console.log(`[getUPTokenMetadata] 🔍 DEBUG - Final metadata for ${contractAddress}:`, metadata);
+
   // Cache result
   tokenMetadataCache.set(lowerCaseAddress, {
     meta: metadata,

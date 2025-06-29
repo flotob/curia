@@ -3,13 +3,15 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CgPluginLib } from '@common-ground-dao/cg-plugin-lib';
+import { lsp26Registry } from '@/lib/lsp26';
 
 // Define the shape of the context data
-interface CgLibContextType {
+export interface CgLibContextType {
   cgInstance: CgPluginLib | null;
   isInitializing: boolean;
   initError: Error | null;
   iframeUid: string | null;
+  lsp26Registry: typeof lsp26Registry | null;
 }
 
 // Create the context with a default value
@@ -140,6 +142,7 @@ export function CgLibProvider({ children }: { children: React.ReactNode }) {
     isInitializing,
     initError,
     iframeUid,
+    lsp26Registry: lsp26Registry,
   }), [cgInstance, isInitializing, initError, iframeUid]);
 
   return (

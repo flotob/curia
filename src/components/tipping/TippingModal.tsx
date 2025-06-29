@@ -43,15 +43,14 @@ const TippingModalContent: React.FC<{
 }) => {
   // UP Connection State
   const {
-    isConnected,
     upAddress,
     isConnecting,
-    connectionError,
-    isCorrectChain,
     connect,
-    switchToLukso,
-    chooseAccount,
+    disconnect,
   } = useUniversalProfile();
+
+  const isConnected = !!upAddress;
+  const connectionError: string | null = null; // Placeholder, as new context doesn't provide it
 
   // Local state for tipping flow
   const [currentStep, setCurrentStep] = useState<'connect' | 'tip_interface' | 'sending' | 'success'>('connect');
@@ -63,17 +62,17 @@ const TippingModalContent: React.FC<{
   // Reset to connection step when modal opens if not connected
   useEffect(() => {
     if (open) {
-      if (isConnected && isCorrectChain) {
+      if (isConnected) {
         setCurrentStep('tip_interface');
       } else {
         setCurrentStep('connect');
       }
     }
-  }, [open, isConnected, isCorrectChain]);
+  }, [open, isConnected]);
 
   // Load sender profile when UP address changes
   useEffect(() => {
-    if (upAddress && isConnected) {
+    if (upAddress) {
       const loadSenderProfile = async () => {
         setIsLoadingSenderProfile(true);
         try {
@@ -99,23 +98,14 @@ const TippingModalContent: React.FC<{
     } else {
       setSenderProfile(null);
     }
-  }, [upAddress, isConnected]);
+  }, [upAddress]);
 
   // Handle UP connection
   const handleConnect = async () => {
     try {
-      // Connect UP directly (we're already inside UniversalProfileProvider)
       await connect();
     } catch (error) {
       console.error('Failed to connect Universal Profile:', error);
-    }
-  };
-
-  const handleSwitchNetwork = async () => {
-    try {
-      await switchToLukso();
-    } catch (error) {
-      console.error('Failed to switch to LUKSO network:', error);
     }
   };
 
@@ -162,25 +152,6 @@ const TippingModalContent: React.FC<{
           </div>
         )}
 
-        {/* Wrong Network Warning */}
-        {isConnected && !isCorrectChain && (
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
-              <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-              <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                Please switch to LUKSO network to continue
-              </p>
-            </div>
-            <Button
-              onClick={handleSwitchNetwork}
-              className="w-full"
-              variant="outline"
-            >
-              Switch to LUKSO Network
-            </Button>
-          </div>
-        )}
-
         {/* Connection Button */}
         {!isConnected && (
           <Button
@@ -204,7 +175,7 @@ const TippingModalContent: React.FC<{
         )}
 
         {/* Success State */}
-        {isConnected && isCorrectChain && (
+        {isConnected && (
           <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
             <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
             <div className="flex-1">
@@ -212,6 +183,9 @@ const TippingModalContent: React.FC<{
                 Connected: {upAddress?.slice(0, 6)}...{upAddress?.slice(-4)}
               </p>
             </div>
+            <Button variant="outline" size="sm" onClick={disconnect} className="text-xs">
+              Disconnect
+            </Button>
           </div>
         )}
       </div>
@@ -290,14 +264,6 @@ const TippingModalContent: React.FC<{
                 </div>
               </>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={chooseAccount}
-              className="text-xs"
-            >
-              Choose Account
-            </Button>
           </div>
         </CardContent>
       </Card>

@@ -94,7 +94,6 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   className = '',
   isPreviewMode = false
 }) => {
-  
   // 🔍 DEBUG: Log fulfillment prop value
   console.log(`[RichRequirementsDisplay] 🔧 Fulfillment mode: "${fulfillment}" (${typeof fulfillment})`);
   
@@ -135,10 +134,11 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
   });
 
   // ===== FOLLOWER COUNT FETCHING =====
+  const followerReqString = JSON.stringify(requirements.followerRequirements ?? []);
   useEffect(() => {
     const fetchFollowerCounts = async () => {
       if (!userStatus.connected || !userStatus.address) return;
-      if (!requirements.followerRequirements) return;
+      if (requirements.followerRequirements == null || requirements.followerRequirements.length === 0) return;
 
       const minFollowerReqs = requirements.followerRequirements.filter(r => r.type === 'minimum_followers');
       if (minFollowerReqs.length === 0) return;
@@ -147,10 +147,13 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         const count = await lsp26Registry.getFollowerCount(userStatus.address);
         setFollowerState(prev => {
           const updatedFollowerVerifications = { ...prev.followerVerifications };
+          let hasChanges = false;
           minFollowerReqs.forEach(r => {
             const key = `${r.type}-${r.value}`;
             const meets = count >= parseInt(r.value);
-            if (!updatedFollowerVerifications[key]) {
+            const existing = updatedFollowerVerifications[key];
+            if (!existing || existing.status !== meets || existing.userFollowerCount !== count) {
+              hasChanges = true;
               updatedFollowerVerifications[key] = {
                 type: r.type,
                 value: r.value,
@@ -158,15 +161,9 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                 status: meets,
                 isLoading: false,
               };
-            } else {
-              updatedFollowerVerifications[key] = {
-                ...updatedFollowerVerifications[key],
-                userFollowerCount: count,
-                status: meets,
-                isLoading: false,
-              };
             }
           });
+          if (!hasChanges) return prev; // Avoid unnecessary state updates
           return {
             ...prev,
             followerVerifications: updatedFollowerVerifications,
@@ -178,7 +175,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
     };
 
     fetchFollowerCounts();
-  }, [userStatus.connected, userStatus.address, requirements.followerRequirements]);
+  }, [userStatus.connected, userStatus.address, followerReqString]);
 
   // ===== HELPER FUNCTIONS =====
   
@@ -259,6 +256,12 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         
       const tokenData = userStatus.balances?.tokens?.[tokenKey];
       const metadata = tokenMetadata[token.contractAddress.toLowerCase()];
+      
+      // 🐛 DEBUG: Log metadata to see if iconUrl is being fetched
+      console.log(`[RichRequirementsDisplay] 🔍 DEBUG - Token metadata for ${token.contractAddress}:`, metadata);
+      console.log(`[RichRequirementsDisplay] 🔍 DEBUG - Available tokenMetadata keys:`, Object.keys(tokenMetadata));
+      console.log(`[RichRequirementsDisplay] 🔍 DEBUG - isLoadingTokenMetadata:`, isLoadingTokenMetadata);
+      
       tokenVerifications[tokenKey] = {
         balance: tokenData?.raw || '0',
         formattedBalance: tokenData?.formatted || '0',
@@ -271,7 +274,7 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
         isLoading: isLoadingTokenMetadata && !metadata
       };
       
-      console.log(`[RichRequirementsDisplay] 🔧 Token verification for ${token.contractAddress} (key: ${tokenKey}): balance=${tokenData?.raw || '0'}, meets=${tokenVerifications[tokenKey].meetsRequirement}`);
+      console.log(`[RichRequirementsDisplay] 🔧 Token verification for ${token.contractAddress} (key: ${tokenKey}): balance=${tokenData?.raw || '0'}, meets=${tokenVerifications[tokenKey].meetsRequirement}, iconUrl=${metadata?.iconUrl || 'NO ICON'}, metadataKeys=${Object.keys(tokenMetadata)}`);
     });
   }
 
@@ -493,11 +496,23 @@ export const RichRequirementsDisplay: React.FC<RichRequirementsDisplayProps> = (
                           </Badge>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Required: {displayAmount} {tokenReq.tokenType === 'LSP8' && !tokenReq.tokenId ? tokenData?.symbol || tokenReq.symbol || 'tokens' : ''}
-                          {userStatus.connected && tokenData && tokenReq.tokenType === 'LSP8' && tokenReq.tokenId 
-                            ? (tokenData.balance === '1' ? ' • ✅ You own this token' : ' • ❌ You don\'t own this token')
-                            : userStatus.connected && tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`
-                          }
+                          {tokenReq.tokenType === 'LSP8' && tokenReq.tokenId ? (
+                            // For specific LSP8 token IDs, show clear ownership status
+                            <>
+                              Specific Token ID: {tokenReq.tokenId}
+                              {userStatus.connected && tokenData && (
+                                <span className={`ml-2 font-medium ${tokenData.meetsRequirement ? 'text-green-600' : 'text-red-600'}`}>
+                                  {tokenData.meetsRequirement ? '✅ You own this token' : '❌ You don\'t own this token'}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            // For LSP7 or LSP8 collection requirements
+                            <>
+                              Required: {displayAmount} {tokenReq.tokenType === 'LSP8' ? tokenData?.symbol || tokenReq.symbol || 'tokens' : ''}
+                              {userStatus.connected && tokenData && ` • You have: ${tokenData.formattedBalance} ${tokenData.symbol || 'tokens'}`}
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

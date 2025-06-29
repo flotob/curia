@@ -17,8 +17,10 @@ import {
 import { lukso, luksoTestnet } from 'viem/chains';
 import { universalProfileConnector } from '@/lib/wagmi/connectors/universalProfile';
 import { UPGatingRequirements } from '@/types/gating';
-import { ensureRegistered } from '@/lib/gating/categoryRegistry';
-import { useUPVerificationData } from '@/hooks/useUPVerificationData';
+import { UniversalProfileGatingPanel } from '../gating/UniversalProfileGatingPanel';
+import { Button } from '@/components/ui/button';
+import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { Wallet } from 'lucide-react';
 
 // ===== WAGMI CONFIG =====
 
@@ -72,57 +74,24 @@ type UPVerificationInternalProps = Omit<UPVerificationWrapperProps, 'storageKey'
 
 const UPVerificationInternal: React.FC<UPVerificationInternalProps> = ({
   requirements,
-  fulfillment,
-  postId,
-  isPreviewMode = false,
-  onVerificationComplete,
-  verificationContext,
 }) => {
-  const {
-    userStatus,
-    isLoading,
-    error,
-    connect,
-    disconnect,
-  } = useUPVerificationData(requirements, {
-    enabled: true,
-    isPreviewMode,
-  });
+  const { upAddress, connect, isConnecting } = useUniversalProfile();
 
-  const renderer = ensureRegistered('universal_profile');
-
-  const handleConnect = async (event?: React.MouseEvent) => {
-    event?.stopPropagation();
-    event?.preventDefault();
-    
-    try {
-      await connect();
-    } catch (error) {
-      console.error('[UPVerificationWrapper] Connection failed:', error);
-    }
-  };
-
-  if (error) {
+  if (!upAddress) {
     return (
-      <div className="p-4 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
-        <p className="font-medium">Universal Profile Error</p>
-        <p>{error}</p>
+      <div className="text-center p-4 space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Connect your Universal Profile to see the requirements.
+        </p>
+        <Button onClick={() => connect()} disabled={isConnecting}>
+          <Wallet className="mr-2 h-4 w-4" />
+          {isConnecting ? 'Connecting...' : 'Connect Universal Profile'}
+        </Button>
       </div>
     );
   }
 
-  return renderer.renderConnection({
-    requirements,
-    fulfillment, // 🚀 NEW: Pass fulfillment mode
-    onConnect: handleConnect,
-    onDisconnect: disconnect,
-    userStatus,
-    disabled: isLoading,
-    postId: postId,
-    isPreviewMode: isPreviewMode,
-    onVerificationComplete: onVerificationComplete,
-    verificationContext: verificationContext,
-  });
+  return <UniversalProfileGatingPanel requirements={requirements} />;
 };
 
 // ===== MAIN WRAPPER COMPONENT =====

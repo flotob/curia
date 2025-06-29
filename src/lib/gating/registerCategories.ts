@@ -5,29 +5,17 @@
  * This ensures the category registry is populated before components use it
  */
 
-import { universalProfileRenderer } from './renderers/UniversalProfileRenderer';
-import { ethereumProfileRenderer } from './renderers/EthereumProfileRenderer';
 import { categoryRegistry } from './categoryRegistry';
+import { EthereumProfileRenderer } from './renderers/EthereumProfileRenderer';
 
 /**
  * Register all available gating category renderers
- * This should be called during app initialization
+ * This should be called once during app initialization
  */
 export function registerAllCategories(): void {
-  console.log('[GatingCategories] Registering all category renderers...');
-  
-  // Register Universal Profile renderer
-  categoryRegistry.register('universal_profile', universalProfileRenderer);
-  
-  // Register Ethereum Profile renderer
-  categoryRegistry.register('ethereum_profile', ethereumProfileRenderer);
-  
-  // Future category registrations will go here:
-  // categoryRegistry.register('ens_domain', ensDomainRenderer);
-  // categoryRegistry.register('nft_collection', nftCollectionRenderer);
-  
-  const registeredCount = categoryRegistry.getRegisteredTypes().length;
-  console.log(`[GatingCategories] Successfully registered ${registeredCount} category renderers`);
+  // The 'universal_profile' renderer is now integrated directly via UPVerificationWrapper
+  // and does not need to be registered here.
+  categoryRegistry.register('ethereum_profile', new EthereumProfileRenderer());
 }
 
 /**
@@ -35,7 +23,8 @@ export function registerAllCategories(): void {
  * Idempotent - safe to call multiple times
  */
 export function ensureCategoriesRegistered(): void {
-  if (categoryRegistry.getRegisteredTypes().length === 0) {
+  // We check a specific, known renderer to see if registration has run.
+  if (!categoryRegistry.get('ethereum_profile')) {
     registerAllCategories();
   }
 }
