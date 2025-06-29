@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { GatingCategoryStatus, UPGatingRequirements } from '@/types/gating';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { useUPRequirementVerification } from '@/hooks/gating/up/useUPRequirementVerification';
@@ -31,55 +31,57 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
   const [isVerifying, setIsVerifying] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const allRequirementsMet = !isLoading && verificationStatus.requirements.every(r => r.isMet);
-
-  // Report status up to the parent component
-  useEffect(() => {
-    if (isLoading) return;
-
-    // Correctly derive checks from the new hook's state structure
-    const lyxMet = verificationStatus.balances?.lyx 
-      ? (verificationStatus.balances.lyx >= BigInt(requirements.minLyxBalance || '0'))
-      : false;
+  const { allRequirementsMet, checks } = useMemo(() => {
+    if (isLoading || !verificationStatus.connected) {
+      return { allRequirementsMet: false, checks: [] };
+    }
+    
+    const lyxMet = verificationStatus.balances?.lyx && requirements.minLyxBalance
+      ? verificationStatus.balances.lyx >= BigInt(requirements.minLyxBalance)
+      : undefined;
 
     const tokenChecks = requirements.requiredTokens?.map(req => {
       const tokenKey = req.tokenId ? `${req.contractAddress}-${req.tokenId}` : req.contractAddress;
       const balance = BigInt(verificationStatus.balances?.tokens?.[tokenKey]?.raw || '0');
       const required = BigInt(req.minAmount || '1');
       return balance >= required;
-    }) || [];
+    });
 
     const followerChecks = requirements.followerRequirements?.map(req => {
       const key = `${req.type}-${req.value}`;
       return verificationStatus.followerStatus?.[key] || false;
-    }) || [];
+    });
 
     const allChecks = [
-        (requirements.minLyxBalance ? lyxMet : undefined),
-        ...tokenChecks,
-        ...followerChecks
-    ].filter(v => v !== undefined) as boolean[];
-    
+      ...(lyxMet !== undefined ? [lyxMet] : []),
+      ...(tokenChecks || []),
+      ...(followerChecks || []),
+    ];
+
     let isMet = false;
     if (allChecks.length > 0) {
-        if (fulfillment === 'any') {
-            isMet = allChecks.some(c => c === true);
-        } else {
-            isMet = allChecks.every(c => c === true);
-        }
+      if (fulfillment === 'any') {
+        isMet = allChecks.some(c => c === true);
+      } else {
+        isMet = allChecks.every(c => c === true);
+      }
     } else {
-        isMet = true; // No requirements means met
+      isMet = true;
     }
+    return { allRequirementsMet: isMet, checks: allChecks };
+  }, [isLoading, verificationStatus, requirements, fulfillment]);
 
-    const metCount = allChecks.filter(c => c === true).length;
-    const totalCount = allChecks.length;
-
+  // Report status up to the parent component
+  useEffect(() => {
+    if (isLoading) return;
+    const metCount = checks.filter(c => c === true).length;
+    const totalCount = checks.length;
     onStatusUpdate({
       met: metCount,
       total: totalCount,
-      isMet,
+      isMet: allRequirementsMet,
     });
-  }, [verificationStatus, fulfillment, onStatusUpdate, requirements]);
+  }, [allRequirementsMet, checks, onStatusUpdate, isLoading]);
 
   const handleBackendVerification = useCallback(async () => {
     if (!upAddress || !token || isPreviewMode || !postId) return;

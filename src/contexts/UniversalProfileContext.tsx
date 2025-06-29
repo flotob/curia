@@ -54,6 +54,7 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
   const [upAddress, setUpAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null);
+  const [hasCheckedExistingConnection, setHasCheckedExistingConnection] = useState(false);
 
   const disconnect = useCallback(() => {
     setUpAddress(null);
@@ -73,7 +74,10 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
 
   const checkExistingConnection = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!(window as any).lukso) return;
+    if (!(window as any).lukso) {
+      setHasCheckedExistingConnection(true);
+      return;
+    }
     setIsConnecting(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,6 +96,7 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
       console.error('Error checking existing UP connection:', error);
     } finally {
       setIsConnecting(false);
+      setHasCheckedExistingConnection(true);
     }
   }, []);
 
@@ -134,6 +139,9 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
       luksoProvider.on('disconnect', disconnect);
 
       checkExistingConnection();
+    } else {
+      // No LUKSO extension, mark as checked
+      setHasCheckedExistingConnection(true);
     }
 
     return () => {
@@ -299,6 +307,17 @@ export const UniversalProfileProvider: React.FC<{ children: ReactNode }> = ({ ch
     getTokenBalances,
     signMessage,
   };
+
+  // Don't render children until we've checked for existing connections
+  if (!hasCheckedExistingConnection) {
+    return (
+      <UniversalProfileContext.Provider value={value}>
+        <div className="flex items-center justify-center p-4">
+          <div className="text-sm text-muted-foreground">Checking Universal Profile connection...</div>
+        </div>
+      </UniversalProfileContext.Provider>
+    );
+  }
 
   return (
     <UniversalProfileContext.Provider value={value}>

@@ -1,8 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { TokenRequirement } from '@/types/gating';
-import { useAccount, useReadContracts } from 'wagmi';
-import { erc721Abi, erc20Abi, Abi } from 'viem';
 import { ethers } from 'ethers';
 
 interface TokenVerificationStatus {
@@ -24,152 +22,109 @@ export const useUpTokenVerification = (
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { getTokenBalances } = useUniversalProfile();
-  const { address: connectedAddress } = useAccount();
 
-  const stableRequirements = useMemo(() => requirements, [JSON.stringify(requirements)]);
+  const requirementsKey = JSON.stringify(requirements);
 
-  // Separate requirements for wagmi multicall and manual checks
-  const wagmiRequirements = useMemo(() => stableRequirements.filter(req => !req.tokenId), [stableRequirements]);
-  const specificLSP8Requirements = useMemo(() => stableRequirements.filter(req => req.tokenType === 'LSP8' && req.tokenId), [stableRequirements]);
-
-  const [lsp8Ownership, setLsp8Ownership] = useState<Record<string, boolean>>({});
-  const [isLoadingLsp8, setIsLoadingLsp8] = useState(false);
-
-  // Wagmi's useReadContracts for standard balance checks (LSP7 & LSP8 collections)
-  const { data: balanceResults, isLoading: isLoadingBalances, refetch } = useReadContracts({
-    contracts: wagmiRequirements.flatMap(req => {
-      if (!connectedAddress) return [];
-      const abi = req.tokenType === 'LSP7' ? erc20Abi : erc721Abi;
-      return [{
-        address: req.contractAddress as `0x${string}`,
-        abi: abi as Abi,
-        functionName: 'balanceOf',
-        args: [connectedAddress],
-      }];
-    }),
-    query: {
-      enabled: !!connectedAddress && wagmiRequirements.length > 0,
-    }
-  });
-
-  // Force a refetch when the user connects to avoid stale cached data
   useEffect(() => {
-    if (connectedAddress) {
-      console.log('[useUpTokenVerification] Address connected, refetching token balances to avoid stale cache.');
-      refetch();
-    }
-  }, [connectedAddress, refetch]);
-
-  // Manual verification for specific LSP8 token IDs
-  useEffect(() => {
-    if (!connectedAddress || specificLSP8Requirements.length === 0) {
-      setLsp8Ownership({});
-      return;
-    }
-
-    const verifyLsp8TokenIds = async () => {
-      setIsLoadingLsp8(true);
-      const ownership: Record<string, boolean> = {};
-      
-      // Use window.lukso provider for LSP8 verification
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const provider = new ethers.providers.Web3Provider((window as any).lukso);
-      
-      for (const req of specificLSP8Requirements) {
-        const tokenKey = `${req.contractAddress}-${req.tokenId}`;
-        try {
-          const contract = new ethers.Contract(req.contractAddress, [
-            'function tokenOwnerOf(bytes32) view returns (address)'
-          ], provider);
-          
-          const tokenIdBytes32 = ethers.utils.hexZeroPad(ethers.BigNumber.from(req.tokenId).toHexString(), 32);
-          const owner = await contract.tokenOwnerOf(tokenIdBytes32);
-          ownership[tokenKey] = owner.toLowerCase() === connectedAddress.toLowerCase();
-        } catch (e) {
-          console.error(`Failed to verify ownership for token ID ${req.tokenId} on ${req.contractAddress}`, e);
-          ownership[tokenKey] = false;
-        }
+    const verifyAllTokens = async () => {
+      if (!address || requirements.length === 0) {
+        setVerificationStatus({});
+        return;
       }
-      setLsp8Ownership(ownership);
-      setIsLoadingLsp8(false);
-    };
 
-    verifyLsp8TokenIds();
-  }, [connectedAddress, specificLSP8Requirements]);
-
-  useEffect(() => {
-    if (!address || stableRequirements.length === 0) {
-      setVerificationStatus({});
-      return;
-    }
-
-    const verifyTokens = async () => {
       setIsLoading(true);
       setError(null);
+
       try {
-        const tokenAddresses = stableRequirements.map(req => req.contractAddress);
+        // Step 1: Fetch all base metadata first
+        const tokenAddresses = requirements.map(req => req.contractAddress);
         const metadataArray = await getTokenBalances(tokenAddresses);
-        
         const metadataMap = metadataArray.reduce((acc, meta) => {
-            acc[meta.contractAddress] = meta;
-            return acc;
+          acc[meta.contractAddress.toLowerCase()] = meta;
+          return acc;
         }, {} as Record<string, typeof metadataArray[0]>);
-
-        const newStatus: Record<string, TokenVerificationStatus> = {};
         
-        // Process wagmi results first
-        wagmiRequirements.forEach((req, index) => {
-          const balanceResult = balanceResults?.[index];
-          let isMet = false;
-          let currentBalance = '0';
+        // Step 2: Dynamically build all contract calls
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const provider = new ethers.providers.Web3Provider((window as any).lukso);
+        const multicallPayload = [];
+        const lsp8SpecificPayload = [];
 
-          if (balanceResult?.status === 'success') {
-            const balance = balanceResult.result as bigint;
-            currentBalance = balance.toString();
-            const requiredAmount = BigInt(req.minAmount || '1');
-            isMet = balance >= requiredAmount;
+        for (const req of requirements) {
+          if (req.tokenType === 'LSP8' && req.tokenId) {
+            lsp8SpecificPayload.push({
+              key: `${req.contractAddress}-${req.tokenId}`,
+              contractAddress: req.contractAddress,
+              tokenId: req.tokenId,
+            });
+          } else {
+            const abi = req.tokenType === 'LSP7' 
+              ? ['function balanceOf(address) view returns (uint256)'] 
+              : ['function balanceOf(address) view returns (uint256)']; // LSP8 collection is also balanceOf
+            const contract = new ethers.Contract(req.contractAddress, abi, provider);
+            multicallPayload.push(contract.balanceOf(address));
           }
-          
-          newStatus[req.contractAddress] = {
-            isMet,
-            currentBalance,
-            metadata: metadataMap[req.contractAddress] ? {
-              name: metadataMap[req.contractAddress].name || 'Unknown',
-              symbol: metadataMap[req.contractAddress].symbol || '???',
-              decimals: metadataMap[req.contractAddress].decimals || 18,
-            } : undefined,
-          };
-        });
+        }
+        
+        // Step 3: Execute all calls in parallel
+        const [balanceResults, lsp8Results] = await Promise.all([
+            Promise.all(multicallPayload),
+            Promise.all(lsp8SpecificPayload.map(async (p) => {
+                const contract = new ethers.Contract(p.contractAddress, ['function tokenOwnerOf(bytes32) view returns (address)'], provider);
+                const tokenIdBytes32 = ethers.utils.hexZeroPad(ethers.BigNumber.from(p.tokenId).toHexString(), 32);
+                try {
+                    const owner = await contract.tokenOwnerOf(tokenIdBytes32);
+                    return { key: p.key, owner: owner.toLowerCase() };
+                } catch {
+                    return { key: p.key, owner: null }; // Handle case where token does not exist
+                }
+            }))
+        ]);
 
-        // Process specific LSP8 results
-        specificLSP8Requirements.forEach(req => {
-          const tokenKey = `${req.contractAddress}-${req.tokenId}`;
-          const ownsToken = lsp8Ownership[tokenKey] || false;
-          
-          newStatus[tokenKey] = {
-            isMet: ownsToken,
-            currentBalance: ownsToken ? '1' : '0',
-            metadata: metadataMap[req.contractAddress] ? {
-              name: metadataMap[req.contractAddress].name || 'Unknown',
-              symbol: metadataMap[req.contractAddress].symbol || '???',
-              decimals: 0, // NFTs don't have decimals
-              iconUrl: metadataMap[req.contractAddress].iconUrl,
-            } : undefined,
-          };
-        });
+        // Step 4: Process results
+        const newStatus: Record<string, TokenVerificationStatus> = {};
+        let balanceIndex = 0;
+        
+        for (const req of requirements) {
+          const metadata = metadataMap[req.contractAddress.toLowerCase()];
+          if (req.tokenType === 'LSP8' && req.tokenId) {
+            const tokenKey = `${req.contractAddress}-${req.tokenId}`;
+            const result = lsp8Results.find(r => r.key === tokenKey);
+            const ownsToken = result?.owner === address.toLowerCase();
+            newStatus[tokenKey] = {
+              isMet: ownsToken,
+              currentBalance: ownsToken ? '1' : '0',
+              metadata: metadata ? { ...metadata, name: metadata.name || 'Unknown', symbol: metadata.symbol || '???', decimals: 0 } : undefined,
+            };
+          } else {
+            const balance = balanceResults[balanceIndex++];
+            const requiredAmount = ethers.BigNumber.from(req.minAmount || '1');
+            const isMet = balance ? balance.gte(requiredAmount) : false;
+            newStatus[req.contractAddress] = {
+              isMet,
+              currentBalance: balance ? balance.toString() : '0',
+              metadata: metadata ? {
+                name: metadata.name || 'Unknown',
+                symbol: metadata.symbol || '???',
+                decimals: metadata.decimals || 18,
+                iconUrl: metadata.iconUrl
+              } : undefined,
+            };
+          }
+        }
 
         setVerificationStatus(newStatus);
 
       } catch (e) {
         console.error('Failed to verify token requirements:', e);
-        setError('Failed to verify token requirements.');
+        setError('An error occurred during token verification.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    verifyTokens();
-  }, [address, stableRequirements, getTokenBalances, balanceResults, lsp8Ownership, wagmiRequirements, specificLSP8Requirements]);
+    verifyAllTokens();
+  }, [address, requirementsKey, getTokenBalances]);
 
-  return { verificationStatus, isLoading: isLoading || isLoadingBalances || isLoadingLsp8, error };
+  return { verificationStatus, isLoading, error };
 }; 
