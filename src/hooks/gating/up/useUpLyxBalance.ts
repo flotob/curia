@@ -3,14 +3,16 @@ import { useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { ethers } from 'ethers';
 
 export const useUpLyxBalance = (address: string | null) => {
-  const [balance, setBalance] = useState<string | null>(null);
+  const [formattedBalance, setFormattedBalance] = useState<string | null>(null);
+  const [rawBalance, setRawBalance] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { getLyxBalance } = useUniversalProfile();
 
   useEffect(() => {
     if (!address) {
-      setBalance(null);
+      setFormattedBalance(null);
+      setRawBalance(null);
       return;
     }
 
@@ -18,13 +20,16 @@ export const useUpLyxBalance = (address: string | null) => {
       setIsLoading(true);
       setError(null);
       try {
-        const rawBalance = await getLyxBalance();
-        const formattedBalance = ethers.utils.formatEther(rawBalance);
-        setBalance(parseFloat(formattedBalance).toFixed(4));
+        const rawBalanceValue = await getLyxBalance(); // This is a BigNumber or string in Wei
+        const formatted = ethers.utils.formatEther(rawBalanceValue);
+        
+        setRawBalance(rawBalanceValue.toString());
+        setFormattedBalance(parseFloat(formatted).toFixed(4));
       } catch (e) {
         console.error('Failed to fetch LYX balance:', e);
         setError('Failed to fetch LYX balance.');
-        setBalance(null);
+        setFormattedBalance(null);
+        setRawBalance(null);
       } finally {
         setIsLoading(false);
       }
@@ -33,5 +38,5 @@ export const useUpLyxBalance = (address: string | null) => {
     fetchBalance();
   }, [address, getLyxBalance]);
 
-  return { balance, isLoading, error };
+  return { rawBalance, balance: formattedBalance, isLoading, error };
 }; 
