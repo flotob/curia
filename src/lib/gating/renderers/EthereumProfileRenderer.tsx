@@ -48,7 +48,7 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * Render the display component (for PostCard and detail views)
    */
   renderDisplay(props: CategoryRendererProps): ReactNode {
-    const { category, userStatus, isExpanded, onToggleExpanded, onConnect, onDisconnect, disabled } = props;
+    const { category, userStatus, isExpanded, onToggleExpanded, disabled } = props;
     const requirements = category.requirements as EthereumGatingRequirements;
     const metadata = this.getMetadata();
 
@@ -60,8 +60,6 @@ export class EthereumProfileRenderer implements CategoryRenderer {
         isExpanded={isExpanded}
         onToggleExpanded={onToggleExpanded}
         metadata={metadata}
-        onConnect={onConnect}
-        onDisconnect={onDisconnect}
         disabled={disabled}
       />
     );
@@ -86,15 +84,13 @@ export class EthereumProfileRenderer implements CategoryRenderer {
    * NEW: Render the connection component (for commenter-side)
    */
   renderConnection(props: CategoryConnectionProps): ReactNode {
-    const { requirements, fulfillment, onConnect, onDisconnect, postId, userStatus, onVerificationComplete, isPreviewMode, verificationContext, onStatusUpdate } = props;
+    const { requirements, fulfillment, postId, userStatus, onVerificationComplete, isPreviewMode, verificationContext, onStatusUpdate } = props;
     
     return (
       <EthereumConnectionWidget
         requirements={requirements as EthereumGatingRequirements}
         fulfillment={fulfillment} // 🚀 NEW: Pass fulfillment mode
         onStatusUpdate={onStatusUpdate}
-        onConnect={onConnect}
-        onDisconnect={onDisconnect}
         postId={postId}
         serverVerified={userStatus?.verified || false}
         onVerificationComplete={onVerificationComplete}
@@ -305,7 +301,7 @@ export class EthereumProfileRenderer implements CategoryRenderer {
 
 // ===== DISPLAY COMPONENT =====
 
-interface EthereumDisplayComponentProps extends CategoryRendererProps {
+interface EthereumDisplayComponentProps extends Omit<CategoryRendererProps, 'onConnect' | 'onDisconnect'> {
   requirements: EthereumGatingRequirements;
   metadata: GatingCategoryMetadata;
 }
@@ -316,8 +312,6 @@ const EthereumDisplayComponent: React.FC<EthereumDisplayComponentProps> = ({
   isExpanded, // eslint-disable-line @typescript-eslint/no-unused-vars
   onToggleExpanded, // eslint-disable-line @typescript-eslint/no-unused-vars
   metadata, // eslint-disable-line @typescript-eslint/no-unused-vars
-  onConnect,
-  onDisconnect
 }) => {
   // EthereumConnectionWidget handles all the RainbowKit integration, wallet connection,
   // balance checking, verification status, and UI display internally
@@ -325,8 +319,6 @@ const EthereumDisplayComponent: React.FC<EthereumDisplayComponentProps> = ({
   return (
     <EthereumConnectionWidget
       requirements={requirements}
-      onConnect={onConnect}
-      onDisconnect={onDisconnect}
       serverVerified={userStatus?.verified || false}
     />
   );

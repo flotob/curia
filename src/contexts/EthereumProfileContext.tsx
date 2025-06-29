@@ -41,6 +41,7 @@ interface EthereumProfileContextType {
   getENSProfile: () => Promise<{ name?: string; avatar?: string }>;
   getEFPStats: () => Promise<{ followers: number; following: number }>;
   signMessage: (message: string) => Promise<string>;
+  checkEFPFollowing: (userAddress: string, targetAddress: string) => Promise<boolean>;
 }
 
 interface ERC20Requirement {
@@ -632,7 +633,8 @@ export const EthereumProfileProvider: React.FC<EthereumProfileProviderProps> = (
     getETHBalance,
     getENSProfile,
     getEFPStats,
-    signMessage
+    signMessage,
+    checkEFPFollowing,
   };
 
   return (
@@ -684,7 +686,8 @@ export const ConditionalEthereumProvider: React.FC<ConditionalEthereumProviderPr
       getETHBalance: async () => '0',
       getENSProfile: async () => ({}),
       getEFPStats: async () => ({ followers: 0, following: 0 }),
-      signMessage: async () => { throw new Error('Ethereum not enabled'); }
+      signMessage: async () => { throw new Error('Ethereum not enabled'); },
+      checkEFPFollowing: async () => false,
     };
 
     return (
