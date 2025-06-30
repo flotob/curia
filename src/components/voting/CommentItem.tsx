@@ -27,6 +27,7 @@ import TiptapImage from '@tiptap/extension-image'; // For rendering images, if t
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
+import { ReactionBar } from '@/components/reactions/ReactionBar';
 
 const lowlight = createLowlight(common);
 
@@ -192,7 +193,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   return (
     <div 
       id={`comment-${comment.id}`}
-      className={`flex items-start space-x-3 py-3 transition-all duration-500 ease-out rounded-lg ${
+      className={`flex items-start space-x-2 sm:space-x-3 py-2 sm:py-3 px-2 sm:px-3 transition-all duration-500 ease-out rounded-lg hover:bg-muted/20 ${
         showHighlight 
           ? 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 shadow-sm ring-1 ring-blue-200/50 dark:ring-blue-800/50' 
           : ''
@@ -210,11 +211,11 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         onOpenChange={setIsAuthorPopoverOpen}
       >
         <div className="flex items-center space-x-2 cursor-pointer group/author">
-          <Avatar className="h-8 w-8 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
+          <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
             <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-            <AvatarFallback>{avatarFallback}</AvatarFallback>
+            <AvatarFallback className="text-xs sm:text-sm">{avatarFallback}</AvatarFallback>
           </Avatar>
-          <span className="font-semibold text-foreground group-hover/author:text-primary transition-colors text-xs">
+          <span className="font-semibold text-foreground group-hover/author:text-primary transition-colors text-xs sm:text-sm">
             {authorDisplayName}
           </span>
         </div>
@@ -233,11 +234,11 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                 variant="ghost" 
                 size="sm" 
                 onClick={() => onReply(comment.id)}
-                className="p-1 h-7 w-auto px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+                className="p-1 h-6 sm:h-7 w-auto px-1 sm:px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
                 title="Reply to this comment"
               >
-                <Reply size={12} className="mr-1" />
-                Reply
+                <Reply size={10} className="sm:mr-1" />
+                <span className="hidden sm:inline">Reply</span>
               </Button>
             )}
             
@@ -245,8 +246,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             {user?.isAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="p-1 h-7 w-7">
-                    <MoreVertical size={14} />
+                  <Button variant="ghost" size="icon" className="p-1 h-6 w-6 sm:h-7 sm:w-7">
+                    <MoreVertical size={12} />
                     <span className="sr-only">Comment Options</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -264,13 +265,21 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             )}
           </div>
         </div>
-        <div className="mt-1 text-sm">
+        <div className="mt-1 text-xs sm:text-sm">
             <article 
-              className="prose dark:prose-invert prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere"
+              className="prose dark:prose-invert prose-xs sm:prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere"
               style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             >
                 <EditorContent editor={editor} />
             </article>
+        </div>
+        
+        {/* Reaction Bar */}
+        <div className="mt-1 sm:mt-2 -ml-1 sm:-ml-1">
+          <ReactionBar 
+            commentId={comment.id} 
+            className="text-xs reaction-bar" 
+          />
         </div>
       </div>
     </div>

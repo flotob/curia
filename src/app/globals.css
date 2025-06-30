@@ -254,15 +254,16 @@ a {
   background: #0f172a;
 }
 
-/* Comment Threading Styles */
+/* Enhanced Comment Threading Styles */
 .comment-thread {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  position: relative;
 }
 
 .comment-children {
-  margin-left: 1rem;
-  padding-left: 1rem;
   position: relative;
+  border-left: 1px solid hsl(var(--border) / 0.2);
+  margin-top: 0.5rem;
 }
 
 .comment-children.with-thread-line::before {
@@ -272,35 +273,125 @@ a {
   top: 0;
   bottom: 0;
   width: 2px;
-  background-color: hsl(var(--border));
-  opacity: 0.3;
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--border) / 0.4) 0%,
+    hsl(var(--border) / 0.2) 50%,
+    transparent 100%
+  );
+  border-radius: 1px;
 }
 
-/* Comment depth-based indentation (fallback for complex scenarios) */
-.comment-depth-0 { padding-left: 0; }
-.comment-depth-1 { padding-left: 0; }
-.comment-depth-2 { padding-left: 0; }
-.comment-depth-3 { padding-left: 0; }
-.comment-depth-4 { padding-left: 0; }
-.comment-depth-5 { padding-left: 0; }
+/* Enhanced thread connector lines */
+.comment-thread::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--primary) / 0.1) 0%,
+    hsl(var(--border) / 0.3) 50%,
+    transparent 100%
+  );
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.comment-thread:hover::before {
+  opacity: 1;
+}
+
+/* Comment depth-based styling */
+.comment-depth-0 { 
+  padding-left: 0; 
+}
+.comment-depth-1 { 
+  padding-left: 0.25rem;
+  border-left: 2px solid hsl(var(--primary) / 0.1);
+}
+.comment-depth-2 { 
+  padding-left: 0.5rem;
+  border-left: 2px solid hsl(var(--primary) / 0.15);
+}
+.comment-depth-3 { 
+  padding-left: 0.75rem;
+  border-left: 2px solid hsl(var(--primary) / 0.2);
+}
+.comment-depth-4 { 
+  padding-left: 1rem;
+  border-left: 2px solid hsl(var(--primary) / 0.25);
+}
+.comment-depth-5 { 
+  padding-left: 1.25rem;
+  border-left: 2px solid hsl(var(--primary) / 0.3);
+}
 
 /* Mobile responsive adjustments */
 @media (max-width: 640px) {
   .comment-children {
-    margin-left: 0.5rem;
-    padding-left: 0.5rem;
+    margin-left: 0.25rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid hsl(var(--border) / 0.3);
   }
   
   .comment-children.with-thread-line::before {
     width: 1px;
+    background: hsl(var(--border) / 0.4);
+  }
+
+  /* Reduce depth padding on mobile */
+  .comment-depth-1 { padding-left: 0.125rem; }
+  .comment-depth-2 { padding-left: 0.25rem; }
+  .comment-depth-3 { padding-left: 0.375rem; }
+  .comment-depth-4 { padding-left: 0.5rem; }
+  .comment-depth-5 { padding-left: 0.625rem; }
+
+  /* Simplify thread lines on mobile */
+  .comment-thread::before {
+    display: none;
   }
 }
 
-/* Dark mode thread line */
-@media (prefers-color-scheme: dark) {
-  .comment-children.with-thread-line::before {
-    background-color: hsl(var(--border));
-    opacity: 0.4;
+/* Dark mode enhancements */
+.dark .comment-children.with-thread-line::before {
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--border) / 0.6) 0%,
+    hsl(var(--border) / 0.3) 50%,
+    transparent 100%
+  );
+}
+
+.dark .comment-thread:hover::before {
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--primary) / 0.2) 0%,
+    hsl(var(--border) / 0.4) 50%,
+    transparent 100%
+  );
+}
+
+/* Comment interaction enhancements */
+.comment-thread:hover {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 8px;
+  transition: background-color 0.2s ease-in-out;
+}
+
+/* Reaction bar mobile optimization */
+@media (max-width: 640px) {
+  .comment-thread .reaction-bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .comment-thread .reaction-bar::-webkit-scrollbar {
+    display: none;
   }
 }
 
