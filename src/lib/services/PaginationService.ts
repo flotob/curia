@@ -46,9 +46,9 @@ export class PaginationService {
   static async executePaginatedQuery<T>(
     mainQuery: string,
     countQuery: string,
-    params: any[],
+    params: (string | number | boolean | null)[],
     pagination: PaginationParams,
-    transformer?: (row: any) => T
+    transformer?: (row: unknown) => T
   ): Promise<PaginatedResponse<T>> {
     // Execute both queries in parallel for better performance
     const [dataResult, countResult] = await Promise.all([
@@ -61,7 +61,7 @@ export class PaginationService {
       ? dataResult.rows.map(transformer)
       : dataResult.rows;
 
-    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+    const total = parseInt((countResult.rows[0] as { total?: string })?.total || '0', 10);
 
     return {
       data: items,
@@ -83,7 +83,7 @@ export class PaginationService {
   static buildPaginationMeta(
     total: number,
     pagination: PaginationParams
-  ): PaginatedResponse<any>['pagination'] {
+  ): PaginatedResponse<unknown>['pagination'] {
     return {
       total,
       page: Math.floor(pagination.offset / pagination.limit) + 1,
@@ -170,10 +170,10 @@ export class PaginationService {
    */
   static buildWhereClause(
     baseWhere: string,
-    filters: Array<{ condition: string; value: any }>
-  ): { where: string; params: any[] } {
+    filters: Array<{ condition: string; value: string | number | boolean | null }>
+  ): { where: string; params: (string | number | boolean | null)[] } {
     let whereClause = baseWhere;
-    const params: any[] = [];
+    const params: (string | number | boolean | null)[] = [];
     let paramIndex = 1;
 
     filters.forEach(filter => {
