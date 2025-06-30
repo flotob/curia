@@ -34,6 +34,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   
+  // Extract theme from Common Ground URL parameters
+  const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
+  
   // Fetch shared boards data
   const { data: sharedBoards, isLoading: sharedBoardsLoading } = useSharedBoards(communityInfo?.id);
 

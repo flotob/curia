@@ -12,8 +12,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     ['user_id', 'verification_status', 'expires_at', 'lock_id'],
     {
       name: 'idx_pre_verifications_user_status_expiry_lock',
-      where: 'verification_status = \'verified\' AND expires_at > NOW()',
-      comment: 'Optimized index for lock verification queries - covers user access checks with expiry filtering'
+      where: 'verification_status = \'verified\''
     }
   );
   
@@ -22,8 +21,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     ['lock_id', 'verification_status', 'expires_at'],
     {
       name: 'idx_pre_verifications_lock_status_expiry_optimized',
-      where: 'verification_status = \'verified\' AND expires_at > NOW()',
-      comment: 'Optimized index for lock-based batch verification queries'
+      where: 'verification_status = \'verified\''
     }
   );
   
