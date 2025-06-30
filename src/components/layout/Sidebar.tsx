@@ -33,21 +33,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
   // Fetch shared boards data
   const { data: sharedBoards, isLoading: sharedBoardsLoading } = useSharedBoards(communityInfo?.id);
-  // const [bgColor, setBgColor] = useState('#ffffff');
 
   useEffect(() => {
     setMounted(true);
     
-    // Get theme from URL params
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
+    // Get theme and background color from URL params for Common Ground compatibility
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
-    
-    setTheme(cgTheme as 'light' | 'dark');
-    // setBgColor(cgBgColor);
+    const cgTheme = searchParams?.get('cg_theme') || 'light';
     
     // Set CSS custom properties for dynamic theming
     document.documentElement.style.setProperty('--cg-bg', cgBgColor);
@@ -117,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   // Helper component for board icon with gating indicators
-  const BoardIcon: React.FC<{ board: ApiBoard; isActive: boolean; theme: 'light' | 'dark' }> = ({ board, isActive, theme }) => {
+  const BoardIcon: React.FC<{ board: ApiBoard; isActive: boolean }> = ({ board, isActive }) => {
     const hasRoleGating = SettingsUtils.hasPermissionRestrictions(board.settings);
     const hasLockGating = SettingsUtils.hasBoardLockGating(board.settings);
     
@@ -127,12 +122,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className={cn(
           'p-1.5 rounded-lg transition-all duration-200',
           isActive
-            ? theme === 'dark'
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-emerald-500/10 text-emerald-600'
-            : theme === 'dark'
-              ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
-              : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+            ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300'
+            : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700 dark:bg-slate-700/50 dark:text-slate-400 dark:group-hover:bg-slate-600/50 dark:group-hover:text-slate-300'
         )}>
           <LayoutDashboard size={16} />
         </div>
@@ -142,24 +133,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="absolute -top-1 -right-1 flex flex-col gap-0.5">
             {/* Role gating (visibility restricted) */}
             {hasRoleGating && (
-              <div className={cn(
-                'flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200',
-                theme === 'dark'
-                  ? 'bg-orange-500/90 border-slate-800 text-orange-100'
-                  : 'bg-orange-500/90 border-white text-orange-100'
-              )} title="Visibility restricted to certain roles">
+              <div className="flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200 bg-orange-500/90 border-white text-orange-100 dark:border-slate-800" title="Visibility restricted to certain roles">
                 <Shield size={8} strokeWidth={2.5} />
               </div>
             )}
             
             {/* Lock gating (write access restricted) */}
             {hasLockGating && (
-              <div className={cn(
-                'flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200',
-                theme === 'dark'
-                  ? 'bg-blue-500/90 border-slate-800 text-blue-100'
-                  : 'bg-blue-500/90 border-white text-blue-100'
-              )} title="Write access requires verification">
+              <div className="flex items-center justify-center w-3 h-3 rounded-full border transition-all duration-200 bg-blue-500/90 border-white text-blue-100 dark:border-slate-800" title="Write access requires verification">
                 <Lock size={8} strokeWidth={2.5} />
               </div>
             )}
@@ -169,14 +150,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  // Dynamic theme styles
-  const sidebarBg = theme === 'dark' 
-    ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95 backdrop-blur-xl'
-    : 'bg-gradient-to-br from-white/95 via-white to-slate-50/95 backdrop-blur-xl';
-  
-  const borderColor = theme === 'dark' 
-    ? 'border-slate-700/40' 
-    : 'border-slate-200/60';
+  // Responsive theme styles using Tailwind dark: prefix
+  const sidebarBg = 'bg-gradient-to-br from-white/95 via-white to-slate-50/95 dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-800/95 backdrop-blur-xl';
+  const borderColor = 'border-slate-200/60 dark:border-slate-700/40';
 
   return (
     <aside className={cn(
@@ -234,18 +210,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
           
           <div className="flex-1 min-w-0">
-            <h1 className={cn(
-              'text-lg font-bold truncate bg-gradient-to-r bg-clip-text text-transparent',
-              theme === 'dark' 
-                ? 'from-slate-100 to-slate-300' 
-                : 'from-slate-900 to-slate-700'
-            )}>
+            <h1 className="text-lg font-bold truncate bg-gradient-to-r bg-clip-text text-transparent from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300">
               {communityInfo.title}
             </h1>
-            <p className={cn(
-              'text-xs font-medium tracking-wide',
-              theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-            )}>
+            <p className="text-xs font-medium tracking-wide text-slate-500 dark:text-slate-400">
               Community
             </p>
           </div>
@@ -371,7 +339,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       )}
                     >
                       <div className="mr-3">
-                        <BoardIcon board={board} isActive={isActive} theme={theme} />
+                        <BoardIcon board={board} isActive={isActive} />
                       </div>
                       <span className="flex-1 truncate pr-8">{board.name}</span>
                       {isActive && (

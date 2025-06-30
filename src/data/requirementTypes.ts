@@ -1,4 +1,5 @@
 import { RequirementType, RequirementCategory } from '@/types/locks';
+import { categoryColors, difficultyColors } from '@/lib/design-system/colors';
 
 export interface RequirementTypeInfo {
   type: RequirementType;
@@ -181,25 +182,25 @@ export const REQUIREMENT_CATEGORIES = {
     name: 'Token Requirements',
     description: 'Requirements based on token and NFT ownership',
     icon: '🪙',
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200'
+    color: categoryColors.token.icon,
+    bgColor: categoryColors.token.bg,
+    borderColor: categoryColors.token.border
   },
   social: {
     name: 'Social Requirements',
     description: 'Requirements based on social connections and engagement',
     icon: '👥',
-    color: 'text-green-600', 
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200'
+    color: categoryColors.social.icon, 
+    bgColor: categoryColors.social.bg,
+    borderColor: categoryColors.social.border
   },
   identity: {
     name: 'Identity Requirements',
     description: 'Requirements based on identity and domain ownership',
     icon: '🌐',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200'
+    color: categoryColors.identity.icon,
+    bgColor: categoryColors.identity.bg,
+    borderColor: categoryColors.identity.border
   }
 } as const;
 
@@ -208,23 +209,23 @@ export const DIFFICULTY_LEVELS = {
   beginner: {
     name: 'Beginner',
     description: 'Simple setup, quick configuration',
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-100',
-    textColor: 'text-emerald-800'
+    color: difficultyColors.beginner.text,
+    bgColor: difficultyColors.beginner.badge,
+    textColor: difficultyColors.beginner.text
   },
   intermediate: {
     name: 'Intermediate',
     description: 'Moderate setup, requires some technical knowledge',
-    color: 'text-yellow-600',
-    bgColor: 'bg-yellow-100', 
-    textColor: 'text-yellow-800'
+    color: difficultyColors.intermediate.text,
+    bgColor: difficultyColors.intermediate.badge, 
+    textColor: difficultyColors.intermediate.text
   },
   advanced: {
     name: 'Advanced',
     description: 'Complex setup, technical expertise recommended',
-    color: 'text-red-600',
-    bgColor: 'bg-red-100',
-    textColor: 'text-red-800'
+    color: difficultyColors.advanced.text,
+    bgColor: difficultyColors.advanced.badge,
+    textColor: difficultyColors.advanced.text
   }
 } as const;
 

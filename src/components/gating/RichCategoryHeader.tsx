@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { 
   Shield, 
   CheckCircle, 
@@ -24,6 +25,7 @@ import {
 import { CategoryStatus } from '@/hooks/useGatingData';
 import { UPGatingRequirements, EthereumGatingRequirements } from '@/types/gating';
 import { Button } from '@/components/ui/button';
+import { verificationColors } from '@/lib/design-system/colors';
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -104,24 +106,28 @@ const generateAvatarGradient = (address: string): string => {
 // ===== STATUS UTILITIES =====
 
 const getStatusIcon = (status: CategoryStatus['verificationStatus']) => {
+  const colors = verificationColors[status] || verificationColors.not_started;
+  
   switch (status) {
     case 'verified':
-      return <CheckCircle className="h-5 w-5 text-green-500" />;
+      return <CheckCircle className={cn("h-5 w-5", colors.icon)} />;
     case 'pending':
-      return <Clock className="h-5 w-5 text-yellow-500" />;
+      return <Clock className={cn("h-5 w-5", colors.icon)} />;
     case 'expired':
-      return <AlertTriangle className="h-5 w-5 text-red-500" />;
+      return <AlertTriangle className={cn("h-5 w-5", colors.icon)} />;
     default:
-      return <Shield className="h-5 w-5 text-muted-foreground" />;
+      return <Shield className={cn("h-5 w-5", colors.icon)} />;
   }
 };
 
 const getStatusBadge = (status: CategoryStatus['verificationStatus']) => {
+  const colors = verificationColors[status] || verificationColors.not_started;
+  
   switch (status) {
     case 'verified':
-      return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Verified</Badge>;
+      return <Badge className={cn(colors.bg, colors.text, colors.border)}>Verified</Badge>;
     case 'pending':
-      return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>;
+      return <Badge className={cn(colors.bg, colors.text, colors.border)}>Pending</Badge>;
     case 'expired':
       return <Badge variant="destructive">Expired</Badge>;
     default:
@@ -131,16 +137,17 @@ const getStatusBadge = (status: CategoryStatus['verificationStatus']) => {
 
 const getHeaderStyling = (status: CategoryStatus['verificationStatus'], isHovered: boolean = false) => {
   const hoverIntensity = isHovered ? 'hover:shadow-md' : '';
+  const colors = verificationColors[status] || verificationColors.not_started;
   
   switch (status) {
     case 'verified':
-      return `border-l-4 border-green-500 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 ${hoverIntensity}`;
+      return `border-l-4 ${colors.border} bg-gradient-to-r ${colors.gradient} ${hoverIntensity}`;
     case 'pending':
-      return `border-l-4 border-yellow-500 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 ${hoverIntensity}`;
+      return `border-l-4 ${colors.border} bg-gradient-to-r ${colors.gradient} ${hoverIntensity}`;
     case 'expired':
-      return `border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 ${hoverIntensity}`;
+      return `border-l-4 ${colors.border} bg-gradient-to-r ${colors.gradient} ${hoverIntensity}`;
     default:
-      return `border-l-4 border-gray-300 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800/50 dark:to-slate-800/50 hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-900/20 dark:hover:to-indigo-900/20 ${hoverIntensity}`;
+      return `border-l-4 ${colors.border} bg-gradient-to-r ${colors.gradient} hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-900/20 dark:hover:to-indigo-900/20 ${hoverIntensity}`;
   }
 };
 
