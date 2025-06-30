@@ -26,12 +26,11 @@ import { CategoryStatus } from '@/hooks/useGatingData';
 import { UPGatingRequirements, EthereumGatingRequirements } from '@/types/gating';
 import { Button } from '@/components/ui/button';
 import { verificationColors } from '@/lib/design-system/colors';
+import { formatAddress, generateAvatarGradient } from '@/lib/requirements/conversions';
 
 // ===== UTILITY FUNCTIONS =====
 
-const formatAddress = (address: string): string => {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
+
 
 const formatETH = (weiAmount: string): string => {
   try {
@@ -90,18 +89,7 @@ const formatTimeRemaining = (expiryTime: string): string => {
   }
 };
 
-const generateAvatarGradient = (address: string): string => {
-  const colors = [
-    'from-pink-400 to-purple-500',
-    'from-blue-400 to-indigo-500', 
-    'from-green-400 to-teal-500',
-    'from-yellow-400 to-orange-500',
-    'from-red-400 to-pink-500',
-    'from-purple-400 to-pink-500'
-  ];
-  const index = parseInt(address.slice(2, 4), 16) % colors.length;
-  return colors[index];
-};
+
 
 // ===== STATUS UTILITIES =====
 
