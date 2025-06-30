@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { AuthenticatedRequest, withAuth } from '@/lib/withAuth';
-import { query } from '@/lib/db';
+import { getUserStatsOptimized } from '@/lib/queries/userStats';
 
 // GET /api/me - Get current user information with activity stats
 async function getCurrentUserHandler(req: AuthenticatedRequest) {
@@ -11,19 +11,8 @@ async function getCurrentUserHandler(req: AuthenticatedRequest) {
   }
 
   try {
-    // Fetch user activity stats - simplified query that doesn't require user to exist in users table
-    const statsResult = await query(`
-      SELECT 
-        COALESCE(stats.post_count, 0) as post_count,
-        COALESCE(stats.comment_count, 0) as comment_count
-      FROM (
-        SELECT 
-          (SELECT COUNT(*) FROM posts WHERE author_user_id = $1) as post_count,
-          (SELECT COUNT(*) FROM comments WHERE author_user_id = $1) as comment_count
-      ) stats
-    `, [user.sub]);
-
-    const stats = statsResult.rows[0] || { post_count: 0, comment_count: 0 };
+    // Fetch user activity stats using optimized utility function
+    const stats = await getUserStatsOptimized(user.sub);
 
     // Return sanitized user information with activity stats
     const userInfo = {
@@ -35,9 +24,9 @@ async function getCurrentUserHandler(req: AuthenticatedRequest) {
       communityId: user.cid,
       roles: user.roles || [],
       stats: {
-        postCount: parseInt(stats.post_count, 10) || 0,
-        commentCount: parseInt(stats.comment_count, 10) || 0,
-        isNewUser: (parseInt(stats.post_count, 10) || 0) === 0
+        postCount: stats.posts_count,
+        commentCount: stats.comments_count,
+        isNewUser: stats.posts_count === 0
       }
     };
 

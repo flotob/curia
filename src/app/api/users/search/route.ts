@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
+import { getUserStats } from '@/lib/queries/userStats';
 
 interface SearchUser {
   id: string;
@@ -37,12 +38,8 @@ async function fetchExtendedProfileData(userId: string) {
       [userId]
     );
 
-    // Fetch user's activity stats
-    const [postsResult, commentsResult, joinDateResult] = await Promise.all([
-      query(`SELECT COUNT(*) as count FROM posts WHERE author_user_id = $1`, [userId]),
-      query(`SELECT COUNT(*) as count FROM comments WHERE author_user_id = $1`, [userId]),
-      query(`SELECT MIN(created_at) as joined_date FROM user_communities WHERE user_id = $1`, [userId])
-    ]);
+    // Fetch user's activity stats using optimized utility function
+    const userStats = await getUserStats(userId);
 
     return {
       communities: communitiesResult.rows.map(row => ({
@@ -50,11 +47,7 @@ async function fetchExtendedProfileData(userId: string) {
         name: row.name,
         logo_url: row.logo_url
       })),
-      stats: {
-        posts_count: parseInt(postsResult.rows[0]?.count || '0'),
-        comments_count: parseInt(commentsResult.rows[0]?.count || '0'),
-        joined_date: joinDateResult.rows[0]?.joined_date || new Date().toISOString()
-      }
+      stats: userStats
     };
   } catch (error) {
     console.error('[fetchExtendedProfileData] Error:', error);

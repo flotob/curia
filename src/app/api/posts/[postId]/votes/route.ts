@@ -4,6 +4,7 @@ import { getClient, query } from '@/lib/db'; // Use getClient for transactions
 import { PoolClient } from 'pg';
 import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 import { SettingsUtils } from '@/types/settings';
+import { getUserVerifiedLocks } from '@/lib/queries/lockVerification';
 
 // POST to upvote a post (protected and permission-checked)
 async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) {
@@ -61,15 +62,8 @@ async function addVoteHandler(req: AuthenticatedRequest, context: RouteContext) 
     if (boardLockGating && boardLockGating.lockIds.length > 0) {
       console.log(`[API POST /api/posts/${postId}/votes] Board ${board_id} has ${boardLockGating.lockIds.length} lock requirements, checking user verification...`);
       
-      // Check user's verification status for required locks
-      const lockIdPlaceholders = boardLockGating.lockIds.map((_, index) => `$${index + 2}`).join(', ');
-      const verificationResult = await query(`
-        SELECT lock_id FROM pre_verifications 
-        WHERE user_id = $1 AND lock_id IN (${lockIdPlaceholders})
-          AND verification_status = 'verified' AND expires_at > NOW()
-      `, [userId, ...boardLockGating.lockIds]);
-      
-      const verifiedLockIds = new Set(verificationResult.rows.map(row => row.lock_id));
+      // Use optimized lock verification utility function
+      const verifiedLockIds = await getUserVerifiedLocks(userId, boardLockGating.lockIds);
       const verifiedCount = verifiedLockIds.size;
       const requiredCount = boardLockGating.lockIds.length;
       
@@ -224,15 +218,8 @@ async function removeVoteHandler(req: AuthenticatedRequest, context: RouteContex
     if (boardLockGating && boardLockGating.lockIds.length > 0) {
       console.log(`[API DELETE /api/posts/${postId}/votes] Board ${board_id} has ${boardLockGating.lockIds.length} lock requirements, checking user verification...`);
       
-      // Check user's verification status for required locks
-      const lockIdPlaceholders = boardLockGating.lockIds.map((_, index) => `$${index + 2}`).join(', ');
-      const verificationResult = await query(`
-        SELECT lock_id FROM pre_verifications 
-        WHERE user_id = $1 AND lock_id IN (${lockIdPlaceholders})
-          AND verification_status = 'verified' AND expires_at > NOW()
-      `, [userId, ...boardLockGating.lockIds]);
-      
-      const verifiedLockIds = new Set(verificationResult.rows.map(row => row.lock_id));
+      // Use optimized lock verification utility function
+      const verifiedLockIds = await getUserVerifiedLocks(userId, boardLockGating.lockIds);
       const verifiedCount = verifiedLockIds.size;
       const requiredCount = boardLockGating.lockIds.length;
       
