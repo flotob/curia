@@ -63,7 +63,7 @@ export class ValidationService {
    * @param requiredFields - Array of required field names
    * @throws ValidationError if any required fields are missing
    */
-  static validateRequiredFields(body: any, requiredFields: string[]): void {
+  static validateRequiredFields(body: Record<string, unknown>, requiredFields: string[]): void {
     const missingFields = requiredFields.filter(field => {
       const value = body[field];
       return value === undefined || value === null || value === '';
@@ -118,7 +118,7 @@ export class ValidationService {
    * @throws ValidationError if constraints are violated
    */
   static validateArrayLength(
-    value: any[] | undefined | null,
+    value: unknown[] | undefined | null,
     fieldName: string,
     minLength: number = 0,
     maxLength?: number
@@ -148,7 +148,7 @@ export class ValidationService {
    * @throws ValidationError if validation fails
    */
   static validateBoolean(
-    value: any,
+    value: unknown,
     fieldName: string,
     required: boolean = false
   ): void {
@@ -173,9 +173,9 @@ export class ValidationService {
    * @throws ValidationError if value is not in allowed values
    */
   static validateEnum(
-    value: any,
+    value: unknown,
     fieldName: string,
-    allowedValues: any[],
+    allowedValues: unknown[],
     required: boolean = true
   ): void {
     if (value === undefined || value === null) {
@@ -200,10 +200,10 @@ export class ValidationService {
    * @throws ValidationError if JSON is invalid
    */
   static validateJson(
-    value: any,
+    value: unknown,
     fieldName: string,
     required: boolean = true
-  ): any {
+  ): unknown {
     if (value === undefined || value === null) {
       if (required) {
         throw new ValidationError(`${fieldName} is required`);
