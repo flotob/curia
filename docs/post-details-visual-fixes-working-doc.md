@@ -248,6 +248,15 @@ GatingRequirementsPanel still has:
 - **AFTER**: Only large/primary buttons get 44px minimum, normal buttons can be their natural size
 - **Fix**: Made button min-height selective instead of global
 
+### **Phase 5: Comment Layout Disasters** ✅ DONE
+- **Issue 1 - Image scaling**: Comments with big images breaking layout
+- **Issue 2 - Left gap/inset**: Content weirdly aligned with avatar creating messy "inset" look
+- **FIXES APPLIED**:
+  - Added `prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg` for proper image constraints
+  - Restructured layout from flex side-by-side to clean vertical: header row + full-width content  
+  - Eliminated the weird "inset" effect where content was aligned with avatar position
+  - Reduced component sizes and improved spacing throughout
+
 ## 🧪 **BUILD STATUS**
 - ✅ **Build compiles successfully** 
 - ✅ **Search functionality preserved** (our original critical fix)

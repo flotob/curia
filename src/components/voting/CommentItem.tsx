@@ -192,7 +192,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   return (
     <div 
       id={`comment-${comment.id}`}
-      className={`flex items-start space-x-3 py-3 transition-all duration-500 ease-out rounded-lg ${
+      className={`py-3 transition-all duration-500 ease-out rounded-lg ${
         showHighlight 
           ? 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 shadow-sm ring-1 ring-blue-200/50 dark:ring-blue-800/50' 
           : ''
@@ -203,75 +203,76 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         ...indentStyle
       }}
     >
-      <UserProfilePopover
-        userId={comment.author_user_id}
-        username={authorDisplayName}
-        open={isAuthorPopoverOpen}
-        onOpenChange={setIsAuthorPopoverOpen}
-      >
-        <div className="flex items-center space-x-2 cursor-pointer group/author">
-          <Avatar className="h-8 w-8 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
-            <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-            <AvatarFallback>{avatarFallback}</AvatarFallback>
-          </Avatar>
-          <span className="font-semibold text-foreground group-hover/author:text-primary transition-colors text-xs">
-            {authorDisplayName}
-          </span>
-        </div>
-      </UserProfilePopover>
-      <div className="flex-grow">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-            <span className="mx-1">•</span>
-            <Clock size={12} className="mr-0.5 flex-shrink-0" />
-            <span>{timeSinceText}</span>
+      {/* Header with Avatar and Actions */}
+      <div className="flex items-start justify-between mb-2">
+        <UserProfilePopover
+          userId={comment.author_user_id}
+          username={authorDisplayName}
+          open={isAuthorPopoverOpen}
+          onOpenChange={setIsAuthorPopoverOpen}
+        >
+          <div className="flex items-center space-x-2 cursor-pointer group/author">
+            <Avatar className="h-7 w-7 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
+              <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+              <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+            </Avatar>
+            <span className="font-medium text-foreground group-hover/author:text-primary transition-colors text-sm">
+              {authorDisplayName}
+            </span>
+            <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+              <span>•</span>
+              <Clock size={10} className="flex-shrink-0" />
+              <span>{timeSinceText}</span>
+            </div>
           </div>
-          <div className="flex items-center space-x-1">
-            {/* Reply Button */}
-            {onReply && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => onReply(comment.id)}
-                className="p-1 h-7 w-auto px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
-                title="Reply to this comment"
-              >
-                <Reply size={12} className="mr-1" />
-                Reply
-              </Button>
-            )}
-            
-            {/* Admin Menu */}
-            {user?.isAdmin && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="p-1 h-7 w-7">
-                    <MoreVertical size={14} />
-                    <span className="sr-only">Comment Options</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem 
-                    onClick={() => deleteMutation.mutate()}
-                    disabled={deleteMutation.isPending}
-                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                  >
-                    <Trash size={12} className="mr-2" /> Delete Comment
-                  </DropdownMenuItem>
-                  {/* Add more DropdownMenuItems here later */}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-        <div className="mt-1 text-sm">
-            <article 
-              className="prose dark:prose-invert prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere"
-              style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+        </UserProfilePopover>
+        
+        <div className="flex items-center space-x-1">
+          {/* Reply Button */}
+          {onReply && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => onReply(comment.id)}
+              className="p-1 h-6 w-auto px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+              title="Reply to this comment"
             >
-                <EditorContent editor={editor} />
-            </article>
+              <Reply size={10} className="mr-1" />
+              Reply
+            </Button>
+          )}
+          
+          {/* Admin Menu */}
+          {user?.isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="p-1 h-6 w-6">
+                  <MoreVertical size={12} />
+                  <span className="sr-only">Comment Options</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                >
+                  <Trash size={12} className="mr-2" /> Delete Comment
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
+      </div>
+      
+      {/* Content Area - Full Width */}
+      <div className="text-sm pl-1">
+        <article 
+          className="prose dark:prose-invert prose-sm max-w-none break-words prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg prose-img:shadow-sm"
+          style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+        >
+          <EditorContent editor={editor} />
+        </article>
       </div>
     </div>
   );
