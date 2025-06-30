@@ -74,20 +74,20 @@ export class LockRepository extends BaseRepository {
    * Find lock by ID
    */
   static async findById(lockId: number): Promise<LockData | null> {
-    this.validateRequired({ lockId }, ['lockId']);
+    super.validateRequired({ lockId }, ['lockId']);
 
     const query = `
       SELECT * FROM locks WHERE id = $1
     `;
 
-    return await this.findOne<LockData>(query, [lockId]);
+    return await super.findOne<LockData>(query, [lockId]);
   }
 
   /**
    * Find lock by ID with stats
    */
   static async findByIdWithStats(lockId: number): Promise<LockWithStats | null> {
-    this.validateRequired({ lockId }, ['lockId']);
+    super.validateRequired({ lockId }, ['lockId']);
 
     const query = `
       SELECT 
@@ -111,7 +111,7 @@ export class LockRepository extends BaseRepository {
       WHERE l.id = $1
     `;
 
-    return await this.findOne<LockWithStats>(query, [lockId]);
+    return await super.findOne<LockWithStats>(query, [lockId]);
   }
 
   /**
@@ -182,7 +182,7 @@ export class LockRepository extends BaseRepository {
       ${whereClause}
     `;
 
-    return await this.findPaginated<LockWithStats>(
+    return await super.findPaginated<LockWithStats>(
       baseQuery,
       countQuery,
       values,
@@ -194,8 +194,8 @@ export class LockRepository extends BaseRepository {
    * Create new lock
    */
   static async create(data: CreateLockData): Promise<LockData> {
-    const sanitized = this.sanitizeInput(data);
-    this.validateRequired(sanitized, ['title', 'gating_config', 'creator_user_id', 'community_id']);
+    const sanitized = super.sanitizeInput(data);
+    super.validateRequired(sanitized, ['title', 'gating_config', 'creator_user_id', 'community_id']);
 
     const query = `
       INSERT INTO locks (
@@ -216,16 +216,16 @@ export class LockRepository extends BaseRepository {
       sanitized.tags || null,
     ];
 
-    return await this.insertOne<LockData>(query, values);
+    return await super.insertOne<LockData>(query, values);
   }
 
   /**
    * Update existing lock
    */
   static async update(lockId: number, data: UpdateLockData): Promise<LockData | null> {
-    this.validateRequired({ lockId }, ['lockId']);
+    super.validateRequired({ lockId }, ['lockId']);
 
-    const sanitized = this.sanitizeInput(data);
+    const sanitized = super.sanitizeInput(data);
     const updates: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
@@ -270,14 +270,14 @@ export class LockRepository extends BaseRepository {
       RETURNING *
     `;
 
-    return await this.updateOne<LockData>(query, values);
+    return await super.updateOne<LockData>(query, values);
   }
 
   /**
    * Delete lock
    */
   static async delete(lockId: number): Promise<boolean> {
-    this.validateRequired({ lockId }, ['lockId']);
+    super.validateRequired({ lockId }, ['lockId']);
 
     // Check if lock is in use
     const usageQuery = `
@@ -286,7 +286,7 @@ export class LockRepository extends BaseRepository {
       SELECT COUNT(*) FROM boards WHERE lock_ids ? $1::text
     `;
 
-    const usageCounts = await this.findMany<{ count: string }>(usageQuery, [lockId]);
+    const usageCounts = await super.findMany<{ count: string }>(usageQuery, [lockId]);
     const totalUsage = usageCounts.reduce((sum, row) => sum + parseInt(row.count, 10), 0);
 
     if (totalUsage > 0) {
@@ -297,7 +297,7 @@ export class LockRepository extends BaseRepository {
     }
 
     const query = `DELETE FROM locks WHERE id = $1`;
-    const deletedCount = await this.deleteRows(query, [lockId]);
+    const deletedCount = await super.deleteRows(query, [lockId]);
     
     return deletedCount > 0;
   }
@@ -306,16 +306,16 @@ export class LockRepository extends BaseRepository {
    * Record lock usage
    */
   static async recordUsage(data: Omit<LockUsageData, 'used_at'>): Promise<void> {
-    this.validateRequired(data, ['lock_id', 'used_by', 'context']);
+    super.validateRequired(data, ['lock_id', 'used_by', 'context']);
 
-    return await this.withTransaction(async (client) => {
+    return await super.withTransaction(async (client) => {
       // Insert usage record
       const usageQuery = `
         INSERT INTO lock_usage (lock_id, post_id, board_id, used_by, used_at, context)
         VALUES ($1, $2, $3, $4, NOW(), $5)
       `;
 
-      await this.executeQuery(
+      await super.executeQuery(
         usageQuery,
         [data.lock_id, data.post_id || null, data.board_id || null, data.used_by, data.context],
         client
@@ -328,7 +328,7 @@ export class LockRepository extends BaseRepository {
         WHERE id = $1
       `;
 
-      await this.executeQuery(updateQuery, [data.lock_id], client);
+      await super.executeQuery(updateQuery, [data.lock_id], client);
     });
   }
 
@@ -342,7 +342,7 @@ export class LockRepository extends BaseRepository {
     topPosts: Array<{ post_id: number; title: string; usage_count: number }>;
     topBoards: Array<{ board_id: number; name: string; usage_count: number }>;
   }> {
-    this.validateRequired({ lockId }, ['lockId']);
+    super.validateRequired({ lockId }, ['lockId']);
 
     // Get total and unique user counts
     const statsQuery = `
@@ -353,7 +353,7 @@ export class LockRepository extends BaseRepository {
       WHERE lock_id = $1
     `;
 
-    const stats = await this.findOne<{ total_usage: string; unique_users: string }>(
+    const stats = await super.findOne<{ total_usage: string; unique_users: string }>(
       statsQuery, 
       [lockId]
     );
@@ -369,7 +369,7 @@ export class LockRepository extends BaseRepository {
       ORDER BY date DESC
     `;
 
-    const recentUsage = await this.findMany<{ date: string; count: string }>(
+    const recentUsage = await super.findMany<{ date: string; count: string }>(
       recentUsageQuery,
       [lockId]
     );
@@ -388,7 +388,7 @@ export class LockRepository extends BaseRepository {
       LIMIT 10
     `;
 
-    const topPosts = await this.findMany<{ post_id: number; title: string; usage_count: string }>(
+    const topPosts = await super.findMany<{ post_id: number; title: string; usage_count: string }>(
       topPostsQuery,
       [lockId]
     );
@@ -407,7 +407,7 @@ export class LockRepository extends BaseRepository {
       LIMIT 10
     `;
 
-    const topBoards = await this.findMany<{ board_id: number; name: string; usage_count: string }>(
+    const topBoards = await super.findMany<{ board_id: number; name: string; usage_count: string }>(
       topBoardsQuery,
       [lockId]
     );
@@ -439,7 +439,7 @@ export class LockRepository extends BaseRepository {
     communityId: string,
     options: QueryOptions = {}
   ): Promise<PaginatedResult<LockWithStats>> {
-    this.validateRequired({ communityId }, ['communityId']);
+    super.validateRequired({ communityId }, ['communityId']);
 
     return await this.search({ community_id: communityId }, options);
   }
@@ -451,7 +451,7 @@ export class LockRepository extends BaseRepository {
     creatorUserId: string,
     options: QueryOptions = {}
   ): Promise<PaginatedResult<LockWithStats>> {
-    this.validateRequired({ creatorUserId }, ['creatorUserId']);
+    super.validateRequired({ creatorUserId }, ['creatorUserId']);
 
     return await this.search({ creator_user_id: creatorUserId }, options);
   }
@@ -491,7 +491,7 @@ export class LockRepository extends BaseRepository {
    * Check if lock title is unique within community
    */
   static async isTitleUnique(title: string, communityId: string, excludeLockId?: number): Promise<boolean> {
-    this.validateRequired({ title, communityId }, ['title', 'communityId']);
+    super.validateRequired({ title, communityId }, ['title', 'communityId']);
 
     let query = `
       SELECT COUNT(*) FROM locks 
@@ -505,7 +505,7 @@ export class LockRepository extends BaseRepository {
       values.push(excludeLockId);
     }
 
-    const count = await this.count(query, values);
+    const count = await super.count(query, values);
     return count === 0;
   }
 }
