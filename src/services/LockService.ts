@@ -8,18 +8,28 @@
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors';
 import { authFetch } from '@/utils/authFetch';
 
+// Gating requirement interfaces
+export interface GatingRequirement {
+  type: string;
+  [key: string]: string | number | boolean | string[] | undefined;
+}
+
+export interface GatingCategory {
+  type: 'universal_profile' | 'ethereum_profile';
+  fulfillment: 'any' | 'all';
+  requirements: GatingRequirement[];
+}
+
+export interface GatingConfig {
+  requireAll: boolean;
+  categories: GatingCategory[];
+}
+
 // Lock types
 export interface LockConfig {
   title: string;
   description?: string;
-  gatingConfig: {
-    requireAll: boolean;
-    categories: Array<{
-      type: 'universal_profile' | 'ethereum_profile';
-      fulfillment: 'any' | 'all';
-      requirements: any[];
-    }>;
-  };
+  gatingConfig: GatingConfig;
   visibility: 'public' | 'community' | 'private';
   tags?: string[];
 }
@@ -28,7 +38,7 @@ export interface Lock {
   id: number;
   title: string;
   description?: string;
-  gatingConfig: any;
+  gatingConfig: GatingConfig;
   visibility: 'public' | 'community' | 'private';
   creatorUserId: string;
   communityId: string;
@@ -69,7 +79,7 @@ export interface LockStats {
 export interface CreateLockRequest {
   title: string;
   description?: string;
-  gatingConfig: any;
+  gatingConfig: GatingConfig;
   visibility?: 'public' | 'community' | 'private';
   tags?: string[];
 }
@@ -77,7 +87,7 @@ export interface CreateLockRequest {
 export interface UpdateLockRequest {
   title?: string;
   description?: string;
-  gatingConfig?: any;
+  gatingConfig?: GatingConfig;
   visibility?: 'public' | 'community' | 'private';
   tags?: string[];
 }
@@ -108,7 +118,7 @@ export class LockService {
     token: string
   ): Promise<Lock> {
     try {
-      this.validateLockConfig(config);
+      LockService.validateLockConfig(config);
 
       const response = await authFetch('/api/locks', {
         method: 'POST',
@@ -193,7 +203,7 @@ export class LockService {
   ): Promise<Lock> {
     try {
       if (updates.gatingConfig) {
-        this.validateGatingConfig(updates.gatingConfig);
+        LockService.validateGatingConfig(updates.gatingConfig);
       }
 
       const response = await authFetch(`/api/locks/${lockId}`, {
@@ -385,7 +395,7 @@ export class LockService {
    */
   static async getLockGatingRequirements(
     lockId: number
-  ): Promise<{ lockId: number; requireAll: boolean; categories: any[] }> {
+  ): Promise<{ lockId: number; requireAll: boolean; categories: GatingCategory[] }> {
     try {
       const response = await fetch(`/api/locks/${lockId}/gating-requirements`);
 
@@ -433,7 +443,7 @@ export class LockService {
       throw new ValidationError('Gating configuration is required');
     }
 
-    this.validateGatingConfig(config.gatingConfig);
+    LockService.validateGatingConfig(config.gatingConfig);
 
     if (config.visibility && !['public', 'community', 'private'].includes(config.visibility)) {
       throw new ValidationError('Lock visibility must be public, community, or private');
@@ -447,7 +457,7 @@ export class LockService {
   /**
    * Validate gating configuration
    */
-  private static validateGatingConfig(gatingConfig: any): void {
+  private static validateGatingConfig(gatingConfig: GatingConfig): void {
     if (typeof gatingConfig.requireAll !== 'boolean') {
       throw new ValidationError('Gating config must specify requireAll as boolean');
     }
