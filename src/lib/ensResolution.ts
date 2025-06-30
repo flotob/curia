@@ -1,6 +1,8 @@
 // ENS utilities for name-first search functionality
 // Uses existing working API services - no CORS issues
 
+import { isValidEthereumAddress } from '@/lib/requirements/validation';
+
 interface ENSProfile {
   address: string;
   name?: string;
@@ -176,21 +178,6 @@ export const isValidENSName = (input: string): boolean => {
 };
 
 /**
- * Validate if a string is a valid Ethereum address
- * @param input - Input string to validate
- * @returns True if input is a valid Ethereum address
- */
-export const isValidEthereumAddress = (input: string): boolean => {
-  try {
-    const address = input.trim();
-    // Check if it's a valid hex string with 40 characters (42 with 0x prefix)
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
-  } catch {
-    return false;
-  }
-};
-
-/**
  * Format display name for ENS profiles
  * @param profile - ENS profile
  * @returns Formatted display name
@@ -212,7 +199,7 @@ export const ENSUtils = {
   getENSProfile,
   smartENSSearch,
   isValidENSName,
-  isValidEthereumAddress,
+  isValidEthereumAddress, // Imported from validation utils
   formatENSDisplayName
 };
 

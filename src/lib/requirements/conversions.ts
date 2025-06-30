@@ -134,4 +134,68 @@ export const validatePositiveNumber = (value: string): { isValid: boolean; error
   }
   
   return { isValid: true };
+};
+
+// ===== ADDRESS FORMATTING =====
+
+/**
+ * Format Ethereum address with ellipsis (e.g., "0x1234...5678")
+ * Consolidates implementations from RichCategoryHeader.tsx, InlineUPConnection.tsx, etc.
+ */
+export const formatAddress = (address: string, options?: { 
+  short?: boolean; 
+  startChars?: number; 
+  endChars?: number;
+}): string => {
+  const { short = true, startChars = 6, endChars = 4 } = options || {};
+  
+  if (!address || address.length < 10) {
+    return address || '';
+  }
+  
+  if (!short) {
+    return address;
+  }
+  
+  // Ensure we have enough characters to format
+  const actualStartChars = Math.min(startChars, address.length - endChars - 3);
+  const actualEndChars = Math.min(endChars, address.length - actualStartChars - 3);
+  
+  if (actualStartChars <= 0 || actualEndChars <= 0) {
+    return address;
+  }
+  
+  return `${address.slice(0, actualStartChars)}...${address.slice(-actualEndChars)}`;
+};
+
+/**
+ * Format address with additional context (e.g., "vitalik.eth (0x1234...5678)")
+ */
+export const formatAddressWithENS = (address: string, ensName?: string | null): string => {
+  if (ensName) {
+    return `${ensName} (${formatAddress(address)})`;
+  }
+  return formatAddress(address);
+};
+
+/**
+ * Generate a consistent gradient class for avatar backgrounds based on address
+ * Consolidates implementations from RichCategoryHeader.tsx and other components
+ */
+export const generateAvatarGradient = (address: string): string => {
+  const colors = [
+    'from-pink-400 to-purple-500',
+    'from-blue-400 to-indigo-500', 
+    'from-green-400 to-teal-500',
+    'from-yellow-400 to-orange-500',
+    'from-red-400 to-pink-500',
+    'from-purple-400 to-pink-500'
+  ];
+  
+  if (!address || address.length < 4) {
+    return colors[0]; // Fallback to first gradient
+  }
+  
+  const index = parseInt(address.slice(2, 4), 16) % colors.length;
+  return colors[index];
 }; 
