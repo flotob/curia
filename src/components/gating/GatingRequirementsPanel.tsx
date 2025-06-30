@@ -19,6 +19,7 @@ import {
   ChevronUp,
   RefreshCw
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
@@ -275,7 +276,13 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   
   return (
     <Card className={`border-2 ${className}`}>
-      <CardHeader className="pb-3">
+      <CardHeader 
+        className={cn(
+          "pb-3",
+          isCollapsed && "cursor-pointer hover:bg-muted/30 transition-colors duration-200"
+        )}
+        onClick={isCollapsed ? toggleCollapsed : undefined}
+      >
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center text-base">
@@ -294,7 +301,10 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
             <Button
               variant="ghost"
               size="sm"
-              onClick={toggleCollapsed}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent header click when clicking chevron
+                toggleCollapsed();
+              }}
               className="h-8 w-8 p-0"
               title={isCollapsed ? "Show verification details" : "Hide verification details"}
             >

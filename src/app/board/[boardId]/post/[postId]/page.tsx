@@ -194,16 +194,6 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     setTimeout(() => setHighlightedCommentId(null), 4000);
   }, [toast]);
 
-  // Handle comment replies
-  const handleReplyToComment = useCallback((commentId: number) => {
-    setReplyingToCommentId(commentId);
-    setTimeout(() => {
-      commentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
-  }, []);
-
-
-
   // Early returns for loading states
   if (!boardId || !postId) {
     return <div>Loading...</div>;
@@ -211,18 +201,16 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
   if (isSharedLinkRedirecting) {
     return (
-      <div className="mobile-container">
-        <div className="content-wrapper text-center content-gap-1">
-          <div className="skeleton-container">
-            <div className="skeleton-content text-center">
-              <div className="loading-spinner"></div>
-              <h1 className="loading-title">
-                Opening in Common Ground...
-              </h1>
-              <p className="loading-text">
-                Redirecting to the full forum experience...
-              </p>
-            </div>
+      <div className="text-center content-gap-1">
+        <div className="skeleton-container">
+          <div className="skeleton-content text-center">
+            <div className="loading-spinner"></div>
+            <h1 className="loading-title">
+              Opening in Common Ground...
+            </h1>
+            <p className="loading-text">
+              Redirecting to the full forum experience...
+            </p>
           </div>
         </div>
       </div>
@@ -231,182 +219,169 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
   if (isLoadingPost) {
     return (
-      <div className="mobile-container">
-        <div className="content-wrapper">
-          <FadeIn>
-            {/* Breadcrumb Skeleton */}
-            <div className="skeleton-line w-64" />
-            
-            {/* Post Skeleton */}
-            <div className="skeleton-container">
-              <header className="skeleton-header">
-                <div className="content-gap-compact">
-                  <div className="skeleton-line w-32" />
-                  <div className="skeleton-line" />
-                </div>
-              </header>
-              <div className="skeleton-content">
-                <div className="content-gap-compact">
-                  <div className="skeleton-line" />
-                  <div className="skeleton-line w-3/4" />
-                  <div className="skeleton-line w-1/2" />
-                </div>
-              </div>
+      <FadeIn>
+        {/* Breadcrumb Skeleton */}
+        <div className="skeleton-line w-64" />
+        
+        {/* Post Skeleton */}
+        <div className="skeleton-container">
+          <header className="skeleton-header">
+            <div className="content-gap-compact">
+              <div className="skeleton-line w-32" />
+              <div className="skeleton-line" />
             </div>
-
-            {/* Comments Skeleton */}
-            <div className="skeleton-container">
-              <header className="skeleton-header">
-                <div className="skeleton-line w-24" />
-              </header>
-              <div className="skeleton-content">
-                <div className="content-gap-1">
-                  {[1, 2, 3].map((i) => (
-                    <FadeIn key={i} delay={i * 100}>
-                      <div className="skeleton-comment">
-                        <div className="skeleton-line w-48" />
-                        <div className="skeleton-line" />
-                        <div className="skeleton-line w-2/3" />
-                      </div>
-                    </FadeIn>
-                  ))}
-                </div>
-              </div>
+          </header>
+          <div className="skeleton-content">
+            <div className="content-gap-compact">
+              <div className="skeleton-line" />
+              <div className="skeleton-line w-3/4" />
+              <div className="skeleton-line w-1/2" />
             </div>
-          </FadeIn>
+          </div>
         </div>
-      </div>
+
+        {/* Comments Skeleton */}
+        <div className="skeleton-container">
+          <header className="skeleton-header">
+            <div className="skeleton-line w-24" />
+          </header>
+          <div className="skeleton-content">
+            <div className="content-gap-1">
+              {[1, 2, 3].map((i) => (
+                <FadeIn key={i} delay={i * 100}>
+                  <div className="skeleton-comment">
+                    <div className="skeleton-line w-48" />
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line w-2/3" />
+                  </div>
+                </FadeIn>
+              ))}
+            </div>
+          </div>
+        </div>
+      </FadeIn>
     );
   }
 
   // Error state
   if (postError || !post) {
     return (
-      <div className="mobile-container">
-        <div className="content-wrapper error-state">
-          <FadeIn>
-            <div className="skeleton-container">
-              <div className="skeleton-content text-center">
-                <h1 className="error-title">
-                  Post Not Found
-                </h1>
-                <p className="error-text">
-                  {postError instanceof Error ? postError.message : 'The post you\'re looking for doesn\'t exist or you don\'t have permission to view it.'}
-                </p>
-                <div className="error-actions">
-                  <Button 
-                    onClick={handleNavigateBack}
-                    variant="outline"
-                  >
-                    <ArrowLeft size={16} className="mr-2" />
-                    Back to Board
-                  </Button>
-                  <Button 
-                    onClick={() => router.push('/')}
-                  >
-                    <Home size={16} className="mr-2" />
-                    Go Home
-                  </Button>
-                </div>
-              </div>
+      <FadeIn>
+        <div className="skeleton-container">
+          <div className="skeleton-content text-center">
+            <h1 className="error-title">
+              Post Not Found
+            </h1>
+            <p className="error-text">
+              {postError instanceof Error ? postError.message : 'The post you\'re looking for doesn\'t exist or you don\'t have permission to view it.'}
+            </p>
+            <div className="error-actions">
+              <Button 
+                onClick={handleNavigateBack}
+                variant="outline"
+              >
+                <ArrowLeft size={16} className="mr-2" />
+                Back to Board
+              </Button>
+              <Button 
+                onClick={() => router.push('/')}
+              >
+                <Home size={16} className="mr-2" />
+                Go Home
+              </Button>
             </div>
-          </FadeIn>
+          </div>
         </div>
-      </div>
+      </FadeIn>
     );
   }
 
 
 
   return (
-    <div className="mobile-container">
-      <div className="content-wrapper">
-        {/* Simple Back Button */}
-        <FadeIn>
-          <div className="mb-4">
-            <Button
-              onClick={handleNavigateBack}
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-2"
-              aria-label="Go back to board"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back</span>
-            </Button>
-          </div>
-        </FadeIn>
+    <div className="max-w-4xl mx-auto">
+      {/* Simple Back Button */}
+      <FadeIn>
+        <div className="mb-4">
+          <Button
+            onClick={handleNavigateBack}
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-2"
+            aria-label="Go back to board"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back</span>
+          </Button>
+        </div>
+      </FadeIn>
 
-        {/* Post Detail Card - Full Content */}
-        <FadeIn delay={100}>
-          <PostCard 
-            post={post} 
-            showBoardContext={false}
-            showFullContent={true}
-            boardInfo={boardInfo}
-          />
-        </FadeIn>
+      {/* Post Detail Card - Full Content */}
+      <FadeIn delay={100}>
+        <PostCard 
+          post={post} 
+          showBoardContext={false}
+          showFullContent={true}
+          boardInfo={boardInfo}
+        />
+      </FadeIn>
 
-        {/* New Comment Form - Free Floating */}
-        <FadeIn delay={200}>
-          <div className="new-comment-form mt-8" ref={commentFormRef}>
-            <UniversalProfileProvider>
-              <NewCommentForm 
-                postId={postIdNum} 
-                post={post} 
-                parentCommentId={replyingToCommentId}
-                onCommentPosted={handleCommentPosted} 
-              />
-            </UniversalProfileProvider>
-            {replyingToCommentId && (
-              <div className="reply-indicator">
-                <span>Replying to comment #{replyingToCommentId}</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setReplyingToCommentId(null)}
-                  className="cancel-reply"
-                >
-                  Cancel Reply
-                </Button>
-              </div>
-            )}
-          </div>
-        </FadeIn>
-        
-        {/* Comments List - Free Floating */}
-        <FadeIn delay={300}>
-          <div className="mt-6">
-            {isLoadingComments ? (
-              <StaggerChildren staggerDelay={100}>
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="skeleton-comment">
-                    <div className="skeleton-line w-48" />
-                    <div className="skeleton-line" />
-                    <div className="skeleton-line w-2/3" />
-                  </div>
-                ))}
-              </StaggerChildren>
-            ) : comments && comments.length > 0 ? (
-              <CommentList 
-                postId={postIdNum} 
-                highlightCommentId={highlightedCommentId}
-                onCommentHighlighted={() => setHighlightedCommentId(null)}
-                onReply={handleReplyToComment}
-              />
-            ) : (
-              <div className="empty-comments">
-                <MessageSquare size={48} className="empty-icon" />
-                <p className="empty-text">
-                  No comments yet. Be the first to start the discussion!
-                </p>
-              </div>
-            )}
-          </div>
-        </FadeIn>
-
-
-      </div>
+      {/* New Comment Form - Free Floating */}
+      <FadeIn delay={200}>
+        <div className="new-comment-form mt-8" ref={commentFormRef}>
+          <UniversalProfileProvider>
+            <NewCommentForm 
+              postId={postIdNum} 
+              post={post} 
+              parentCommentId={replyingToCommentId}
+              onCommentPosted={handleCommentPosted} 
+            />
+          </UniversalProfileProvider>
+          {replyingToCommentId && (
+            <div className="reply-indicator">
+              <span>Replying to comment #{replyingToCommentId}</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setReplyingToCommentId(null)}
+                className="cancel-reply"
+              >
+                Cancel Reply
+              </Button>
+            </div>
+          )}
+        </div>
+      </FadeIn>
+      
+      {/* Comments List - Free Floating */}
+      <FadeIn delay={300}>
+        <div className="mt-6">
+          {isLoadingComments ? (
+            <StaggerChildren staggerDelay={100}>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="skeleton-comment">
+                  <div className="skeleton-line w-48" />
+                  <div className="skeleton-line" />
+                  <div className="skeleton-line w-2/3" />
+                </div>
+              ))}
+            </StaggerChildren>
+          ) : comments && comments.length > 0 ? (
+            <CommentList 
+              postId={postIdNum} 
+              highlightCommentId={highlightedCommentId}
+              onCommentHighlighted={() => setHighlightedCommentId(null)}
+            />
+          ) : (
+            <div className="empty-comments">
+              <MessageSquare size={48} className="empty-icon" />
+              <p className="empty-text">
+                No comments yet. Be the first to start the discussion!
+              </p>
+            </div>
+          )}
+        </div>
+      </FadeIn>
     </div>
   );
 } 
