@@ -1,1 +1,233 @@
-import { useState, useCallback } from 'react';\n\n// Generic async state hook to replace manual loading state management\nexport interface AsyncState<T> {\n  data: T | null;\n  isLoading: boolean;\n  error: string | null;\n  lastUpdated: Date | null;\n}\n\nexport interface AsyncActions<T> {\n  execute: (...args: any[]) => Promise<T>;\n  reset: () => void;\n  setData: (data: T | null) => void;\n  setError: (error: string | null) => void;\n}\n\nexport type UseAsyncStateResult<T> = AsyncState<T> & AsyncActions<T>;\n\n/**\n * Hook for managing async operations with consistent loading states\n * Replaces manual useState/useEffect patterns for loading, error, and data\n * \n * @param asyncFunction - The async function to execute\n * @param initialData - Initial data value (default: null)\n * @param options - Configuration options\n */\nexport function useAsyncState<T>(\n  asyncFunction: (...args: any[]) => Promise<T>,\n  initialData: T | null = null,\n  options: {\n    /** Whether to execute the function immediately on mount */\n    immediate?: boolean;\n    /** Custom error message prefix */\n    errorMessage?: string;\n    /** Callback when operation succeeds */\n    onSuccess?: (data: T) => void;\n    /** Callback when operation fails */\n    onError?: (error: Error) => void;\n  } = {}\n): UseAsyncStateResult<T> {\n  const { immediate = false, errorMessage, onSuccess, onError } = options;\n  \n  const [state, setState] = useState<AsyncState<T>>({\n    data: initialData,\n    isLoading: immediate,\n    error: null,\n    lastUpdated: null,\n  });\n\n  const execute = useCallback(async (...args: any[]): Promise<T> => {\n    setState(prev => ({ ...prev, isLoading: true, error: null }));\n    \n    try {\n      const result = await asyncFunction(...args);\n      \n      setState({\n        data: result,\n        isLoading: false,\n        error: null,\n        lastUpdated: new Date(),\n      });\n      \n      onSuccess?.(result);\n      return result;\n      \n    } catch (error) {\n      const errorMsg = error instanceof Error ? \n        (errorMessage ? `${errorMessage}: ${error.message}` : error.message) :\n        'An unknown error occurred';\n      \n      setState(prev => ({\n        ...prev,\n        isLoading: false,\n        error: errorMsg,\n      }));\n      \n      onError?.(error instanceof Error ? error : new Error(errorMsg));\n      throw error;\n    }\n  }, [asyncFunction, errorMessage, onSuccess, onError]);\n\n  const reset = useCallback(() => {\n    setState({\n      data: initialData,\n      isLoading: false,\n      error: null,\n      lastUpdated: null,\n    });\n  }, [initialData]);\n\n  const setData = useCallback((data: T | null) => {\n    setState(prev => ({ ...prev, data, lastUpdated: new Date() }));\n  }, []);\n\n  const setError = useCallback((error: string | null) => {\n    setState(prev => ({ ...prev, error, isLoading: false }));\n  }, []);\n\n  return {\n    ...state,\n    execute,\n    reset,\n    setData,\n    setError,\n  };\n}\n\n/**\n * Simplified hook for basic async operations without arguments\n */\nexport function useSimpleAsyncState<T>(\n  asyncFunction: () => Promise<T>,\n  options?: {\n    immediate?: boolean;\n    errorMessage?: string;\n  }\n) {\n  return useAsyncState(asyncFunction, null, options);\n}\n\n/**\n * Hook for async operations that need to track multiple states\n * Useful for complex forms or multi-step operations\n */\nexport function useMultiAsyncState<T extends Record<string, any>>(\n  initialStates: T\n) {\n  type StateKey = keyof T;\n  type StateValue<K extends StateKey> = T[K];\n  \n  const [states, setStates] = useState<{\n    [K in StateKey]: AsyncState<StateValue<K>>\n  }>(() => {\n    const result = {} as any;\n    for (const key in initialStates) {\n      result[key] = {\n        data: initialStates[key],\n        isLoading: false,\n        error: null,\n        lastUpdated: null,\n      };\n    }\n    return result;\n  });\n\n  const executeFor = useCallback(<K extends StateKey>(\n    key: K,\n    asyncFunction: () => Promise<StateValue<K>>\n  ) => {\n    setStates(prev => ({\n      ...prev,\n      [key]: { ...prev[key], isLoading: true, error: null }\n    }));\n\n    return asyncFunction()\n      .then(result => {\n        setStates(prev => ({\n          ...prev,\n          [key]: {\n            data: result,\n            isLoading: false,\n            error: null,\n            lastUpdated: new Date(),\n          }\n        }));\n        return result;\n      })\n      .catch(error => {\n        const errorMsg = error instanceof Error ? error.message : 'Unknown error';\n        setStates(prev => ({\n          ...prev,\n          [key]: {\n            ...prev[key],\n            isLoading: false,\n            error: errorMsg,\n          }\n        }));\n        throw error;\n      });\n  }, []);\n\n  return {\n    states,\n    executeFor,\n  };\n}
+import { useState, useCallback } from 'react';
+
+// Generic async state hook to replace manual loading state management
+export interface AsyncState<T> {
+  data: T | null;
+  isLoading: boolean;
+  error: string | null;
+  lastUpdated: Date | null;
+}
+
+export interface AsyncActions<T> {
+  execute: (...args: any[]) => Promise<T>;
+  reset: () => void;
+  setData: (data: T | null) => void;
+  setError: (error: string | null) => void;
+}
+
+export type UseAsyncStateResult<T> = AsyncState<T> & AsyncActions<T>;
+
+/**
+ * Hook for managing async operations with consistent loading states
+ * Replaces manual useState/useEffect patterns for loading, error, and data
+ * 
+ * @param asyncFunction - The async function to execute
+ * @param initialData - Initial data value (default: null)
+ * @param options - Configuration options
+ */
+export function useAsyncState<T>(
+  asyncFunction: (...args: any[]) => Promise<T>,
+  initialData: T | null = null,
+  options: {
+    /** Whether to execute the function immediately on mount */
+    immediate?: boolean;
+    /** Custom error message prefix */
+    errorMessage?: string;
+    /** Callback when operation succeeds */
+    onSuccess?: (data: T) => void;
+    /** Callback when operation fails */
+    onError?: (error: Error) => void;
+  } = {}
+): UseAsyncStateResult<T> {
+  const { immediate = false, errorMessage, onSuccess, onError } = options;
+  
+  const [state, setState] = useState<AsyncState<T>>({
+    data: initialData,
+    isLoading: immediate,
+    error: null,
+    lastUpdated: null,
+  });
+
+  const execute = useCallback(async (...args: any[]): Promise<T> => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const result = await asyncFunction(...args);
+      
+      setState({
+        data: result,
+        isLoading: false,
+        error: null,
+        lastUpdated: new Date(),
+      });
+      
+      onSuccess?.(result);
+      return result;
+      
+    } catch (error) {
+      const errorMsg = error instanceof Error ? 
+        (errorMessage ? `${errorMessage}: ${error.message}` : error.message) :
+        'An unknown error occurred';
+      
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMsg,
+      }));
+      
+      onError?.(error instanceof Error ? error : new Error(errorMsg));
+      throw error;
+    }
+  }, [asyncFunction, errorMessage, onSuccess, onError]);
+
+  const reset = useCallback(() => {
+    setState({
+      data: initialData,
+      isLoading: false,
+      error: null,
+      lastUpdated: null,
+    });
+  }, [initialData]);
+
+  const setData = useCallback((data: T | null) => {
+    setState(prev => ({ ...prev, data, lastUpdated: new Date() }));
+  }, []);
+
+  const setError = useCallback((error: string | null) => {
+    setState(prev => ({ ...prev, error, isLoading: false }));
+  }, []);
+
+  return {
+    ...state,
+    execute,
+    reset,
+    setData,
+    setError,
+  };
+}
+
+/**
+ * Simplified hook for basic async operations without arguments
+ */
+export function useSimpleAsyncState<T>(
+  asyncFunction: () => Promise<T>,
+  options?: {
+    immediate?: boolean;
+    errorMessage?: string;
+  }
+) {
+  return useAsyncState(asyncFunction, null, options);
+}
+
+/**
+ * Specialized hook for metadata fetching operations
+ * 
+ * Common pattern for token metadata, profile data, etc.
+ * Includes caching and retry logic.
+ */
+export function useMetadataState<T = unknown>(
+  cacheKey?: string,
+  cacheDuration = 5 * 60 * 1000 // 5 minutes
+) {
+  const [cache] = useState(() => new Map<string, { data: T; timestamp: number }>());
+  
+  const asyncState = useAsyncState<T>(
+    async () => {
+      throw new Error('Use fetchWithCache method instead');
+    },
+    null
+  );
+
+  const fetchWithCache = useCallback(async (
+    fetchFn: () => Promise<T>,
+    key: string = cacheKey || 'default'
+  ) => {
+    // Check cache first
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.timestamp < cacheDuration) {
+      asyncState.setData(cached.data);
+      return cached.data;
+    }
+
+    // Fetch fresh data
+    return asyncState.execute(async () => {
+      const result = await fetchFn();
+      // Cache the result
+      cache.set(key, { data: result, timestamp: Date.now() });
+      return result;
+    });
+  }, [asyncState, cache, cacheKey, cacheDuration]);
+
+  return {
+    ...asyncState,
+    fetchWithCache,
+    clearCache: useCallback(() => cache.clear(), [cache]),
+  };
+}
+
+/**
+ * Hook for async operations that need to track multiple states
+ * Useful for complex forms or multi-step operations
+ */
+export function useMultiAsyncState<T extends Record<string, any>>(
+  initialStates: T
+) {
+  type StateKey = keyof T;
+  type StateValue<K extends StateKey> = T[K];
+  
+  const [states, setStates] = useState<{
+    [K in StateKey]: AsyncState<StateValue<K>>
+  }>(() => {
+    const result = {} as any;
+    for (const key in initialStates) {
+      result[key] = {
+        data: initialStates[key],
+        isLoading: false,
+        error: null,
+        lastUpdated: null,
+      };
+    }
+    return result;
+  });
+
+  const executeFor = useCallback(<K extends StateKey>(
+    key: K,
+    asyncFunction: () => Promise<StateValue<K>>
+  ) => {
+    setStates(prev => ({
+      ...prev,
+      [key]: { ...prev[key], isLoading: true, error: null }
+    }));
+
+    return asyncFunction()
+      .then(result => {
+        setStates(prev => ({
+          ...prev,
+          [key]: {
+            data: result,
+            isLoading: false,
+            error: null,
+            lastUpdated: new Date(),
+          }
+        }));
+        return result;
+      })
+      .catch(error => {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        setStates(prev => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            isLoading: false,
+            error: errorMsg,
+          }
+        }));
+        throw error;
+      });
+  }, []);
+
+  return {
+    states,
+    executeFor,
+  };
+}

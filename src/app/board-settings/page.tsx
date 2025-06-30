@@ -6,6 +6,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { useCgLib } from '@/contexts/CgLibContext';
+import { useCommunityData } from '@/hooks/useCommunityData';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
@@ -91,16 +92,8 @@ export default function BoardSettingsPage() {
     enabled: !!cgInstance,
   });
 
-  // Fetch community settings
-  const { data: communitySettings } = useQuery<ApiCommunity>({
-    queryKey: ['communitySettings', user?.cid],
-    queryFn: async () => {
-      if (!user?.cid || !token) throw new Error('No community ID or token available');
-      const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, { token });
-      return response;
-    },
-    enabled: !!user?.cid && !!token,
-  });
+  // Fetch community settings using centralized hook
+  const { data: communitySettings } = useCommunityData();
 
   // Fetch board data
   const {
