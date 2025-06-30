@@ -12,7 +12,6 @@ interface CommentListProps {
   postId: number;
   highlightCommentId?: number | null; // New prop to highlight a specific comment
   onCommentHighlighted?: () => void; // Callback when highlight animation completes
-  onReply?: (commentId: number) => void; // Callback when user clicks reply
 }
 
 const fetchComments = async (postId: number): Promise<ApiComment[]> => {
@@ -22,8 +21,7 @@ const fetchComments = async (postId: number): Promise<ApiComment[]> => {
 export const CommentList: React.FC<CommentListProps> = ({ 
   postId, 
   highlightCommentId,
-  onCommentHighlighted,
-  onReply 
+  onCommentHighlighted
 }) => {
   const { 
     data: comments, 
@@ -82,7 +80,6 @@ export const CommentList: React.FC<CommentListProps> = ({
             key={tree.comment.id}
             comment={tree.comment}
             depth={tree.depth}
-            onReply={onReply}
             isHighlighted={highlightCommentId === tree.comment.id}
             onHighlightComplete={onCommentHighlighted}
             childComments={childrenElements}
@@ -96,7 +93,6 @@ export const CommentList: React.FC<CommentListProps> = ({
             <CommentItem 
               comment={tree.comment}
               depth={tree.depth}
-              onReply={onReply}
               isHighlighted={highlightCommentId === tree.comment.id}
               onHighlightComplete={onCommentHighlighted}
             />
@@ -109,7 +105,7 @@ export const CommentList: React.FC<CommentListProps> = ({
         );
       }
     });
-  }, [highlightCommentId, onCommentHighlighted, onReply]);
+  }, [highlightCommentId, onCommentHighlighted]);
 
   if (isLoading) {
     return (

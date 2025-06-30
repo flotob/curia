@@ -16,6 +16,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
 import { useTimeSince } from '@/utils/timeUtils';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { InlineReplyForm } from './InlineReplyForm';
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -33,7 +34,6 @@ const lowlight = createLowlight(common);
 interface CommentItemProps {
   comment: ApiComment;
   depth?: number; // Nesting depth for indentation (default: 0)
-  onReply?: (commentId: number) => void; // Callback when user clicks reply
   isHighlighted?: boolean; // Whether this comment should be highlighted
   onHighlightComplete?: () => void; // Callback when highlight animation completes
   childComments?: React.ReactNode; // Child comments to render inside this comment (for parent comments)
@@ -42,7 +42,6 @@ interface CommentItemProps {
 export const CommentItem: React.FC<CommentItemProps> = ({ 
   comment, 
   depth = 0,
-  onReply,
   isHighlighted = false,
   onHighlightComplete,
   childComments
@@ -58,6 +57,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   // Highlight animation state
   const [showHighlight, setShowHighlight] = React.useState(false);
   const [isAuthorPopoverOpen, setIsAuthorPopoverOpen] = React.useState(false);
+  // Inline reply state
+  const [showInlineReply, setShowInlineReply] = React.useState(false);
 
   // Trigger highlight animation when isHighlighted becomes true
   React.useEffect(() => {
@@ -242,18 +243,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         
         <div className="flex items-center space-x-1">
           {/* Reply Button */}
-          {onReply && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => onReply(comment.id)}
-              className="p-1 h-6 w-auto px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
-              title="Reply to this comment"
-            >
-              <Reply size={10} className="mr-1" />
-              Reply
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowInlineReply(true)}
+            className="p-1 h-6 w-auto px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+            title="Reply to this comment"
+          >
+            <Reply size={10} className="mr-1" />
+            Reply
+          </Button>
           
           {/* Admin Menu */}
           {user?.isAdmin && (
@@ -287,6 +286,20 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           <EditorContent editor={editor} />
         </article>
       </div>
+
+      {/* Inline Reply Form */}
+      {showInlineReply && (
+        <InlineReplyForm
+          postId={comment.post_id}
+          parentCommentId={comment.id}
+          replyToUsername={authorDisplayName}
+          onCancel={() => setShowInlineReply(false)}
+          onReplyPosted={() => {
+            setShowInlineReply(false);
+            // Optional: could call onReply here if needed for additional handling
+          }}
+        />
+      )}
 
       {/* Render children comments */}
       {childComments && (
