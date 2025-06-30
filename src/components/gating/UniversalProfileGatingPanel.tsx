@@ -222,6 +222,7 @@ This signature proves you control this address and grants access based on lock r
       {/* Show verification button in both preview and post contexts */}
       {verificationStatus.connected && !isPreviewMode && (
         <EthereumSmartVerificationButton
+            profileType="universal_profile"
             state={getButtonState()}
             allRequirementsMet={allRequirementsMet}
             isConnected={verificationStatus.connected}

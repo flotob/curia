@@ -195,7 +195,7 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
     return count.toString();
   };
 
-  // Get status styling for requirement cards
+  // Get status styling for requirement cards (unified implementation)
   const getRequirementStyling = (isLoading: boolean, meetsRequirement?: boolean, error?: string) => {
     if (isLoading) {
       return 'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700';
@@ -212,7 +212,7 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
     return 'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800';
   };
 
-  // Get status icon for requirements
+  // Get status icon for requirements (unified implementation) 
   const getStatusIcon = (isLoading: boolean, meetsRequirement?: boolean, error?: string) => {
     if (isLoading) {
       return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
