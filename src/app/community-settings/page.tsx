@@ -31,7 +31,6 @@ import { TelegramGroupsSection } from '@/components/settings/TelegramGroupsSecti
 export default function CommunitySettingsPage() {
   const { cgInstance, isInitializing } = useCgLib();
   const searchParams = useSearchParams();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [bgColor, setBgColor] = useState('#ffffff');
   const [copiedConnectCode, setCopiedConnectCode] = useState(false);
   const connectCodeInputRef = useRef<HTMLInputElement>(null);
@@ -39,12 +38,11 @@ export default function CommunitySettingsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Initialize theme from URL params
+  // Initialize Common Ground compatibility parameters
   useEffect(() => {
     const cgTheme = searchParams?.get('cg_theme') || 'light';
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
     
-    setTheme(cgTheme as 'light' | 'dark');
     setBgColor(cgBgColor);
     
     // Set CSS custom properties for dynamic theming
@@ -211,16 +209,10 @@ export default function CommunitySettingsPage() {
         style={{ backgroundColor: bgColor }}
       >
         <div className="text-center space-y-4">
-          <h1 className={cn(
-            "text-2xl font-semibold text-red-600",
-            theme === 'dark' && "text-red-400"
-          )}>
+          <h1 className="text-2xl font-semibold text-red-600 dark:text-red-400">
             Access Denied
           </h1>
-          <p className={cn(
-            "text-slate-600",
-            theme === 'dark' && "text-slate-400"
-          )}>
+          <p className="text-slate-600 dark:text-slate-400">
             You need admin permissions to access community settings.
           </p>
           <Link href={buildUrl('/')}>
@@ -243,19 +235,10 @@ export default function CommunitySettingsPage() {
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
             <div className="animate-pulse space-y-6">
-              <div className={cn(
-                "h-8 w-64 rounded",
-                theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
-              )} />
+              <div className="h-8 w-64 rounded bg-slate-200 dark:bg-slate-700" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className={cn(
-                  "h-64 rounded-xl",
-                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
-                )} />
-                <div className={cn(
-                  "h-64 rounded-xl", 
-                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
-                )} />
+                <div className="h-64 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                <div className="h-64 rounded-xl bg-slate-200 dark:bg-slate-700" />
               </div>
             </div>
           </div>
@@ -271,10 +254,7 @@ export default function CommunitySettingsPage() {
         style={{ backgroundColor: bgColor }}
       >
         <div className="text-center space-y-4">
-          <div className={cn(
-            "text-2xl font-semibold",
-            theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-          )}>
+          <div className="text-2xl font-semibold text-slate-700 dark:text-slate-300">
             Unable to load community information
           </div>
           <Link href={buildUrl('/')}>
@@ -288,14 +268,9 @@ export default function CommunitySettingsPage() {
     );
   }
 
-  // Dynamic theme styles
-  const pageBackground = theme === 'dark' 
-    ? 'bg-gradient-to-br from-slate-900/95 via-slate-900 to-slate-800/95'
-    : 'bg-gradient-to-br from-white/95 via-white to-slate-50/95';
-
   return (
     <div 
-      className={cn("min-h-screen", pageBackground)}
+      className="min-h-screen bg-gradient-to-br from-white/95 via-white to-slate-50/95 dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-800/95"
       style={{ backgroundColor: bgColor }}
     >
       <div className="container mx-auto px-4 py-8">
@@ -310,16 +285,11 @@ export default function CommunitySettingsPage() {
             </Link>
             <div className="flex items-center gap-3 mb-2">
               <Settings size={28} className="text-primary" />
-              <h1 className={cn(
-                "text-3xl font-bold",
-                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-              )}>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
                 Community Settings
               </h1>
             </div>
-            <p className={cn(
-              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-            )}>
+            <p className="text-slate-600 dark:text-slate-400">
               View and manage your community configuration
             </p>
           </div>
