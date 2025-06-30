@@ -347,71 +347,62 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           />
         </FadeIn>
 
-        {/* Comments Section */}
+        {/* New Comment Form - Free Floating */}
         <FadeIn delay={200}>
-          <section className="content-level-1">
-            {/* Comments Header */}
-            <header className="content-header">
-              <h2 className="comments-header">
-                <MessageSquare size={20} className="mr-2" />
-                Comments {comments && `(${comments.length})`}
-              </h2>
-            </header>
-            
-            <div className="content-padding-1 content-gap-2">
-              {/* New Comment Form */}
-              <div className="new-comment-form" ref={commentFormRef}>
-                <UniversalProfileProvider>
-                  <NewCommentForm 
-                    postId={postIdNum} 
-                    post={post} 
-                    parentCommentId={replyingToCommentId}
-                    onCommentPosted={handleCommentPosted} 
-                  />
-                </UniversalProfileProvider>
-                {replyingToCommentId && (
-                  <div className="reply-indicator">
-                    <span>Replying to comment #{replyingToCommentId}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setReplyingToCommentId(null)}
-                      className="cancel-reply"
-                    >
-                      Cancel Reply
-                    </Button>
-                  </div>
-                )}
+          <div className="new-comment-form mt-8" ref={commentFormRef}>
+            <UniversalProfileProvider>
+              <NewCommentForm 
+                postId={postIdNum} 
+                post={post} 
+                parentCommentId={replyingToCommentId}
+                onCommentPosted={handleCommentPosted} 
+              />
+            </UniversalProfileProvider>
+            {replyingToCommentId && (
+              <div className="reply-indicator">
+                <span>Replying to comment #{replyingToCommentId}</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setReplyingToCommentId(null)}
+                  className="cancel-reply"
+                >
+                  Cancel Reply
+                </Button>
               </div>
-              
-              {/* Comments List */}
-              {isLoadingComments ? (
-                <StaggerChildren staggerDelay={100}>
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="skeleton-comment">
-                      <div className="skeleton-line w-48" />
-                      <div className="skeleton-line" />
-                      <div className="skeleton-line w-2/3" />
-                    </div>
-                  ))}
-                </StaggerChildren>
-              ) : comments && comments.length > 0 ? (
-                <CommentList 
-                  postId={postIdNum} 
-                  highlightCommentId={highlightedCommentId}
-                  onCommentHighlighted={() => setHighlightedCommentId(null)}
-                  onReply={handleReplyToComment}
-                />
-              ) : (
-                <div className="empty-comments">
-                  <MessageSquare size={48} className="empty-icon" />
-                  <p className="empty-text">
-                    No comments yet. Be the first to start the discussion!
-                  </p>
-                </div>
-              )}
-            </div>
-          </section>
+            )}
+          </div>
+        </FadeIn>
+        
+        {/* Comments List - Free Floating */}
+        <FadeIn delay={300}>
+          <div className="mt-6">
+            {isLoadingComments ? (
+              <StaggerChildren staggerDelay={100}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="skeleton-comment">
+                    <div className="skeleton-line w-48" />
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line w-2/3" />
+                  </div>
+                ))}
+              </StaggerChildren>
+            ) : comments && comments.length > 0 ? (
+              <CommentList 
+                postId={postIdNum} 
+                highlightCommentId={highlightedCommentId}
+                onCommentHighlighted={() => setHighlightedCommentId(null)}
+                onReply={handleReplyToComment}
+              />
+            ) : (
+              <div className="empty-comments">
+                <MessageSquare size={48} className="empty-icon" />
+                <p className="empty-text">
+                  No comments yet. Be the first to start the discussion!
+                </p>
+              </div>
+            )}
+          </div>
         </FadeIn>
 
 

@@ -227,7 +227,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
           </div>
         </div>
       ) : (
-        <div className="comment-form">
+        <div className="comment-form bg-card rounded-xl border border-border/60 shadow-sm hover:shadow-md p-4">
           {/* Comment Form Header */}
           <div className="content-header">
             <div className="flex items-center justify-between">
@@ -243,7 +243,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
           </div>
         
           <form onSubmit={handleSubmit}>
-            <div className="content-padding-1 content-gap-compact">
+            <div className="content-gap-compact mt-4">
               <div className="content-gap-compact">
                 <Label htmlFor="comment-content" className="content-subtitle">Your Comment</Label>
                 <div className="relative group">

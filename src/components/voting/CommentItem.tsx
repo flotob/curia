@@ -36,6 +36,7 @@ interface CommentItemProps {
   onReply?: (commentId: number) => void; // Callback when user clicks reply
   isHighlighted?: boolean; // Whether this comment should be highlighted
   onHighlightComplete?: () => void; // Callback when highlight animation completes
+  childComments?: React.ReactNode; // Child comments to render inside this comment (for parent comments)
 }
 
 export const CommentItem: React.FC<CommentItemProps> = ({ 
@@ -43,7 +44,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   depth = 0,
   onReply,
   isHighlighted = false,
-  onHighlightComplete 
+  onHighlightComplete,
+  childComments
 }) => {
   const authorDisplayName = comment.author_name || 'Unknown User';
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
@@ -189,18 +191,29 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     return null; // Or a loader/placeholder
   }
 
+  // Determine if this is a parent comment (mini postcard) or a reply
+  const isParentComment = depth === 0;
+  
   return (
     <div 
       id={`comment-${comment.id}`}
-      className={`py-3 transition-all duration-500 ease-out rounded-lg ${
-        showHighlight 
-          ? 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 shadow-sm ring-1 ring-blue-200/50 dark:ring-blue-800/50' 
-          : ''
+      className={`transition-all duration-500 ease-out ${
+        isParentComment 
+          ? `bg-card rounded-xl border border-border/60 shadow-sm hover:shadow-md p-4 mb-4 ${
+              showHighlight 
+                ? 'ring-2 ring-blue-200/50 dark:ring-blue-800/50' 
+                : ''
+            }`
+          : `py-2 ${
+              showHighlight 
+                ? 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg' 
+                : ''
+            }`
       }`}
       style={{
         transform: showHighlight ? 'scale(1.01)' : 'scale(1)',
         transition: 'all 0.5s ease-out',
-        ...indentStyle
+        ...(isParentComment ? {} : indentStyle) // Only indent replies
       }}
     >
       {/* Header with Avatar and Actions */}
@@ -274,6 +287,13 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           <EditorContent editor={editor} />
         </article>
       </div>
+
+      {/* Render children comments */}
+      {childComments && (
+        <div className="mt-2">
+          {childComments}
+        </div>
+      )}
     </div>
   );
 }; 

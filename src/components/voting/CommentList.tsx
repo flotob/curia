@@ -68,22 +68,47 @@ export const CommentList: React.FC<CommentListProps> = ({
 
   // Recursive rendering function for comment trees
   const renderCommentTree = React.useCallback((trees: CommentTree[]): React.ReactNode => {
-    return trees.map(tree => (
-      <div key={tree.comment.id} className="comment-thread">
-        <CommentItem 
-          comment={tree.comment}
-          depth={tree.depth}
-          onReply={onReply}
-          isHighlighted={highlightCommentId === tree.comment.id}
-          onHighlightComplete={onCommentHighlighted}
-        />
-        {tree.children.length > 0 && (
-          <div className={`comment-children ${tree.depth < 4 ? 'with-thread-line' : ''}`}>
+    return trees.map(tree => {
+      // For parent comments (depth 0), render children inside the parent's bubble
+      if (tree.depth === 0) {
+        const childrenElements = tree.children.length > 0 ? (
+          <div className="comment-children mt-3 space-y-2">
             {renderCommentTree(tree.children)}
           </div>
-        )}
-      </div>
-    ));
+        ) : null;
+
+        return (
+          <CommentItem 
+            key={tree.comment.id}
+            comment={tree.comment}
+            depth={tree.depth}
+            onReply={onReply}
+            isHighlighted={highlightCommentId === tree.comment.id}
+            onHighlightComplete={onCommentHighlighted}
+            childComments={childrenElements}
+          />
+        );
+      } else {
+        // For child comments, render normally without their own children handling
+        // (since they'll be handled by their parent)
+        return (
+          <div key={tree.comment.id}>
+            <CommentItem 
+              comment={tree.comment}
+              depth={tree.depth}
+              onReply={onReply}
+              isHighlighted={highlightCommentId === tree.comment.id}
+              onHighlightComplete={onCommentHighlighted}
+            />
+            {tree.children.length > 0 && (
+              <div className="comment-children ml-4 mt-2 space-y-2">
+                {renderCommentTree(tree.children)}
+              </div>
+            )}
+          </div>
+        );
+      }
+    });
   }, [highlightCommentId, onCommentHighlighted, onReply]);
 
   if (isLoading) {
