@@ -377,6 +377,7 @@ This signature proves you control this address and grants access based on lock r
       
       {!serverVerified && (
         <EthereumSmartVerificationButton
+          profileType="ethereum_profile"
           state={getButtonState()}
           allRequirementsMet={allRequirementsMet}
           isConnected={isConnected}

@@ -1,5 +1,7 @@
 /**
- * Ethereum Smart Verification Button Component
+ * Smart Verification Button Component
+ * 
+ * Unified button that works for both Universal Profile and Ethereum verification contexts.
  * 
  * Intelligent button that changes state based on:
  * - Wallet connection status
@@ -7,7 +9,7 @@
  * - Loading/verification states
  * - Success/error states
  * 
- * Matches Universal Profile verification button patterns
+ * Note: Originally named EthereumSmartVerificationButton but now supports both profile types
  */
 
 'use client';
@@ -37,6 +39,7 @@ export type VerificationButtonState =
   | 'preview_mode_complete';
 
 export interface EthereumSmartVerificationButtonProps {
+  profileType?: 'universal_profile' | 'ethereum_profile'; // Optional for backwards compatibility
   state: VerificationButtonState;
   allRequirementsMet: boolean;
   isConnected: boolean;
@@ -52,6 +55,7 @@ export interface EthereumSmartVerificationButtonProps {
 // ===== MAIN COMPONENT =====
 
 export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerificationButtonProps> = ({
+  profileType = 'ethereum_profile', // Default to ethereum for backwards compatibility
   state,
   allRequirementsMet,
   isConnected,
@@ -63,6 +67,22 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
   className = '',
   error
 }) => {
+  
+  // Get profile-specific text and metadata
+  const getProfileConfig = () => {
+    if (profileType === 'universal_profile') {
+      return {
+        walletName: 'Universal Profile',
+        chainName: 'LUKSO',
+      };
+    }
+    return {
+      walletName: 'Ethereum Wallet',
+      chainName: 'Ethereum Mainnet',
+    };
+  };
+  
+  const profileConfig = getProfileConfig();
   
   // ===== BUTTON STATE LOGIC =====
   
@@ -94,7 +114,7 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
     switch (actualState) {
       case 'wallet_not_connected':
         return {
-          text: 'Connect Ethereum Wallet',
+          text: `Connect ${profileConfig.walletName}`,
           icon: <Wallet className="h-4 w-4 mr-2" />,
           variant: 'default' as const,
           disabled: disabled,
@@ -103,7 +123,7 @@ export const EthereumSmartVerificationButton: React.FC<EthereumSmartVerification
         
       case 'wrong_network':
         return {
-          text: 'Switch to Ethereum Mainnet',
+          text: `Switch to ${profileConfig.chainName}`,
           icon: <AlertTriangle className="h-4 w-4 mr-2" />,
           variant: 'destructive' as const,
           disabled: disabled,
