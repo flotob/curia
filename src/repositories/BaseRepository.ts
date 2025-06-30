@@ -42,9 +42,9 @@ export abstract class BaseRepository {
   ): Promise<QueryResult<T>> {
     try {
       if (client) {
-        return await client.query(queryText, values);
+        return await client.query(queryText, values) as QueryResult<T>;
       }
-      return await query(queryText, values);
+      return await query(queryText, values) as QueryResult<T>;
     } catch (error) {
       console.error('[BaseRepository] Query execution failed:', {
         query: queryText,
@@ -95,7 +95,7 @@ export abstract class BaseRepository {
     values?: (string | number | boolean | null)[],
     client?: PoolClient
   ): Promise<T | null> {
-    const result = await this.executeQuery<T>(queryText, values, client);
+    const result = await BaseRepository.executeQuery<T>(queryText, values, client);
     return result.rows[0] || null;
   }
 
@@ -107,7 +107,7 @@ export abstract class BaseRepository {
     values?: (string | number | boolean | null)[],
     client?: PoolClient
   ): Promise<T[]> {
-    const result = await this.executeQuery<T>(queryText, values, client);
+    const result = await BaseRepository.executeQuery<T>(queryText, values, client);
     return result.rows;
   }
 
@@ -119,7 +119,7 @@ export abstract class BaseRepository {
     values?: (string | number | boolean | null)[],
     client?: PoolClient
   ): Promise<number> {
-    const result = await this.executeQuery<{ count: string }>(queryText, values, client);
+    const result = await BaseRepository.executeQuery<{ count: string }>(queryText, values, client);
     return parseInt(result.rows[0]?.count || '0', 10);
   }
 
@@ -131,7 +131,7 @@ export abstract class BaseRepository {
     values?: (string | number | boolean | null)[],
     client?: PoolClient
   ): Promise<T> {
-    const result = await this.executeQuery<T>(queryText, values, client);
+    const result = await BaseRepository.executeQuery<T>(queryText, values, client);
     if (result.rows.length === 0) {
       throw new DatabaseError(
         ErrorCode.DATABASE_QUERY_ERROR,
@@ -150,7 +150,7 @@ export abstract class BaseRepository {
     values?: (string | number | boolean | null)[],
     client?: PoolClient
   ): Promise<T | null> {
-    const result = await this.executeQuery<T>(queryText, values, client);
+    const result = await BaseRepository.executeQuery<T>(queryText, values, client);
     return result.rows[0] || null;
   }
 
@@ -162,7 +162,7 @@ export abstract class BaseRepository {
     values?: (string | number | boolean | null)[],
     client?: PoolClient
   ): Promise<number> {
-    const result = await this.executeQuery(queryText, values, client);
+    const result = await BaseRepository.executeQuery(queryText, values, client);
     return result.rowCount || 0;
   }
 
@@ -203,8 +203,8 @@ export abstract class BaseRepository {
 
     // Execute both queries
     const [items, totalCount] = await Promise.all([
-      this.findMany<T>(paginatedQuery, paginatedValues, client),
-      this.count(countQuery, values, client),
+      BaseRepository.findMany<T>(paginatedQuery, paginatedValues, client),
+      BaseRepository.count(countQuery, values, client),
     ]);
 
     return {
@@ -276,7 +276,7 @@ export abstract class BaseRepository {
    * Validate required fields
    */
   protected static validateRequired(data: Record<string, any>, requiredFields: string[]): void {
-    const missingFields = requiredFields.filter(field => {
+    const missingFields = requiredFields.filter((field: string) => {
       const value = data[field];
       return value === undefined || value === null || value === '';
     });
