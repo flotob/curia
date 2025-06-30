@@ -8,7 +8,6 @@ import { authFetchJson } from '@/utils/authFetch';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { ApiPost } from '@/app/api/posts/route';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Loader2 } from 'lucide-react';
 import { EditorToolbar } from './EditorToolbar';
@@ -197,20 +196,18 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
   // For non-authenticated users, show login prompt
   if (!isAuthenticated) {
     return (
-      <Card className="mt-6 border-2 shadow-md">
-        <CardContent className="pt-6">
-          <div className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Please log in to post a comment.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="content-level-2 content-padding-2">
+        <div className="text-center content-gap-compact">
+          <p className="content-meta">
+            Please log in to post a comment.
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="content-gap-1">
       {/* Show gating requirements panel for gated posts */}
       {hasGating && (
         <UniversalProfileProvider>
@@ -222,84 +219,83 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
       
       {/* Authentication check for comment form */}
       {!isAuthenticated ? (
-        <Card className="border-2 shadow-md">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Please log in to post a comment.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="content-level-2 content-padding-2">
+          <div className="text-center content-gap-compact">
+            <p className="content-meta">
+              Please log in to post a comment.
+            </p>
+          </div>
+        </div>
       ) : (
-        <Card className="border-2 shadow-md hover:shadow-lg transition-shadow duration-300">
-        <CardHeader className="pb-3 bg-gradient-to-br from-background to-muted/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base bg-gradient-to-br from-foreground to-foreground/80 bg-clip-text">
-                Add a Comment
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Share your thoughts on this post
-              </CardDescription>
+        <div className="comment-form">
+          {/* Comment Form Header */}
+          <div className="content-header">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="content-subtitle">
+                  Add a Comment
+                </h4>
+                <p className="content-meta mt-0.5">
+                  Share your thoughts on this post
+                </p>
+              </div>
             </div>
           </div>
-        </CardHeader>
         
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-3 px-4 sm:px-6">
-            <div className="space-y-1.5">
-              <Label htmlFor="comment-content" className="text-sm font-medium">Your Comment</Label>
-              <div className="relative group">
-                <div 
-                  className="border-2 border-input rounded-xl overflow-hidden transition-all duration-200 group-focus-within:border-primary group-focus-within:shadow-lg group-focus-within:shadow-primary/10 bg-background cursor-text"
-                  onClick={() => {
-                    // Manually focus the editor when clicking the container
-                    editor?.commands.focus();
-                  }}
-                >
-                  <EditorContent 
-                    editor={editor} 
-                    id="comment-content"
-                    className="prose-headings:font-semibold prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground"
-                  />
+          <form onSubmit={handleSubmit}>
+            <div className="content-padding-1 content-gap-compact">
+              <div className="content-gap-compact">
+                <Label htmlFor="comment-content" className="content-subtitle">Your Comment</Label>
+                <div className="relative group">
                   <div 
-                    className="border-t border-border/50 bg-muted/30"
-                    onClick={(e) => {
-                      // Prevent toolbar clicks from interfering with editor focus
-                      e.stopPropagation();
+                    className="border-2 border-input rounded-xl overflow-hidden transition-all duration-200 group-focus-within:border-primary group-focus-within:shadow-lg group-focus-within:shadow-primary/10 bg-background cursor-text"
+                    onClick={() => {
+                      // Manually focus the editor when clicking the container
+                      editor?.commands.focus();
                     }}
                   >
-                    <EditorToolbar editor={editor} />
+                    <EditorContent 
+                      editor={editor} 
+                      id="comment-content"
+                      className="prose-headings:font-semibold prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground"
+                    />
+                    <div 
+                      className="border-t border-border/50 bg-muted/30"
+                      onClick={(e) => {
+                        // Prevent toolbar clicks from interfering with editor focus
+                        e.stopPropagation();
+                      }}
+                    >
+                      <EditorToolbar editor={editor} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                </div>
+              )}
+              
+              <div className="flex justify-end pt-2">
+                <Button 
+                  type="submit" 
+                  disabled={
+                    addCommentMutation.isPending || 
+                    editor?.isEmpty
+                  }
+                  className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  {addCommentMutation.isPending && (
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  )} 
+                  Post Comment
+                </Button>
               </div>
-            )}
-            
-            <div className="flex justify-end pt-2">
-              <Button 
-                type="submit" 
-                disabled={
-                  addCommentMutation.isPending || 
-                  editor?.isEmpty
-                }
-                className="text-sm px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-              >
-                {addCommentMutation.isPending && (
-                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                )} 
-                Post Comment
-              </Button>
             </div>
-          </CardContent>
-        </form>
-      </Card>
+          </form>
+        </div>
       )}
     </div>
   );

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield } from 'lucide-react';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, /* CardDescription */ } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -70,8 +69,6 @@ interface PostCardProps {
     source_community_name?: string;
   } | null;
 }
-
-
 
 export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
@@ -165,10 +162,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     }, 100);
   };
   
-
-
-
-
   // Helper function to format access count for share button
   const formatAccessCount = (count: number): string => {
     if (count < 1000) return count.toString();
@@ -187,8 +180,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     if (accessCount === 1) return "Share this post (1 person accessed via shared link)";
     return `Share this post (${accessCount} people accessed via shared links)`;
   };
-
-
 
   // Get current page context to determine if elements should be clickable
   const currentBoardId = searchParams?.get('boardId');
@@ -585,17 +576,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
-    <Card 
+    <article 
       id={`postcard-${post.id}`}
       className={cn(
-        "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200 group",
-        hasGating && "border-l-4 border-l-blue-500"
+        "post-container group",
+        hasGating && "gated"
       )} 
       style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
     >
       <div className="flex">
         {/* Vote Section */}
-        <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
+        <div className="vote-sidebar">
           <VoteButton 
             postId={post.id} 
             initialUpvoteCount={post.upvote_count} 
@@ -606,8 +597,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
         {/* Main Content Section */}
         <div className="flex-grow relative min-w-0 overflow-hidden">
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
+          {/* Post Header */}
+          <header className="content-header">
+            <div className="flex items-center content-meta mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
               <div className="flex items-center min-w-0">
                               <UserProfilePopover
                 userId={post.author_user_id}
@@ -659,14 +651,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               )}
             </div>
             {!isDetailView ? (
-              <CardTitle 
-                className="text-base sm:text-lg md:text-xl leading-tight pr-8 cursor-pointer hover:text-primary transition-colors break-words"
+              <h2 
+                className="content-title pr-8 cursor-pointer hover:text-primary transition-colors break-words"
                 onClick={handleTitleClick}
               >
                 {post.title}
-              </CardTitle>
+              </h2>
             ) : (
-              <CardTitle className="text-base sm:text-lg md:text-xl leading-tight pr-8 break-words">{post.title}</CardTitle>
+              <h1 className="content-title pr-8 break-words">{post.title}</h1>
             )}
             {post.content && contentDisplayEditor && (
               <div className="mt-1"> {/* Main container for content block + button */}
@@ -735,7 +727,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                     <Shield size={10} className="mr-1" />
                     Gated Post
                   </Badge>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="content-meta">
                     {hasLockGating 
                       ? "Lock requirements must be met to comment"
                       : "Universal Profile required to comment"
@@ -744,10 +736,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 </div>
               </div>
             )}
-          </CardHeader>
+          </header>
 
+          {/* Tags Section */}
           {(post.tags && post.tags.length > 0) && (
-            <CardContent className="py-2 px-3 sm:px-6">
+            <div className="content-padding-compact">
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {post.tags.map((tag, index) => (
                   <Button
@@ -762,10 +755,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   </Button>
                 ))}
               </div>
-            </CardContent>
+            </div>
           )}
 
-          <CardFooter className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 md:pb-4 px-3 sm:px-6">
+          {/* Post Actions Footer */}
+          <footer className="flex justify-between items-center content-meta pt-2 pb-3 md:pb-4 px-3 sm:px-6">
             <div className="flex items-center gap-2 sm:gap-3">
               <Button 
                 variant="ghost" 
@@ -830,7 +824,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 </DropdownMenu>
               )}
             </div>
-          </CardFooter>
+          </footer>
           
           {/* ReactionBar */}
           <div className="px-3 sm:px-6 pb-3 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
@@ -905,38 +899,44 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
       {/* Comments Section - Conditionally Rendered (only for non-gated posts) */}
       {showComments && !hasGating && (
-        <div className="border-t border-border p-3 sm:p-4">
-          <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
-          <div className="new-comment-form">
-            <NewCommentForm 
-              postId={post.id} 
-              post={post} 
-              parentCommentId={replyingToCommentId}
-              onCommentPosted={handleCommentPosted} 
-            />
-            {replyingToCommentId && (
-              <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
-                <span>Replying to comment #{replyingToCommentId}</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setReplyingToCommentId(null)}
-                  className="text-xs"
-                >
-                  Cancel Reply
-                </Button>
-              </div>
-            )}
+        <section className="comments-section">
+          <div className="content-padding-2 content-gap-1">
+            <h3 className="content-subtitle">Comments</h3>
+            
+            {/* New Comment Form - Flattened */}
+            <div className="new-comment-form">
+              <NewCommentForm 
+                postId={post.id} 
+                post={post} 
+                parentCommentId={replyingToCommentId}
+                onCommentPosted={handleCommentPosted} 
+              />
+              {replyingToCommentId && (
+                <div className="mt-2 content-meta flex items-center justify-between">
+                  <span>Replying to comment #{replyingToCommentId}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setReplyingToCommentId(null)}
+                    className="text-xs"
+                  >
+                    Cancel Reply
+                  </Button>
+                </div>
+              )}
+            </div>
+            
+            {/* Comments List */}
+            <div>
+              <CommentList 
+                postId={post.id} 
+                highlightCommentId={highlightedCommentId}
+                onCommentHighlighted={() => setHighlightedCommentId(null)}
+                onReply={handleReplyToComment}
+              />
+            </div>
           </div>
-          <div className="mt-4">
-            <CommentList 
-              postId={post.id} 
-              highlightCommentId={highlightedCommentId}
-              onCommentHighlighted={() => setHighlightedCommentId(null)}
-              onReply={handleReplyToComment}
-            />
-          </div>
-        </div>
+        </section>
       )}
 
       {/* Share Modal */}
@@ -951,6 +951,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         isGenerating={isGeneratingShareUrl}
         isWebShareFallback={isWebShareFallback}
       />
-    </Card>
+    </article>
   );
 }; 

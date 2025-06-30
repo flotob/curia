@@ -12,7 +12,6 @@ import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { PostCard } from '@/components/voting/PostCard';
 import { CommentList } from '@/components/voting/CommentList';
 import { NewCommentForm } from '@/components/voting/NewCommentForm';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Home, MessageSquare } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
@@ -206,18 +205,18 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   if (isSharedLinkRedirecting) {
     return (
       <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto text-center space-y-4">
-          <Card>
-            <CardContent className="py-12">
+        <div className="max-w-4xl mx-auto text-center content-gap-1">
+          <div className="skeleton-container">
+            <div className="skeleton-content text-center">
               <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-              <h1 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              <h1 className="content-title text-slate-700 dark:text-slate-300 mb-2">
                 Opening in Common Ground...
               </h1>
-              <p className="text-slate-500 dark:text-slate-400">
+              <p className="content-meta text-slate-500 dark:text-slate-400">
                 Redirecting to the full forum experience...
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -227,44 +226,44 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   if (isLoadingPost) {
     return (
       <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto content-gap-2">
           {/* Breadcrumb Skeleton */}
           <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-64" />
           
           {/* Post Skeleton */}
-          <Card>
-            <CardHeader>
-              <div className="space-y-3">
+          <div className="skeleton-container">
+            <header className="skeleton-header">
+              <div className="content-gap-compact">
                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-32" />
                 <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            </header>
+            <div className="skeleton-content">
+              <div className="content-gap-compact">
                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-3/4" />
                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-1/2" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Comments Skeleton */}
-          <Card>
-            <CardHeader>
+          <div className="skeleton-container">
+            <header className="skeleton-header">
               <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-24" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            </header>
+            <div className="skeleton-content">
+              <div className="content-gap-1">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-2">
+                  <div key={i} className="content-gap-compact">
                     <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-48" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-2/3" />
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -274,13 +273,13 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   if (postError || !post) {
     return (
       <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto text-center space-y-4">
-          <Card>
-            <CardContent className="py-12">
-              <h1 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-4">
+        <div className="max-w-4xl mx-auto text-center content-gap-1">
+          <div className="skeleton-container">
+            <div className="skeleton-content text-center">
+              <h1 className="content-title text-slate-700 dark:text-slate-300 mb-4">
                 Post Not Found
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 mb-6">
+              <p className="content-meta text-slate-500 dark:text-slate-400 mb-6">
                 {postError instanceof Error ? postError.message : 'The post you\'re looking for doesn\'t exist or you don\'t have permission to view it.'}
               </p>
               <div className="space-x-4">
@@ -298,8 +297,8 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                   Go Home
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -307,7 +306,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
   return (
     <div className="container mx-auto py-8 px-4 overflow-x-hidden">
-      <div className="max-w-4xl mx-auto space-y-6 w-full max-w-full">
+      <div className="max-w-4xl mx-auto content-gap-2 w-full max-w-full">
         {/* Breadcrumb Navigation */}
         {/* <Breadcrumb>
           <BreadcrumbList>
@@ -351,14 +350,16 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
         />
 
         {/* Comments Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
+        <section className="content-level-1">
+          {/* Comments Header */}
+          <header className="content-header">
+            <h2 className="content-title flex items-center">
               <MessageSquare size={20} className="mr-2" />
               Comments {comments && `(${comments.length})`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+            </h2>
+          </header>
+          
+          <div className="content-padding-1 content-gap-2">
             {/* New Comment Form */}
             <div className="new-comment-form">
               <UniversalProfileProvider>
@@ -370,7 +371,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 />
               </UniversalProfileProvider>
               {replyingToCommentId && (
-                <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
+                <div className="mt-2 content-meta flex items-center justify-between">
                   <span>Replying to comment #{replyingToCommentId}</span>
                   <Button 
                     variant="ghost" 
@@ -386,9 +387,9 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
             
             {/* Comments List */}
             {isLoadingComments ? (
-              <div className="space-y-4">
+              <div className="content-gap-1">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-2">
+                  <div key={i} className="content-gap-compact">
                     <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-48" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-2/3" />
@@ -405,13 +406,13 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
             ) : (
               <div className="text-center py-8">
                 <MessageSquare size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-                <p className="text-slate-500 dark:text-slate-400">
+                <p className="content-meta text-slate-500 dark:text-slate-400">
                   No comments yet. Be the first to start the discussion!
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
     </div>
   );
