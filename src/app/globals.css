@@ -524,6 +524,19 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
  */
 
 @layer components {
+  /* Page-Level Container System */
+  .mobile-container {
+    @apply min-h-screen;
+  }
+
+  .content-wrapper {
+    @apply container mx-auto py-8 px-4;
+  }
+
+  .content-wrapper > * {
+    @apply max-w-4xl mx-auto;
+  }
+
   /* Level 1: Primary Content Containers */
   .content-level-1 {
     @apply bg-card rounded-xl border border-border/60 shadow-sm;

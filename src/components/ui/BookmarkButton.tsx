@@ -68,12 +68,12 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({
         </>
       )}
 
-      {/* Animated highlight effect */}
+      {/* Subtle highlight effect for bookmarked state */}
       <div
         className={cn(
           'absolute inset-0 rounded-md transition-all duration-300 pointer-events-none',
           'bg-amber-100 dark:bg-amber-900/30 opacity-0 scale-50',
-          isBookmarked && 'animate-pulse opacity-20 scale-100'
+          isBookmarked && 'opacity-10 scale-100'
         )}
       />
 
@@ -85,17 +85,6 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({
           'opacity-0 group-hover:opacity-50'
         )}
       />
-
-      {/* Success animation */}
-      {isBookmarked && (
-        <div
-          className={cn(
-            'absolute -top-1 -right-1 w-2 h-2 rounded-full',
-            'bg-amber-500 animate-ping opacity-75'
-          )}
-          style={{ animationDuration: '1s', animationIterationCount: '2' }}
-        />
-      )}
     </Button>
   );
 };
