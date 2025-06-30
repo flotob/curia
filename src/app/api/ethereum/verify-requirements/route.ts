@@ -11,9 +11,10 @@ import { EthereumGatingRequirements } from '@/types/gating';
 
 export async function POST(request: NextRequest) {
   try {
-    const { address, requirements }: { 
+    const { address, requirements, fulfillment }: { 
       address: string; 
       requirements: EthereumGatingRequirements;
+      fulfillment?: 'any' | 'all';
     } = await request.json();
 
     if (!address || !requirements) {
@@ -29,10 +30,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`[API] Verifying Ethereum requirements for ${address}`);
+    // Validate fulfillment mode if provided
+    if (fulfillment && !['any', 'all'].includes(fulfillment)) {
+      return NextResponse.json({ 
+        error: 'Invalid fulfillment mode. Must be "any" or "all"' 
+      }, { status: 400 });
+    }
 
-    // Use the existing verification function
-    const result = await verifyEthereumGatingRequirements(address, requirements);
+    console.log(`[API] Verifying Ethereum requirements for ${address} (fulfillment: ${fulfillment || 'all'})`);
+
+    // Use the existing verification function with fulfillment mode
+    const result = await verifyEthereumGatingRequirements(
+      address, 
+      requirements, 
+      fulfillment || 'all'  // Default to 'all' for backward compatibility
+    );
 
     if (result.valid) {
       console.log(`[API] ✅ Ethereum verification passed for ${address}`);

@@ -2,11 +2,11 @@
  * Ethereum Signature Validation API
  * 
  * Validates Ethereum signatures for message signing verification
- * Uses viem for signature validation
+ * Uses ethers.js for signature validation to match shared verification infrastructure
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyMessage } from 'viem';
+import { ethers } from 'ethers';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,25 +47,25 @@ export async function POST(request: NextRequest) {
     console.log(`[API] Validating signature for ${address}`);
 
     try {
-      // Use viem to verify the signature
-      const isValid = await verifyMessage({
-        address: address as `0x${string}`,
-        message,
-        signature: signature as `0x${string}`
-      });
-
-      if (isValid) {
+      // Use ethers.js to verify the signature (consistent with shared verification infrastructure)
+      const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+      
+      if (recoveredAddress.toLowerCase() === address.toLowerCase()) {
         console.log(`[API] ✅ Signature validation passed for ${address}`);
         return NextResponse.json({ valid: true });
       } else {
-        console.log(`[API] ❌ Signature validation failed for ${address}`);
-        return NextResponse.json({ valid: false });
+        console.log(`[API] ❌ Signature validation failed for ${address} - address mismatch`);
+        console.log(`[API] Expected: ${address}, Recovered: ${recoveredAddress}`);
+        return NextResponse.json({ 
+          valid: false,
+          error: 'Signature does not match the provided address'
+        });
       }
     } catch (verificationError) {
       console.error('[API] Signature verification error:', verificationError);
       return NextResponse.json({ 
         valid: false,
-        error: 'Signature verification failed'
+        error: 'Invalid signature format or signature verification failed'
       });
     }
 
