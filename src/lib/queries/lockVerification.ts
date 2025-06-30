@@ -16,7 +16,7 @@ export async function getUserVerifiedLocks(userId: string, lockIds: number[]): P
         AND verification_status = 'verified' AND expires_at > NOW()
     `, [userId, ...lockIds]);
     
-    return new Set(result.rows.map((row: any) => row.lock_id));
+    return new Set(result.rows.map((row: { lock_id: number }) => row.lock_id));
   } catch (error) {
     console.error('[getUserVerifiedLocks] Error fetching verified locks for user:', userId, error);
     // Return empty set on error for security - no access by default
@@ -128,7 +128,7 @@ export async function getBatchUserVerifiedLocks(userIds: string[], lockIds: numb
     });
     
     // Populate verified locks
-    result.rows.forEach((row: any) => {
+    result.rows.forEach((row: { user_id: string; lock_id: number }) => {
       const userLocks = verificationMap.get(row.user_id);
       if (userLocks) {
         userLocks.add(row.lock_id);

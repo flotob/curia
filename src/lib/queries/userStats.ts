@@ -71,10 +71,10 @@ export async function getBatchUserStats(userIds: string[]): Promise<Map<string, 
     `, [...userIds, `{${userIds.join(',')}}`]);
     
     const statsMap = new Map<string, UserStats>();
-    result.rows.forEach((row: any) => {
+    result.rows.forEach((row: { user_id: string; posts_count: string | number; comments_count: string | number; joined_date: string }) => {
       statsMap.set(row.user_id, {
-        posts_count: parseInt(row.posts_count || '0'),
-        comments_count: parseInt(row.comments_count || '0'),
+        posts_count: parseInt(String(row.posts_count || '0')),
+        comments_count: parseInt(String(row.comments_count || '0')),
         joined_date: row.joined_date || new Date().toISOString()
       });
     });

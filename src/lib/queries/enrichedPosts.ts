@@ -708,11 +708,10 @@ export async function executePostsQuery(
   queryResult: QueryResult
 ): Promise<EnrichedPost[]> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await query(queryResult.sql, queryResult.params as any);
+    const result = await query(queryResult.sql, queryResult.params);
     
     // Transform and type the results
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row: Record<string, unknown>) => ({
       ...row,
       user_has_upvoted: row.user_has_upvoted === undefined ? false : row.user_has_upvoted,
       settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : (row.settings || {}),

@@ -166,7 +166,32 @@ export class AuthenticationService {
    * Refresh authentication token using CG instance
    */
   static async refreshToken(
-    cgInstance: any,
+    cgInstance: { 
+      getUserInfo: () => Promise<{ 
+        data?: { 
+          id: string; 
+          name?: string; 
+          imageUrl?: string; 
+          roles?: string[]; 
+          lukso?: { username: string; address: string }; 
+          ethereum?: { address: string }; 
+          twitter?: { username: string }; 
+          farcaster?: { displayName: string; username: string; fid: number }; 
+          premium?: string; 
+          email?: string 
+        } 
+      }>; 
+      getCommunityInfo: () => Promise<{ 
+        data?: { 
+          id: string; 
+          title?: string; 
+          roles?: Array<{ id: string; title: string; type?: string; permissions?: string[] }>; 
+          url?: string; 
+          smallLogoUrl?: string 
+        } 
+      }>; 
+      getContextData: () => { pluginId?: string } 
+    },
     iframeUid?: string | null
   ): Promise<LoginResult> {
     try {

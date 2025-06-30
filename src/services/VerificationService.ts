@@ -12,7 +12,7 @@ import { authFetch } from '@/utils/authFetch';
 export interface VerificationRequirement {
   id: string;
   type: string;
-  [key: string]: any;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export interface VerificationResult {
@@ -20,7 +20,7 @@ export interface VerificationResult {
   met: number;
   total: number;
   source: 'preview' | 'backend' | 'local';
-  details?: Record<string, any>;
+  details?: Record<string, string | number | boolean | undefined>;
   error?: string;
 }
 
@@ -57,7 +57,7 @@ export interface UPVerificationStatus {
     meetsRequirement?: boolean;
   }>;
   followerStatus?: Record<string, boolean>;
-  socialProfiles?: Record<string, any>;
+  socialProfiles?: Record<string, { name?: string; avatar?: string; verified?: boolean }>;
   isLoading: boolean;
 }
 
