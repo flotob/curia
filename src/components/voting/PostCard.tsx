@@ -588,270 +588,259 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     <Card 
       id={`postcard-${post.id}`}
       className={cn(
-        "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200 group",
+        "post-card-container",
         hasGating && "border-l-4 border-l-blue-500"
       )} 
-      style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
     >
-      <div className="flex">
-        {/* Vote Section */}
-        <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
-          <VoteButton 
-            postId={post.id} 
-            initialUpvoteCount={post.upvote_count} 
-            initialUserHasUpvoted={post.user_has_upvoted}
-            size="default"
-          />
-        </div>
+      {/* Vote Section */}
+      <div className="vote-section">
+        <VoteButton 
+          postId={post.id} 
+          initialUpvoteCount={post.upvote_count} 
+          initialUserHasUpvoted={post.user_has_upvoted}
+          size="default"
+        />
+      </div>
 
-        {/* Main Content Section */}
-        <div className="flex-grow relative min-w-0 overflow-hidden">
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
-              <div className="flex items-center min-w-0">
-                              <UserProfilePopover
+      {/* Main Content Section */}
+      <div className="content-section">
+        <CardHeader className="content-header">
+          <div className="meta-info">
+            <div className="author-info">
+              <UserProfilePopover
                 userId={post.author_user_id}
                 username={authorDisplayName}
                 open={isAuthorPopoverOpen}
                 onOpenChange={setIsAuthorPopoverOpen}
               >
-                <div className="flex items-center min-w-0 cursor-pointer group/author">
-                  <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
+                <div className="author-display">
+                  <Avatar className="author-avatar">
                     <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                    <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                    <AvatarFallback className="avatar-fallback">{avatarFallback}</AvatarFallback>
                   </Avatar>
-                  <span className="font-medium text-foreground truncate min-w-0 group-hover/author:text-primary transition-colors">
+                  <span className="author-name">
                     {authorDisplayName}
                   </span>
                 </div>
               </UserProfilePopover>
+            </div>
+            {showBoardContext && (
+              <div className="board-context">
+                <span className="context-separator">in</span>
+                {!isCurrentlyInThisBoard ? (
+                  <button 
+                    onClick={handleBoardClick}
+                    className="board-link"
+                  >
+                    {post.board_name}
+                  </button>
+                ) : (
+                  <span className="board-name">{post.board_name}</span>
+                )}
               </div>
-              {showBoardContext && (
-                <div className="flex items-center min-w-0">
-                  <span className="mx-1 flex-shrink-0">in</span>
-                  {!isCurrentlyInThisBoard ? (
-                    <button 
-                      onClick={handleBoardClick}
-                      className="font-medium text-primary hover:text-primary/80 truncate cursor-pointer underline-offset-2 hover:underline transition-colors min-w-0"
-                    >
-                      {post.board_name}
-                    </button>
-                  ) : (
-                    <span className="font-medium text-primary truncate min-w-0">{post.board_name}</span>
+            )}
+            <div className="time-info">
+              <span className="time-separator">•</span>
+              <Clock size={12} className="time-icon" /> 
+              <span className="time-text">{timeSinceText}</span>
+            </div>
+            
+            {/* Simple gated indicator */}
+            {hasGating && (
+              <>
+                <span className="gated-separator">•</span>
+                <span className="gated-indicator">
+                  <Shield size={10} className="gated-icon" />
+                  Gated
+                </span>
+              </>
+            )}
+          </div>
+          {!isDetailView ? (
+            <CardTitle 
+              className="post-title clickable"
+              onClick={handleTitleClick}
+            >
+              {post.title}
+            </CardTitle>
+          ) : (
+            <CardTitle className="post-title">{post.title}</CardTitle>
+          )}
+          
+          {post.content && contentDisplayEditor && (
+            <div className="content-container">
+              <div 
+                className={cn(
+                  "content-wrapper", 
+                  !isPostContentExpanded && "content-collapsed"
+                )}
+              >
+                <div 
+                  className={cn(
+                    "content-inner",
+                    !isPostContentExpanded && "content-with-gradient"
                   )}
+                >
+                  <EditorContent editor={contentDisplayEditor} />
+                </div>
+                {!isPostContentExpanded && (
+                  <div className="content-gradient" />
+                )}
+              </div>
+
+              {!isPostContentExpanded && !showFullContent && (
+                <div className="expand-control">
+                   <Button 
+                      variant="link"
+                      size="sm"
+                      onClick={() => setIsPostContentExpanded(true)} 
+                      className="expand-button"
+                      aria-label="Show more content"
+                   >
+                      <ChevronDown size={18} className="mr-1.5" /> Show more
+                   </Button>
                 </div>
               )}
-              <div className="flex items-center min-w-0">
-                <span className="mx-1 flex-shrink-0">•</span>
-                <Clock size={12} className="mr-1 flex-shrink-0" /> 
-                <span className="truncate min-w-0">{timeSinceText}</span>
+
+              {isPostContentExpanded && !showFullContent && (
+                <div className="collapse-control">
+                   <Button 
+                      variant="link"
+                      size="sm"
+                      onClick={() => setIsPostContentExpanded(false)} 
+                      className="collapse-button"
+                      aria-label="Show less content"
+                   >
+                      <ChevronUp size={18} className="mr-1.5" /> Show less
+                   </Button>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Simple gating summary */}
+          {hasGating && (
+            <div className="gating-summary">
+              <div className="gating-content">
+                <Badge variant="outline" className="gating-badge">
+                  <Shield size={10} className="mr-1" />
+                  Gated Post
+                </Badge>
+                <span className="gating-text">
+                  {hasLockGating 
+                    ? "Lock requirements must be met to comment"
+                    : "Universal Profile required to comment"
+                  }
+                </span>
               </div>
-              
-              {/* Simple gated indicator */}
-              {hasGating && (
+            </div>
+          )}
+        </CardHeader>
+
+        {(post.tags && post.tags.length > 0) && (
+          <CardContent className="tags-section">
+            <div className="tags-container">
+              {post.tags.map((tag, index) => (
+                <Button
+                  key={index}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleTagClick(tag)}
+                  className="tag-button"
+                  title={`Filter by "${tag}" tag`}
+                >
+                  #{tag}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        )}
+
+        <CardFooter className="footer-section">
+          <div className="footer-actions">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="action-button" 
+              onClick={handleCommentClick} 
+              aria-expanded={hasGating ? undefined : showComments}
+              title={hasGating ? "View comments (gated post)" : "Toggle comments"}
+            >
+              <MessageSquare size={14} className="action-icon" /> 
+              <span className="action-text">{post.comment_count}</span>
+              {hasGating && <span className="gated-arrow">→</span>}
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="action-button" 
+              onClick={handleShare}
+              disabled={isGeneratingShareUrl}
+              title={getShareButtonTitle()}
+            >
+              {isGeneratingShareUrl ? (
+                <div className="loading-spinner-small" />
+              ) : (
                 <>
-                  <span className="mx-1 flex-shrink-0">•</span>
-                  <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
-                    <Shield size={10} className="mr-1" />
-                    Gated
+                  <Share2 size={14} className="action-icon" />
+                  <span className="action-text">
+                    Share{post.share_access_count > 0 && ` (${formatAccessCount(post.share_access_count)})`}
                   </span>
                 </>
               )}
-            </div>
-            {!isDetailView ? (
-              <CardTitle 
-                className="text-base sm:text-lg md:text-xl leading-tight pr-8 cursor-pointer hover:text-primary transition-colors break-words"
-                onClick={handleTitleClick}
-              >
-                {post.title}
-              </CardTitle>
-            ) : (
-              <CardTitle className="text-base sm:text-lg md:text-xl leading-tight pr-8 break-words">{post.title}</CardTitle>
-            )}
-            {post.content && contentDisplayEditor && (
-              <div className="mt-1"> {/* Main container for content block + button */}
-                <div // Wrapper for text content and gradient
-                  className={cn(
-                    "relative", 
-                    !isPostContentExpanded && "max-h-32 overflow-hidden"
-                  )}
-                >
-                  <div // Inner Content area for prose styling and bottom padding for gradient
-                    className={cn(
-                      "prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none break-words overflow-hidden",
-                      // Aggressive link handling for mobile
-                      "prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto",
-                      // Additional word wrapping for all elements
-                      "prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere",
-                      !isPostContentExpanded && "pb-8" // Increased padding for taller gradient + spacing
-                    )}
-                    style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
-                  >
-                    <EditorContent editor={contentDisplayEditor} />
-                  </div>
-                  {!isPostContentExpanded && (
-                    <div // Gradient div, taller now
-                      className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none"
-                    />
-                  )}
-                </div>
-
-                {/* "Show more..." / "Show less..." buttons are now siblings, outside the overflow-hidden div */}
-                {!isPostContentExpanded && !showFullContent && (
-                  <div className="mt-1 text-left"> {/* Changed to text-left, removed text-center */}
-                     <Button 
-                        variant="link" // Reverted to link for text+icon style
-                        size="sm"      // Standard small size
-                        onClick={() => setIsPostContentExpanded(true)} 
-                        className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
-                        aria-label="Show more content"
-                     >
-                        <ChevronDown size={18} className="mr-1.5" /> Show more
-                     </Button>
-                  </div>
-                )}
-
-                {isPostContentExpanded && !showFullContent && (
-                  <div className="mt-1 text-left">
-                     <Button 
-                        variant="link"
-                        size="sm"
-                        onClick={() => setIsPostContentExpanded(false)} 
-                        className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
-                        aria-label="Show less content"
-                     >
-                        <ChevronUp size={18} className="mr-1.5" /> Show less
-                     </Button>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Simple gating summary */}
-            {hasGating && (
-              <div className="mt-3">
-                <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700">
-                    <Shield size={10} className="mr-1" />
-                    Gated Post
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {hasLockGating 
-                      ? "Lock requirements must be met to comment"
-                      : "Universal Profile required to comment"
-                    }
-                  </span>
-                </div>
-              </div>
-            )}
-          </CardHeader>
-
-          {(post.tags && post.tags.length > 0) && (
-            <CardContent className="py-2 px-3 sm:px-6">
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                {post.tags.map((tag, index) => (
-                  <Button
-                    key={index}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleTagClick(tag)}
-                    className="h-auto px-2 py-1 text-xs font-normal bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:text-foreground transition-colors rounded-full border border-transparent hover:border-primary/20"
-                    title={`Filter by "${tag}" tag`}
-                  >
-                    #{tag}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          )}
-
-          <CardFooter className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 md:pb-4 px-3 sm:px-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-1 h-auto text-xs sm:text-sm" 
-                onClick={handleCommentClick} 
-                aria-expanded={hasGating ? undefined : showComments}
-                title={hasGating ? "View comments (gated post)" : "Toggle comments"}
-              >
-                <MessageSquare size={14} className="mr-1 sm:mr-1.5" /> 
-                <span className="hidden xs:inline">{post.comment_count}</span>
-                <span className="xs:hidden">{post.comment_count}</span>
-                {hasGating && <span className="ml-1 text-blue-500">→</span>}
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-1 h-auto text-xs sm:text-sm" 
-                onClick={handleShare}
-                disabled={isGeneratingShareUrl}
-                title={getShareButtonTitle()}
-              >
-                {isGeneratingShareUrl ? (
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
-                ) : (
-                  <>
-                    <Share2 size={14} className="mr-1 sm:mr-1.5" />
-                    <span>
-                      Share{post.share_access_count > 0 && ` (${formatAccessCount(post.share_access_count)})`}
-                    </span>
-                  </>
-                )}
-              </Button>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="p-1 h-auto">
-                <Bookmark size={14} />
-              </Button>
-              {user?.isAdmin && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="p-1 h-7 w-7 sm:h-8 sm:w-8">
-                      <MoreVertical size={14} />
-                      <span className="sr-only">Post Options</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem 
-                      onClick={() => setShowMoveDialog(true)}
-                      disabled={movePostMutation.isPending}
-                    >
-                      <Move size={14} className="mr-2" /> Move to Board
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => deleteMutation.mutate()}
-                      disabled={deleteMutation.isPending}
-                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                    >
-                      <Trash size={14} className="mr-2" /> Delete Post
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </CardFooter>
-          
-          {/* ReactionBar */}
-          <div className="px-3 sm:px-6 pb-3 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
-            <ReactionBar 
-              postId={post.id}
-            />
+            </Button>
           </div>
+          <div className="footer-controls">
+            <Button variant="ghost" size="sm" className="control-button">
+              <Bookmark size={14} />
+            </Button>
+            {user?.isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="admin-button">
+                    <MoreVertical size={14} />
+                    <span className="sr-only">Post Options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem 
+                    onClick={() => setShowMoveDialog(true)}
+                    disabled={movePostMutation.isPending}
+                  >
+                    <Move size={14} className="mr-2" /> Move to Board
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                  >
+                    <Trash size={14} className="mr-2" /> Delete Post
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </CardFooter>
+        
+        {/* ReactionBar */}
+        <div className="reactions-section">
+          <ReactionBar 
+            postId={post.id}
+          />
         </div>
       </div>
       
       {/* Move Post Dialog */}
       <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
-        <DialogContent className="sm:max-w-[425px] mx-4 max-w-[calc(100vw-2rem)]">
+        <DialogContent className="move-dialog">
           <DialogHeader>
-            <DialogTitle className="text-lg">Move Post to Another Board</DialogTitle>
-            <DialogDescription className="text-sm">
+            <DialogTitle className="move-title">Move Post to Another Board</DialogTitle>
+            <DialogDescription className="move-description">
               Select which board you want to move &quot;{post.title}&quot; to.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
+          <div className="move-content">
+            <div className="board-selection">
               <Label htmlFor="board-select">Select Board</Label>
               {accessibleBoardsList && accessibleBoardsList.length > 0 ? (
                 <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
@@ -862,9 +851,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                     {accessibleBoardsList.map((board) => (
                       <SelectItem key={board.id} value={board.id.toString()}>
                         <div>
-                          <div className="font-medium">{board.name}</div>
+                          <div className="board-option-name">{board.name}</div>
                           {board.description && (
-                            <div className="text-xs text-muted-foreground">{board.description}</div>
+                            <div className="board-option-desc">{board.description}</div>
                           )}
                         </div>
                       </SelectItem>
@@ -872,20 +861,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="p-3 border rounded-md bg-muted/50">
-                  <p className="text-sm text-muted-foreground">Loading boards...</p>
+                <div className="loading-boards">
+                  <p className="loading-text">Loading boards...</p>
                 </div>
               )}
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="w-full sm:w-auto">
+          <DialogFooter className="move-footer">
+            <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="cancel-button">
               Cancel
             </Button>
             <Button 
               onClick={handleMovePost}
               disabled={!selectedBoardId || movePostMutation.isPending}
-              className="w-full sm:w-auto"
+              className="move-button"
             >
               {movePostMutation.isPending ? (
                 <>
@@ -905,8 +894,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
       {/* Comments Section - Conditionally Rendered (only for non-gated posts) */}
       {showComments && !hasGating && (
-        <div className="border-t border-border p-3 sm:p-4">
-          <h4 className="text-sm sm:text-md font-semibold mb-3">Comments</h4>
+        <div className="comments-section">
+          <h4 className="comments-title">Comments</h4>
           <div className="new-comment-form">
             <NewCommentForm 
               postId={post.id} 
@@ -915,20 +904,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               onCommentPosted={handleCommentPosted} 
             />
             {replyingToCommentId && (
-              <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
+              <div className="reply-status">
                 <span>Replying to comment #{replyingToCommentId}</span>
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setReplyingToCommentId(null)}
-                  className="text-xs"
+                  className="cancel-reply"
                 >
                   Cancel Reply
                 </Button>
               </div>
             )}
           </div>
-          <div className="mt-4">
+          <div className="comments-list">
             <CommentList 
               postId={post.id} 
               highlightCommentId={highlightedCommentId}
@@ -951,6 +940,643 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         isGenerating={isGeneratingShareUrl}
         isWebShareFallback={isWebShareFallback}
       />
+      
+      <style jsx>{`
+        /* Mobile-First CSS Grid Layout */
+        .post-card-container {
+          container-type: inline-size;
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+          display: grid;
+          grid-template-columns: auto 1fr;
+          grid-template-areas: 
+            "vote content";
+          box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+          transition: box-shadow 0.2s ease;
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+        }
+        
+        .post-card-container:hover {
+          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        /* Vote Section */
+        .vote-section {
+          grid-area: vote;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          padding: 0.75rem;
+          background: hsl(var(--muted) / 0.3);
+          border-right: 1px solid hsl(var(--border));
+          min-width: fit-content;
+        }
+        
+        /* Content Section */
+        .content-section {
+          grid-area: content;
+          display: grid;
+          grid-template-rows: auto auto auto auto auto;
+          grid-template-areas:
+            "header"
+            "tags"
+            "footer"
+            "reactions"
+            "comments";
+          min-width: 0;
+          overflow: hidden;
+        }
+        
+        .content-header {
+          grid-area: header;
+          padding: 0.75rem 1rem 0.5rem;
+        }
+        
+        /* Meta Information */
+        .meta-info {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.25rem;
+          font-size: 0.75rem;
+          color: hsl(var(--muted-foreground));
+          margin-bottom: 0.5rem;
+          min-width: 0;
+          overflow: hidden;
+        }
+        
+        .author-info {
+          display: flex;
+          align-items: center;
+          min-width: 0;
+        }
+        
+        .author-display {
+          display: flex;
+          align-items: center;
+          min-width: 0;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+        
+        .author-display:hover {
+          color: hsl(var(--primary));
+        }
+        
+        .author-avatar {
+          height: 1.25rem;
+          width: 1.25rem;
+          margin-right: 0.5rem;
+          flex-shrink: 0;
+          transition: all 0.2s ease;
+        }
+        
+        .author-display:hover .author-avatar {
+          ring: 2px solid hsl(var(--primary) / 0.3);
+        }
+        
+        .avatar-fallback {
+          font-size: 0.75rem;
+        }
+        
+        .author-name {
+          font-weight: 500;
+          color: hsl(var(--foreground));
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+          transition: color 0.2s ease;
+        }
+        
+        .author-display:hover .author-name {
+          color: hsl(var(--primary));
+        }
+        
+        .board-context {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          min-width: 0;
+        }
+        
+        .context-separator {
+          margin: 0 0.25rem;
+          flex-shrink: 0;
+        }
+        
+        .board-link {
+          font-weight: 500;
+          color: hsl(var(--primary));
+          cursor: pointer;
+          text-decoration: underline;
+          text-decoration-color: transparent;
+          text-underline-offset: 2px;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+          background: none;
+          border: none;
+          padding: 0;
+        }
+        
+        .board-link:hover {
+          color: hsl(var(--primary) / 0.8);
+          text-decoration-color: currentColor;
+        }
+        
+        .board-name {
+          font-weight: 500;
+          color: hsl(var(--primary));
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+        }
+        
+        .time-info {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          min-width: 0;
+        }
+        
+        .time-separator {
+          margin: 0 0.25rem;
+          flex-shrink: 0;
+        }
+        
+        .time-icon {
+          flex-shrink: 0;
+        }
+        
+        .time-text {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+        }
+        
+        .gated-separator {
+          margin: 0 0.25rem;
+          flex-shrink: 0;
+        }
+        
+        .gated-indicator {
+          display: flex;
+          align-items: center;
+          font-size: 0.75rem;
+          color: hsl(var(--primary));
+          flex-shrink: 0;
+        }
+        
+        .gated-icon {
+          margin-right: 0.25rem;
+        }
+        
+        /* Post Title */
+        .post-title {
+          font-size: 1rem;
+          line-height: 1.4;
+          font-weight: 600;
+          padding-right: 2rem;
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+          margin-bottom: 0;
+        }
+        
+        .post-title.clickable {
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+        
+        .post-title.clickable:hover {
+          color: hsl(var(--primary));
+        }
+        
+        /* Content Container */
+        .content-container {
+          margin-top: 0.25rem;
+        }
+        
+        .content-wrapper {
+          position: relative;
+        }
+        
+        .content-collapsed {
+          max-height: 8rem;
+          overflow: hidden;
+        }
+        
+        .content-inner {
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+        
+        .content-with-gradient {
+          padding-bottom: 2rem;
+        }
+        
+        .content-gradient {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 4rem;
+          background: linear-gradient(to top, hsl(var(--card)), transparent);
+          pointer-events: none;
+        }
+        
+        .expand-control,
+        .collapse-control {
+          margin-top: 0.25rem;
+          text-align: left;
+        }
+        
+        .expand-button,
+        .collapse-button {
+          color: hsl(var(--primary));
+          font-weight: 500;
+          padding: 0.25rem 0.5rem;
+          height: auto;
+          transition: color 0.2s ease;
+        }
+        
+        .expand-button:hover,
+        .collapse-button:hover {
+          color: hsl(var(--primary) / 0.8);
+        }
+        
+        /* Gating Summary */
+        .gating-summary {
+          margin-top: 0.75rem;
+        }
+        
+        .gating-content {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+        
+        .gating-badge {
+          font-size: 0.75rem;
+          background: hsl(var(--primary) / 0.1);
+          border-color: hsl(var(--primary) / 0.2);
+          color: hsl(var(--primary));
+        }
+        
+        .gating-text {
+          font-size: 0.75rem;
+          color: hsl(var(--muted-foreground));
+        }
+        
+        /* Tags Section */
+        .tags-section {
+          grid-area: tags;
+          padding: 0.5rem 1rem;
+        }
+        
+        .tags-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.375rem;
+        }
+        
+        .tag-button {
+          height: auto;
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+          font-weight: 400;
+          background: hsl(var(--secondary));
+          color: hsl(var(--secondary-foreground));
+          border-radius: 9999px;
+          border: 1px solid transparent;
+          transition: all 0.2s ease;
+        }
+        
+        .tag-button:hover {
+          background: hsl(var(--secondary) / 0.8);
+          color: hsl(var(--foreground));
+          border-color: hsl(var(--primary) / 0.2);
+        }
+        
+        /* Footer Section */
+        .footer-section {
+          grid-area: footer;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.5rem 1rem;
+          font-size: 0.875rem;
+          color: hsl(var(--muted-foreground));
+        }
+        
+        .footer-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+        
+        .action-button {
+          padding: 0.25rem;
+          height: auto;
+          font-size: 0.75rem;
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+        }
+        
+        .action-icon {
+          flex-shrink: 0;
+        }
+        
+        .action-text {
+          white-space: nowrap;
+        }
+        
+        .gated-arrow {
+          margin-left: 0.25rem;
+          color: hsl(var(--primary));
+        }
+        
+        .loading-spinner-small {
+          width: 0.875rem;
+          height: 0.875rem;
+          border: 2px solid currentColor;
+          border-top: 2px solid transparent;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        
+        .footer-controls {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+        }
+        
+        .control-button {
+          padding: 0.25rem;
+          height: 1.75rem;
+          width: 1.75rem;
+        }
+        
+        .admin-button {
+          padding: 0.25rem;
+          height: 1.75rem;
+          width: 1.75rem;
+        }
+        
+        /* Reactions Section */
+        .reactions-section {
+          grid-area: reactions;
+          padding: 0 1rem 0.75rem;
+          opacity: 0.5;
+          transition: opacity 0.3s ease;
+        }
+        
+        .post-card-container:hover .reactions-section {
+          opacity: 1;
+        }
+        
+        /* Comments Section */
+        .comments-section {
+          grid-area: comments;
+          border-top: 1px solid hsl(var(--border));
+          padding: 0.75rem 1rem;
+        }
+        
+        .comments-title {
+          font-size: 0.875rem;
+          font-weight: 600;
+          margin-bottom: 0.75rem;
+        }
+        
+        .new-comment-form {
+          margin-bottom: 1rem;
+        }
+        
+        .reply-status {
+          margin-top: 0.5rem;
+          font-size: 0.875rem;
+          color: hsl(var(--muted-foreground));
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        
+        .cancel-reply {
+          font-size: 0.75rem;
+        }
+        
+        .comments-list {
+          margin-top: 1rem;
+        }
+        
+        /* Move Dialog */
+        .move-dialog {
+          max-width: min(90vw, 26.5rem);
+          margin: 0 1rem;
+        }
+        
+        .move-title {
+          font-size: 1.125rem;
+        }
+        
+        .move-description {
+          font-size: 0.875rem;
+        }
+        
+        .move-content {
+          display: grid;
+          gap: 1rem;
+          padding: 1rem 0;
+        }
+        
+        .board-selection {
+          display: grid;
+          gap: 0.5rem;
+        }
+        
+        .board-option-name {
+          font-weight: 500;
+        }
+        
+        .board-option-desc {
+          font-size: 0.75rem;
+          color: hsl(var(--muted-foreground));
+        }
+        
+        .loading-boards {
+          padding: 0.75rem;
+          border: 1px solid hsl(var(--border));
+          border-radius: 0.375rem;
+          background: hsl(var(--muted) / 0.5);
+        }
+        
+        .loading-text {
+          font-size: 0.875rem;
+          color: hsl(var(--muted-foreground));
+        }
+        
+        .move-footer {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        
+        .cancel-button,
+        .move-button {
+          width: 100%;
+        }
+        
+        /* Container Queries for Progressive Enhancement */
+        @container (min-width: 480px) {
+          .vote-section {
+            padding: 1rem;
+          }
+          
+          .content-header {
+            padding: 1rem 1.5rem 0.75rem;
+          }
+          
+          .tags-section {
+            padding: 0.75rem 1.5rem;
+          }
+          
+          .footer-section {
+            padding: 0.75rem 1.5rem;
+          }
+          
+          .reactions-section {
+            padding: 0 1.5rem 1rem;
+          }
+          
+          .comments-section {
+            padding: 1rem 1.5rem;
+          }
+          
+          .author-avatar {
+            height: 1.5rem;
+            width: 1.5rem;
+          }
+          
+          .meta-info {
+            font-size: 0.875rem;
+          }
+          
+          .post-title {
+            font-size: 1.125rem;
+          }
+          
+          .action-button {
+            font-size: 0.875rem;
+          }
+          
+          .move-footer {
+            flex-direction: row;
+            justify-content: flex-end;
+          }
+          
+          .cancel-button,
+          .move-button {
+            width: auto;
+          }
+        }
+        
+        @container (min-width: 768px) {
+          .vote-section {
+            padding: 1.25rem;
+          }
+          
+          .content-header {
+            padding: 1.25rem 2rem 1rem;
+          }
+          
+          .tags-section {
+            padding: 1rem 2rem;
+          }
+          
+          .footer-section {
+            padding: 1rem 2rem;
+          }
+          
+          .reactions-section {
+            padding: 0 2rem 1.25rem;
+          }
+          
+          .comments-section {
+            padding: 1.25rem 2rem;
+          }
+          
+          .post-title {
+            font-size: 1.25rem;
+          }
+          
+          .tags-container {
+            gap: 0.5rem;
+          }
+          
+          .footer-actions {
+            gap: 1rem;
+          }
+        }
+        
+        /* Animation Keyframes */
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        
+        /* Responsive Typography Scale */
+        @container (min-width: 320px) {
+          .post-card-container {
+            font-size: 0.875rem;
+            line-height: 1.5;
+          }
+        }
+        
+        @container (min-width: 640px) {
+          .post-card-container {
+            font-size: 0.9375rem;
+            line-height: 1.6;
+          }
+        }
+        
+        @container (min-width: 768px) {
+          .post-card-container {
+            font-size: 1rem;
+            line-height: 1.6;
+          }
+        }
+        
+        /* Prevent Horizontal Scroll */
+        .post-card-container,
+        .content-section,
+        .post-card-container * {
+          box-sizing: border-box;
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+        }
+        
+        .content-section {
+          overflow-x: hidden;
+          width: 100%;
+          min-width: 0;
+        }
+      `}</style>
     </Card>
   );
 }; 

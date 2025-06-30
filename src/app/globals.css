@@ -2,7 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile-First Container Query Support */
+@supports (container-type: inline-size) {
+  .responsive-container {
+    container-type: inline-size;
+  }
+}
 
+/* Mobile-First Typography Scale */
+@layer base {
+  html {
+    font-size: 14px; /* Base font size for mobile (320px+) */
+    line-height: 1.5;
+  }
+  
+  @media (min-width: 480px) {
+    html {
+      font-size: 15px; /* Slightly larger for small tablets */
+      line-height: 1.6;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    html {
+      font-size: 16px; /* Standard desktop size */
+      line-height: 1.6;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    html {
+      font-size: 16px; /* Keep consistent for larger screens */
+      line-height: 1.7;
+    }
+  }
+}
+
+/* Mobile-First Responsive Utilities */
+@layer utilities {
+  /* Container constraints to prevent horizontal scroll */
+  .container-safe {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  
+  /* Word wrapping utilities for mobile */
+  .wrap-anywhere {
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+  
+  /* Mobile-optimized spacing */
+  .space-mobile {
+    padding: 0.75rem;
+  }
+  
+  .space-tablet {
+    padding: 1rem;
+  }
+  
+  .space-desktop {
+    padding: 1.5rem;
+  }
+  
+  /* Responsive gap utilities */
+  .gap-mobile {
+    gap: 0.75rem;
+  }
+  
+  .gap-tablet {
+    gap: 1rem;
+  }
+  
+  .gap-desktop {
+    gap: 1.5rem;
+  }
+  
+  /* Mobile-first grid systems */
+  .grid-mobile {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .grid-tablet {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+  
+  .grid-desktop {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+}
 
 @layer base {
   :root {
@@ -98,6 +194,31 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Prevent horizontal scroll at body level */
+    overflow-x: hidden;
+    min-width: 320px; /* Minimum supported width */
+  }
+  
+  /* Mobile-first responsive images */
+  img {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+  
+  /* Better mobile tap targets */
+  button, 
+  [role="button"], 
+  input[type="submit"], 
+  input[type="button"] {
+    min-height: 44px; /* Apple's recommended minimum tap target */
+    min-width: 44px;
+  }
+  
+  /* Mobile-friendly focus states */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -164,7 +285,7 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Aggressive word wrapping for problematic URLs */
+/* Enhanced Mobile-First URL Wrapping */
 .force-wrap {
   word-wrap: break-word !important;
   overflow-wrap: anywhere !important;
@@ -174,21 +295,64 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
   max-width: 100% !important;
 }
 
-/* Apply aggressive wrapping to all links globally */
+/* Apply aggressive wrapping to all links globally with mobile optimization */
 a {
   word-wrap: break-word !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
   max-width: 100% !important;
+  /* Better mobile touch targets */
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
 }
 
-/* Extra protection for TipTap content */
+/* Extra protection for TipTap content with mobile enhancements */
 .ProseMirror a {
   word-wrap: break-word !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
   max-width: 100% !important;
   white-space: normal !important;
+  min-height: 32px;
+}
+
+/* Mobile-Enhanced Content Styling */
+.ProseMirror {
+  /* Better mobile reading experience */
+  line-height: 1.6;
+  word-spacing: 0.1em;
+}
+
+.ProseMirror p {
+  margin-bottom: 1em;
+}
+
+.ProseMirror h1, 
+.ProseMirror h2, 
+.ProseMirror h3, 
+.ProseMirror h4 {
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+/* Mobile-Optimized Code Blocks */
+.ProseMirror pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--muted));
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.ProseMirror code {
+  font-size: 0.875em;
+  background: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  word-break: break-all; /* Force code to break on mobile */
 }
 
 /* Mini Mode Utilities */
@@ -254,14 +418,14 @@ a {
   background: #0f172a;
 }
 
-/* Comment Threading Styles */
+/* Mobile-Enhanced Comment Threading Styles */
 .comment-thread {
   margin-bottom: 0.75rem;
 }
 
 .comment-children {
-  margin-left: 1rem;
-  padding-left: 1rem;
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
   position: relative;
 }
 
@@ -348,4 +512,71 @@ a {
 
 .tippy-box[data-theme~='light-border'] .tippy-arrow:before {
   border-color: hsl(var(--border));
+}
+
+/* Mobile-First Responsive Breakpoints */
+/* These override Tailwind's defaults to be more mobile-focused */
+@media (max-width: 374px) {
+  /* Very small phones */
+  body {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 375px) and (max-width: 479px) {
+  /* Most mobile phones */
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 767px) {
+  /* Large phones / small tablets */
+  body {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 768px) {
+  /* Tablets and above */
+  body {
+    font-size: 16px;
+  }
+}
+
+/* Accessibility Improvements for Mobile */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: 240 5.9% 70%;
+  }
+  
+  .dark {
+    --border: 240 3.7% 30%;
+  }
+}
+
+/* Mobile-optimized selection styling */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
+/* Prevent zoom on input focus (iOS Safari) */
+input, textarea, select {
+  font-size: 16px;
+}
+
+@media screen and (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
 }
