@@ -13,16 +13,15 @@ import { PostCard } from '@/components/voting/PostCard';
 import { CommentList } from '@/components/voting/CommentList';
 import { NewCommentForm } from '@/components/voting/NewCommentForm';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Home, MessageSquare, Share2, Keyboard } from 'lucide-react';
+import { ArrowLeft, Home, MessageSquare } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
-import { useBookmarks } from '@/hooks/useBookmarks';
-import { BookmarkButton } from '@/components/ui/BookmarkButton';
-import { EnhancedShareModal } from '@/components/ui/EnhancedShareModal';
-import { GatingProgressIndicator } from '@/components/ui/GatingProgressIndicator';
-import { FadeIn, StaggerChildren, GlowEffect } from '@/components/ui/animations';
+// import { useBookmarks } from '@/hooks/useBookmarks';
+
+
+// import { GatingProgressIndicator } from '@/components/ui/GatingProgressIndicator';
+import { FadeIn, StaggerChildren } from '@/components/ui/animations';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
 
 interface PostDetailPageProps {
   params: Promise<{
@@ -35,8 +34,8 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const [boardId, setBoardId] = useState<string>('');
   const [postId, setPostId] = useState<string>('');
   const [isSharedLinkRedirecting, setIsSharedLinkRedirecting] = useState(false);
-  const [showEnhancedShare, setShowEnhancedShare] = useState(false);
-  const [, setShowKeyboardHelp] = useState(false);
+
+
   
   // All hooks must be called at the top level
   const { token, user } = useAuth();
@@ -49,7 +48,6 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   
   // Refs for focus management
   const commentFormRef = useRef<HTMLDivElement>(null);
-  const postRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     params.then(({ boardId, postId }) => {
@@ -71,33 +69,12 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLinkRedirecting,
   });
 
-  // Bookmark functionality
-  const { isBookmarked, toggleBookmark } = useBookmarks(postIdNum);
+  // Bookmark functionality (handled internally by BookmarkButton)
+  // const { isBookmarked, toggleBookmark } = useBookmarks(postIdNum);
 
-  // Enhanced sharing functionality  
-  const handleEnhancedShare = useCallback(() => {
-    setShowEnhancedShare(true);
-  }, []);
 
-  const getShareData = useCallback(() => {
-    if (!post) return null;
-    
-    const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || window.location.origin;
-    const shareUrl = `${baseUrl}/board/${boardId}/post/${postId}${window.location.search}`;
-    
-    return {
-      url: shareUrl,
-      title: post.title,
-      description: post.content ? post.content.slice(0, 300) + (post.content.length > 300 ? '...' : '') : '',
-      author: post.author_name || undefined,
-      authorAvatar: post.author_profile_picture_url || undefined,
-      boardName: post.board_name,
-      commentCount: post.comment_count,
-      createdAt: post.created_at,
-      tags: post.tags || undefined,
-      isGated: !!(post.lock_id || post.settings),
-    };
-  }, [post, boardId, postId]);
+
+
 
   // Navigation helpers
   const handleNavigateBack = useCallback(() => {
@@ -123,13 +100,13 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
   // Keyboard navigation setup
   useKeyboardNavigation({
-    onShare: handleEnhancedShare,
-    onBookmark: toggleBookmark,
+    onShare: () => {}, // No enhanced share modal
+    onBookmark: () => {}, // BookmarkButton handles its own state
     onComment: handleFocusComment,
     onVote: handleVoteAction,
     onNavigateBack: handleNavigateBack,
     onFocusComment: handleFocusComment,
-    enableGlobalShortcuts: !showEnhancedShare, // Disable when modal is open
+    enableGlobalShortcuts: true,
   });
 
   // Fetch comments for the post
@@ -225,23 +202,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     }, 100);
   }, []);
 
-  // Show keyboard shortcuts
-  const handleShowKeyboardHelp = useCallback(() => {
-    setShowKeyboardHelp(true);
-    toast({
-      title: 'Keyboard Shortcuts',
-      description: (
-        <div className="space-y-1 text-sm">
-          <div><kbd className="px-1.5 py-0.5 bg-muted rounded">Cmd+S</kbd> Share post</div>
-          <div><kbd className="px-1.5 py-0.5 bg-muted rounded">Cmd+B</kbd> Bookmark</div>
-          <div><kbd className="px-1.5 py-0.5 bg-muted rounded">C</kbd> Focus comment</div>
-          <div><kbd className="px-1.5 py-0.5 bg-muted rounded">U</kbd> Vote action</div>
-          <div><kbd className="px-1.5 py-0.5 bg-muted rounded">H</kbd> Go back</div>
-        </div>
-      ),
-      duration: 8000,
-    });
-  }, [toast]);
+
 
   // Early returns for loading states
   if (!boardId || !postId) {
@@ -355,67 +316,24 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     );
   }
 
-  const shareData = getShareData();
-  const hasGating = !!(post.lock_id || post.settings);
+
 
   return (
     <div className="mobile-container">
       <div className="content-wrapper">
-        {/* Enhanced Header with Actions */}
+        {/* Simple Back Button */}
         <FadeIn>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleNavigateBack}
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-2"
-                aria-label="Go back to board"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Back</span>
-              </Button>
-              
-              {/* Keyboard shortcuts button */}
-              <Button
-                onClick={handleShowKeyboardHelp}
-                variant="ghost"
-                size="sm"
-                className="hidden md:flex items-center gap-2"
-                title="Keyboard shortcuts"
-              >
-                <Keyboard className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {/* Bookmark button */}
-              <BookmarkButton
-                postId={postIdNum}
-                size="sm"
-                showLabel={false}
-              />
-              
-              {/* Enhanced share button */}
-              <Button
-                onClick={handleEnhancedShare}
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Share2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Share</span>
-              </Button>
-
-              {/* Gating indicator */}
-              {hasGating && (
-                <GlowEffect isActive={hasGating}>
-                  <Badge variant="secondary" className="text-xs">
-                    🔒 Gated
-                  </Badge>
-                </GlowEffect>
-              )}
-            </div>
+          <div className="mb-4">
+            <Button
+              onClick={handleNavigateBack}
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-2"
+              aria-label="Go back to board"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back</span>
+            </Button>
           </div>
         </FadeIn>
 
@@ -496,14 +414,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           </section>
         </FadeIn>
 
-        {/* Enhanced Share Modal */}
-        {showEnhancedShare && shareData && (
-          <EnhancedShareModal
-            isOpen={showEnhancedShare}
-            onClose={() => setShowEnhancedShare(false)}
-            shareData={shareData}
-          />
-        )}
+
       </div>
     </div>
   );

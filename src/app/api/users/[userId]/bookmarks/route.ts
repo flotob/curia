@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
-import { ValidationService } from '@/lib/services/ValidationService';
 
 interface BookmarkData {
   id: string;
@@ -17,9 +16,10 @@ interface BookmarkData {
 }
 
 // GET /api/users/[userId]/bookmarks - Get user's bookmarks
-export const GET = withAuth(async (req: AuthenticatedRequest, context: { params: Promise<{ userId: string }> }) => {
+export const GET = withAuth(async (req: AuthenticatedRequest, context: RouteContext) => {
   try {
-    const { userId } = await context.params;
+    const params = await context.params;
+    const userId = params.userId;
     const currentUserId = req.user?.sub;
 
     // Validate user can access these bookmarks (only own bookmarks)
@@ -77,9 +77,10 @@ export const GET = withAuth(async (req: AuthenticatedRequest, context: { params:
 });
 
 // POST /api/users/[userId]/bookmarks - Create a new bookmark
-export const POST = withAuth(async (req: AuthenticatedRequest, context: { params: Promise<{ userId: string }> }) => {
+export const POST = withAuth(async (req: AuthenticatedRequest, context: RouteContext) => {
   try {
-    const { userId } = await context.params;
+    const params = await context.params;
+    const userId = params.userId;
     const currentUserId = req.user?.sub;
 
     // Validate user can create bookmarks for this user (only own bookmarks)
@@ -94,21 +95,28 @@ export const POST = withAuth(async (req: AuthenticatedRequest, context: { params
     const { postId } = body;
 
     // Validate request
-    if (!ValidationService.isValidInteger(postId)) {
+    if (!postId || typeof postId !== 'number' || postId <= 0) {
       return NextResponse.json(
         { error: 'Invalid post ID' },
         { status: 400 }
       );
     }
 
-    // Check if post exists
-    const postCheck = await query('SELECT id FROM posts WHERE id = $1', [postId]);
+    // Check if post exists and get community_id for optimization
+    const postCheck = await query(`
+      SELECT p.id, b.community_id 
+      FROM posts p 
+      JOIN boards b ON p.board_id = b.id 
+      WHERE p.id = $1
+    `, [postId]);
     if (postCheck.rows.length === 0) {
       return NextResponse.json(
         { error: 'Post not found' },
         { status: 404 }
       );
     }
+    
+    const { community_id } = postCheck.rows[0];
 
     // Check if bookmark already exists
     const existingBookmark = await query(
@@ -123,10 +131,10 @@ export const POST = withAuth(async (req: AuthenticatedRequest, context: { params
       );
     }
 
-    // Create bookmark
+    // Create bookmark with community_id optimization
     const result = await query(
-      'INSERT INTO bookmarks (user_id, post_id) VALUES ($1, $2) RETURNING id, user_id as "userId", post_id as "postId", created_at as "createdAt"',
-      [userId, postId]
+      'INSERT INTO bookmarks (user_id, post_id, community_id) VALUES ($1, $2, $3) RETURNING id, user_id as "userId", post_id as "postId", community_id as "communityId", created_at as "createdAt"',
+      [userId, postId, community_id]
     );
 
     const newBookmark = result.rows[0];

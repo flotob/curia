@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Share2, Bookmark, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield } from 'lucide-react';
+import { MessageSquare, Share2, Clock, Trash, MoreVertical, ChevronDown, ChevronUp, Move, Shield } from 'lucide-react';
+import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -792,9 +793,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               </Button>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="p-1 h-auto">
-                <Bookmark size={14} />
-              </Button>
+              <BookmarkButton 
+                postId={post.id}
+                variant="ghost"
+                size="sm" 
+                showLabel={false}
+                className="p-1 h-auto"
+              />
               {user?.isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

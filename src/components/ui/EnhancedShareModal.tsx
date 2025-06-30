@@ -134,7 +134,7 @@ export const EnhancedShareModal: React.FC<EnhancedShareModalProps> = ({
         duration: 2000,
       });
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
+    } catch {
       toast({
         title: 'Copy Failed',
         description: 'Failed to copy link to clipboard',

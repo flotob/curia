@@ -88,7 +88,7 @@ export const useBookmarks = (postId?: number): UseBookmarksReturn => {
     },
     onSuccess: (result) => {
       // Invalidate bookmarks query to refetch
-      queryClient.invalidateQueries({ queryKey: ['bookmarks', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['bookmarks', user?.userId] });
       
       // Show success toast
       toast({
@@ -127,7 +127,7 @@ export const useBookmarks = (postId?: number): UseBookmarksReturn => {
     },
     onSuccess: (removedBookmarkId) => {
       // Invalidate bookmarks query
-      queryClient.invalidateQueries({ queryKey: ['bookmarks', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['bookmarks', user?.userId] });
       
       // Update current post bookmark status if it was the removed bookmark
       if (postId) {
