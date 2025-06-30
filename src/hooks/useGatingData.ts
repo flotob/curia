@@ -5,9 +5,8 @@
  * following the app's established React Query patterns (like CommentList with 45s intervals)
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { authFetchJson } from '@/utils/authFetch';
-import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuthenticatedQuery } from './useAuthenticatedQuery';
 
 // Types matching GatingRequirementsPanel
 export interface GatingRequirementsData {
@@ -84,16 +83,17 @@ interface CategoryVerificationStatus {
  * Less dynamic data - refresh every 30 seconds
  */
 export function useGatingRequirements(postId: number) {
-  const { token } = useAuth();
-  
-  return useQuery({
-    queryKey: ['gating-requirements', postId],
-    queryFn: () => authFetchJson<GatingRequirementsData>(`/api/posts/${postId}/gating-requirements`, { token }),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchInterval: 30 * 1000, // Background refresh every 30 seconds
-    refetchIntervalInBackground: false, // Don't refresh when tab inactive
-    enabled: !!token && !!postId,
-  });
+  return useAuthenticatedQuery<GatingRequirementsData>(
+    ['gating-requirements', postId],
+    `/api/posts/${postId}/gating-requirements`,
+    {
+      freshness: 'dynamic', // 1 min stale time
+      updateFrequency: 'medium', // 30s background refresh
+      backgroundRefetch: false, // Don't refresh when tab inactive
+      enabled: !!postId,
+      errorMessage: 'Failed to fetch gating requirements',
+    }
+  );
 }
 
 /**
@@ -101,16 +101,17 @@ export function useGatingRequirements(postId: number) {
  * More dynamic data - refresh every 20 seconds (faster than requirements)
  */
 export function useVerificationStatus(postId: number) {
-  const { token } = useAuth();
-  
-  return useQuery({
-    queryKey: ['verification-status', postId],
-    queryFn: () => authFetchJson<VerificationStatusData>(`/api/posts/${postId}/verification-status`, { token }),
-    staleTime: 1 * 60 * 1000, // 1 minute
-    refetchInterval: 20 * 1000, // More frequent - verification changes faster
-    refetchIntervalInBackground: false, // Don't refresh when tab inactive
-    enabled: !!token && !!postId,
-  });
+  return useAuthenticatedQuery<VerificationStatusData>(
+    ['verification-status', postId],
+    `/api/posts/${postId}/verification-status`,
+    {
+      freshness: 'dynamic', // 1 min stale time
+      updateFrequency: 'fast', // More frequent updates (10s) - verification changes faster
+      backgroundRefetch: false, // Don't refresh when tab inactive
+      enabled: !!postId,
+      errorMessage: 'Failed to fetch verification status',
+    }
+  );
 }
 
 /**

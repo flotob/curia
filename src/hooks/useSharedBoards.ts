@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuthenticatedQuery, useAuthenticatedMutation } from './useAuthenticatedQuery';
 import { authFetchJson } from '@/utils/authFetch';
-import { useAuth } from '@/contexts/AuthContext';
 import { ImportedBoard, ImportableBoardsData, ImportBoardRequest } from '@/types/sharedBoards';
 import { ImportBoardResponse } from '@/app/api/communities/[communityId]/import-board/route';
 
@@ -10,30 +10,17 @@ import { ImportBoardResponse } from '@/app/api/communities/[communityId]/import-
  * Used for displaying imported boards in the sidebar
  */
 export function useImportedBoards(communityId?: string) {
-  const { token } = useAuth();
-  
-  return useQuery({
-    queryKey: ['imported-boards', communityId],
-    queryFn: async (): Promise<ImportedBoard[]> => {
-      if (!communityId) {
-        throw new Error('Community ID is required to fetch imported boards');
-      }
-      
-      console.log(`[useImportedBoards] Fetching imported boards for community ${communityId}`);
-      
-      const response = await authFetchJson<ImportedBoard[]>(
-        `/api/communities/${communityId}/shared-boards`,
-        { token }
-      );
-      
-      console.log(`[useImportedBoards] Fetched ${response.length} imported boards`);
-      return response;
-    },
-    enabled: !!token && !!communityId,
-    staleTime: 2 * 60 * 1000, // 2 minutes - imported boards don't change frequently
-    refetchInterval: 5 * 60 * 1000, // Background refresh every 5 minutes
-    refetchIntervalInBackground: false, // Don't refresh when tab inactive
-  });
+  return useAuthenticatedQuery<ImportedBoard[]>(
+    ['imported-boards', communityId],
+    `/api/communities/${communityId}/shared-boards`,
+    {
+      freshness: 'dynamic', // 1 min stale time
+      updateFrequency: 'slow', // Background refresh every 5 minutes
+      backgroundRefetch: false, // Don't refresh when tab inactive
+      enabled: !!communityId,
+      errorMessage: 'Failed to fetch imported boards',
+    }
+  );
 }
 
 /**
@@ -41,29 +28,16 @@ export function useImportedBoards(communityId?: string) {
  * Shows boards that can be imported based on partnership permissions
  */
 export function useImportableBoards(communityId?: string) {
-  const { token } = useAuth();
-  
-  return useQuery({
-    queryKey: ['importable-boards', communityId],
-    queryFn: async (): Promise<ImportableBoardsData> => {
-      if (!communityId) {
-        throw new Error('Community ID is required to fetch importable boards');
-      }
-      
-      console.log(`[useImportableBoards] Fetching importable boards for community ${communityId}`);
-      
-      const response = await authFetchJson<ImportableBoardsData>(
-        `/api/communities/${communityId}/importable-boards`,
-        { token }
-      );
-      
-      console.log(`[useImportableBoards] Fetched ${response.boards.length} importable boards from ${response.partnerships.length} partnerships`);
-      return response;
-    },
-    enabled: !!token && !!communityId,
-    staleTime: 5 * 60 * 1000, // 5 minutes - importable boards change less frequently
-    refetchInterval: 10 * 60 * 1000, // Background refresh every 10 minutes
-  });
+  return useAuthenticatedQuery<ImportableBoardsData>(
+    ['importable-boards', communityId],
+    `/api/communities/${communityId}/importable-boards`,
+    {
+      freshness: 'static', // 5 min stale time - importable boards change less frequently
+      updateFrequency: 'slow', // Background refresh every 5 minutes (reduced from 10 min for consistency)
+      enabled: !!communityId,
+      errorMessage: 'Failed to fetch importable boards',
+    }
+  );
 }
 
 /**
@@ -71,10 +45,9 @@ export function useImportableBoards(communityId?: string) {
  */
 export function useImportBoard() {
   const queryClient = useQueryClient();
-  const { token } = useAuth();
 
-  return useMutation({
-    mutationFn: async ({ communityId, ...data }: ImportBoardRequest & { communityId: string }) => {
+  return useAuthenticatedMutation<ImportBoardResponse, ImportBoardRequest & { communityId: string }>({
+    mutationFn: async ({ communityId, ...data }) => {
       console.log(`[useImportBoard] Importing board ${data.sourceBoardId} from ${data.sourceCommunityId} to ${communityId}`);
       
       const response = await authFetchJson<ImportBoardResponse>(
@@ -82,7 +55,6 @@ export function useImportBoard() {
         {
           method: 'POST',
           body: JSON.stringify(data),
-          token
         }
       );
       
@@ -97,6 +69,7 @@ export function useImportBoard() {
       // Invalidate importable boards to update "already imported" status
       queryClient.invalidateQueries({ queryKey: ['importable-boards', variables.communityId] });
     },
+    errorMessage: 'Failed to import board',
   });
 }
 
