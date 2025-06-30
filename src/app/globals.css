@@ -349,3 +349,122 @@ a {
 .tippy-box[data-theme~='light-border'] .tippy-arrow:before {
   border-color: hsl(var(--border));
 }
+
+/* =============================================================================
+ * UNIFIED VISUAL DESIGN SYSTEM - 2-Level Hierarchy
+ * =============================================================================
+ * 
+ * Establishes clean visual hierarchy with:
+ * - Level 1: Primary content containers (posts, forms, modals)
+ * - Level 2: Secondary content areas (comments, nested sections)
+ * - Consistent spacing scale
+ * - Subtle elevation instead of heavy borders
+ * - Unified background system
+ */
+
+@layer components {
+  /* Level 1: Primary Content Containers */
+  .content-level-1 {
+    @apply bg-card rounded-xl border border-border/60 shadow-sm;
+    @apply hover:shadow-md transition-all duration-200;
+  }
+
+  /* Level 2: Secondary Content Areas */
+  .content-level-2 {
+    @apply bg-muted/10 rounded-lg border border-border/40;
+    @apply shadow-sm;
+  }
+
+  /* Unified Spacing Scale */
+  .content-padding-1 {
+    @apply p-4 sm:p-6;
+  }
+
+  .content-padding-2 {
+    @apply p-3 sm:p-4;
+  }
+
+  .content-padding-compact {
+    @apply p-2 sm:p-3;
+  }
+
+  /* Header Sections */
+  .content-header {
+    @apply px-4 sm:px-6 pt-4 sm:pt-6 pb-3;
+    @apply border-b border-border/30 bg-muted/5;
+  }
+
+  /* Clean Separation Lines */
+  .content-divider {
+    @apply border-t border-border/40 mt-2;
+  }
+
+  /* Interactive States */
+  .content-interactive {
+    @apply transition-all duration-200;
+    @apply hover:shadow-lg hover:scale-[1.01];
+  }
+
+  /* Semantic Element Styling */
+  .post-container {
+    @apply content-level-1 relative;
+    @apply w-full max-w-full overflow-x-hidden;
+  }
+
+  .post-container.gated {
+    @apply border-l-4 border-l-blue-500;
+  }
+
+  .comments-section {
+    @apply content-level-2 content-divider;
+  }
+
+  .comment-form {
+    @apply bg-background rounded-lg border border-border/50 shadow-sm;
+  }
+
+  .vote-sidebar {
+    @apply bg-muted/30 border-r border-border/40;
+    @apply flex flex-col items-center justify-start;
+    @apply p-2 sm:p-3 md:p-4;
+  }
+
+  /* Consistent Text Hierarchy */
+  .content-title {
+    @apply text-base sm:text-lg md:text-xl font-semibold leading-tight;
+  }
+
+  .content-subtitle {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .content-meta {
+    @apply text-xs text-muted-foreground;
+  }
+
+  /* Loading and Error States */
+  .skeleton-container {
+    @apply content-level-1;
+  }
+
+  .skeleton-header {
+    @apply px-4 sm:px-6 pt-4 sm:pt-6 pb-3;
+  }
+
+  .skeleton-content {
+    @apply px-4 sm:px-6 pb-4 sm:pb-6;
+  }
+
+  /* Spacing Utilities */
+  .content-gap-1 {
+    @apply space-y-4;
+  }
+
+  .content-gap-2 {
+    @apply space-y-6;
+  }
+
+  .content-gap-compact {
+    @apply space-y-2;
+  }
+}
