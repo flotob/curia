@@ -35,16 +35,16 @@ export interface PostData {
   updated_at: string;
   tags?: string[];
   lock_id?: number;
-  settings?: any;
+  settings?: Record<string, unknown>;
 }
 
 export interface PostWithContext extends PostData {
   author_name: string;
   board_name: string;
   community_id: string;
-  board_settings?: any;
-  community_settings?: any;
-  lock_gating_config?: any;
+  board_settings?: Record<string, unknown>;
+  community_settings?: Record<string, unknown>;
+  lock_gating_config?: Record<string, unknown>;
   // Extended fields from enriched_posts
   author_profile_picture_url?: string;
   user_has_upvoted?: boolean;
@@ -66,7 +66,7 @@ export interface CreatePostData {
   board_id: number;
   tags?: string[];
   lock_id?: number;
-  settings?: any;
+  settings?: Record<string, unknown>;
 }
 
 export interface UpdatePostData {
@@ -74,7 +74,7 @@ export interface UpdatePostData {
   content?: string;
   tags?: string[];
   lock_id?: number;
-  settings?: any;
+  settings?: Record<string, unknown>;
 }
 
 export interface PostFilters {
@@ -89,7 +89,7 @@ export interface PostFilters {
 /**
  * Performance logging utility
  */
-const logPerformance = (method: string, startTime: number, resultCount: number, params?: any) => {
+const logPerformance = (method: string, startTime: number, resultCount: number, params?: Record<string, unknown>) => {
   const duration = Date.now() - startTime;
   console.log(`[PostRepository] ${method} completed in ${duration}ms`, {
     resultCount,
@@ -560,7 +560,7 @@ export class PostRepository extends BaseRepository {
 
     const sanitized = this.sanitizeInput(data);
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: (string | number | boolean | null)[] = [];
     let paramIndex = 1;
 
     // Build dynamic UPDATE clause
