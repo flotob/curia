@@ -74,8 +74,6 @@ export const useAmountValidation = (initialValue: string = '') => {
 };
 
 export const useEthAmountValidation = (initialValue: string = '') => {
-  const baseValidation = useAmountValidation(initialValue);
-  
   const ethValidator = useCallback((value: string) => {
     const baseResult = validatePositiveNumber(value);
     if (!baseResult.isValid) return baseResult;
@@ -210,12 +208,17 @@ export const useAmountInput = (
   onSave?: () => void,
   onCancel?: () => void
 ) => {
-  // Choose the appropriate validation hook
+  // Always call all hooks - choose validator function instead
+  const ethValidation = useEthAmountValidation(initialValue);
+  const lyxValidation = useLyxAmountValidation(initialValue);
+  const numberValidation = useAmountValidation(initialValue);
+  
+  // Choose the appropriate validation result
   const validationHook = validator === 'eth' 
-    ? useEthAmountValidation(initialValue)
+    ? ethValidation
     : validator === 'lyx'
-    ? useLyxAmountValidation(initialValue)
-    : useAmountValidation(initialValue);
+    ? lyxValidation
+    : numberValidation;
 
   const { handleKeyPress } = useKeyboardHandlers(onSave, onCancel, validationHook.validation.isValid);
   const { handleChange } = useNumericInput(validationHook.setValue, true);

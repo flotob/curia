@@ -9,12 +9,26 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { ValidationError } from '@/lib/errors';
+import { authFetchJson } from '@/utils/authFetch';
 
 // Friends types
 export interface Friend {
   id: string;
   name: string;
   image?: string;
+}
+
+// CG Instance interface
+interface CgInstance {
+  getUserFriends?: (limit: number, offset: number) => Promise<{
+    data?: {
+      friends?: Array<{
+        id: string;
+        name: string;
+        imageUrl?: string;
+      }>;
+    };
+  }>;
 }
 
 export interface FriendsSyncResult {
@@ -31,9 +45,9 @@ export interface FriendsContextType {
   source: 'none' | 'cg_lib' | 'database';
   
   // Actions
-  fetchFromCgLib: (cgInstance: any) => Promise<Friend[]>;
+  fetchFromCgLib: (cgInstance: CgInstance) => Promise<Friend[]>;
   syncToDatabase: (friends: Friend[], token: string) => Promise<FriendsSyncResult>;
-  loadFriends: (cgInstance?: any, token?: string) => Promise<void>;
+  loadFriends: (cgInstance?: CgInstance, token?: string) => Promise<void>;
   clearFriends: () => void;
   setFriends: (friends: Friend[]) => void;
 }
@@ -61,7 +75,7 @@ export const FriendsProvider: React.FC<FriendsProviderProps> = ({ children }) =>
   /**
    * Fetch friends from CG lib with pagination
    */
-  const fetchFromCgLib = useCallback(async (cgInstance: any): Promise<Friend[]> => {
+  const fetchFromCgLib = useCallback(async (cgInstance: CgInstance): Promise<Friend[]> => {
     if (!cgInstance) {
       throw new ValidationError('CG instance is required to fetch friends');
     }
@@ -128,20 +142,17 @@ export const FriendsProvider: React.FC<FriendsProviderProps> = ({ children }) =>
     }
 
     try {
-      const response = await fetch('/api/me/friends/sync', {
+      const result = await authFetchJson<{
+        syncedCount: number;
+        errors: string[];
+      }>('/api/me/friends/sync', {
         method: 'POST',
+        token,
+        body: JSON.stringify({ friends: friendsList }),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ friends: friendsList }),
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to sync friends: ${response.status}`);
-      }
-
-      const result = await response.json();
       
       return {
         totalReceived: friendsList.length,
@@ -158,7 +169,7 @@ export const FriendsProvider: React.FC<FriendsProviderProps> = ({ children }) =>
   /**
    * Load friends with fallback strategy
    */
-  const loadFriends = useCallback(async (cgInstance?: any, token?: string) => {
+  const loadFriends = useCallback(async (cgInstance?: CgInstance, token?: string) => {
     setIsLoading(true);
     setError(null);
 
@@ -187,19 +198,17 @@ export const FriendsProvider: React.FC<FriendsProviderProps> = ({ children }) =>
       // Fallback: Try database if token available
       if (token) {
         try {
-          const response = await fetch('/api/me/friends', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
+          const data = await authFetchJson<{
+            friends: Friend[];
+            lastSyncAt?: string;
+          }>('/api/me/friends', {
+            token,
           });
 
-          if (response.ok) {
-            const data = await response.json();
-            setFriendsState(data.friends || []);
-            setSource('database');
-            setLastSyncAt(data.lastSyncAt || null);
-            return;
-          }
+          setFriendsState(data.friends || []);
+          setSource('database');
+          setLastSyncAt(data.lastSyncAt || null);
+          return;
         } catch (dbError) {
           console.error('[FriendsContext] Database fetch also failed:', dbError);
         }
