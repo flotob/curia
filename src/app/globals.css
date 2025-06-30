@@ -206,11 +206,11 @@
     object-fit: cover;
   }
   
-  /* Better mobile tap targets */
-  button, 
-  [role="button"], 
-  input[type="submit"], 
-  input[type="button"] {
+  /* Better mobile tap targets - ONLY for primary action buttons */
+  .btn-primary,
+  .btn-lg,
+  button[data-size="lg"],
+  input[type="submit"].btn-primary {
     min-height: 44px; /* Apple's recommended minimum tap target */
     min-width: 44px;
   }
@@ -295,13 +295,15 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
   max-width: 100% !important;
 }
 
-/* Apply aggressive wrapping to all links globally with mobile optimization */
-a {
+/* Apply aggressive wrapping to content links (not layout elements) */
+.prose a,
+.ProseMirror a,
+.content-link {
   word-wrap: break-word !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
   max-width: 100% !important;
-  /* Better mobile touch targets */
+  /* Better mobile touch targets for content links */
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -309,12 +311,7 @@ a {
 
 /* Extra protection for TipTap content with mobile enhancements */
 .ProseMirror a {
-  word-wrap: break-word !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-word !important;
-  max-width: 100% !important;
   white-space: normal !important;
-  min-height: 32px;
 }
 
 /* Mobile-Enhanced Content Styling */
@@ -541,20 +538,20 @@ a {
 
   /* Unified Spacing Scale */
   .content-padding-1 {
-    @apply p-4 sm:p-6;
+    @apply p-2 sm:p-3;
   }
 
   .content-padding-2 {
-    @apply p-3 sm:p-4;
+    @apply p-2 sm:p-3;
   }
 
   .content-padding-compact {
-    @apply p-2 sm:p-3;
+    @apply p-1 sm:p-2;
   }
 
   /* Header Sections */
   .content-header {
-    @apply px-4 sm:px-6 pt-4 sm:pt-6 pb-3;
+    @apply px-3 sm:px-4 pt-3 sm:pt-4 pb-3;
     @apply border-b border-border/30 bg-muted/5;
   }
 
@@ -590,7 +587,7 @@ a {
   .vote-sidebar {
     @apply bg-muted/30 border-r border-border/40;
     @apply flex flex-col items-center justify-start;
-    @apply p-2 sm:p-3 md:p-4;
+    @apply p-1 sm:p-2;
   }
 
   /* Consistent Text Hierarchy */
@@ -621,15 +618,15 @@ a {
 
   /* Spacing Utilities */
   .content-gap-1 {
-    @apply space-y-4;
+    @apply space-y-2;
   }
 
   .content-gap-2 {
-    @apply space-y-6;
+    @apply space-y-3;
   }
 
   .content-gap-compact {
-    @apply space-y-2;
+    @apply space-y-1;
   }
 }
 

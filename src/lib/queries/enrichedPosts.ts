@@ -883,19 +883,57 @@ export async function searchPosts(
   filters: SearchFilters = {},
   limit = 10
 ): Promise<EnrichedPost[]> {
-  const queryResult = await buildSearchQuery(searchTerm, {
-    ...filters,
-    boardId: filters.boardId && accessibleBoardIds.includes(filters.boardId) ? filters.boardId : undefined
-  }, userId, limit);
+  // Build search query with proper board filtering from the start
+  const searchOptions: PostQueryOptions = {
+    userId,
+    searchTerm,
+    // If specific board requested and accessible, use it; otherwise filter by all accessible boards
+    boardId: filters.boardId && accessibleBoardIds.includes(filters.boardId) ? filters.boardId : undefined,
+    boardIds: (!filters.boardId || !accessibleBoardIds.includes(filters.boardId)) ? accessibleBoardIds : undefined,
+    tags: filters.tags,
+    authorId: filters.authorId,
+    createdAfter: filters.dateRange?.start,
+    createdBefore: filters.dateRange?.end,
+    limit,
+    includeUserVoting: !!userId,
+    includeShareStats: true,
+    includeLockInfo: true,
+    includeBoardInfo: true,
+    includeAuthorInfo: true
+  };
+
+  // Add additional search-specific filters
+  const queryResult = await buildPostsQuery(searchOptions);
   
-  // If boardId wasn't specified or isn't accessible, filter by accessible boards
-  if (!filters.boardId || !accessibleBoardIds.includes(filters.boardId)) {
-    const boardsFilter = EnrichedPostsQuery.forBoards(accessibleBoardIds, queryResult.paramIndex);
-    queryResult.sql = queryResult.sql.replace('WHERE ', `WHERE ${boardsFilter.clause} AND `);
-    queryResult.params.push(...boardsFilter.params);
+  // Add search-specific filters that aren't in PostQueryOptions
+  const additionalClauses: string[] = [];
+  const additionalParams: (string | number)[] = [];
+  let paramIndex = queryResult.paramIndex;
+  
+  if (filters.minUpvotes !== undefined) {
+    additionalClauses.push(`p.upvote_count >= $${paramIndex}`);
+    additionalParams.push(filters.minUpvotes);
+    paramIndex++;
   }
   
-  return executePostsQuery(queryResult);
+  if (filters.hasLock !== undefined) {
+    if (filters.hasLock) {
+      additionalClauses.push('p.lock_id IS NOT NULL');
+    } else {
+      additionalClauses.push('p.lock_id IS NULL');
+    }
+  }
+  
+  let sql = queryResult.sql;
+  if (additionalClauses.length > 0) {
+    sql = sql.replace('WHERE ', `WHERE ${additionalClauses.join(' AND ')} AND `);
+  }
+  
+  return executePostsQuery({
+    sql,
+    params: [...queryResult.params, ...additionalParams],
+    paramIndex
+  });
 }
 
 /**

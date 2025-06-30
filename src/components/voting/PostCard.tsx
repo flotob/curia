@@ -597,55 +597,58 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         {/* Main Content Section */}
         <div className="flex-grow relative min-w-0 overflow-hidden">
           {/* Post Header */}
-          <header className="content-header">
-            <div className="flex items-center content-meta mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
-              <div className="flex items-center min-w-0">
-                <UserProfilePopover
-                  userId={post.author_user_id}
-                  username={authorDisplayName}
-                  open={isAuthorPopoverOpen}
-                  onOpenChange={setIsAuthorPopoverOpen}
-                >
-                  <div className="author-display">
-                    <Avatar className="author-avatar">
-                      <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                      <AvatarFallback className="avatar-fallback">{avatarFallback}</AvatarFallback>
-                    </Avatar>
-                    <span className="author-name">
-                      {authorDisplayName}
-                    </span>
-                  </div>
-                </UserProfilePopover>
-              </div>
-              {showBoardContext && (
-                <div className="board-context">
-                  <span className="context-separator">in</span>
-                  {!isCurrentlyInThisBoard ? (
-                    <button 
-                      onClick={handleBoardClick}
-                      className="board-link"
-                    >
-                      {post.board_name}
-                    </button>
-                  ) : (
-                    <span className="board-name">{post.board_name}</span>
-                  )}
+          <header className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3">
+            <div className="flex items-center text-sm text-muted-foreground mb-3 flex-wrap gap-3">
+              <UserProfilePopover
+                userId={post.author_user_id}
+                username={authorDisplayName}
+                open={isAuthorPopoverOpen}
+                onOpenChange={setIsAuthorPopoverOpen}
+              >
+                <div className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer">
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                    <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">
+                    {authorDisplayName}
+                  </span>
                 </div>
+              </UserProfilePopover>
+              
+              {showBoardContext && (
+                <>
+                  <span className="text-muted-foreground/60">•</span>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-muted-foreground/80">in</span>
+                    {!isCurrentlyInThisBoard ? (
+                      <button 
+                        onClick={handleBoardClick}
+                        className="hover:text-primary transition-colors font-medium"
+                      >
+                        {post.board_name}
+                      </button>
+                    ) : (
+                      <span className="font-medium">{post.board_name}</span>
+                    )}
+                  </div>
+                </>
               )}
-              <div className="time-info">
-                <span className="time-separator">•</span>
-                <Clock size={12} className="time-icon" /> 
-                <span className="time-text">{timeSinceText}</span>
+              
+              <span className="text-muted-foreground/60">•</span>
+              <div className="flex items-center space-x-1">
+                <Clock size={12} className="text-muted-foreground/60" /> 
+                <span>{timeSinceText}</span>
               </div>
               
-              {/* Simple gated indicator */}
+              {/* Gated indicator */}
               {hasGating && (
                 <>
-                  <span className="gated-separator">•</span>
-                  <span className="gated-indicator">
-                    <Shield size={10} className="gated-icon" />
-                    Gated
-                  </span>
+                  <span className="text-muted-foreground/60">•</span>
+                  <div className="flex items-center space-x-1 text-blue-600 dark:text-blue-400">
+                    <Shield size={12} />
+                    <span className="text-xs font-medium">Gated</span>
+                  </div>
                 </>
               )}
             </div>
@@ -734,7 +737,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
           {/* Tags Section */}
           {(post.tags && post.tags.length > 0) && (
-            <div className="content-padding-compact">
+            <div className="px-3 sm:px-4 pb-2">
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {post.tags.map((tag, index) => (
                   <Button
@@ -753,7 +756,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           )}
 
           {/* Post Actions Footer */}
-          <footer className="flex justify-between items-center content-meta pt-2 pb-3 md:pb-4 px-3 sm:px-6">
+          <footer className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 px-3 sm:px-4">
             <div className="flex items-center gap-2 sm:gap-3">
               <Button 
                 variant="ghost" 
@@ -821,7 +824,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           </footer>
           
           {/* ReactionBar */}
-          <div className="px-3 sm:px-6 pb-3 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="px-3 sm:px-4 pb-2 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
             <ReactionBar 
               postId={post.id}
             />
@@ -883,12 +886,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
       {/* Comments Section - Conditionally Rendered (only for non-gated posts) */}
       {showComments && !hasGating && (
-        <section className="comments-section">
-          <div className="content-padding-2 content-gap-1">
-            <h3 className="content-subtitle">Comments</h3>
+        <section className="mt-4 border-t border-border/40 bg-muted/5 rounded-b-lg">
+          <div className="p-3 sm:p-4 space-y-4">
+            <h3 className="text-lg font-semibold flex items-center">
+              <MessageSquare size={20} className="mr-2" />
+              Comments
+            </h3>
             
-            {/* New Comment Form - Flattened */}
-            <div className="new-comment-form">
+            {/* New Comment Form */}
+            <div className="bg-background rounded-lg border border-border/50 shadow-sm">
               <NewCommentForm 
                 postId={post.id} 
                 post={post} 
@@ -896,7 +902,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 onCommentPosted={handleCommentPosted} 
               />
               {replyingToCommentId && (
-                <div className="mt-2 content-meta flex items-center justify-between">
+                <div className="px-3 pb-3 text-sm text-muted-foreground flex items-center justify-between">
                   <span>Replying to comment #{replyingToCommentId}</span>
                   <Button 
                     variant="ghost" 
