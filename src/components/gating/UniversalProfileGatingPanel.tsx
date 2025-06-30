@@ -5,6 +5,7 @@ import { useUPRequirementVerification } from '@/hooks/gating/up/useUPRequirement
 import { RichRequirementsDisplay } from '@/components/gating/RichRequirementsDisplay';
 import { EthereumSmartVerificationButton } from '../ethereum/EthereumSmartVerificationButton';
 import { useAuth } from '@/contexts/AuthContext';
+import { authFetch } from '@/utils/authFetch';
 
 interface UniversalProfileGatingPanelProps {
   requirements: UPGatingRequirements;
@@ -147,11 +148,10 @@ This signature proves you control this address and grants access based on lock r
       const signature = await signMessage(message);
 
       console.log('[UP] Submitting to generic verification endpoint...');
-      const verificationResponse = await fetch(`/api/locks/${lockId}/verify/universal_profile`, {
+      const verificationResponse = await authFetch(`/api/locks/${lockId}/verify/universal_profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           signature,

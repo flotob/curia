@@ -11,6 +11,30 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    rules: {
+      // Custom rule to prevent manual Authorization header construction
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[object.name='headers'][property.name='Authorization']",
+          message: "Use authFetch utility instead of manually constructing Authorization headers"
+        },
+        {
+          selector: "AssignmentExpression[left.type='MemberExpression'][left.object.name='headers'][left.property.name='Authorization']",
+          message: "Use authFetch utility instead of manually constructing Authorization headers"
+        },
+        {
+          selector: "Property[key.name='Authorization'][value.type='TemplateLiteral'][value.quasis.0.value.raw=/Bearer/]",
+          message: "Use authFetch utility instead of manually constructing Authorization headers"
+        },
+        {
+          selector: "Property[key.value='Authorization'][value.type='TemplateLiteral'][value.quasis.0.value.raw=/Bearer/]",
+          message: "Use authFetch utility instead of manually constructing Authorization headers"
+        }
+      ]
+    }
+  }
 ];
 
 export default eslintConfig;
