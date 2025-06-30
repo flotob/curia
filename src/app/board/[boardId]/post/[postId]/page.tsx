@@ -16,6 +16,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Home, MessageSquare } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
+import { 
+  layout, 
+  spacingClasses, 
+  typography, 
+  semanticColors, 
+  componentVariants,
+  recipes,
+  ComponentVariant 
+} from '@/lib/design-system/tokens';
 // URL builder utilities are now handled internally with buildInternalUrl
 
 interface PostDetailPageProps {
@@ -29,6 +38,9 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const [boardId, setBoardId] = useState<string>('');
   const [postId, setPostId] = useState<string>('');
   const [isSharedLinkRedirecting, setIsSharedLinkRedirecting] = useState(false);
+  
+  // Design system state
+  const [componentVariant, setComponentVariant] = useState<ComponentVariant>('comfortable');
   
   // All hooks must be called at the top level
   const { token, user } = useAuth();
@@ -226,40 +238,40 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   // Loading state
   if (isLoadingPost) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto space-y-6">
+      <div className={`${layout.container.lg} ${spacingClasses.xl}`}>
+        <div className={spacingClasses.lg}>
           {/* Breadcrumb Skeleton */}
-          <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-64" />
+          <div className={`h-6 ${semanticColors.surface.secondary} rounded animate-pulse w-64`} />
           
           {/* Post Skeleton */}
-          <Card>
+          <Card className={recipes.postCard[componentVariant]}>
             <CardHeader>
-              <div className="space-y-3">
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-32" />
-                <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+              <div className={componentVariants.card[componentVariant].spacing}>
+                <div className={`h-4 ${semanticColors.surface.secondary} rounded animate-pulse w-32`} />
+                <div className={`h-8 ${semanticColors.surface.secondary} rounded animate-pulse`} />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-3/4" />
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-1/2" />
+              <div className={componentVariants.card[componentVariant].spacing}>
+                <div className={`h-4 ${semanticColors.surface.secondary} rounded animate-pulse`} />
+                <div className={`h-4 ${semanticColors.surface.secondary} rounded animate-pulse w-3/4`} />
+                <div className={`h-4 ${semanticColors.surface.secondary} rounded animate-pulse w-1/2`} />
               </div>
             </CardContent>
           </Card>
 
           {/* Comments Skeleton */}
-          <Card>
+          <Card className={recipes.postCard[componentVariant]}>
             <CardHeader>
-              <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-24" />
+              <div className={`h-6 ${semanticColors.surface.secondary} rounded animate-pulse w-24`} />
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className={spacingClasses.md}>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-48" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-2/3" />
+                  <div key={i} className={spacingClasses.sm}>
+                    <div className={`h-4 ${semanticColors.surface.secondary} rounded animate-pulse w-48`} />
+                    <div className={`h-3 ${semanticColors.surface.secondary} rounded animate-pulse`} />
+                    <div className={`h-3 ${semanticColors.surface.secondary} rounded animate-pulse w-2/3`} />
                   </div>
                 ))}
               </div>
@@ -273,26 +285,28 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   // Error state
   if (postError || !post) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto text-center space-y-4">
-          <Card>
-            <CardContent className="py-12">
-              <h1 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-4">
+      <div className={`${layout.container.lg} ${spacingClasses.xl}`}>
+        <div className={`text-center ${spacingClasses.md}`}>
+          <Card className={recipes.postCard[componentVariant]}>
+            <CardContent className={`${componentVariants.density[componentVariant].padding} text-center`}>
+              <h1 className={`${typography.heading.h2.classes} ${semanticColors.content.primary} mb-4`}>
                 Post Not Found
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 mb-6">
+              <p className={`${typography.body.base.classes} ${semanticColors.content.secondary} mb-6`}>
                 {postError instanceof Error ? postError.message : 'The post you\'re looking for doesn\'t exist or you don\'t have permission to view it.'}
               </p>
-              <div className="space-x-4">
+              <div className={`flex gap-4 justify-center`}>
                 <Button 
                   onClick={() => handleNavigation(buildInternalUrl('/', { boardId: boardId }))}
                   variant="outline"
+                  className={componentVariants.button[componentVariant].size}
                 >
                   <ArrowLeft size={16} className="mr-2" />
                   Back to Board
                 </Button>
                 <Button 
                   onClick={() => handleNavigation(buildInternalUrl('/'))}
+                  className={componentVariants.button[componentVariant].size}
                 >
                   <Home size={16} className="mr-2" />
                   Go Home
@@ -306,59 +320,44 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 overflow-x-hidden">
-      <div className="max-w-4xl mx-auto space-y-6 w-full max-w-full">
-        {/* Breadcrumb Navigation */}
-        {/* <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink 
-                onClick={() => handleNavigation(buildHomeUrl())}
-                className="cursor-pointer hover:text-primary"
-              >
-                <Home size={16} className="mr-1" />
-                Home
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>
-              <ChevronRight size={16} />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbLink 
-                onClick={() => handleNavigation(buildBoardUrl(boardIdNum))}
-                className="cursor-pointer hover:text-primary"
-              >
-                {boardInfo?.name || `Board ${boardId}`}
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>
-              <ChevronRight size={16} />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbPage className="text-slate-600 dark:text-slate-400">
-                {post.title}
-              </BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb> */}
+    <div className={`${layout.container.lg} ${spacingClasses.xl} overflow-x-hidden`}>
+      <div className={`${spacingClasses.lg} w-full max-w-full`}>
+        {/* Design System Variant Selector - Development only */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className={`mb-4 p-4 ${semanticColors.surface.tertiary} rounded-lg`}>
+            <label className={`${typography.meta.label.classes} block mb-2`}>
+              Design Variant:
+            </label>
+            <select 
+              value={componentVariant} 
+              onChange={(e) => setComponentVariant(e.target.value as ComponentVariant)}
+              className={`${typography.body.small.classes} p-2 border rounded`}
+            >
+              <option value="dense">Dense</option>
+              <option value="comfortable">Comfortable</option>
+              <option value="spacious">Spacious</option>
+            </select>
+          </div>
+        )}
 
         {/* Post Detail Card - Full Content */}
         <PostCard 
           post={post} 
           showBoardContext={false}
           showFullContent={true}
+          variant={componentVariant}
           boardInfo={boardInfo}
         />
 
         {/* Comments Section */}
-        <Card>
+        <Card className={recipes.postCard[componentVariant]}>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <MessageSquare size={20} className="mr-2" />
+            <CardTitle className={`${layout.flex.start} ${typography.heading.h4.classes}`}>
+              <MessageSquare size={componentVariant === 'dense' ? 16 : componentVariant === 'spacious' ? 24 : 20} className="mr-2" />
               Comments {comments && `(${comments.length})`}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className={componentVariants.card[componentVariant].spacing}>
             {/* New Comment Form */}
             <div className="new-comment-form">
               <UniversalProfileProvider>
@@ -370,13 +369,13 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 />
               </UniversalProfileProvider>
               {replyingToCommentId && (
-                <div className="mt-2 text-sm text-muted-foreground flex items-center justify-between">
+                <div className={`mt-2 ${typography.body.small.classes} ${semanticColors.content.secondary} ${layout.flex.between}`}>
                   <span>Replying to comment #{replyingToCommentId}</span>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     onClick={() => setReplyingToCommentId(null)}
-                    className="text-xs"
+                    className={`${componentVariants.button[componentVariant].size} ${typography.body.tiny.classes}`}
                   >
                     Cancel Reply
                   </Button>
@@ -386,26 +385,27 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
             
             {/* Comments List */}
             {isLoadingComments ? (
-              <div className="space-y-4">
+              <div className={spacingClasses.md}>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-48" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-2/3" />
+                  <div key={i} className={spacingClasses.sm}>
+                    <div className={`h-4 ${semanticColors.surface.secondary} rounded animate-pulse w-48`} />
+                    <div className={`h-3 ${semanticColors.surface.secondary} rounded animate-pulse`} />
+                    <div className={`h-3 ${semanticColors.surface.secondary} rounded animate-pulse w-2/3`} />
                   </div>
                 ))}
               </div>
             ) : comments && comments.length > 0 ? (
               <CommentList 
                 postId={postIdNum} 
+                variant={componentVariant}
                 highlightCommentId={highlightedCommentId}
                 onCommentHighlighted={() => setHighlightedCommentId(null)}
                 onReply={handleReplyToComment}
               />
             ) : (
-              <div className="text-center py-8">
-                <MessageSquare size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-                <p className="text-slate-500 dark:text-slate-400">
+              <div className={`text-center ${spacingClasses.xl.replace('space-y-8', 'py-8')}`}>
+                <MessageSquare size={48} className={`mx-auto ${semanticColors.content.tertiary} mb-4`} />
+                <p className={`${typography.body.base.classes} ${semanticColors.content.secondary}`}>
                   No comments yet. Be the first to start the discussion!
                 </p>
               </div>

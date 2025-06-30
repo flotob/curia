@@ -7,9 +7,16 @@ import { CommentItem } from './CommentItem';
 import { authFetchJson } from '@/utils/authFetch'; // Using authFetchJson for consistency, though endpoint is public
 import { Loader2, MessageCircleWarning, MessagesSquare } from 'lucide-react';
 import { buildCommentTree, CommentTree } from '@/utils/commentTree';
+import { 
+  spacingClasses, 
+  typography, 
+  semanticColors, 
+  ComponentVariant 
+} from '@/lib/design-system/tokens';
 
 interface CommentListProps {
   postId: number;
+  variant?: ComponentVariant; // Design system variant
   highlightCommentId?: number | null; // New prop to highlight a specific comment
   onCommentHighlighted?: () => void; // Callback when highlight animation completes
   onReply?: (commentId: number) => void; // Callback when user clicks reply
@@ -21,6 +28,7 @@ const fetchComments = async (postId: number): Promise<ApiComment[]> => {
 
 export const CommentList: React.FC<CommentListProps> = ({ 
   postId, 
+  variant = 'comfortable',
   highlightCommentId,
   onCommentHighlighted,
   onReply 
@@ -73,6 +81,7 @@ export const CommentList: React.FC<CommentListProps> = ({
         <CommentItem 
           comment={tree.comment}
           depth={tree.depth}
+          variant={variant}
           onReply={onReply}
           isHighlighted={highlightCommentId === tree.comment.id}
           onHighlightComplete={onCommentHighlighted}
@@ -84,41 +93,41 @@ export const CommentList: React.FC<CommentListProps> = ({
         )}
       </div>
     ));
-  }, [highlightCommentId, onCommentHighlighted, onReply]);
+  }, [highlightCommentId, onCommentHighlighted, onReply, variant]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-4 text-muted-foreground">
+      <div className={`flex items-center justify-center ${spacingClasses.md.replace('space-y-4', 'py-4')} ${semanticColors.content.secondary}`}>
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        <span>Loading comments...</span>
+        <span className={typography.body.base.classes}>Loading comments...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-4 text-red-600">
+      <div className={`flex flex-col items-center justify-center ${spacingClasses.md.replace('space-y-4', 'py-4')} ${semanticColors.feedback.error.content}`}>
         <MessageCircleWarning className="h-8 w-8 mb-2" />
-        <p className="font-semibold">Error loading comments</p>
-        <p className="text-xs">{error.message}</p>
+        <p className={typography.meta.label.classes}>Error loading comments</p>
+        <p className={typography.body.tiny.classes}>{error.message}</p>
       </div>
     );
   }
 
   if (!comments || comments.length === 0 || commentTree.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
+      <div className={`flex flex-col items-center justify-center ${spacingClasses.md.replace('space-y-4', 'py-4')} ${semanticColors.content.secondary}`}>
         <MessagesSquare className="h-8 w-8 mb-2" />
-        <p>No comments yet.</p>
-        <p className="text-xs">Be the first to share your thoughts!</p>
+        <p className={typography.body.base.classes}>No comments yet.</p>
+        <p className={typography.body.tiny.classes}>Be the first to share your thoughts!</p>
       </div>
     );
   }
 
   return (
-    <div className="comment-list space-y-3">
+    <div className={`comment-list ${spacingClasses.sm}`}>
       {isFetching && (
-         <div className="absolute top-0 right-0 p-1 text-xs text-muted-foreground">
+         <div className={`absolute top-0 right-0 p-1 ${typography.body.tiny.classes} ${semanticColors.content.secondary}`}>
             <Loader2 className="h-3 w-3 animate-spin inline-block" /> Syncing...
         </div>
       )}

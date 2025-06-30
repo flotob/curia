@@ -42,6 +42,16 @@ import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
 import { ReactionBar } from '../reactions/ReactionBar';
 import { UserProfilePopover } from '../mentions/UserProfilePopover';
+import { 
+  spacingClasses, 
+  typography, 
+  semanticColors, 
+  componentVariants,
+  interactiveStates,
+  recipes,
+  ComponentVariant,
+  combineClasses 
+} from '@/lib/design-system/tokens';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -61,6 +71,7 @@ interface PostCardProps {
   post: ApiPost;
   showBoardContext?: boolean; // Whether to show "in BoardName" context
   showFullContent?: boolean;  // Whether to show full content (for detail pages)
+  variant?: ComponentVariant; // Design system variant
   boardInfo?: {               // Board context for shared board URL generation
     id: number;
     name: string;
@@ -73,7 +84,13 @@ interface PostCardProps {
 
 
 
-export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo }) => {
+export const PostCard: React.FC<PostCardProps> = ({ 
+  post, 
+  showBoardContext = false, 
+  showFullContent = false, 
+  variant = 'comfortable',
+  boardInfo 
+}) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
@@ -584,47 +601,77 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     };
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
+  // Calculate dynamic sizing based on variant
+  const voteButtonSize = variant === 'dense' ? 'sm' : variant === 'spacious' ? 'lg' : 'default';
+  const iconSize = componentVariants.button[variant].iconSize.split(' ')[0].replace('w-', '').replace('h-', '');
+  const iconSizeNum = parseInt(iconSize) * 4; // Convert to pixels (Tailwind's w-4 = 16px)
+
   return (
     <Card 
       id={`postcard-${post.id}`}
-      className={cn(
-        "w-full max-w-full overflow-x-hidden shadow-sm hover:shadow-md transition-shadow duration-200 group",
-        hasGating && "border-l-4 border-l-blue-500"
+      className={combineClasses(
+        recipes.postCard[variant],
+        "w-full max-w-full overflow-x-hidden group",
+        hasGating ? "border-l-4 border-l-blue-500" : undefined
       )} 
       style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
     >
       <div className="flex">
         {/* Vote Section */}
-        <div className="flex flex-col items-center justify-start p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-slate-800 border-r border-border">
+        <div className={combineClasses(
+          "flex flex-col items-center justify-start",
+          componentVariants.density[variant].padding,
+          semanticColors.surface.secondary,
+          semanticColors.surface.border,
+          "border-r"
+        )}>
           <VoteButton 
             postId={post.id} 
             initialUpvoteCount={post.upvote_count} 
             initialUserHasUpvoted={post.user_has_upvoted}
-            size="default"
+            size={voteButtonSize}
           />
         </div>
 
         {/* Main Content Section */}
         <div className="flex-grow relative min-w-0 overflow-hidden">
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
+          <CardHeader className={combineClasses(
+            "pb-2",
+            componentVariants.card[variant].padding.replace('p-', 'px-')
+          )}>
+            <div className={combineClasses(
+              "flex items-center",
+              typography.meta.caption.classes,
+              "mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden"
+            )}>
               <div className="flex items-center min-w-0">
-                              <UserProfilePopover
-                userId={post.author_user_id}
-                username={authorDisplayName}
-                open={isAuthorPopoverOpen}
-                onOpenChange={setIsAuthorPopoverOpen}
-              >
-                <div className="flex items-center min-w-0 cursor-pointer group/author">
-                  <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
-                    <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                    <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
-                  </Avatar>
-                  <span className="font-medium text-foreground truncate min-w-0 group-hover/author:text-primary transition-colors">
-                    {authorDisplayName}
-                  </span>
-                </div>
-              </UserProfilePopover>
+                <UserProfilePopover
+                  userId={post.author_user_id}
+                  username={authorDisplayName}
+                  open={isAuthorPopoverOpen}
+                  onOpenChange={setIsAuthorPopoverOpen}
+                >
+                  <div className={combineClasses(
+                    "flex items-center min-w-0 cursor-pointer group/author",
+                    interactiveStates.hover.link
+                  )}>
+                    <Avatar className={combineClasses(
+                      variant === 'dense' ? 'h-5 w-5' : variant === 'spacious' ? 'h-8 w-8' : 'h-6 w-6',
+                      "mr-2 flex-shrink-0",
+                      interactiveStates.hover.avatar
+                    )}>
+                      <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                      <AvatarFallback className={typography.body.tiny.classes}>{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                    <span className={combineClasses(
+                      typography.meta.label.classes,
+                      semanticColors.content.primary,
+                      "truncate min-w-0 group-hover/author:text-primary transition-colors"
+                    )}>
+                      {authorDisplayName}
+                    </span>
+                  </div>
+                </UserProfilePopover>
               </div>
               {showBoardContext && (
                 <div className="flex items-center min-w-0">

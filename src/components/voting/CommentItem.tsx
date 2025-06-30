@@ -27,12 +27,23 @@ import TiptapImage from '@tiptap/extension-image'; // For rendering images, if t
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
+import { 
+  spacingClasses, 
+  typography, 
+  semanticColors, 
+  componentVariants,
+  interactiveStates,
+  recipes,
+  ComponentVariant,
+  combineClasses 
+} from '@/lib/design-system/tokens';
 
 const lowlight = createLowlight(common);
 
 interface CommentItemProps {
   comment: ApiComment;
   depth?: number; // Nesting depth for indentation (default: 0)
+  variant?: ComponentVariant; // Design system variant
   onReply?: (commentId: number) => void; // Callback when user clicks reply
   isHighlighted?: boolean; // Whether this comment should be highlighted
   onHighlightComplete?: () => void; // Callback when highlight animation completes
@@ -41,6 +52,7 @@ interface CommentItemProps {
 export const CommentItem: React.FC<CommentItemProps> = ({ 
   comment, 
   depth = 0,
+  variant = 'comfortable',
   onReply,
   isHighlighted = false,
   onHighlightComplete 
@@ -192,11 +204,14 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   return (
     <div 
       id={`comment-${comment.id}`}
-      className={`flex items-start space-x-3 py-3 transition-all duration-500 ease-out rounded-lg ${
+      className={combineClasses(
+        recipes.comment[variant],
+        "flex items-start",
+        componentVariants.density[variant].spacing.replace('space-y-', 'space-x-'),
         showHighlight 
           ? 'bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 shadow-sm ring-1 ring-blue-200/50 dark:ring-blue-800/50' 
           : ''
-      }`}
+      )}
       style={{
         transform: showHighlight ? 'scale(1.01)' : 'scale(1)',
         transition: 'all 0.5s ease-out',
@@ -209,12 +224,25 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         open={isAuthorPopoverOpen}
         onOpenChange={setIsAuthorPopoverOpen}
       >
-        <div className="flex items-center space-x-2 cursor-pointer group/author">
-          <Avatar className="h-8 w-8 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
+        <div className={combineClasses(
+          "flex items-center",
+          spacingClasses.sm.replace('space-y-2', 'space-x-2'),
+          "cursor-pointer group/author",
+          interactiveStates.hover.link
+        )}>
+          <Avatar className={combineClasses(
+            variant === 'dense' ? 'h-6 w-6' : variant === 'spacious' ? 'h-10 w-10' : 'h-8 w-8',
+            "flex-shrink-0",
+            interactiveStates.hover.avatar
+          )}>
             <AvatarImage src={comment.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-            <AvatarFallback>{avatarFallback}</AvatarFallback>
+            <AvatarFallback className={typography.body.tiny.classes}>{avatarFallback}</AvatarFallback>
           </Avatar>
-          <span className="font-semibold text-foreground group-hover/author:text-primary transition-colors text-xs">
+          <span className={combineClasses(
+            typography.meta.label.classes,
+            semanticColors.content.primary,
+            "group-hover/author:text-primary transition-colors"
+          )}>
             {authorDisplayName}
           </span>
         </div>
