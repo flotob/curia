@@ -74,10 +74,15 @@ export abstract class AppError extends Error {
     this.requestId = requestId;
 
     // Maintains proper stack trace for where our error was thrown (Node.js)
-    if ((Error as any).captureStackTrace) {
-      (Error as any).captureStackTrace(this, this.constructor);
+    if ('captureStackTrace' in Error && typeof (Error as ErrorConstructorWithCapture).captureStackTrace === 'function') {
+      (Error as ErrorConstructorWithCapture).captureStackTrace(this, this.constructor as (...args: unknown[]) => unknown);
     }
   }
+}
+
+// Node.js Error interface extension for captureStackTrace
+interface ErrorConstructorWithCapture extends ErrorConstructor {
+  captureStackTrace(targetObject: object, constructorOpt?: (...args: unknown[]) => unknown): void;
 }
 
 /**

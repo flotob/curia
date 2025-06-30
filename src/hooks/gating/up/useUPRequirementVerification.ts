@@ -11,7 +11,6 @@ export const useUPRequirementVerification = (
   requirements: UPGatingRequirements,
 ): { isLoading: boolean, error: string | null, verificationStatus: ExtendedVerificationStatus } => {
   
-  const requirementsKey = JSON.stringify(requirements);
   const stableRequirements = useMemo(() => requirements, [requirements]);
 
   // === CHILD HOOKS ===

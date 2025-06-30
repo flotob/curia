@@ -8,14 +8,14 @@ export interface AsyncState<T> {
   lastUpdated: Date | null;
 }
 
-export interface AsyncActions<T> {
-  execute: (...args: any[]) => Promise<T>;
+export interface AsyncActions<T, TArgs extends unknown[] = unknown[]> {
+  execute: (...args: TArgs) => Promise<T>;
   reset: () => void;
   setData: (data: T | null) => void;
   setError: (error: string | null) => void;
 }
 
-export type UseAsyncStateResult<T> = AsyncState<T> & AsyncActions<T>;
+export type UseAsyncStateResult<T, TArgs extends unknown[] = unknown[]> = AsyncState<T> & AsyncActions<T, TArgs>;
 
 /**
  * Hook for managing async operations with consistent loading states
@@ -25,8 +25,8 @@ export type UseAsyncStateResult<T> = AsyncState<T> & AsyncActions<T>;
  * @param initialData - Initial data value (default: null)
  * @param options - Configuration options
  */
-export function useAsyncState<T>(
-  asyncFunction: (...args: any[]) => Promise<T>,
+export function useAsyncState<T, TArgs extends unknown[] = unknown[]>(
+  asyncFunction: (...args: TArgs) => Promise<T>,
   initialData: T | null = null,
   options: {
     /** Whether to execute the function immediately on mount */
@@ -38,7 +38,7 @@ export function useAsyncState<T>(
     /** Callback when operation fails */
     onError?: (error: Error) => void;
   } = {}
-): UseAsyncStateResult<T> {
+): UseAsyncStateResult<T, TArgs> {
   const { immediate = false, errorMessage, onSuccess, onError } = options;
   
   const [state, setState] = useState<AsyncState<T>>({
@@ -48,7 +48,7 @@ export function useAsyncState<T>(
     lastUpdated: null,
   });
 
-  const execute = useCallback(async (...args: any[]): Promise<T> => {
+  const execute = useCallback(async (...args: TArgs): Promise<T> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
@@ -125,7 +125,7 @@ export function useSimpleAsyncState<T>(
  * Common pattern for token metadata, profile data, etc.
  * Includes caching and retry logic.
  */
-export function useMetadataState<T = unknown>(
+export function useMetadataState<T = Record<string, unknown>>(
   cacheKey?: string,
   cacheDuration = 5 * 60 * 1000 // 5 minutes
 ) {
@@ -169,7 +169,7 @@ export function useMetadataState<T = unknown>(
  * Hook for async operations that need to track multiple states
  * Useful for complex forms or multi-step operations
  */
-export function useMultiAsyncState<T extends Record<string, any>>(
+export function useMultiAsyncState<T extends Record<string, unknown>>(
   initialStates: T
 ) {
   type StateKey = keyof T;
@@ -178,7 +178,7 @@ export function useMultiAsyncState<T extends Record<string, any>>(
   const [states, setStates] = useState<{
     [K in StateKey]: AsyncState<StateValue<K>>
   }>(() => {
-    const result = {} as any;
+    const result = {} as { [K in StateKey]: AsyncState<StateValue<K>> };
     for (const key in initialStates) {
       result[key] = {
         data: initialStates[key],

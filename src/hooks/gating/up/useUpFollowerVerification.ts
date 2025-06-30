@@ -15,7 +15,6 @@ export const useUpFollowerVerification = (
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const requirementsKey = JSON.stringify(requirements);
   const stableRequirements = useMemo(() => requirements, [requirements]);
 
   useEffect(() => {

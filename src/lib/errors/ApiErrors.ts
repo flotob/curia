@@ -8,7 +8,7 @@ export class ApiError extends Error {
     public message: string,
     public statusCode: number,
     public code?: string,
-    public details?: any
+    public details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ApiError';
@@ -28,7 +28,7 @@ export class ApiError extends Error {
  * Validation error (400)
  */
 export class ValidationError extends ApiError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: Record<string, unknown>) {
     super(message, 400, 'VALIDATION_ERROR', details);
     this.name = 'ValidationError';
   }
@@ -68,7 +68,7 @@ export class NotFoundError extends ApiError {
  * Conflict error (409)
  */
 export class ConflictError extends ApiError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: Record<string, unknown>) {
     super(message, 409, 'CONFLICT', details);
     this.name = 'ConflictError';
   }
@@ -78,7 +78,7 @@ export class ConflictError extends ApiError {
  * Internal server error (500)
  */
 export class InternalServerError extends ApiError {
-  constructor(message = 'Internal server error', details?: any) {
+  constructor(message = 'Internal server error', details?: Record<string, unknown>) {
     super(message, 500, 'INTERNAL_ERROR', details);
     this.name = 'InternalServerError';
   }

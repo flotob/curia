@@ -75,7 +75,6 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
   const [verificationState] = useState<'idle' | 'success_pending' | 'error_pending'>('idle');
 
   // Memoize requirements to prevent unnecessary re-renders
-  const requirementsKey = JSON.stringify(requirements);
   const stableRequirements = useMemo(() => requirements, [requirements]);
 
   // Handle disconnection

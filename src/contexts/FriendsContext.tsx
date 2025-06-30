@@ -31,6 +31,13 @@ interface CgInstance {
   }>;
 }
 
+// CG Friend data structure (raw from API)
+interface CgFriendData {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
 export interface FriendsSyncResult {
   totalReceived: number;
   syncedCount: number;
@@ -105,8 +112,8 @@ export const FriendsProvider: React.FC<FriendsProviderProps> = ({ children }) =>
 
         // Filter and clean friends data
         const cleanFriends = friends
-          .filter((friend: any) => friend.id && friend.name)
-          .map((friend: any) => ({
+          .filter((friend: CgFriendData) => friend.id && friend.name)
+          .map((friend: CgFriendData) => ({
             id: friend.id,
             name: friend.name,
             image: friend.imageUrl,
