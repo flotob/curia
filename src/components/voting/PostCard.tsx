@@ -576,13 +576,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
-    <article 
+    <div 
       id={`postcard-${post.id}`}
       className={cn(
         "post-container group",
         hasGating && "gated"
       )} 
-      style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
     >
       <div className="flex">
         {/* Vote Section */}
@@ -601,50 +600,50 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           <header className="content-header">
             <div className="flex items-center content-meta mb-2 flex-wrap gap-1 w-full max-w-full overflow-hidden">
               <div className="flex items-center min-w-0">
-                              <UserProfilePopover
-                userId={post.author_user_id}
-                username={authorDisplayName}
-                open={isAuthorPopoverOpen}
-                onOpenChange={setIsAuthorPopoverOpen}
-              >
-                <div className="flex items-center min-w-0 cursor-pointer group/author">
-                  <Avatar className="h-5 w-5 sm:h-6 sm:w-6 mr-2 flex-shrink-0 group-hover/author:ring-2 group-hover/author:ring-primary group-hover/author:ring-opacity-30 transition-all">
-                    <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
-                    <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
-                  </Avatar>
-                  <span className="font-medium text-foreground truncate min-w-0 group-hover/author:text-primary transition-colors">
-                    {authorDisplayName}
-                  </span>
-                </div>
-              </UserProfilePopover>
+                <UserProfilePopover
+                  userId={post.author_user_id}
+                  username={authorDisplayName}
+                  open={isAuthorPopoverOpen}
+                  onOpenChange={setIsAuthorPopoverOpen}
+                >
+                  <div className="author-display">
+                    <Avatar className="author-avatar">
+                      <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                      <AvatarFallback className="avatar-fallback">{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                    <span className="author-name">
+                      {authorDisplayName}
+                    </span>
+                  </div>
+                </UserProfilePopover>
               </div>
               {showBoardContext && (
-                <div className="flex items-center min-w-0">
-                  <span className="mx-1 flex-shrink-0">in</span>
+                <div className="board-context">
+                  <span className="context-separator">in</span>
                   {!isCurrentlyInThisBoard ? (
                     <button 
                       onClick={handleBoardClick}
-                      className="font-medium text-primary hover:text-primary/80 truncate cursor-pointer underline-offset-2 hover:underline transition-colors min-w-0"
+                      className="board-link"
                     >
                       {post.board_name}
                     </button>
                   ) : (
-                    <span className="font-medium text-primary truncate min-w-0">{post.board_name}</span>
+                    <span className="board-name">{post.board_name}</span>
                   )}
                 </div>
               )}
-              <div className="flex items-center min-w-0">
-                <span className="mx-1 flex-shrink-0">•</span>
-                <Clock size={12} className="mr-1 flex-shrink-0" /> 
-                <span className="truncate min-w-0">{timeSinceText}</span>
+              <div className="time-info">
+                <span className="time-separator">•</span>
+                <Clock size={12} className="time-icon" /> 
+                <span className="time-text">{timeSinceText}</span>
               </div>
               
               {/* Simple gated indicator */}
               {hasGating && (
                 <>
-                  <span className="mx-1 flex-shrink-0">•</span>
-                  <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
-                    <Shield size={10} className="mr-1" />
+                  <span className="gated-separator">•</span>
+                  <span className="gated-indicator">
+                    <Shield size={10} className="gated-icon" />
                     Gated
                   </span>
                 </>
@@ -661,39 +660,34 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               <h1 className="content-title pr-8 break-words">{post.title}</h1>
             )}
             {post.content && contentDisplayEditor && (
-              <div className="mt-1"> {/* Main container for content block + button */}
-                <div // Wrapper for text content and gradient
+              <div className="mt-1">
+                <div 
                   className={cn(
                     "relative", 
                     !isPostContentExpanded && "max-h-32 overflow-hidden"
                   )}
                 >
-                  <div // Inner Content area for prose styling and bottom padding for gradient
+                  <div 
                     className={cn(
                       "prose dark:prose-invert prose-sm sm:prose-base max-w-none focus:outline-none break-words overflow-hidden",
-                      // Aggressive link handling for mobile
                       "prose-a:break-words prose-a:max-w-full prose-a:overflow-wrap-anywhere prose-a:word-break-break-all prose-a:hyphens-auto",
-                      // Additional word wrapping for all elements
                       "prose-p:break-words prose-p:overflow-wrap-anywhere prose-code:break-words prose-code:overflow-wrap-anywhere",
-                      !isPostContentExpanded && "pb-8" // Increased padding for taller gradient + spacing
+                      !isPostContentExpanded && "pb-8"
                     )}
                     style={{ wordWrap: 'break-word', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                   >
                     <EditorContent editor={contentDisplayEditor} />
                   </div>
                   {!isPostContentExpanded && (
-                    <div // Gradient div, taller now
-                      className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none"
-                    />
+                    <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none" />
                   )}
                 </div>
 
-                {/* "Show more..." / "Show less..." buttons are now siblings, outside the overflow-hidden div */}
                 {!isPostContentExpanded && !showFullContent && (
-                  <div className="mt-1 text-left"> {/* Changed to text-left, removed text-center */}
+                  <div className="mt-1 text-left">
                      <Button 
-                        variant="link" // Reverted to link for text+icon style
-                        size="sm"      // Standard small size
+                        variant="link"
+                        size="sm"
                         onClick={() => setIsPostContentExpanded(true)} 
                         className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
                         aria-label="Show more content"
@@ -837,15 +831,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       
       {/* Move Post Dialog */}
       <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
-        <DialogContent className="sm:max-w-[425px] mx-4 max-w-[calc(100vw-2rem)]">
+        <DialogContent className="move-dialog">
           <DialogHeader>
-            <DialogTitle className="text-lg">Move Post to Another Board</DialogTitle>
-            <DialogDescription className="text-sm">
+            <DialogTitle className="move-title">Move Post to Another Board</DialogTitle>
+            <DialogDescription className="move-description">
               Select which board you want to move &quot;{post.title}&quot; to.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
+          <div className="move-content">
+            <div className="board-selection">
               <Label htmlFor="board-select">Select Board</Label>
               {accessibleBoardsList && accessibleBoardsList.length > 0 ? (
                 <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
@@ -856,9 +850,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                     {accessibleBoardsList.map((board) => (
                       <SelectItem key={board.id} value={board.id.toString()}>
                         <div>
-                          <div className="font-medium">{board.name}</div>
+                          <div className="board-option-name">{board.name}</div>
                           {board.description && (
-                            <div className="text-xs text-muted-foreground">{board.description}</div>
+                            <div className="board-option-desc">{board.description}</div>
                           )}
                         </div>
                       </SelectItem>
@@ -866,32 +860,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="p-3 border rounded-md bg-muted/50">
-                  <p className="text-sm text-muted-foreground">Loading boards...</p>
+                <div className="loading-boards">
+                  <p className="loading-text">Loading boards...</p>
                 </div>
               )}
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="w-full sm:w-auto">
+          <DialogFooter className="move-footer">
+            <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="cancel-button">
               Cancel
             </Button>
             <Button 
               onClick={handleMovePost}
               disabled={!selectedBoardId || movePostMutation.isPending}
-              className="w-full sm:w-auto"
+              className="move-button"
             >
-              {movePostMutation.isPending ? (
-                <>
-                  <Move className="mr-2 h-4 w-4 animate-spin" />
-                  Moving...
-                </>
-              ) : (
-                <>
-                  <Move className="mr-2 h-4 w-4" />
-                  Move Post
-                </>
-              )}
+              {movePostMutation.isPending ? 'Moving...' : 'Move Post'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -951,6 +935,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         isGenerating={isGeneratingShareUrl}
         isWebShareFallback={isWebShareFallback}
       />
-    </article>
+    </div>
   );
 }; 

@@ -204,15 +204,15 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   // Early return for shared link redirect state
   if (isSharedLinkRedirecting) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto text-center content-gap-1">
+      <div className="mobile-container">
+        <div className="content-wrapper text-center content-gap-1">
           <div className="skeleton-container">
             <div className="skeleton-content text-center">
-              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-              <h1 className="content-title text-slate-700 dark:text-slate-300 mb-2">
+              <div className="loading-spinner"></div>
+              <h1 className="loading-title">
                 Opening in Common Ground...
               </h1>
-              <p className="content-meta text-slate-500 dark:text-slate-400">
+              <p className="loading-text">
                 Redirecting to the full forum experience...
               </p>
             </div>
@@ -225,24 +225,24 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   // Loading state
   if (isLoadingPost) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto content-gap-2">
+      <div className="mobile-container">
+        <div className="content-wrapper">
           {/* Breadcrumb Skeleton */}
-          <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-64" />
+          <div className="skeleton-line w-64" />
           
           {/* Post Skeleton */}
           <div className="skeleton-container">
             <header className="skeleton-header">
               <div className="content-gap-compact">
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-32" />
-                <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                <div className="skeleton-line w-32" />
+                <div className="skeleton-line" />
               </div>
             </header>
             <div className="skeleton-content">
               <div className="content-gap-compact">
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-3/4" />
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-1/2" />
+                <div className="skeleton-line" />
+                <div className="skeleton-line w-3/4" />
+                <div className="skeleton-line w-1/2" />
               </div>
             </div>
           </div>
@@ -250,15 +250,15 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           {/* Comments Skeleton */}
           <div className="skeleton-container">
             <header className="skeleton-header">
-              <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-24" />
+              <div className="skeleton-line w-24" />
             </header>
             <div className="skeleton-content">
               <div className="content-gap-1">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="content-gap-compact">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-48" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-2/3" />
+                  <div key={i} className="skeleton-comment">
+                    <div className="skeleton-line w-48" />
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line w-2/3" />
                   </div>
                 ))}
               </div>
@@ -272,17 +272,17 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   // Error state
   if (postError || !post) {
     return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-4xl mx-auto text-center content-gap-1">
+      <div className="mobile-container">
+        <div className="content-wrapper error-state">
           <div className="skeleton-container">
             <div className="skeleton-content text-center">
-              <h1 className="content-title text-slate-700 dark:text-slate-300 mb-4">
+              <h1 className="error-title">
                 Post Not Found
               </h1>
-              <p className="content-meta text-slate-500 dark:text-slate-400 mb-6">
+              <p className="error-text">
                 {postError instanceof Error ? postError.message : 'The post you\'re looking for doesn\'t exist or you don\'t have permission to view it.'}
               </p>
-              <div className="space-x-4">
+              <div className="error-actions">
                 <Button 
                   onClick={() => handleNavigation(buildInternalUrl('/', { boardId: boardId }))}
                   variant="outline"
@@ -305,42 +305,8 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 overflow-x-hidden">
-      <div className="max-w-4xl mx-auto content-gap-2 w-full max-w-full">
-        {/* Breadcrumb Navigation */}
-        {/* <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink 
-                onClick={() => handleNavigation(buildHomeUrl())}
-                className="cursor-pointer hover:text-primary"
-              >
-                <Home size={16} className="mr-1" />
-                Home
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>
-              <ChevronRight size={16} />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbLink 
-                onClick={() => handleNavigation(buildBoardUrl(boardIdNum))}
-                className="cursor-pointer hover:text-primary"
-              >
-                {boardInfo?.name || `Board ${boardId}`}
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>
-              <ChevronRight size={16} />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbPage className="text-slate-600 dark:text-slate-400">
-                {post.title}
-              </BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb> */}
-
+    <div className="mobile-container">
+      <div className="content-wrapper">
         {/* Post Detail Card - Full Content */}
         <PostCard 
           post={post} 
@@ -353,7 +319,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
         <section className="content-level-1">
           {/* Comments Header */}
           <header className="content-header">
-            <h2 className="content-title flex items-center">
+            <h2 className="comments-header">
               <MessageSquare size={20} className="mr-2" />
               Comments {comments && `(${comments.length})`}
             </h2>
@@ -371,13 +337,13 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 />
               </UniversalProfileProvider>
               {replyingToCommentId && (
-                <div className="mt-2 content-meta flex items-center justify-between">
+                <div className="reply-indicator">
                   <span>Replying to comment #{replyingToCommentId}</span>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     onClick={() => setReplyingToCommentId(null)}
-                    className="text-xs"
+                    className="cancel-reply"
                   >
                     Cancel Reply
                   </Button>
@@ -387,12 +353,12 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
             
             {/* Comments List */}
             {isLoadingComments ? (
-              <div className="content-gap-1">
+              <div className="comments-loading">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="content-gap-compact">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-48" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse w-2/3" />
+                  <div key={i} className="skeleton-comment">
+                    <div className="skeleton-line w-48" />
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line w-2/3" />
                   </div>
                 ))}
               </div>
@@ -404,9 +370,9 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 onReply={handleReplyToComment}
               />
             ) : (
-              <div className="text-center py-8">
-                <MessageSquare size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-                <p className="content-meta text-slate-500 dark:text-slate-400">
+              <div className="empty-comments">
+                <MessageSquare size={48} className="empty-icon" />
+                <p className="empty-text">
                   No comments yet. Be the first to start the discussion!
                 </p>
               </div>
@@ -414,6 +380,230 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
           </div>
         </section>
       </div>
+      
+      <style jsx>{`
+        /* Mobile-First Container System */
+        .mobile-container {
+          container-type: inline-size;
+          width: 100%;
+          min-height: 100vh;
+          padding: 0.75rem;
+          background: hsl(var(--background));
+        }
+        
+        .content-wrapper {
+          width: 100%;
+          max-width: min(100%, 4xl);
+          margin: 0 auto;
+          display: grid;
+          gap: 1rem;
+          grid-template-columns: 1fr;
+        }
+        
+        /* Container Queries for Progressive Enhancement */
+        @container (min-width: 768px) {
+          .mobile-container {
+            padding: 1.5rem;
+          }
+          
+          .content-wrapper {
+            gap: 1.5rem;
+          }
+        }
+        
+        @container (min-width: 1024px) {
+          .mobile-container {
+            padding: 2rem;
+          }
+          
+          .content-wrapper {
+            gap: 2rem;
+          }
+        }
+        
+        /* Loading States */
+        .content-center {
+          padding: 3rem 1rem;
+          text-align: center;
+        }
+        
+        .loading-spinner {
+          width: 2rem;
+          height: 2rem;
+          border: 2px solid hsl(var(--primary));
+          border-top: 2px solid transparent;
+          border-radius: 50%;
+          margin: 0 auto 1rem;
+          animation: spin 1s linear infinite;
+        }
+        
+        .loading-title {
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: hsl(var(--foreground) / 0.8);
+          margin-bottom: 0.5rem;
+        }
+        
+        .loading-text {
+          color: hsl(var(--muted-foreground));
+        }
+        
+        /* Error States */
+        .error-state .content-center {
+          padding: 3rem 1rem;
+        }
+        
+        .error-title {
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: hsl(var(--foreground) / 0.8);
+          margin-bottom: 1rem;
+        }
+        
+        .error-text {
+          color: hsl(var(--muted-foreground));
+          margin-bottom: 1.5rem;
+          line-height: 1.6;
+        }
+        
+        .error-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          align-items: center;
+        }
+        
+        @container (min-width: 640px) {
+          .error-actions {
+            flex-direction: row;
+            justify-content: center;
+          }
+        }
+        
+        /* Comments Section */
+        .comments-header {
+          display: flex;
+          align-items: center;
+          font-size: 1rem;
+          font-weight: 600;
+        }
+        
+        @container (min-width: 768px) {
+          .comments-header {
+            font-size: 1.125rem;
+          }
+        }
+        
+        .reply-indicator {
+          margin-top: 0.5rem;
+          font-size: 0.875rem;
+          color: hsl(var(--muted-foreground));
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        
+        .cancel-reply {
+          font-size: 0.75rem;
+        }
+        
+        /* Empty State */
+        .empty-comments {
+          text-align: center;
+          padding: 2rem 1rem;
+        }
+        
+        .empty-icon {
+          margin: 0 auto 1rem;
+          color: hsl(var(--muted-foreground) / 0.5);
+        }
+        
+        .empty-text {
+          color: hsl(var(--muted-foreground));
+          line-height: 1.6;
+        }
+        
+        /* Skeleton Loading */
+        .skeleton-line {
+          height: 1rem;
+          background: hsl(var(--muted) / 0.3);
+          border-radius: 0.25rem;
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .skeleton-content {
+          display: grid;
+          gap: 0.75rem;
+        }
+        
+        .skeleton-comment {
+          display: grid;
+          gap: 0.5rem;
+          padding: 0.75rem 0;
+          border-bottom: 1px solid hsl(var(--border) / 0.3);
+        }
+        
+        .comments-loading {
+          display: grid;
+          gap: 1rem;
+        }
+        
+        /* Animation Keyframes */
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+        
+        /* Responsive Typography Scale */
+        .content-wrapper {
+          font-size: 0.875rem;
+          line-height: 1.5;
+        }
+        
+        @container (min-width: 640px) {
+          .content-wrapper {
+            font-size: 0.9375rem;
+            line-height: 1.6;
+          }
+        }
+        
+        @container (min-width: 768px) {
+          .content-wrapper {
+            font-size: 1rem;
+            line-height: 1.6;
+          }
+        }
+        
+        /* Prevent Horizontal Scroll */
+        .mobile-container,
+        .content-wrapper,
+        .mobile-container * {
+          box-sizing: border-box;
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+        }
+        
+        .content-wrapper {
+          overflow-x: hidden;
+          width: 100%;
+          min-width: 0;
+        }
+      `}</style>
     </div>
   );
 } 
