@@ -15,6 +15,8 @@ import { Separator } from '@/components/ui/separator';
 import { 
   Shield, 
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   RefreshCw
 } from 'lucide-react';
 
@@ -47,8 +49,7 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   const { 
     data: gatingData, 
     isLoading: gatingLoading, 
-    error: gatingError,
-    refetch: refetchGating 
+    error: gatingError
   } = useGatingRequirements(postId);
   
   // Posts with locks use lock verification, posts without locks have no gating
@@ -79,8 +80,7 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   const { 
     data: verificationStatus, 
     isLoading: statusLoading, 
-    error: statusError,
-    refetch: refetchStatus 
+    error: statusError
   } = hasLockId ? contextualVerification : noVerificationResponse;
   
   // Hook to invalidate verification status after user actions
@@ -93,6 +93,7 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
   // ===== LOCAL STATE =====
   
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true); // Default collapsed
   
   // ===== AUTO-EXPAND LOGIC =====
   
@@ -155,12 +156,9 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
     });
   }, []);
 
-  const refreshData = useCallback(async () => {
-    await Promise.all([
-      refetchGating(),
-      refetchStatus()
-    ]);
-  }, [refetchGating, refetchStatus]);
+  const toggleCollapsed = useCallback(() => {
+    setIsCollapsed(prev => !prev);
+  }, []);
 
   // ===== RENDER HELPERS =====
   // Note: Status rendering moved to RichCategoryHeader component
@@ -296,11 +294,15 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
             <Button
               variant="ghost"
               size="sm"
-              onClick={refreshData}
-              disabled={loading}
+              onClick={toggleCollapsed}
               className="h-8 w-8 p-0"
+              title={isCollapsed ? "Show verification details" : "Hide verification details"}
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {isCollapsed ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronUp className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -332,20 +334,23 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
         )}
       </CardHeader>
 
-      <CardContent className="space-y-3">
-        {enabledCategories.map(renderCategorySlot)}
-        
-        {/* Help Text */}
-        <Separator />
-        <div className="text-center">
-          <div className="text-xs text-muted-foreground">
-            {gatingData.requireAll 
-              ? "Connect and verify all categories above to unlock commenting"
-              : "Connect and verify any one category above to unlock commenting"
-            }
+      {/* Collapsible Content */}
+      {!isCollapsed && (
+        <CardContent className="space-y-3 animate-in slide-in-from-top-1 duration-200">
+          {enabledCategories.map(renderCategorySlot)}
+          
+          {/* Help Text */}
+          <Separator />
+          <div className="text-center">
+            <div className="text-xs text-muted-foreground">
+              {gatingData.requireAll 
+                ? "Connect and verify all categories above to unlock commenting"
+                : "Connect and verify any one category above to unlock commenting"
+              }
+            </div>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }; 
