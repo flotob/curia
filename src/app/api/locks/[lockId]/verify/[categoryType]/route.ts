@@ -26,6 +26,7 @@ import { GatingCategory } from '@/types/gating';
 import { verifyPostGatingRequirements } from '@/lib/verification';
 import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
 import { EthereumGatingRequirements, UPGatingRequirements } from '@/types/gating';
+import { calculateExpirationDate, getBoardExpirationHours } from '@/lib/verification/config';
 
 interface GenericVerificationRequest {
   signature: string;
@@ -178,23 +179,17 @@ async function genericVerificationHandler(
       } as GenericVerificationResponse, { status: 400 });
     }
 
-    // Calculate expiration time based on context
-    let expirationHours = 30 / 60; // Default: 30 minutes for posts
+    // Calculate expiration time using configuration system
+    let expiresAt: Date;
     
     if (verificationContext.type === 'board') {
-      // For board verification, use longer duration (4 hours default)
-      expirationHours = 4;
-      
-      // TODO: Could fetch board settings to get custom verification duration
-      // const boardResult = await query('SELECT settings FROM boards WHERE id = $1', [verificationContext.id]);
-      // if (boardResult.rows.length > 0) {
-      //   const boardSettings = boardResult.rows[0].settings || {};
-      //   const lockGating = boardSettings.permissions?.locks;
-      //   expirationHours = lockGating?.verificationDuration || 4;
-      // }
+      // For board verification, use configuration-driven duration
+      const hours = await getBoardExpirationHours(verificationContext.id);
+      expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    } else {
+      // For post verification, use configuration-driven duration
+      expiresAt = calculateExpirationDate('post');
     }
-    
-    const expiresAt = new Date(Date.now() + expirationHours * 60 * 60 * 1000);
 
     // Store verification in database
     const verificationDataToStore = {
