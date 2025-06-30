@@ -3,6 +3,7 @@ import { AuthenticatedRequest, withAuth, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 import { ApiPost } from '@/app/api/posts/route';
+import { getSinglePost } from '@/lib/queries/enrichedPosts';
 
 // GET a single post by ID with board access control and enhanced data
 async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteContext) {
@@ -20,56 +21,15 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
   try {
     console.log(`[API] GET /api/posts/${postId} called by user ${userId}`);
 
-    // Get post with all related data in a single query including share statistics
-    const result = await query(`
-      SELECT 
-        p.id,
-        p.author_user_id,
-        p.title,
-        p.content,
-        p.tags,
-        p.settings,
-        p.upvote_count,
-        p.comment_count,
-        p.created_at,
-        p.updated_at,
-        p.board_id,
-        b.name as board_name,
-        b.settings as board_settings,
-        b.community_id,
-        u.name as author_name,
-        u.profile_picture_url as author_profile_picture_url,
-        CASE WHEN v.user_id IS NOT NULL THEN true ELSE false END as user_has_upvoted,
-        COALESCE(share_stats.total_access_count, 0) as share_access_count,
-        COALESCE(share_stats.share_count, 0) as share_count,
-        share_stats.last_shared_at,
-        share_stats.most_recent_access_at,
-        p.lock_id,
-        l.gating_config
-      FROM posts p
-      JOIN boards b ON p.board_id = b.id  
-      JOIN users u ON p.author_user_id = u.user_id
-      LEFT JOIN votes v ON p.id = v.post_id AND v.user_id = $2
-      LEFT JOIN locks l ON p.lock_id = l.id
-      LEFT JOIN (
-        SELECT 
-          post_id,
-          SUM(access_count) as total_access_count,
-          COUNT(*) as share_count,
-          MAX(created_at) as last_shared_at,
-          MAX(last_accessed_at) as most_recent_access_at
-        FROM links 
-        WHERE expires_at IS NULL OR expires_at > NOW()
-        GROUP BY post_id
-      ) share_stats ON p.id = share_stats.post_id
-      WHERE p.id = $1
-    `, [postId, userId || null]);
+    // 🚀 MIGRATED TO ENRICHED POSTS UTILITIES - 90% less code, better performance  
+    // BEFORE: 30+ lines of complex 6-table JOIN with manual share statistics aggregation
+    // AFTER: 1 line using optimized getSinglePost function
 
-    if (result.rows.length === 0) {
+    const postData = await getSinglePost(postId, userId);
+
+    if (!postData) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
-
-    const postData = result.rows[0];
     
     // Verify user can access the board (handles both owned and shared boards)
     const resolvedBoard = await resolveBoard(postData.board_id, userCommunityId || '');
@@ -95,11 +55,11 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
       : (postData.settings || {});
 
     // Overwrite gating config from lock if it exists
-    if (postData.lock_id && postData.gating_config) {
+    if (postData.lock_id && postData.lock_gating_config) {
       console.log(`[API GET /api/posts/${postId}] Post is using Lock ${postData.lock_id}. Overwriting gating config.`);
-      const lockConfig = typeof postData.gating_config === 'string'
-        ? JSON.parse(postData.gating_config)
-        : postData.gating_config;
+      const lockConfig = typeof postData.lock_gating_config === 'string'
+        ? JSON.parse(postData.lock_gating_config)
+        : postData.lock_gating_config;
       
       settings.responsePermissions = lockConfig;
     }
@@ -118,7 +78,7 @@ async function getSinglePostHandler(req: AuthenticatedRequest, context: RouteCon
       updated_at: postData.updated_at,
       author_name: postData.author_name,
       author_profile_picture_url: postData.author_profile_picture_url,
-      user_has_upvoted: postData.user_has_upvoted,
+      user_has_upvoted: postData.user_has_upvoted || false,
       board_id: postData.board_id,
       board_name: postData.board_name,
       lock_id: postData.lock_id,
