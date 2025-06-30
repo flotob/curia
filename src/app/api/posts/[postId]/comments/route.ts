@@ -7,10 +7,8 @@ import { canUserAccessBoard, resolveBoard } from '@/lib/boardPermissions';
 export const runtime = 'nodejs';
 
 // Import shared verification infrastructure
-import { verifyPostGatingRequirements } from '@/lib/verification';
-import { SettingsUtils, PostSettings } from '@/types/settings';
-import { verifyEthereumGatingRequirements } from '@/lib/ethereum/verification';
-import { EthereumGatingRequirements, UPGatingRequirements, GatingCategory } from '@/types/gating';
+import { PostSettings } from '@/types/settings';
+import { GatingCategory } from '@/types/gating';
 import { getUserVerifiedLocks } from '@/lib/queries/lockVerification';
 
 // Interface for the structure of a comment when returned by the API

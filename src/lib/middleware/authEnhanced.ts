@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { UnauthorizedError, ForbiddenError, ApiError, ValidationError } from '@/lib/errors/ApiErrors';
 

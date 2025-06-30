@@ -96,7 +96,7 @@ export default function HomePage() {
    * Preserves: cg_theme, boardId, and any other existing URL parameters
    * Adds/overrides: any additional parameters provided
    */
-  const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
+  const buildUrl = useCallback((path: string, additionalParams: Record<string, string> = {}) => {
     const params = new URLSearchParams();
     
     // Preserve existing params
@@ -112,7 +112,7 @@ export default function HomePage() {
     });
     
     return `${path}?${params.toString()}`;
-  };
+  }, [searchParams]);
 
   /**
    * Builds post navigation URLs with shared board context awareness.

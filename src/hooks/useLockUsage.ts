@@ -25,11 +25,7 @@ export interface LockUsageData {
   totalBoardsUsingLock: number;
 }
 
-interface LockUsageResponse {
-  success: boolean;
-  data: LockUsageData;
-  error?: string;
-}
+// LockUsageResponse interface removed - using direct LockUsageData with unwrap
 
 export function useLockUsage(lockId: number) {
   return useAuthenticatedQueryWithUnwrap<LockUsageData>(

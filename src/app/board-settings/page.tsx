@@ -8,7 +8,7 @@ import { authFetchJson } from '@/utils/authFetch';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useCommunityData } from '@/hooks/useCommunityData';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
-import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
+// ApiCommunity removed - using centralized community data hook
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { BoardSettings, SettingsUtils } from '@/types/settings';
 // Card components moved to CollapsibleSection

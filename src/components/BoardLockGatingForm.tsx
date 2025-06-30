@@ -78,7 +78,8 @@ export const BoardLockGatingForm: React.FC<BoardLockGatingFormProps> = ({
       
       return () => clearTimeout(timeoutId);
     }
-  }, [settings, hasChanges, autoSave]); // 🚀 REMOVED onSave from dependencies to prevent infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, hasChanges, autoSave]); // onSave intentionally excluded to prevent infinite loops
 
   const loadSelectedLockDetails = useCallback(async () => {
     if (lockGating.lockIds.length === 0) return;

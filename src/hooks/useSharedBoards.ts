@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedQuery, useAuthenticatedMutation } from './useAuthenticatedQuery';
 import { authFetchJson } from '@/utils/authFetch';
 import { ImportedBoard, ImportableBoardsData, ImportBoardRequest } from '@/types/sharedBoards';

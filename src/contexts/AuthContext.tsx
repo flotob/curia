@@ -95,16 +95,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Fetch user stats from enhanced /api/me endpoint - optimized to have no dependencies
   const fetchUserStats = useCallback(async (authToken: string) => {
     try {
-      const response = await fetch('/api/me', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return data.stats;
-      }
+      // Import authFetchJson dynamically to avoid circular dependencies
+      const { authFetchJson } = await import('@/utils/authFetch');
+      const data = await authFetchJson<{ stats: AuthUser['stats'] }>('/api/me', { token: authToken });
+      return data.stats;
     } catch (error) {
       console.error('[AuthContext] Failed to fetch user stats:', error);
     }

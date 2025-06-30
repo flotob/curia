@@ -1,6 +1,6 @@
 import { useQuery, useMutation, UseQueryOptions, UseMutationOptions, QueryKey } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { authFetch, authFetchJson } from '@/utils/authFetch';
+import { authFetchJson } from '@/utils/authFetch';
 
 // Configuration constants for consistent React Query behavior
 export const QUERY_DEFAULTS = {

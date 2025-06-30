@@ -17,7 +17,7 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
   children, 
   theme = 'light' 
 }) => {
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { cgInstance } = useCgLib();
 
   // Fetch community info for role names

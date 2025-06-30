@@ -139,11 +139,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     queryFn: async () => {
       if (!token) throw new Error('No auth token available');
       console.log('[SocketContext DEBUG] Fetching partnerships for community:', currentCommunityId);
-      const response = await fetch('/api/communities/partnerships?status=accepted', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch partnerships');
-      const data = await response.json();
+      // Import authFetchJson dynamically to avoid circular dependencies
+      const { authFetchJson } = await import('@/utils/authFetch');
+      const data = await authFetchJson<{ success: boolean; data: Partnership[] }>('/api/communities/partnerships?status=accepted', { token });
       console.log('[SocketContext DEBUG] Partnership API response:', data);
       return data;
     },
