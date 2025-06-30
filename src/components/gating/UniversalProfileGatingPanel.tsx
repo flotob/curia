@@ -13,6 +13,13 @@ interface UniversalProfileGatingPanelProps {
   onVerificationComplete?: () => void;
   isPreviewMode?: boolean;
   postId?: number;
+  verificationContext?: {
+    type: 'board' | 'post' | 'preview';
+    communityId?: string;
+    boardId?: number;
+    postId?: number;
+    lockId?: number;
+  };
 }
 
 export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelProps> = ({
@@ -21,7 +28,8 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
   onStatusUpdate,
   onVerificationComplete,
   isPreviewMode,
-  postId
+  postId,
+  verificationContext
 }) => {
   const { upAddress, connect, disconnect, signMessage } = useUniversalProfile();
   const { token } = useAuth();
@@ -91,9 +99,23 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
       return;
     }
 
-    // For post verification, we need upAddress, token, and postId
-    if (!upAddress || !token || !postId) {
-      console.error('[UP] Missing required data for verification:', { upAddress: !!upAddress, token: !!token, postId });
+    if (!upAddress || !token) {
+      console.error('[UP] Missing required data for verification:', { upAddress: !!upAddress, token: !!token });
+      return;
+    }
+
+    // Determine verification context
+    const context = verificationContext || (postId ? { type: 'post' as const, postId } : null);
+    
+    if (!context) {
+      console.error('[UP] No verification context provided');
+      return;
+    }
+
+    // Use generic verification flow for all contexts
+    const lockId = context.lockId;
+    if (!lockId) {
+      setServerError('Missing lockId for verification');
       return;
     }
 
@@ -101,62 +123,69 @@ export const UniversalProfileGatingPanel: React.FC<UniversalProfileGatingPanelPr
     setServerError(null);
     
     try {
-      // Step 1: Generate proper challenge from server (like Ethereum does)
-      console.log('[UP] Generating challenge from server...');
-      const challengeResponse = await fetch(`/api/posts/${postId}/challenge`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          upAddress,
-        }),
-      });
-
-      if (!challengeResponse.ok) {
-        const errorData = await challengeResponse.json();
-        throw new Error(errorData.error || 'Failed to generate challenge');
+      // Determine verification context
+      let verifyContext: { type: 'post' | 'board'; id: number };
+      if (context.type === 'board') {
+        verifyContext = { type: 'board', id: context.boardId! };
+      } else if (context.type === 'post') {
+        verifyContext = { type: 'post', id: context.postId || postId! };
+      } else {
+        throw new Error(`Unsupported verification context type: ${context.type}`);
       }
 
-      const { challenge, message } = await challengeResponse.json();
-      console.log('[UP] Challenge generated successfully:', challenge);
+      // Create standardized signing message
+      const message = `Verify universal_profile for lock access
+Lock ID: ${lockId}
+Address: ${upAddress}
+Context: ${verifyContext.type}:${verifyContext.id}
+Timestamp: ${Date.now()}
+Chain: LUKSO
 
-      // Step 2: Sign the challenge message
-      console.log('[UP] Signing challenge message...');
+This signature proves you control this address and grants access based on lock requirements.`;
+
+      console.log('[UP] Signing verification message...');
       const signature = await signMessage(message);
 
-      // Step 3: Send complete challenge with signature for verification
-      console.log('[UP] Submitting signed challenge for verification...');
-      const verificationResponse = await fetch(`/api/posts/${postId}/pre-verify/universal_profile`, {
+      console.log('[UP] Submitting to generic verification endpoint...');
+      const verificationResponse = await fetch(`/api/locks/${lockId}/verify/universal_profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          challenge: {
-            ...challenge,
-            signature,
-          },
+          signature,
+          message,
+          address: upAddress,
+          context: verifyContext,
+          verificationData: {
+            requirements
+          }
         }),
       });
 
       if (!verificationResponse.ok) {
         const errorData = await verificationResponse.json();
-        throw new Error(errorData.error || 'Server verification failed');
+        throw new Error(errorData.error || 'Verification failed');
       }
 
-      console.log('[UP] ✅ Verification completed successfully');
-      setServerVerified(true);
-      onVerificationComplete?.();
+      const result = await verificationResponse.json();
+
+      if (result.success) {
+        console.log('[UP] ✅ Generic verification completed successfully');
+        setServerVerified(true);
+        onVerificationComplete?.();
+      } else {
+        throw new Error(result.message || result.error || 'Verification failed');
+      }
+
     } catch (e) {
-      console.error('[UP] Backend verification failed:', e);
+      console.error('[UP] Generic verification failed:', e);
       setServerError(e instanceof Error ? e.message : 'An unknown error occurred.');
     } finally {
       setIsVerifying(false);
     }
-  }, [upAddress, token, isPreviewMode, postId, signMessage, onVerificationComplete]);
+  }, [upAddress, token, isPreviewMode, verificationContext, postId, signMessage, onVerificationComplete, requirements]);
 
   const handleConnect = async () => {
     try {

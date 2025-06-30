@@ -213,6 +213,7 @@ export default function HomePage() {
     queryFn: async () => {
       if (!boardId || !token || !communityInfo?.id) return null;
       try {
+        // Use the existing board verification status endpoint (still works for boards)
         const response = await authFetchJson<BoardVerificationApiResponse>(
           `/api/communities/${communityInfo.id}/boards/${boardId}/verification-status`, 
           { token }

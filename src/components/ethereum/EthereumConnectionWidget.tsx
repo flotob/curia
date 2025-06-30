@@ -52,6 +52,7 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
   serverVerified = false,
   onVerificationComplete,
   isPreviewMode = false,
+  verificationContext,
 }) => {
   const {
     isConnected,
@@ -124,9 +125,8 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
       return;
     }
 
-    // For post verification, we need ethAddress, token, and postId
-    if (!ethAddress || !token || !postId) {
-      console.error('[Ethereum] Missing required data for verification:', { ethAddress: !!ethAddress, token: !!token, postId });
+    if (!ethAddress || !token) {
+      console.error('[Ethereum] Missing required data for verification:', { ethAddress: !!ethAddress, token: !!token });
       return;
     }
 
@@ -135,71 +135,88 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
       return;
     }
 
-    try {
-      // Step 1: Generate proper challenge from server (like UP verification does)
-      console.log('[Ethereum] Generating challenge from server...');
-      const challengeResponse = await fetch(`/api/posts/${postId}/ethereum-challenge`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ethAddress,
-        }),
-      });
+    // Determine verification context
+    const context = verificationContext || (postId ? { type: 'post' as const, postId } : null);
+    
+    if (!context) {
+      console.error('[Ethereum] No verification context provided');
+      return;
+    }
 
-      if (!challengeResponse.ok) {
-        const errorData = await challengeResponse.json();
-        throw new Error(errorData.error || 'Failed to generate challenge');
+    try {
+      // Use generic verification flow for all contexts
+      const lockId = context.lockId || verificationContext?.lockId;
+      if (!lockId) {
+        throw new Error('Missing lockId for verification');
       }
 
-      const { challenge, message } = await challengeResponse.json();
-      console.log('[Ethereum] Challenge generated successfully:', challenge);
+      // Determine verification context
+      let verifyContext: { type: 'post' | 'board'; id: number };
+      if (context.type === 'board') {
+        verifyContext = { type: 'board', id: context.boardId! };
+      } else if (context.type === 'post') {
+        verifyContext = { type: 'post', id: context.postId! };
+      } else {
+        throw new Error(`Unsupported verification context type: ${context.type}`);
+      }
 
-      // Step 2: Sign the challenge message
-      console.log('[Ethereum] Signing challenge message...');
+      // Create standardized signing message
+      const message = `Verify ethereum_profile for lock access
+Lock ID: ${lockId}
+Address: ${ethAddress}
+Context: ${verifyContext.type}:${verifyContext.id}
+Timestamp: ${Date.now()}
+Chain: Ethereum
+
+This signature proves you control this address and grants access based on lock requirements.`;
+
+      console.log('[Ethereum] Signing verification message...');
       const signature = await signMessage(message);
 
-      // Step 3: Send complete challenge with signature for verification
-      console.log('[Ethereum] Submitting signed challenge for verification...');
-      const verificationResponse = await fetch(`/api/posts/${postId}/pre-verify/ethereum_profile`, {
+      console.log('[Ethereum] Submitting to generic verification endpoint...');
+      const verificationResponse = await fetch(`/api/locks/${lockId}/verify/ethereum_profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          challenge: {
-            ...challenge,
-            signature,
-            message, // Add the message to the challenge object for validation
-          },
+          signature,
+          message,
+          address: ethAddress,
+          context: verifyContext,
+          verificationData: {
+            requirements: stableRequirements
+          }
         }),
       });
 
       if (!verificationResponse.ok) {
         const errorData = await verificationResponse.json();
-        throw new Error(errorData.error || 'Server verification failed');
+        throw new Error(errorData.error || 'Verification failed');
       }
 
       const result = await verificationResponse.json();
 
       if (result.success) {
-        console.log('[Ethereum] ✅ Verification completed successfully');
-        // Invalidate verification status to refetch
-        invalidateVerificationStatus(postId);
+        console.log('[Ethereum] ✅ Generic verification completed successfully');
+        
+        // Invalidate verification status for legacy hooks if needed
+        if (context.type === 'post' && context.postId) {
+          invalidateVerificationStatus(context.postId);
+        }
+        
         // Notify parent component
         onVerificationComplete?.(true);
       } else {
-        throw new Error(result.error || 'Verification failed');
+        throw new Error(result.message || result.error || 'Verification failed');
       }
 
     } catch (error) {
       console.error('[Ethereum] Backend verification failed:', error);
       throw error; // Let EthereumSmartVerificationButton handle the error display
     }
-  }, [ethAddress, isConnected, isCorrectChain, signMessage, token, postId, onVerificationComplete, isPreviewMode, invalidateVerificationStatus]);
+  }, [ethAddress, isConnected, isCorrectChain, signMessage, token, verificationContext, postId, onVerificationComplete, isPreviewMode, invalidateVerificationStatus]);
 
   // Format ETH amount for display
   const formatETHAmount = (weiAmount: string): string => {

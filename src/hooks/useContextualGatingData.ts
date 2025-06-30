@@ -149,7 +149,7 @@ export function useContextualGatingRequirements(
 
 /**
  * Context-aware hook for fetching verification status
- * Routes to appropriate verification status endpoint based on context
+ * Uses the new generic lock verification status endpoint
  */
 export function useContextualVerificationStatus(
   lockId: number,
@@ -172,19 +172,62 @@ export function useContextualVerificationStatus(
         };
       }
 
-      let endpoint: string;
-      
+      // Use generic lock verification status endpoint
+      let contextParam: string;
       if (verificationContext.type === 'post') {
-        endpoint = `/api/posts/${verificationContext.postId}/verification-status`;
+        contextParam = `post:${verificationContext.postId}`;
       } else if (verificationContext.type === 'board') {
-        endpoint = `/api/communities/${verificationContext.communityId}/boards/${verificationContext.boardId}/locks/${lockId}/verification-status`;
+        contextParam = `board:${verificationContext.boardId}`;
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         throw new Error(`Unsupported verification context type: ${(verificationContext as any).type}`);
       }
 
-      const response = await authFetchJson<ContextualVerificationStatusData>(endpoint, { token });
-      return response;
+      const endpoint = `/api/locks/${lockId}/verification-status?context=${contextParam}`;
+      const response = await authFetchJson<{
+        canAccess: boolean;
+        lockId: number;
+        context: { type: string; id: number };
+        requireAll: boolean;
+        totalCategories: number;
+        verifiedCategories: number;
+        categories: Array<{
+          type: string;
+          verificationStatus: 'not_started' | 'pending' | 'verified' | 'expired';
+          fulfillment?: 'any' | 'all';
+          verifiedAt?: string;
+          expiresAt?: string;
+          metadata?: {
+            icon: string;
+            name: string;
+            brandColor: string;
+          };
+        }>;
+        expiresAt?: string;
+        message?: string;
+      }>(endpoint, { token });
+
+      // Convert to expected format for backwards compatibility
+      const convertedResponse: ContextualVerificationStatusData = {
+        canComment: response.canAccess,
+        requireAll: response.requireAll,
+        totalCategories: response.totalCategories,
+        verifiedCategories: response.verifiedCategories,
+        categories: response.categories.map(cat => ({
+          type: cat.type,
+          verificationStatus: cat.verificationStatus,
+          verifiedAt: cat.verifiedAt,
+          expiresAt: cat.expiresAt,
+          metadata: cat.metadata ? {
+            name: cat.metadata.name,
+            description: `${cat.metadata.name} verification requirements`,
+            icon: cat.metadata.icon,
+          } : undefined,
+        })),
+        message: response.message,
+      };
+
+      return convertedResponse;
     },
     enabled: !!token && !!lockId && lockId > 0 && verificationContext.type !== 'preview',
     staleTime: 1 * 60 * 1000, // 1 minute - verification status changes frequently

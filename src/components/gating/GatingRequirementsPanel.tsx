@@ -20,7 +20,8 @@ import {
 
 import { ensureRegistered } from '@/lib/gating/categoryRegistry';
 import { ensureCategoriesRegistered } from '@/lib/gating/registerCategories';
-import { useGatingRequirements, useVerificationStatus, useInvalidateVerificationStatus, CategoryStatus } from '@/hooks/useGatingData';
+import { useGatingRequirements, CategoryStatus } from '@/hooks/useGatingData';
+import { useContextualVerificationStatus, useContextualInvalidateVerificationStatus } from '@/hooks/useContextualGatingData';
 import { useEthereumProfile } from '@/contexts/EthereumProfileContext';
 import { RichCategoryHeader } from './RichCategoryHeader';
 import { UPVerificationWrapper } from '../verification/UPVerificationWrapper';
@@ -50,15 +51,40 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
     refetch: refetchGating 
   } = useGatingRequirements(postId);
   
+  // Posts with locks use lock verification, posts without locks have no gating
+  const hasLockId = !!gatingData?.lockId;
+  const verificationContext = hasLockId ? { type: 'post' as const, postId } : null;
+  
+  // Only use verification for posts with locks
+  const contextualVerification = useContextualVerificationStatus(
+    gatingData?.lockId || 0,
+    verificationContext!
+  );
+  
+  // For posts without locks, create a mock "no verification needed" response
+  const noVerificationResponse = {
+    data: {
+      canComment: true,
+      requireAll: false,
+      totalCategories: 0,
+      verifiedCategories: 0,
+      categories: [],
+      message: 'No verification required',
+    },
+    isLoading: false,
+    error: null,
+    refetch: () => Promise.resolve(),
+  };
+  
   const { 
     data: verificationStatus, 
     isLoading: statusLoading, 
     error: statusError,
     refetch: refetchStatus 
-  } = useVerificationStatus(postId);
+  } = hasLockId ? contextualVerification : noVerificationResponse;
   
   // Hook to invalidate verification status after user actions
-  const invalidateVerificationStatus = useInvalidateVerificationStatus();
+  const contextualInvalidate = useContextualInvalidateVerificationStatus();
   
   // ===== PROFILE CONTEXTS =====
   
@@ -106,14 +132,17 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
     console.log('[GatingRequirementsPanel] Verification completed - triggering both invalidation and parent callback');
     
     // 1. Invalidate React Query cache to refetch verification status
-    invalidateVerificationStatus(postId);
+    if (hasLockId && gatingData?.lockId) {
+      contextualInvalidate(gatingData.lockId, verificationContext!);
+    }
+    // Posts without locks don't need invalidation since there's no verification
     
     // 2. IMMEDIATELY notify parent component (don't wait for React Query)
     if (onVerificationComplete) {
       console.log('[GatingRequirementsPanel] Calling parent onVerificationComplete with true');
       onVerificationComplete(true);
     }
-  }, [invalidateVerificationStatus, postId, onVerificationComplete]);
+  }, [hasLockId, gatingData?.lockId, contextualInvalidate, verificationContext, onVerificationComplete]);
 
   const toggleCategoryExpanded = useCallback((categoryType: string) => {
     setExpandedCategory(prev => {
@@ -163,6 +192,11 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                       isPreviewMode={false}
                       onVerificationComplete={handleVerificationComplete}
                       storageKey="wagmi_up_panel"
+                      verificationContext={hasLockId ? {
+                        type: 'post' as const,
+                        postId: postId,
+                        lockId: gatingData?.lockId,
+                      } : undefined}
                     />
                   );
                 }
@@ -182,6 +216,11 @@ export const GatingRequirementsPanel: React.FC<GatingRequirementsPanelProps> = (
                     disabled: false,
                     postId: postId,
                     onVerificationComplete: handleVerificationComplete,
+                    verificationContext: hasLockId ? {
+                      type: 'post' as const,
+                      postId: postId,
+                      lockId: gatingData?.lockId,
+                    } : undefined,
                   });
                 }
 

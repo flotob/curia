@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // Types matching GatingRequirementsPanel
 export interface GatingRequirementsData {
   postId: number;
+  lockId?: number; // Include lockId when using lock-based gating
   requireAll: boolean;
   categories: CategoryStatus[];
 }

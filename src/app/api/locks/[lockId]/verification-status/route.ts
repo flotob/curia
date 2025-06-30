@@ -1,40 +1,37 @@
 /**
- * API Endpoint: GET /api/communities/[communityId]/boards/[boardId]/locks/[lockId]/verification-status
+ * API Endpoint: GET /api/locks/[lockId]/verification-status
  * 
- * Returns verification status for a specific lock on a specific board for the current user.
- * Uses board verification context with longer expiration times.
+ * Generic lock verification status endpoint that works for all contexts.
+ * Replaces:
+ * - GET /api/posts/{postId}/verification-status
+ * - GET /api/communities/{communityId}/boards/{boardId}/locks/{lockId}/verification-status
+ * 
+ * Usage:
+ * - GET /api/locks/123/verification-status?context=post:456
+ * - GET /api/locks/123/verification-status?context=board:789
  */
 
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
-import { resolveBoard } from '@/lib/boardPermissions';
 import { GatingCategory } from '@/types/gating';
 
-interface BoardSettingsWithLocks {
-  permissions?: {
-    locks?: {
-      lockIds: number[];
-      fulfillment?: 'any' | 'all';
-      verificationDuration?: number;
-    };
-  };
-}
-
-interface BoardLockVerificationStatusResponse {
+interface GenericVerificationStatusResponse {
+  canAccess: boolean;
   lockId: number;
-  canComment: boolean;
+  context: { type: string; id: number };
   requireAll: boolean;
   totalCategories: number;
   verifiedCategories: number;
   categories: CategoryVerificationStatus[];
+  expiresAt?: string;
   message?: string;
 }
 
 interface CategoryVerificationStatus {
   type: string;
-  verificationStatus: 'not_started' | 'verified' | 'expired';
-  fulfillment?: "any" | "all"; // 🚀 NEW: Fulfillment mode for this category
+  verificationStatus: 'not_started' | 'pending' | 'verified' | 'expired';
+  fulfillment?: 'any' | 'all';
   verifiedAt?: string;
   expiresAt?: string;
   metadata?: {
@@ -44,7 +41,7 @@ interface CategoryVerificationStatus {
   };
 }
 
-// Category metadata (same as other gating endpoints)
+// Category metadata
 const CATEGORY_METADATA = {
   universal_profile: {
     icon: '🆙',
@@ -58,44 +55,43 @@ const CATEGORY_METADATA = {
   }
 };
 
-async function getBoardLockVerificationStatusHandler(
+async function getGenericVerificationStatusHandler(
   req: AuthenticatedRequest,
   context: RouteContext
 ) {
+  const user = req.user;
+  const params = await context.params;
+  const lockId = parseInt(params.lockId!, 10);
+
+  if (!user || !user.sub) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  if (isNaN(lockId)) {
+    return NextResponse.json({ error: 'Invalid lock ID' }, { status: 400 });
+  }
+
   try {
-    const params = await context.params;
-    const { communityId, boardId, lockId } = params;
-    const user = req.user;
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
-
-    if (!communityId || !boardId || !lockId) {
-      return NextResponse.json({ error: 'Community ID, Board ID, and Lock ID are required' }, { status: 400 });
-    }
-
-    // Verify board is accessible and has lock gating with this lock
-    if (!user.cid) {
-      return NextResponse.json({ error: 'User community required' }, { status: 401 });
-    }
+    // Parse context from query parameter
+    const url = new URL(req.url);
+    const contextParam = url.searchParams.get('context');
     
-    const board = await resolveBoard(parseInt(boardId, 10), user.cid);
-
-    if (!board) {
-      return NextResponse.json({ error: 'Board not found or not accessible' }, { status: 404 });
+    if (!contextParam) {
+      return NextResponse.json({ error: 'Context parameter required (e.g., ?context=post:123)' }, { status: 400 });
     }
 
-    const boardSettings = board.settings as BoardSettingsWithLocks || {};
-    const lockGating = boardSettings.permissions?.locks;
+    const [contextType, contextIdStr] = contextParam.split(':');
+    const contextId = parseInt(contextIdStr, 10);
 
-    if (!lockGating || !lockGating.lockIds || !lockGating.lockIds.includes(parseInt(lockId, 10))) {
-      return NextResponse.json({ error: 'Lock not configured for this board' }, { status: 404 });
+    if (!contextType || isNaN(contextId)) {
+      return NextResponse.json({ error: 'Invalid context format. Use: post:123 or board:456' }, { status: 400 });
     }
 
-    // Fetch lock gating configuration
+    console.log(`[API] Generic verification status for lock ${lockId}, context: ${contextType}:${contextId}, user: ${user.sub}`);
+
+    // Fetch lock configuration
     const lockResult = await query(
-      'SELECT id, name, gating_config FROM locks WHERE id = $1',
+      'SELECT id, name, gating_config, community_id FROM locks WHERE id = $1',
       [lockId]
     );
 
@@ -118,22 +114,21 @@ async function getBoardLockVerificationStatusHandler(
 
     const gatingCategories: GatingCategory[] = gatingConfig.categories || [];
     
-    // Backward compatibility: handle both requireAll and requireAny fields
+    // Determine fulfillment mode (backward compatibility)
     let requireAll: boolean;
     if (gatingConfig.requireAll !== undefined) {
       requireAll = gatingConfig.requireAll;
     } else if (gatingConfig.requireAny !== undefined) {
-      requireAll = !gatingConfig.requireAny; // requireAny: false means requireAll: true
+      requireAll = !gatingConfig.requireAny;
     } else {
-      requireAll = false; // Default to requireAny behavior for backward compatibility
+      requireAll = false; // Default to requireAny behavior
     }
 
-    // Get current verification statuses for this user and specific lock (only non-expired)
+    // Get current verification statuses for this user and lock (only non-expired)
     const verificationResult = await query(
       `SELECT category_type, verification_status, verified_at, expires_at 
        FROM pre_verifications 
-       WHERE user_id = $1 AND lock_id = $2
-         AND expires_at > NOW() AND verification_status = 'verified'`,
+       WHERE user_id = $1 AND lock_id = $2 AND expires_at > NOW() AND verification_status = 'verified'`,
       [user.sub, lockId]
     );
 
@@ -163,7 +158,7 @@ async function getBoardLockVerificationStatusHandler(
         return {
           type: category.type,
           verificationStatus,
-          fulfillment: category.fulfillment, // 🚀 NEW: Include fulfillment mode from category
+          fulfillment: category.fulfillment,
           verifiedAt: verification?.verified_at,
           expiresAt: verification?.expires_at,
           metadata: CATEGORY_METADATA[category.type as keyof typeof CATEGORY_METADATA],
@@ -175,15 +170,38 @@ async function getBoardLockVerificationStatusHandler(
     const verifiedCategories = categoryStatuses.filter(cat => cat.verificationStatus === 'verified').length;
     const totalCategories = enabledCategories.length;
 
-    // Determine if user can comment based on fulfillment mode
-    const canComment = requireAll 
+    // Determine if user can access based on fulfillment mode
+    const canAccess = requireAll 
       ? verifiedCategories >= totalCategories 
       : verifiedCategories >= 1;
 
+    // Calculate expiry time (when access will be lost)
+    let expiresAt: string | undefined;
+    if (canAccess) {
+      const verifiedCats = categoryStatuses.filter(cat => cat.verificationStatus === 'verified');
+      if (verifiedCats.length > 0) {
+        const expiryTimes = verifiedCats
+          .map(cat => cat.expiresAt)
+          .filter(Boolean)
+          .map(time => new Date(time!).getTime())
+          .sort((a, b) => a - b);
+
+        if (expiryTimes.length > 0) {
+          if (requireAll) {
+            // For ALL mode, access expires when the FIRST lock expires
+            expiresAt = new Date(expiryTimes[0]).toISOString();
+          } else {
+            // For ANY mode, access expires when the LAST verified lock expires
+            expiresAt = new Date(expiryTimes[expiryTimes.length - 1]).toISOString();
+          }
+        }
+      }
+    }
+
     // Generate status message
     let message: string;
-    if (canComment) {
-      message = 'All verification requirements met - you can post and comment on this board';
+    if (canAccess) {
+      message = 'All verification requirements met - access granted';
     } else if (verifiedCategories > 0) {
       message = `${verifiedCategories} of ${totalCategories} requirements verified. ${
         requireAll 
@@ -191,27 +209,29 @@ async function getBoardLockVerificationStatusHandler(
           : 'Complete any remaining requirement to unlock access.'
       }`;
     } else {
-      message = `Complete ${requireAll ? 'all' : 'any'} ${totalCategories} verification requirements to unlock board access`;
+      message = `Complete ${requireAll ? 'all' : 'any'} ${totalCategories} verification requirements to unlock access`;
     }
 
-    console.log(`[API board-lock-verification] Board ${boardId}, Lock ${lockId}: ${verifiedCategories}/${totalCategories} verified, can comment: ${canComment}`);
+    console.log(`[API] Lock ${lockId} verification status: ${verifiedCategories}/${totalCategories} verified, can access: ${canAccess}`);
 
-    const response: BoardLockVerificationStatusResponse = {
-      lockId: parseInt(lockId, 10),
-      canComment,
+    const response: GenericVerificationStatusResponse = {
+      canAccess,
+      lockId,
+      context: { type: contextType, id: contextId },
       requireAll,
       totalCategories,
       verifiedCategories,
       categories: categoryStatuses,
+      expiresAt,
       message,
     };
 
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error(`[API] Error fetching board lock verification status:`, error);
+    console.error(`[API] Error fetching generic verification status for lock ${lockId}:`, error);
     return NextResponse.json({ error: 'Failed to fetch verification status' }, { status: 500 });
   }
 }
 
-export const GET = withAuth(getBoardLockVerificationStatusHandler); 
+export const GET = withAuth(getGenericVerificationStatusHandler); 

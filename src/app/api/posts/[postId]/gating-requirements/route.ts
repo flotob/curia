@@ -14,6 +14,7 @@ import { GatingCategory } from '@/types/gating';
 
 interface GatingRequirementResponse {
   postId: number;
+  lockId?: number; // Include lockId when using lock-based gating
   requireAll: boolean;
   categories: CategoryStatus[];
 }
@@ -224,6 +225,7 @@ async function getGatingRequirementsHandler(
 
     const response: GatingRequirementResponse = {
       postId,
+      lockId: lock_id || undefined, // Include lockId when using lock-based gating
       requireAll,
       categories: categoryStatuses,
     };
