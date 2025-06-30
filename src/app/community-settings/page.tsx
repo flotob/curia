@@ -37,6 +37,9 @@ export default function CommunitySettingsPage() {
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  // Extract theme from Common Ground URL parameters
+  const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
 
   // Initialize Common Ground compatibility parameters
   useEffect(() => {
