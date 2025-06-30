@@ -408,7 +408,7 @@ export default function BoardSettingsPage() {
             defaultExpanded={false}
             summary={getVisibilityAccessSummary}
           >
-            {communityInfo?.roles && communitySettings ? (
+            {communityInfo?.roles && communitySettings?.settings ? (
               <BoardAccessForm
                 currentSettings={boardSettings}
                 communitySettings={communitySettings.settings}

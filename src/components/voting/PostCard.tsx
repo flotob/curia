@@ -150,18 +150,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     }, 4000);
   };
 
-  // Handle when user clicks reply on a comment in feed view
-  const handleReplyToComment = (commentId: number) => {
-    console.log(`[PostCard] Replying to comment: ${commentId}`);
-    setReplyingToCommentId(commentId);
-    // Scroll to comment form within this PostCard
-    setTimeout(() => {
-      const formElement = document.querySelector(`#postcard-${post.id} .new-comment-form`);
-      if (formElement) {
-        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
-  };
+
   
   // Helper function to format access count for share button
   const formatAccessCount = (count: number): string => {
@@ -927,7 +916,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 postId={post.id} 
                 highlightCommentId={highlightedCommentId}
                 onCommentHighlighted={() => setHighlightedCommentId(null)}
-                onReply={handleReplyToComment}
               />
             </div>
           </div>

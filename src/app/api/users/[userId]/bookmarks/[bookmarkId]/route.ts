@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
-import { withAuth, AuthenticatedRequest } from '@/lib/withAuth';
+import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { query } from '@/lib/db';
 
 // DELETE /api/users/[userId]/bookmarks/[bookmarkId] - Delete a bookmark
 export const DELETE = withAuth(async (
   req: AuthenticatedRequest, 
-  context: { params: Promise<{ userId: string; bookmarkId: string }> }
+  context: RouteContext
 ) => {
   try {
-    const { userId, bookmarkId } = await context.params;
+    const params = await context.params;
+    const userId = params.userId;
+    const bookmarkId = params.bookmarkId;
     const currentUserId = req.user?.sub;
 
     // Validate user can delete this bookmark (only own bookmarks)
