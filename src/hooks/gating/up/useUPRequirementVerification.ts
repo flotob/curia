@@ -12,7 +12,7 @@ export const useUPRequirementVerification = (
 ): { isLoading: boolean, error: string | null, verificationStatus: ExtendedVerificationStatus } => {
   
   const requirementsKey = JSON.stringify(requirements);
-  const stableRequirements = useMemo(() => requirements, [requirementsKey]);
+  const stableRequirements = useMemo(() => requirements, [requirements]);
 
   // === CHILD HOOKS ===
   const { rawBalance: rawLyxBalance, isLoading: isLoadingLyx, error: lyxError } = useUpLyxBalance(upAddress);

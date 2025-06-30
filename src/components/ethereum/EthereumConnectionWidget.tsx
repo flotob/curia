@@ -76,7 +76,7 @@ const EthereumConnectionWidgetInternal: React.FC<EthereumConnectionWidgetProps> 
 
   // Memoize requirements to prevent unnecessary re-renders
   const requirementsKey = JSON.stringify(requirements);
-  const stableRequirements = useMemo(() => requirements, [requirementsKey]);
+  const stableRequirements = useMemo(() => requirements, [requirements]);
 
   // Handle disconnection
   const handleDisconnect = useCallback(() => {
@@ -216,7 +216,7 @@ This signature proves you control this address and grants access based on lock r
       console.error('[Ethereum] Backend verification failed:', error);
       throw error; // Let EthereumSmartVerificationButton handle the error display
     }
-  }, [ethAddress, isConnected, isCorrectChain, signMessage, token, verificationContext, postId, onVerificationComplete, isPreviewMode, invalidateVerificationStatus]);
+  }, [ethAddress, isConnected, isCorrectChain, signMessage, token, verificationContext, postId, onVerificationComplete, isPreviewMode, invalidateVerificationStatus, stableRequirements]);
 
   // Format ETH amount for display
   const formatETHAmount = (weiAmount: string): string => {

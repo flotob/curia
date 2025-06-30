@@ -5,7 +5,8 @@
  * Handles Universal Profile, Ethereum, and lock verification.
  */
 
-import { VerificationError, ErrorCode, ValidationError } from '@/lib/errors';
+import { VerificationError, ValidationError } from '@/lib/errors';
+import { authFetch } from '@/utils/authFetch';
 
 // Types for verification
 export interface VerificationRequirement {
@@ -205,12 +206,8 @@ export class VerificationService {
       // Determine the correct endpoint based on context
       const endpoint = this.buildVerificationEndpoint(challenge.type, context);
 
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({
           signature: challenge.signature,
           message: challenge.message,
@@ -223,6 +220,7 @@ export class VerificationService {
             requirements: challenge.requirements,
           },
         }),
+        token,
       });
 
       if (!response.ok) {
@@ -267,10 +265,8 @@ export class VerificationService {
 
       const endpoint = this.buildStatusEndpoint(lockId, context);
       
-      const response = await fetch(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await authFetch(endpoint, {
+        token,
       });
 
       if (!response.ok) {
@@ -305,7 +301,8 @@ export class VerificationService {
    */
   private static async performLocalUPVerification(
     requirements: VerificationRequirement[],
-    upAddress: string
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _upAddress: string
   ): Promise<VerificationResult> {
     // TODO: Implement local UP verification logic
     // This would use the existing UP verification hooks/utilities
@@ -324,7 +321,8 @@ export class VerificationService {
    */
   private static async performLocalEthereumVerification(
     requirements: VerificationRequirement[],
-    ethAddress: string
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _ethAddress: string
   ): Promise<VerificationResult> {
     // TODO: Implement local Ethereum verification logic
     // This would use the existing Ethereum verification utilities
@@ -344,8 +342,10 @@ export class VerificationService {
   private static async performBackendVerification(
     type: 'universal_profile' | 'ethereum_profile',
     requirements: VerificationRequirement[],
-    address: string,
-    context: VerificationContext
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _address: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _context: VerificationContext
   ): Promise<VerificationResult> {
     // This would call the appropriate backend verification endpoints
     // based on the context and requirements

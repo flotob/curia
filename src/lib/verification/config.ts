@@ -83,7 +83,8 @@ export function calculateExpirationDate(context: 'post' | 'board' | 'default'): 
  * Get board-specific expiration duration
  * In the future, this could check board settings for custom durations
  */
-export async function getBoardExpirationHours(boardId: number): Promise<number> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getBoardExpirationHours(_boardId: number): Promise<number> {
   // TODO: Implement board-specific settings lookup
   // const boardSettings = await getBoardSettings(boardId);
   // return boardSettings.verification?.durationHours || getExpirationHours('board');

@@ -6,7 +6,7 @@
  */
 
 import { BaseRepository, QueryOptions, PaginatedResult } from './BaseRepository';
-import { NotFoundError, ValidationError } from '@/lib/errors';
+import { ValidationError } from '@/lib/errors';
 
 // Lock types
 export interface LockData {

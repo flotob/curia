@@ -214,6 +214,7 @@ export class ValidationService {
     if (typeof value === 'string') {
       try {
         return JSON.parse(value);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         throw new ValidationError(`${fieldName} must be valid JSON`);
       }

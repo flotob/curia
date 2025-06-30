@@ -62,7 +62,6 @@ async function fetchExtendedProfileData(userId: string) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handler(req: AuthenticatedRequest, context: RouteContext) {
   try {
     const currentUserId = req.user?.sub;

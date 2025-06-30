@@ -5,7 +5,8 @@
  * Handles lock creation, application, and usage tracking.
  */
 
-import { ValidationError, NotFoundError, ErrorCode, ConflictError } from '@/lib/errors';
+import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors';
+import { authFetch } from '@/utils/authFetch';
 
 // Lock types
 export interface LockConfig {
@@ -109,17 +110,14 @@ export class LockService {
     try {
       this.validateLockConfig(config);
 
-      const response = await fetch('/api/locks', {
+      const response = await authFetch('/api/locks', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({
           ...config,
           creatorUserId,
           communityId,
         }),
+        token,
       });
 
       if (!response.ok) {
@@ -156,10 +154,8 @@ export class LockService {
    */
   static async getLock(lockId: number, token: string): Promise<Lock> {
     try {
-      const response = await fetch(`/api/locks/${lockId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await authFetch(`/api/locks/${lockId}`, {
+        token,
       });
 
       if (response.status === 404) {
@@ -200,13 +196,10 @@ export class LockService {
         this.validateGatingConfig(updates.gatingConfig);
       }
 
-      const response = await fetch(`/api/locks/${lockId}`, {
+      const response = await authFetch(`/api/locks/${lockId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify(updates),
+        token,
       });
 
       if (response.status === 404) {
@@ -239,11 +232,9 @@ export class LockService {
    */
   static async deleteLock(lockId: number, token: string): Promise<void> {
     try {
-      const response = await fetch(`/api/locks/${lockId}`, {
+      const response = await authFetch(`/api/locks/${lockId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        token,
       });
 
       if (response.status === 404) {
@@ -286,10 +277,8 @@ export class LockService {
       if (filters.offset) queryParams.set('offset', filters.offset.toString());
       if (filters.tags) queryParams.set('tags', filters.tags.join(','));
 
-      const response = await fetch(`/api/locks?${queryParams.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await authFetch(`/api/locks?${queryParams.toString()}`, {
+        token,
       });
 
       if (!response.ok) {
@@ -325,13 +314,10 @@ export class LockService {
     token: string
   ): Promise<void> {
     try {
-      const response = await fetch(`/api/posts/${postId}/apply-lock`, {
+      const response = await authFetch(`/api/posts/${postId}/apply-lock`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({ lockId }),
+        token,
       });
 
       if (response.status === 404) {
@@ -365,10 +351,8 @@ export class LockService {
    */
   static async getLockStats(lockId: number, token: string): Promise<LockStats> {
     try {
-      const response = await fetch(`/api/locks/${lockId}/usage`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await authFetch(`/api/locks/${lockId}/usage`, {
+        token,
       });
 
       if (response.status === 404) {

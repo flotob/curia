@@ -681,7 +681,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
             <div className="flex-1 min-w-0">
               <h2 className="text-2xl sm:text-3xl font-bold mb-2">
-                {/* eslint-disable-next-line react/no-unescaped-entities */}
                 {profile ? `${profile.name}'s Activity` : 'User Activity'}
               </h2>
               <p className="text-muted-foreground mb-4">
