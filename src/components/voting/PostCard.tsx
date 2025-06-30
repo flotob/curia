@@ -51,7 +51,7 @@ import StarterKit from '@tiptap/starter-kit';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import TiptapLink from '@tiptap/extension-link'; // For rendering links
-import TiptapImage from '@tiptap/extension-image'; // Aliased Tiptap Image to TiptapImage
+import { EnhancedImageExtension } from '@/components/tiptap/EnhancedImageExtension';
 import { Markdown } from 'tiptap-markdown';
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
@@ -528,7 +528,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           style: 'word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; white-space: normal;',
         },
       }),
-      TiptapImage, // Use aliased TiptapImage for rendering images
+      EnhancedImageExtension, // Enhanced image system with responsive layouts and modal
       CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
       Markdown.configure({ html: false, tightLists: true }), // <-- Enable markdown parsing for display
       // 🏷️ User mentions extension for rendering mentions in content

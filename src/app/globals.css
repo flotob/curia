@@ -349,3 +349,140 @@ a {
 .tippy-box[data-theme~='light-border'] .tippy-arrow:before {
   border-color: hsl(var(--border));
 }
+
+/* Enhanced Image System Styling */
+/* Responsive image containers in prose content */
+.prose .enhanced-image-wrapper,
+.prose .enhanced-image-group {
+  /* Override prose max-width constraints for images */
+  max-width: none;
+  width: 100%;
+  margin: 1.5rem 0;
+}
+
+/* Ensure responsive images work well within prose */
+.prose img {
+  /* Reset prose default image styling */
+  margin: 0;
+  border-radius: 0.5rem;
+  /* Enable responsive behavior */
+  height: auto;
+  max-width: 100%;
+}
+
+/* Enhanced image containers */
+.enhanced-image-wrapper img,
+.enhanced-image-group img {
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+/* Responsive image grid styling */
+.enhanced-image-group {
+  container-type: inline-size;
+}
+
+/* Container queries for responsive image sizing */
+@container (max-width: 400px) {
+  .enhanced-image-wrapper img {
+    max-width: 100%;
+  }
+  
+  .enhanced-image-group .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .enhanced-image-group .grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (min-width: 401px) and (max-width: 600px) {
+  .enhanced-image-wrapper img {
+    max-width: 80%;
+  }
+  
+  .enhanced-image-group .grid-cols-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@container (min-width: 601px) {
+  .enhanced-image-wrapper img {
+    max-width: 60%;
+  }
+}
+
+/* Modal z-index - ensure image modal appears above everything */
+[data-radix-dialog-overlay][data-state="open"] {
+  z-index: 50;
+}
+
+[data-radix-dialog-content][data-state="open"] {
+  z-index: 51;
+}
+
+/* Enhanced image modal specific styling */
+.image-modal-overlay {
+  z-index: 60 !important;
+}
+
+.image-modal-content {
+  z-index: 61 !important;
+}
+
+/* Loading state animations for images */
+.image-loading-placeholder {
+  background: linear-gradient(90deg, hsl(var(--muted)) 25%, transparent 50%, hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.5s infinite;
+}
+
+@keyframes loading-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Image hover effects */
+.enhanced-image-wrapper:hover img,
+.enhanced-image-group:hover img {
+  transform: scale(1.02);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.dark .enhanced-image-wrapper:hover img,
+.dark .enhanced-image-group:hover img {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Focus styles for accessibility */
+.enhanced-image-wrapper img:focus,
+.enhanced-image-group img:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .enhanced-image-wrapper img,
+  .enhanced-image-group img {
+    border: 1px solid;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .enhanced-image-wrapper img,
+  .enhanced-image-group img {
+    transition: none;
+  }
+  
+  .enhanced-image-wrapper:hover img,
+  .enhanced-image-group:hover img {
+    transform: none;
+  }
+}

@@ -38,6 +38,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   const [currentLinkUrl, setCurrentLinkUrl] = useState('');
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState('');
+  const [currentImageAlt, setCurrentImageAlt] = useState('');
+  const [currentImageCaption, setCurrentImageCaption] = useState('');
 
   // Early return after hooks
   if (!editor) return null;
@@ -102,19 +104,32 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
   const handleImage = () => {
     if (!editor) return;
-    // For new images, URL is empty. If editing an existing image (not typical via toolbar), prefill.
-    const existingSrc = editor.getAttributes('image').src;
-    setCurrentImageUrl(existingSrc || ''); 
+    // For new images, reset form. If editing an existing image (not typical via toolbar), prefill.
+    const existingAttrs = editor.getAttributes('enhancedImage');
+    setCurrentImageUrl(existingAttrs.src || ''); 
+    setCurrentImageAlt(existingAttrs.alt || '');
+    setCurrentImageCaption(existingAttrs.caption || '');
     setIsImageDialogOpen(true);
   };
 
   const applyImage = () => {
     if (!editor) return;
     if (currentImageUrl.trim()) {
-      editor.chain().focus().setImage({ src: currentImageUrl.trim() }).run();
+      // Use enhanced image extension via insertContent
+      editor.chain().focus().insertContent({
+        type: 'enhancedImage',
+        attrs: {
+          src: currentImageUrl.trim(),
+          alt: currentImageAlt.trim() || undefined,
+          caption: currentImageCaption.trim() || undefined,
+          maxWidth: 'lg',
+        },
+      }).run();
     }
     setIsImageDialogOpen(false);
     setCurrentImageUrl('');
+    setCurrentImageAlt('');
+    setCurrentImageCaption('');
   };
 
   return (
@@ -214,19 +229,19 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Image Dialog */}
+      {/* Enhanced Image Dialog */}
       <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Insert Image</DialogTitle>
             <DialogDescription>
-              Enter the URL for the image.
+              Add an image with optional description and caption for better accessibility and context.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="image-url" className="text-right">
-                URL
+                URL *
               </Label>
               <Input
                 id="image-url"
@@ -237,10 +252,38 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
                 onKeyDown={(e) => e.key === 'Enter' && applyImage()}
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="image-alt" className="text-right">
+                Description
+              </Label>
+              <Input
+                id="image-alt"
+                value={currentImageAlt}
+                onChange={(e) => setCurrentImageAlt(e.target.value)}
+                className="col-span-3"
+                placeholder="Describe the image for accessibility"
+                onKeyDown={(e) => e.key === 'Enter' && applyImage()}
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="image-caption" className="text-right">
+                Caption
+              </Label>
+              <Input
+                id="image-caption"
+                value={currentImageCaption}
+                onChange={(e) => setCurrentImageCaption(e.target.value)}
+                className="col-span-3"
+                placeholder="Optional caption text"
+                onKeyDown={(e) => e.key === 'Enter' && applyImage()}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsImageDialogOpen(false)}>Cancel</Button>
-            <Button type="button" onClick={applyImage}>Insert Image</Button>
+            <Button type="button" onClick={applyImage} disabled={!currentImageUrl.trim()}>
+              Insert Image
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
