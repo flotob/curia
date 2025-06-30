@@ -1,8 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { authFetchJson } from '@/utils/authFetch';
-import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
+import { useCommunityData } from '@/hooks/useCommunityData';
 import { checkCommunityAccess, getUserRoles, AccessControlUtils } from '@/lib/roleService';
 import { CommunityAccessDenied } from './CommunityAccessDenied';
 import { useCgLib } from '@/contexts/CgLibContext';
@@ -33,26 +32,8 @@ export const CommunityAccessGate: React.FC<CommunityAccessGateProps> = ({
     enabled: !!cgInstance,
   });
 
-  // Fetch community settings to check access permissions
-  const { data: communityData, isLoading, error } = useQuery<ApiCommunity>({
-    queryKey: ['communityAccess', user?.cid],
-    queryFn: async () => {
-      if (!user?.cid || !token) throw new Error('No community ID or token available');
-      
-      try {
-        const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, { token });
-        return response;
-      } catch (error: unknown) {
-        // If we get a 404, the community doesn't exist or user doesn't have basic access
-        if ((error as Error).message?.includes('404')) {
-          throw new Error('Community not found or no access');
-        }
-        throw error;
-      }
-    },
-    enabled: !!user?.cid && !!token && isAuthenticated,
-    retry: 1, // Don't retry too many times for access checks
-  });
+  // Fetch community settings using centralized hook
+  const { data: communityData, isLoading, error } = useCommunityData();
 
   // Check if user has community access
   const { data: userAccess, isLoading: isCheckingAccess } = useQuery({

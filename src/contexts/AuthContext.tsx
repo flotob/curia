@@ -92,7 +92,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { cgInstance, isInitializing: isCgLibInitializing, iframeUid: cgIframeUid } = useCgLib();
   const lastCgUserData = useRef<UserDataFromCgLib | null>(null);
 
-  // Fetch user stats from enhanced /api/me endpoint
+  // Fetch user stats from enhanced /api/me endpoint - optimized to have no dependencies
   const fetchUserStats = useCallback(async (authToken: string) => {
     try {
       const response = await fetch('/api/me', {
@@ -115,7 +115,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       commentCount: 0,
       isNewUser: true
     };
-  }, []);
+  }, []); // Empty dependency array - this function is stable
 
   const performLoginLogic = useCallback(async (loginData: UserDataFromCgLib, isRefresh: boolean = false) => {
     console.log(`[AuthContext] ${isRefresh ? 'REFRESHING TOKEN' : 'LOGIN ATTEMPT'}. User roles from input:`, loginData.roles, 'Community roles from input:', loginData.communityRoles);
@@ -123,7 +123,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // 🆕 Fetch ALL friends from CG lib for automatic sync (with pagination)
     let friends: Array<{ id: string; name: string; image?: string }> = [];
-    if (cgInstance && !isRefresh && !isCgLibInitializing && cgIframeUid) { // All prerequisites met
+    const currentCgInstance = cgInstance; // Capture current value to avoid dependency
+    const currentInitializing = isCgLibInitializing;
+    const currentIframeUid = cgIframeUid;
+    
+    if (currentCgInstance && !isRefresh && !currentInitializing && currentIframeUid) { // All prerequisites met
       try {
         // Check if getUserFriends method exists
         if (typeof (cgInstance as unknown as CgInstanceWithFriends).getUserFriends === 'function') {
@@ -131,7 +135,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // Use the new utility function to fetch all friends with pagination
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          friends = await fetchAllFriendsFromCgLib(cgInstance as any);
+          friends = await fetchAllFriendsFromCgLib(currentCgInstance as any);
           
           // Filter out invalid entries
           friends = friends.filter((friend) => friend.id && friend.name);
@@ -146,10 +150,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     } else {
       const reasons = [];
-      if (!cgInstance) reasons.push('cgInstance not available');
+      if (!currentCgInstance) reasons.push('cgInstance not available');
       if (isRefresh) reasons.push('token refresh (skipping friends sync)');
-      if (isCgLibInitializing) reasons.push('CG lib still initializing');
-      if (!cgIframeUid) reasons.push('iframeUid not available');
+      if (currentInitializing) reasons.push('CG lib still initializing');
+      if (!currentIframeUid) reasons.push('iframeUid not available');
       
       console.log(`[AuthContext] Skipping friends sync: ${reasons.join(', ')}`);
     }
@@ -237,7 +241,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchUserStats, cgInstance, isCgLibInitializing, cgIframeUid]);
+  }, []); // Optimized: removed dependencies that caused unnecessary re-creation
 
   const login = useCallback(async (userDataFromCgLib: UserDataFromCgLib) => {
     await performLoginLogic(userDataFromCgLib, false);
