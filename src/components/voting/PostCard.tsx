@@ -31,7 +31,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
 import { cn } from '@/lib/utils';
-import { CommentList } from './CommentList';
+import { VirtualizedCommentList } from './VirtualizedCommentList';
 import { NewCommentForm } from './NewCommentForm';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 import { useTimeSince } from '@/utils/timeUtils';
@@ -40,7 +40,7 @@ import { SettingsUtils } from '@/types/settings';
 import { getUPDisplayName } from '@/lib/upProfile';
 import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
-import { ReactionBar } from '../reactions/ReactionBar';
+import { LazyReactionBar } from '../reactions/LazyReactionBar';
 import { UserProfilePopover } from '../mentions/UserProfilePopover';
 
 // Tiptap imports for rendering post content
@@ -832,10 +832,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             </div>
           </CardFooter>
           
-          {/* ReactionBar */}
+          {/* LazyReactionBar */}
           <div className="px-3 sm:px-6 pb-3 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
-            <ReactionBar 
+            <LazyReactionBar 
               postId={post.id}
+              lazy={true}
+              showQuickReactions={true}
             />
           </div>
         </div>
@@ -929,11 +931,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             )}
           </div>
           <div className="mt-4">
-            <CommentList 
+            <VirtualizedCommentList 
               postId={post.id} 
               highlightCommentId={highlightedCommentId}
               onCommentHighlighted={() => setHighlightedCommentId(null)}
               onReply={handleReplyToComment}
+              maxInitialRender={10}
+              virtualizeThreshold={25}
             />
           </div>
         </div>

@@ -10,7 +10,7 @@ import { ApiPost } from '@/app/api/posts/route';
 import { ApiComment } from '@/app/api/posts/[postId]/comments/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { PostCard } from '@/components/voting/PostCard';
-import { CommentList } from '@/components/voting/CommentList';
+import { VirtualizedCommentList } from '@/components/voting/VirtualizedCommentList';
 import { NewCommentForm } from '@/components/voting/NewCommentForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -396,11 +396,13 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 ))}
               </div>
             ) : comments && comments.length > 0 ? (
-              <CommentList 
+              <VirtualizedCommentList 
                 postId={postIdNum} 
                 highlightCommentId={highlightedCommentId}
                 onCommentHighlighted={() => setHighlightedCommentId(null)}
                 onReply={handleReplyToComment}
+                maxInitialRender={20}
+                virtualizeThreshold={50}
               />
             ) : (
               <div className="text-center py-8">
