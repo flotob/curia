@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Plus,
   Bot,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,6 +24,7 @@ import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { useTimeSince } from '@/utils/timeUtils';
 import { TelegramGroupResponse } from '@/app/api/telegram/groups/route';
+import { TelegramGroupSettingsModal } from './TelegramGroupSettingsModal';
 
 interface TelegramGroupsSectionProps {
   communityId: string;
@@ -34,6 +36,7 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
   const { toast } = useToast();
   const [copiedBotName, setCopiedBotName] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<TelegramGroupResponse | null>(null);
 
   // Fetch Telegram groups with 3-second polling when page is active
   const { 
@@ -90,6 +93,16 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
     });
   };
 
+  const handleGroupClick = (group: TelegramGroupResponse) => {
+    setSelectedGroup(group);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedGroup(null);
+    // Refresh the groups list to get updated settings
+    refetch();
+  };
+
   if (isLoading) {
     return (
       <Card className="lg:col-span-2">
@@ -134,167 +147,190 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
   }
 
   return (
-    <Card className="lg:col-span-2">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare size={20} />
-          Telegram Notifications
-          <Badge variant="secondary" className="ml-auto">
-            {telegramGroups.length} connected
-          </Badge>
-        </CardTitle>
-        <CardDescription>
-          Manage Telegram groups receiving forum notifications • Updates every 3 seconds
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Connected Groups List */}
-        {telegramGroups.length > 0 ? (
+    <>
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare size={20} />
+            Telegram Notifications
+            <Badge variant="secondary" className="ml-auto">
+              {telegramGroups.length} connected
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            Manage Telegram groups receiving forum notifications • Click groups to configure board settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Connected Groups List */}
+          {telegramGroups.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className={cn(
+                  "font-medium",
+                  theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                )}>
+                  Connected Groups
+                </h4>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefresh}
+                  className="h-8"
+                >
+                  Refresh
+                </Button>
+              </div>
+              
+              <div className="grid gap-3">
+                {telegramGroups.map((group) => (
+                  <TelegramGroupCard
+                    key={group.id}
+                    group={group}
+                    theme={theme}
+                    onClick={() => handleGroupClick(group)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Empty State */
+            <div className="text-center py-8 space-y-4">
+              <div className={cn(
+                "mx-auto w-16 h-16 rounded-full flex items-center justify-center",
+                theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
+              )}>
+                <Bot size={32} className="text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className={cn(
+                  "text-lg font-medium",
+                  theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+                )}>
+                  No Telegram Groups Connected
+                </h3>
+                <p className={cn(
+                  "text-sm mt-1",
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                )}>
+                  Connect your first Telegram group to start receiving notifications
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Registration Instructions */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className={cn(
                 "font-medium",
                 theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
               )}>
-                Connected Groups
+                Add New Group
               </h4>
+            </div>
+
+            {!showInstructions ? (
               <Button
+                onClick={() => setShowInstructions(true)}
                 variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="h-8"
+                className="w-full"
               >
-                Refresh
+                <Plus size={16} className="mr-2" />
+                Show Setup Instructions
               </Button>
-            </div>
-            
-            <div className="grid gap-3">
-              {telegramGroups.map((group) => (
-                <TelegramGroupCard
-                  key={group.id}
-                  group={group}
-                  theme={theme}
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          /* Empty State */
-          <div className="text-center py-8 space-y-4">
-            <div className={cn(
-              "mx-auto w-16 h-16 rounded-full flex items-center justify-center",
-              theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
-            )}>
-              <Bot size={32} className="text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className={cn(
-                "text-lg font-medium",
-                theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-              )}>
-                No Telegram Groups Connected
-              </h3>
-              <p className={cn(
-                "text-sm mt-1",
-                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-              )}>
-                Connect your first Telegram group to start receiving notifications
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Registration Instructions */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className={cn(
-              "font-medium",
-              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-            )}>
-              Add New Group
-            </h4>
-          </div>
-
-          {!showInstructions ? (
-            <Button
-              onClick={() => setShowInstructions(true)}
-              variant="outline"
-              className="w-full"
-            >
-              <Plus size={16} className="mr-2" />
-              Show Setup Instructions
-            </Button>
-          ) : (
-                         <div className="space-y-4">
-               <Alert>
-                 <Bot className="h-4 w-4" />
-                 <AlertDescription className="space-y-3">
-                   <div>
-                     <strong>Step 1:</strong> Add our bot to your Telegram group
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <code className="px-2 py-1 bg-muted rounded text-sm">
-                       @{botInfo?.botUsername || 'curiaforum_bot'}
+            ) : (
+                           <div className="space-y-4">
+                 <Alert>
+                   <Bot className="h-4 w-4" />
+                   <AlertDescription className="space-y-3">
+                     <div>
+                       <strong>Step 1:</strong> Add our bot to your Telegram group
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <code className="px-2 py-1 bg-muted rounded text-sm">
+                         @{botInfo?.botUsername || 'curiaforum_bot'}
+                       </code>
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         onClick={handleCopyBotName}
+                         className="h-6 px-2"
+                       >
+                         {copiedBotName ? (
+                           <Check size={12} className="text-green-600" />
+                         ) : (
+                           <Copy size={12} />
+                         )}
+                       </Button>
+                     </div>
+                     <div>
+                       <strong>Step 2:</strong> In your group, run the command:
+                     </div>
+                     <code className="block px-3 py-2 bg-muted rounded text-sm">
+                       /register {botInfo?.formattedConnectCode || 'YOUR_CONNECT_CODE'}
                      </code>
-                     <Button
-                       variant="ghost"
-                       size="sm"
-                       onClick={handleCopyBotName}
-                       className="h-6 px-2"
-                     >
-                       {copiedBotName ? (
-                         <Check size={12} className="text-green-600" />
-                       ) : (
-                         <Copy size={12} />
-                       )}
-                     </Button>
-                   </div>
-                   <div>
-                     <strong>Step 2:</strong> In your group, run the command:
-                   </div>
-                   <code className="block px-3 py-2 bg-muted rounded text-sm">
-                     /register {botInfo?.formattedConnectCode || 'YOUR_CONNECT_CODE'}
-                   </code>
-                   <div className="text-sm text-muted-foreground">
-                     The group will appear in the list above once successfully registered.
-                   </div>
-                 </AlertDescription>
-               </Alert>
+                     <div className="text-sm text-muted-foreground">
+                       The group will appear in the list above once successfully registered.
+                     </div>
+                   </AlertDescription>
+                 </Alert>
 
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowInstructions(false)}
-                >
-                  Hide Instructions
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowInstructions(false)}
+                  >
+                    Hide Instructions
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Settings Modal */}
+      {selectedGroup && (
+        <TelegramGroupSettingsModal
+          group={selectedGroup}
+          communityId={communityId}
+          isOpen={!!selectedGroup}
+          onClose={handleCloseModal}
+          theme={theme}
+        />
+      )}
+    </>
   );
 }
 
-// Individual group card component
+// Individual group card component - now clickable
 function TelegramGroupCard({ 
   group, 
-  theme 
+  theme,
+  onClick
 }: { 
   group: TelegramGroupResponse; 
   theme: 'light' | 'dark'; 
+  onClick: () => void;
 }) {
   const registeredTime = useTimeSince(group.created_at);
   const updatedTime = useTimeSince(group.updated_at);
 
+  // Check if group has board-specific settings
+  const hasBoardSettings = group.notification_settings.boards && 
+    Object.keys(group.notification_settings.boards).length > 0;
+
   return (
-    <div className={cn(
-      "p-4 rounded-lg border",
-      theme === 'dark' 
-        ? 'border-slate-700 bg-slate-800/50' 
-        : 'border-slate-200 bg-slate-50/50'
-    )}>
+    <div 
+      className={cn(
+        "p-4 rounded-lg border cursor-pointer transition-colors hover:bg-opacity-80",
+        theme === 'dark' 
+          ? 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/70' 
+          : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50/70'
+      )}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
@@ -310,6 +346,11 @@ function TelegramGroupCard({
             >
               {group.is_active ? 'Active' : 'Inactive'}
             </Badge>
+            {hasBoardSettings && (
+              <Badge variant="outline" className="flex-shrink-0">
+                Board Settings
+              </Badge>
+            )}
           </div>
           
           <div className="space-y-1 text-sm">
@@ -337,6 +378,21 @@ function TelegramGroupCard({
               </Badge>
             ))}
           </div>
+        </div>
+        
+        <div className="flex items-center gap-2 ml-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+          >
+            <Settings size={16} />
+          </Button>
+          <ChevronRight size={16} className="text-muted-foreground" />
         </div>
       </div>
     </div>

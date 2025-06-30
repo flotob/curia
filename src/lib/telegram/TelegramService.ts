@@ -13,6 +13,12 @@ interface TelegramGroup {
       end: string;
       timezone?: string;
     };
+    boards?: {
+      [boardId: string]: {
+        enabled: boolean;
+        events: string[];
+      };
+    };
   };
   registered_by_user_id: string;
   is_active: boolean;
@@ -359,6 +365,33 @@ export class TelegramService {
   private shouldSendNotification(group: TelegramGroup, notification: NotificationData): boolean {
     const settings = group.notification_settings;
     
+    // Check if board-specific settings exist and should override global settings
+    if (settings.boards && notification.metadata?.board_id) {
+      const boardId = notification.metadata.board_id.toString();
+      const boardSettings = settings.boards[boardId];
+      
+      if (boardSettings) {
+        // Use board-specific settings
+        if (!boardSettings.enabled) {
+          return false;
+        }
+        
+        if (boardSettings.events && boardSettings.events.length > 0) {
+          if (!boardSettings.events.includes(notification.type)) {
+            return false;
+          }
+        }
+        
+        // Still check global quiet hours (board settings don't override this)
+        if (settings.quiet_hours && this.isInQuietHours(settings.quiet_hours)) {
+          return false;
+        }
+        
+        return true;
+      }
+    }
+    
+    // Fall back to global settings
     // Check if notifications are enabled
     if (!settings.enabled) {
       return false;
@@ -572,6 +605,60 @@ ${user_name ? `\n👤 ${this.escapeHtml(user_name)}` : ''}`;
     } catch (error) {
       console.error(`[TelegramService] Error deactivating group ${chatId}:`, error);
       return false;
+    }
+  }
+
+  /**
+   * Update notification settings for a specific Telegram group
+   */
+  async updateGroupSettings(
+    groupId: number,
+    communityId: string,
+    notificationSettings: {
+      enabled: boolean;
+      events: string[];
+      quiet_hours?: {
+        start: string;
+        end: string;
+        timezone?: string;
+      };
+      boards?: {
+        [boardId: string]: {
+          enabled: boolean;
+          events: string[];
+        };
+      };
+    }
+  ): Promise<TelegramGroup | null> {
+    try {
+      const result = await query(`
+        UPDATE telegram_groups 
+        SET 
+          notification_settings = $1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND community_id = $3 AND is_active = true
+        RETURNING *
+      `, [
+        JSON.stringify(notificationSettings),
+        groupId,
+        communityId
+      ]);
+
+      if (result.rows.length === 0) {
+        console.warn(`[TelegramService] Group ${groupId} not found or access denied for community ${communityId}`);
+        return null;
+      }
+
+      const updatedGroup = result.rows[0];
+      console.log(`[TelegramService] Updated settings for group ${groupId} (${updatedGroup.chat_title})`);
+      
+      return {
+        ...updatedGroup,
+        chat_id: updatedGroup.chat_id.toString() // Ensure string type for chat_id
+      };
+    } catch (error) {
+      console.error(`[TelegramService] Error updating group ${groupId} settings:`, error);
+      return null;
     }
   }
 }

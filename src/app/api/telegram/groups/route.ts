@@ -15,6 +15,12 @@ export interface TelegramGroupResponse {
       end: string;
       timezone?: string;
     };
+    boards?: {
+      [boardId: string]: {
+        enabled: boolean;
+        events: string[];
+      };
+    };
   };
   is_active: boolean;
   created_at: string;
