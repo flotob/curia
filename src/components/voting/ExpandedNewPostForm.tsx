@@ -25,7 +25,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import TiptapLink from '@tiptap/extension-link';
-import TiptapImage from '@tiptap/extension-image';
+import { EnhancedImageExtension } from '@/components/tiptap/EnhancedImageExtension';
 import { EditorToolbar } from './EditorToolbar';
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
@@ -167,7 +167,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         codeBlock: false, 
       }),
       TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
-      TiptapImage, 
+      EnhancedImageExtension, 
       CodeBlockLowlight.configure({ lowlight }),
       Markdown.configure({ html: false, tightLists: true, transformPastedText: true }),
       Placeholder.configure({

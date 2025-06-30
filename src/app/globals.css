@@ -457,6 +457,83 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
   }
 }
 
+/* Enhanced Image Layouts */
+.enhanced-image-wrapper {
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Multiple image layouts */
+.image-group-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.image-group-row .enhanced-image-wrapper {
+  flex: 1;
+  min-width: 200px;
+  max-width: calc(50% - 0.25rem);
+}
+
+.image-group-grid {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  max-width: 600px;
+}
+
+/* Mobile responsive adjustments for images */
+@media (max-width: 768px) {
+  .image-group-row {
+    flex-direction: column;
+  }
+  
+  .image-group-row .enhanced-image-wrapper,
+  .image-group-grid .enhanced-image-wrapper {
+    max-width: 100%;
+  }
+  
+  .image-group-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Container query support for future */
+@container (max-width: 400px) {
+  .enhanced-image-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Enhanced image responsive behavior in prose */
+.prose .enhanced-image-wrapper {
+  margin: 1rem 0;
+}
+
+/* Mobile-first responsive images in prose */
+@media (max-width: 640px) {
+  .prose .enhanced-image-wrapper {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .prose .enhanced-image-wrapper {
+    max-width: 480px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .prose .enhanced-image-wrapper {
+    max-width: 500px;
+  }
+}
+
 /* Dark mode thread line */
 @media (prefers-color-scheme: dark) {
   .comment-children.with-thread-line::before {

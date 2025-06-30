@@ -111,7 +111,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   const applyImage = () => {
     if (!editor) return;
     if (currentImageUrl.trim()) {
-      editor.chain().focus().setImage({ src: currentImageUrl.trim() }).run();
+      // Try enhanced image command first, fallback to regular setImage
+      const commands = editor.chain().focus();
+      if (editor.can().setEnhancedImage({ src: currentImageUrl.trim() })) {
+        commands.setEnhancedImage({ src: currentImageUrl.trim() }).run();
+      } else {
+        commands.setImage({ src: currentImageUrl.trim() }).run();
+      }
     }
     setIsImageDialogOpen(false);
     setCurrentImageUrl('');

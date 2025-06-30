@@ -23,7 +23,7 @@ import { Markdown } from 'tiptap-markdown';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import TiptapLink from '@tiptap/extension-link'; // For rendering links
-import TiptapImage from '@tiptap/extension-image'; // For rendering images, if they ever appear in comments
+import { EnhancedImageExtension } from '@/components/tiptap/EnhancedImageExtension';
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
@@ -120,7 +120,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           style: 'word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; white-space: normal;',
         },
       }),
-      TiptapImage, // For rendering images, if they ever appear in comments
+      EnhancedImageExtension, // For rendering images with responsive behavior and modal support
       CodeBlockLowlight.configure({ lowlight }), // For syntax highlighting
       Markdown.configure({ html: false, tightLists: true }),
       MentionExtension,

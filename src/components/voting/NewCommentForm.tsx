@@ -26,7 +26,7 @@ import { common, createLowlight } from 'lowlight';
 // New Tiptap Extension imports
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
+import { EnhancedImageExtension } from '@/components/tiptap/EnhancedImageExtension';
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 // highlight.js CSS is in layout.tsx
@@ -89,7 +89,7 @@ export const NewCommentForm: React.FC<NewCommentFormProps> = ({
         autolink: true,
         linkOnPaste: true,
       }),
-      Image, // Basic image support 
+      EnhancedImageExtension, // Enhanced image support with responsive behavior 
       // Explicitly use CodeBlockLowlight for its input rules and syntax highlighting
       CodeBlockLowlight.configure({ lowlight }),
       // Markdown extension for parsing pasted Markdown and potentially serializing

@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { MainLayoutWithSidebar } from "@/components/layout/MainLayoutWithSidebar";
 import { ResponsiveToaster } from "@/components/ui/responsive-toaster";
 import { GlobalSearchModal } from "@/components/search/GlobalSearchModal";
+import { ImageModalProvider } from "@/components/tiptap/ImageModalProvider";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -42,10 +43,12 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <Providers>
-              <Suspense fallback={<div>Loading application...</div>}>
-                <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
-                <GlobalSearchModal />
-              </Suspense>
+              <ImageModalProvider>
+                <Suspense fallback={<div>Loading application...</div>}>
+                  <MainLayoutWithSidebar>{children}</MainLayoutWithSidebar>
+                  <GlobalSearchModal />
+                </Suspense>
+              </ImageModalProvider>
             </Providers>
             <ResponsiveToaster />
           </ThemeProvider>

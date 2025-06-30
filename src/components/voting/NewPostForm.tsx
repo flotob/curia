@@ -25,7 +25,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import TiptapLink from '@tiptap/extension-link';
-import TiptapImage from '@tiptap/extension-image';
+import { EnhancedImageExtension } from '@/components/tiptap/EnhancedImageExtension';
 import { EditorToolbar } from './EditorToolbar'; // Import the toolbar
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 // highlight.js CSS is now in layout.tsx
@@ -165,7 +165,7 @@ export const NewPostForm: React.FC<NewPostFormProps> = ({ onPostCreated, boardId
       // Note: BulletList, OrderedList, ListItem, Blockquote are part of StarterKit by default.
       // We list them if we were to disable them in StarterKit and use standalone versions, but here StarterKit handles them.
       TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
-      TiptapImage, 
+      EnhancedImageExtension, 
       // Explicitly use CodeBlockLowlight for its input rules and syntax highlighting
       CodeBlockLowlight.configure({ lowlight }),
       // Markdown extension for parsing pasted Markdown
