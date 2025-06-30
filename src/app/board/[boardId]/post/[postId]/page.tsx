@@ -77,12 +77,30 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
 
   // Navigation helpers
+  const buildUrl = useCallback((path: string, additionalParams: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    
+    // Preserve existing params
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+    
+    // Add/override with new params
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    
+    return `${path}?${params.toString()}`;
+  }, [searchParams]);
+
   const handleNavigateBack = useCallback(() => {
     const backUrl = searchParams?.get('boardId') 
-      ? `/?boardId=${searchParams.get('boardId')}${searchParams?.get('cg_theme') ? '&cg_theme=' + searchParams.get('cg_theme') : ''}`
-      : '/';
+      ? buildUrl('/', { boardId: searchParams.get('boardId')! })
+      : buildUrl('/');
     router.push(backUrl);
-  }, [router, searchParams]);
+  }, [router, searchParams, buildUrl]);
 
   const handleFocusComment = useCallback(() => {
     commentFormRef.current?.focus();
@@ -284,7 +302,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
                 Back to Board
               </Button>
               <Button 
-                onClick={() => router.push('/')}
+                onClick={() => router.push(buildUrl('/'))}
               >
                 <Home size={16} className="mr-2" />
                 Go Home
@@ -299,7 +317,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-2xl mx-auto">
       {/* Simple Back Button */}
       <FadeIn>
         <div className="mb-4">
