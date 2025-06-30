@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { preserveCgParams } from '@/utils/urlBuilder';
 import { useTippingEligibility } from '@/hooks/useTippingEligibility';
 import { TippingModal } from '@/components/tipping/TippingModal';
+import { authFetch } from '@/utils/authFetch';
 
 interface UserProfile {
   id: string;
@@ -88,17 +89,11 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
         }
         
         // For JSON format, userId is already clean since MentionNode passes node.attrs.id directly
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(`/api/users/${encodeURIComponent(cleanUserId)}?detailed=true`, {
+        const response = await authFetch(`/api/users/${encodeURIComponent(cleanUserId)}?detailed=true`, {
           method: 'GET',
-          headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         });
 
         if (response.ok) {

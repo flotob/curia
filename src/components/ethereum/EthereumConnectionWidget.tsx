@@ -25,6 +25,7 @@ import { EthereumSmartVerificationButton } from './EthereumSmartVerificationButt
 import { useAuth } from '@/contexts/AuthContext';
 import { useInvalidateVerificationStatus } from '@/hooks/useGatingData';
 import { useEthereumRequirementVerification } from '@/hooks/gating/eth/useEthereumRequirementVerification';
+import { authFetch } from '@/utils/authFetch';
 
 interface EthereumConnectionWidgetProps {
   requirements: EthereumGatingRequirements;
@@ -174,11 +175,10 @@ This signature proves you control this address and grants access based on lock r
       const signature = await signMessage(message);
 
       console.log('[Ethereum] Submitting to generic verification endpoint...');
-      const verificationResponse = await fetch(`/api/locks/${lockId}/verify/ethereum_profile`, {
+      const verificationResponse = await authFetch(`/api/locks/${lockId}/verify/ethereum_profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           signature,

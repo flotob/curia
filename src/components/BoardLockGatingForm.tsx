@@ -21,6 +21,7 @@ import { LockWithStats } from '@/types/locks';
 import { LockBrowser } from '@/components/locks/LockBrowser';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/utils/authFetch';
 
 interface BoardLockGatingFormProps {
   currentSettings: BoardSettings;
@@ -94,11 +95,7 @@ export const BoardLockGatingForm: React.FC<BoardLockGatingFormProps> = ({
       // Load details for each selected lock
       const lockPromises = lockGating.lockIds.map(async (lockId) => {
         try {
-          const response = await fetch(`/api/locks/${lockId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
+          const response = await authFetch(`/api/locks/${lockId}`);
           if (response.ok) {
             const data = await response.json();
             if (data.success) {
