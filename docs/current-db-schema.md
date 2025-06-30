@@ -21,6 +21,8 @@ CREATE UNIQUE INDEX boards_community_id_name_key ON public.boards USING btree (c
 
 CREATE INDEX boards_settings_index ON public.boards USING gin (settings);
 
+CREATE INDEX idx_boards_community_posts ON public.boards USING btree (community_id, id) INCLUDE (name, settings);
+
 
 DELIMITER ;;
 
@@ -136,6 +138,10 @@ CREATE INDEX idx_community_partnerships_status ON public.community_partnerships 
 CREATE INDEX idx_community_partnerships_invited_at ON public.community_partnerships USING btree (invited_at);
 
 
+DROP VIEW IF EXISTS "enriched_posts";
+CREATE TABLE "enriched_posts" ("id" integer, "author_user_id" text, "title" character varying(255), "content" text, "tags" text[], "settings" jsonb, "lock_id" integer, "upvote_count" integer, "comment_count" integer, "created_at" timestamptz, "updated_at" timestamptz, "author_name" text, "author_profile_picture_url" text, "board_id" integer, "board_name" character varying(255), "board_description" text, "board_settings" jsonb, "community_id" text, "community_name" text, "community_short_id" text, "plugin_id" text, "community_logo_url" text, "community_settings" jsonb, "has_lock" boolean, "has_tags" boolean, "share_access_count" bigint, "share_count" bigint, "last_shared_at" timestamptz, "most_recent_access_at" timestamptz);
+
+
 DROP TABLE IF EXISTS "imported_boards";
 DROP SEQUENCE IF EXISTS imported_boards_id_seq;
 CREATE SEQUENCE imported_boards_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -199,7 +205,7 @@ CREATE TABLE "public"."links" (
     "board_id" integer NOT NULL,
     "plugin_id" character varying(255) NOT NULL,
     "share_token" character varying(255) NOT NULL,
-    "shared_by_user_id" character varying(255),
+    "shared_by_user_id" text,
     "share_source" character varying(100),
     "post_title" character varying(500) NOT NULL,
     "board_name" character varying(255) NOT NULL,
@@ -387,6 +393,8 @@ CREATE INDEX posts_settings_index ON public.posts USING gin (settings);
 
 CREATE INDEX idx_posts_lock_id ON public.posts USING btree (lock_id);
 
+CREATE INDEX idx_posts_author_board_created ON public.posts USING btree (author_user_id, board_id, created_at DESC);
+
 
 DELIMITER ;;
 
@@ -433,6 +441,10 @@ CREATE UNIQUE INDEX pre_verifications_unique_user_lock_category ON public.pre_ve
 CREATE INDEX idx_pre_verifications_lock_status_expiry ON public.pre_verifications USING btree (lock_id, verification_status, expires_at);
 
 CREATE INDEX idx_pre_verifications_user_expiry ON public.pre_verifications USING btree (user_id, expires_at);
+
+CREATE INDEX idx_pre_verifications_user_status_expiry_lock ON public.pre_verifications USING btree (user_id, verification_status, expires_at, lock_id) WHERE (verification_status = 'verified'::text);
+
+CREATE INDEX idx_pre_verifications_lock_status_expiry_optimized ON public.pre_verifications USING btree (lock_id, verification_status, expires_at) WHERE (verification_status = 'verified'::text);
 
 
 DELIMITER ;;
@@ -672,12 +684,17 @@ CREATE TABLE "public"."users" (
     "name" text,
     "profile_picture_url" text,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "settings" jsonb DEFAULT '{}' NOT NULL,
     CONSTRAINT "users_pkey" PRIMARY KEY ("user_id")
 ) WITH (oids = false);
+
+COMMENT ON COLUMN "public"."users"."settings" IS 'JSON field for storing additional user data from Common Ground (LUKSO address, social handles, premium status, etc.)';
 
 CREATE INDEX idx_users_name_search ON public.users USING gin (to_tsvector('english'::regconfig, name)) WHERE (name IS NOT NULL);
 
 CREATE INDEX idx_users_name_prefix ON public.users USING btree (name text_pattern_ops) WHERE (name IS NOT NULL);
+
+CREATE INDEX idx_users_settings ON public.users USING gin (settings);
 
 
 DROP TABLE IF EXISTS "votes";
@@ -707,6 +724,7 @@ ALTER TABLE ONLY "public"."imported_boards" ADD CONSTRAINT "imported_boards_sour
 
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_board_id_fkey" FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_shared_by_user_fkey" FOREIGN KEY (shared_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."links" ADD CONSTRAINT "links_shared_by_user_id_fkey" FOREIGN KEY (shared_by_user_id) REFERENCES users(user_id) NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."locks" ADD CONSTRAINT "locks_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
@@ -725,6 +743,7 @@ ALTER TABLE ONLY "public"."reactions" ADD CONSTRAINT "reactions_post_id_fkey" FO
 ALTER TABLE ONLY "public"."reactions" ADD CONSTRAINT "reactions_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."telegram_groups" ADD CONSTRAINT "telegram_groups_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."telegram_groups" ADD CONSTRAINT "telegram_groups_registered_by_fkey" FOREIGN KEY (registered_by_user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."telegram_notifications" ADD CONSTRAINT "telegram_notifications_source_comment_id_fkey" FOREIGN KEY (source_comment_id) REFERENCES comments(id) ON DELETE SET NULL NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."telegram_notifications" ADD CONSTRAINT "telegram_notifications_source_post_id_fkey" FOREIGN KEY (source_post_id) REFERENCES posts(id) ON DELETE SET NULL NOT DEFERRABLE;
@@ -738,6 +757,55 @@ ALTER TABLE ONLY "public"."user_friends" ADD CONSTRAINT "user_friends_user_id_fk
 
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."votes" ADD CONSTRAINT "votes_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+
+DROP TABLE IF EXISTS "enriched_posts";
+CREATE VIEW "enriched_posts" AS SELECT p.id,
+    p.author_user_id,
+    p.title,
+    p.content,
+    p.tags,
+    p.settings,
+    p.lock_id,
+    p.upvote_count,
+    p.comment_count,
+    p.created_at,
+    p.updated_at,
+    u.name AS author_name,
+    u.profile_picture_url AS author_profile_picture_url,
+    b.id AS board_id,
+    b.name AS board_name,
+    b.description AS board_description,
+    b.settings AS board_settings,
+    b.community_id,
+    c.name AS community_name,
+    c.community_short_id,
+    c.plugin_id,
+    c.logo_url AS community_logo_url,
+    c.settings AS community_settings,
+        CASE
+            WHEN (p.lock_id IS NOT NULL) THEN true
+            ELSE false
+        END AS has_lock,
+        CASE
+            WHEN ((p.tags IS NOT NULL) AND (array_length(p.tags, 1) > 0)) THEN true
+            ELSE false
+        END AS has_tags,
+    COALESCE(share_stats.total_access_count, (0)::bigint) AS share_access_count,
+    COALESCE(share_stats.share_count, (0)::bigint) AS share_count,
+    share_stats.last_shared_at,
+    share_stats.most_recent_access_at
+   FROM ((((posts p
+     JOIN users u ON ((p.author_user_id = u.user_id)))
+     JOIN boards b ON ((p.board_id = b.id)))
+     JOIN communities c ON ((b.community_id = c.id)))
+     LEFT JOIN ( SELECT links.post_id,
+            sum(links.access_count) AS total_access_count,
+            count(*) AS share_count,
+            max(links.created_at) AS last_shared_at,
+            max(links.last_accessed_at) AS most_recent_access_at
+           FROM links
+          WHERE ((links.expires_at IS NULL) OR (links.expires_at > now()))
+          GROUP BY links.post_id) share_stats ON ((p.id = share_stats.post_id)));
 
 DROP TABLE IF EXISTS "lock_stats";
 CREATE VIEW "lock_stats" AS SELECT l.id,
@@ -759,4 +827,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-27 11:27:12 UTC
+-- 2025-06-30 12:00:44 UTC
