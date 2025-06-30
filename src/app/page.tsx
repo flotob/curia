@@ -301,7 +301,7 @@ export default function HomePage() {
       <div className="container mx-auto py-8 px-4">
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Search-First Post Creation */}
-          <section className="max-w-2xl mx-auto">
+          <section className="max-w-3xl mx-auto">
             {showExpandedForm ? (
               <ModalContainer
                 isPostModalOpen={showExpandedForm}
@@ -334,7 +334,7 @@ export default function HomePage() {
           </section>
 
           {/* Tag Filtering */}
-          <section className="max-w-2xl mx-auto">
+          <section className="max-w-3xl mx-auto">
             <TagFilterComponent
               boardId={boardId}
               theme={theme}
@@ -357,7 +357,7 @@ export default function HomePage() {
 
           {/* Telegram Setup Banner - Admin Only */}
           {communityInfo?.id && (
-            <section className="max-w-2xl mx-auto">
+            <section className="max-w-3xl mx-auto">
               <TelegramSetupBanner 
                 communityId={communityInfo.id}
                 theme={theme}
@@ -367,7 +367,7 @@ export default function HomePage() {
           )}
 
           {/* Feed Section */}
-          <main className="max-w-2xl mx-auto space-y-6">
+          <main className="max-w-3xl mx-auto space-y-6">
           <div className="space-y-4 mb-6">
             <div>
               <div className="flex items-center gap-2">

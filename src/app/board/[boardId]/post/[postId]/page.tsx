@@ -317,7 +317,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
 
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       {/* Simple Back Button */}
       <FadeIn>
         <div className="mb-4">
