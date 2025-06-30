@@ -14,7 +14,6 @@ import { CommentList } from '@/components/voting/CommentList';
 import { NewCommentForm } from '@/components/voting/NewCommentForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-// import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { ArrowLeft, Home, MessageSquare } from 'lucide-react';
 import { UniversalProfileProvider } from '@/contexts/UniversalProfileContext';
 // URL builder utilities are now handled internally with buildInternalUrl

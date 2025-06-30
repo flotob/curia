@@ -27,10 +27,6 @@ import TiptapImage from '@tiptap/extension-image'; // For rendering images, if t
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
-// import { cn } from '@/lib/utils';
-// Ensure highlight.js theme is available. If not imported globally, import here.
-// For now, assuming it might be covered by NewCommentForm's import or a global one.
-// import 'highlight.js/styles/github-dark.css'; 
 
 const lowlight = createLowlight(common);
 
