@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-import { query } from '@/lib/db';
+import { query } from '../db';
 
 // ========================================
 // TYPESCRIPT INTERFACES
