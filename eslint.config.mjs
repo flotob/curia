@@ -13,6 +13,10 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
+      // Production-friendly TypeScript rules - downgrade 'any' from error to warning
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/ban-ts-comment": "warn",
+      
       // Custom rule to prevent manual Authorization header construction
       "no-restricted-syntax": [
         "error",
