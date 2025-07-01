@@ -812,8 +812,8 @@ export async function getPostsForCommunity(
   options: Partial<PostQueryOptions> = {}
 ): Promise<PaginatedPostsResult> {
   return executePostsQueryPaginated({
-    communityId,
-    boardIds: accessibleBoardIds,
+    // communityId,  // ❌ REMOVED: This filters out imported boards (b.community_id = importing_community_id)
+    boardIds: accessibleBoardIds,  // ✅ This correctly includes both owned and imported board IDs
     userId,
     includeUserVoting: !!userId,
     includeShareStats: true,
