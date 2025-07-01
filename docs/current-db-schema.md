@@ -30,6 +30,39 @@ CREATE TRIGGER "set_timestamp_boards" BEFORE UPDATE ON "public"."boards" FOR EAC
 
 DELIMITER ;
 
+DROP TABLE IF EXISTS "bookmarks";
+DROP SEQUENCE IF EXISTS bookmarks_id_seq;
+CREATE SEQUENCE bookmarks_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
+
+CREATE TABLE "public"."bookmarks" (
+    "id" integer DEFAULT nextval('bookmarks_id_seq') NOT NULL,
+    "user_id" text NOT NULL,
+    "post_id" integer NOT NULL,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "community_id" text NOT NULL,
+    CONSTRAINT "bookmarks_pkey" PRIMARY KEY ("id")
+) WITH (oids = false);
+
+CREATE INDEX bookmarks_user_id_index ON public.bookmarks USING btree (user_id);
+
+CREATE INDEX bookmarks_post_id_index ON public.bookmarks USING btree (post_id);
+
+CREATE INDEX bookmarks_created_at_index ON public.bookmarks USING btree (created_at);
+
+CREATE INDEX bookmarks_community_id_index ON public.bookmarks USING btree (community_id);
+
+CREATE INDEX bookmarks_user_community_index ON public.bookmarks USING btree (user_id, community_id);
+
+CREATE UNIQUE INDEX bookmarks_user_post_unique ON public.bookmarks USING btree (user_id, post_id);
+
+
+DELIMITER ;;
+
+CREATE TRIGGER "set_timestamp_bookmarks" BEFORE UPDATE ON "public"."bookmarks" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
+
+DELIMITER ;
+
 DROP TABLE IF EXISTS "comments";
 DROP SEQUENCE IF EXISTS comments_id_seq;
 CREATE SEQUENCE comments_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -708,6 +741,10 @@ CREATE TABLE "public"."votes" (
 
 ALTER TABLE ONLY "public"."boards" ADD CONSTRAINT "boards_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
 
+ALTER TABLE ONLY "public"."bookmarks" ADD CONSTRAINT "bookmarks_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."bookmarks" ADD CONSTRAINT "bookmarks_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."bookmarks" ADD CONSTRAINT "bookmarks_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_author_user_id_fkey" FOREIGN KEY (author_user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_parent_comment_id_fkey" FOREIGN KEY (parent_comment_id) REFERENCES comments(id) ON DELETE CASCADE NOT DEFERRABLE;
 ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_post_id_fkey" FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE NOT DEFERRABLE;
@@ -827,4 +864,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-06-30 12:00:44 UTC
+-- 2025-07-01 16:45:53 UTC
