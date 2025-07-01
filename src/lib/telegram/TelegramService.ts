@@ -8,6 +8,10 @@ interface TelegramGroup {
   notification_settings: {
     enabled: boolean;
     events: string[];
+    boards?: Record<string, {
+      enabled: boolean;
+      events: string[];
+    }>;
     quiet_hours?: {
       start: string;
       end: string;
@@ -364,7 +368,33 @@ export class TelegramService {
       return false;
     }
 
-    // Check if this event type is enabled
+    // Check board-specific settings first (if board_id is available in metadata)
+    const boardId = notification.metadata?.board_id;
+    if (boardId && settings.boards && settings.boards[boardId.toString()]) {
+      const boardSettings = settings.boards[boardId.toString()];
+      
+      // Use board-specific settings
+      if (!boardSettings.enabled) {
+        return false;
+      }
+      
+      // Check if this event type is enabled for this board
+      if (boardSettings.events && boardSettings.events.length > 0) {
+        if (!boardSettings.events.includes(notification.type)) {
+          return false;
+        }
+      }
+      
+      // Board-specific settings passed, check quiet hours
+      if (settings.quiet_hours && this.isInQuietHours(settings.quiet_hours)) {
+        return false;
+      }
+      
+      return true;
+    }
+
+    // Fall back to global settings
+    // Check if this event type is enabled globally
     if (settings.events && settings.events.length > 0) {
       if (!settings.events.includes(notification.type)) {
         return false;

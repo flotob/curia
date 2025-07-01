@@ -23,6 +23,7 @@ import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { useTimeSince } from '@/utils/timeUtils';
 import { TelegramGroupResponse } from '@/app/api/telegram/groups/route';
+import { TelegramGroupSettingsModal } from './TelegramGroupSettingsModal';
 
 interface TelegramGroupsSectionProps {
   communityId: string;
@@ -34,6 +35,7 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
   const { toast } = useToast();
   const [copiedBotName, setCopiedBotName] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<TelegramGroupResponse | null>(null);
 
   // Fetch Telegram groups with 3-second polling when page is active
   const { 
@@ -134,20 +136,21 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
   }
 
   return (
-    <Card className="lg:col-span-2">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare size={20} />
-          Telegram Notifications
-          <Badge variant="secondary" className="ml-auto">
-            {telegramGroups.length} connected
-          </Badge>
-        </CardTitle>
-        <CardDescription>
-          Manage Telegram groups receiving forum notifications • Updates every 3 seconds
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <>
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare size={20} />
+            Telegram Notifications
+            <Badge variant="secondary" className="ml-auto">
+              {telegramGroups.length} connected
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            Manage Telegram groups receiving forum notifications • Updates every 3 seconds
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
         {/* Connected Groups List */}
         {telegramGroups.length > 0 ? (
           <div className="space-y-4">
@@ -174,6 +177,7 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
                   key={group.id}
                   group={group}
                   theme={theme}
+                  onConfigure={() => setSelectedGroup(group)}
                 />
               ))}
             </div>
@@ -272,18 +276,32 @@ export function TelegramGroupsSection({ communityId, theme }: TelegramGroupsSect
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Settings Modal */}
+      {selectedGroup && (
+        <TelegramGroupSettingsModal
+          group={selectedGroup}
+          communityId={communityId}
+          isOpen={!!selectedGroup}
+          onClose={() => setSelectedGroup(null)}
+          theme={theme}
+        />
+      )}
+    </>
   );
 }
 
 // Individual group card component
 function TelegramGroupCard({ 
   group, 
-  theme 
+  theme,
+  onConfigure 
 }: { 
   group: TelegramGroupResponse; 
-  theme: 'light' | 'dark'; 
+  theme: 'light' | 'dark';
+  onConfigure: () => void;
 }) {
   const registeredTime = useTimeSince(group.created_at);
   const updatedTime = useTimeSince(group.updated_at);
@@ -336,7 +354,25 @@ function TelegramGroupCard({
                 {event.replace('_', ' ')}
               </Badge>
             ))}
+            {group.notification_settings.boards && Object.keys(group.notification_settings.boards).length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                Board Settings
+              </Badge>
+            )}
           </div>
+        </div>
+
+        {/* Configure Button */}
+        <div className="flex-shrink-0 ml-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onConfigure}
+            className="h-8"
+          >
+            <Settings size={14} className="mr-1" />
+            Configure
+          </Button>
         </div>
       </div>
     </div>

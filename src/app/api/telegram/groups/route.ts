@@ -10,6 +10,10 @@ export interface TelegramGroupResponse {
   notification_settings: {
     enabled: boolean;
     events: string[];
+    boards?: Record<string, {
+      enabled: boolean;
+      events: string[];
+    }>;
     quiet_hours?: {
       start: string;
       end: string;

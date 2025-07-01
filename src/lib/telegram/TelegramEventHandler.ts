@@ -232,7 +232,10 @@ export class TelegramEventHandler {
       post_title: postTitle,
       user_name: (payload.author_name as string) || 'Unknown User',
       community_name: 'Community',
-      board_name: boardContext.boardName || 'Board'
+      board_name: boardContext.boardName || 'Board',
+      metadata: {
+        board_id: boardContext.boardId
+      }
     };
     
     const result = await telegramService.sendTwoPartNotification(
@@ -278,6 +281,7 @@ export class TelegramEventHandler {
       post_title: post_title || 'Untitled Post',
       user_name: 'Community', // Don't show individual voter for milestones
       metadata: {
+        board_id: boardContext.boardId,
         upvote_count: newCount,
         is_milestone: true
       }
@@ -319,7 +323,10 @@ export class TelegramEventHandler {
       type: 'comment',
       post_id: postId,
       post_title: post_title || 'Untitled Post',
-      user_name: (comment.author_name as string) || 'Unknown User'
+      user_name: (comment.author_name as string) || 'Unknown User',
+      metadata: {
+        board_id: boardContext.boardId
+      }
     };
     
     // Send single notification with clickable title
