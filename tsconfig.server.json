@@ -19,6 +19,8 @@
     "src/lib/boardPermissions.ts",
     "src/lib/db.ts",
     "src/lib/socket.ts",
+    "src/lib/telegram/directMetadataFetcher.ts",
+    "src/lib/queries/enrichedPosts.ts",
     "src/types/settings.ts",
     "src/types/process.d.ts"
   ],

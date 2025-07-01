@@ -1,6 +1,6 @@
 import { CommunitySettings, BoardSettings, PostSettings, SettingsUtils } from '../../types/settings';
 import { ethers } from 'ethers';
-import { getSinglePost, type EnrichedPost } from '@/lib/queries/enrichedPosts';
+import { getSinglePost, type EnrichedPost } from '../queries/enrichedPosts';
 
 /**
  * Enhanced Post Metadata with Gating Context
