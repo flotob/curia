@@ -144,8 +144,9 @@ export async function verifyENSRequirements(
   ensDomainPatterns?: string[]
 ): Promise<{ valid: boolean; error?: string }> {
   try {
-    if (!requiresENS) {
-      return { valid: true }; // No ENS requirement
+    // Fixed: Check patterns even when requiresENS is false
+    if (!requiresENS && (!ensDomainPatterns || ensDomainPatterns.length === 0)) {
+      return { valid: true }; // No ENS requirement and no patterns
     }
 
     console.log(`[verifyENSRequirements] Checking ENS for ${ethAddress}`);
@@ -198,10 +199,22 @@ export async function verifyENSRequirements(
     }
 
     if (!ensName) {
-      return {
-        valid: false,
-        error: 'No ENS name found for this address'
-      };
+      // If requiresENS is true, ENS is mandatory
+      if (requiresENS) {
+        return {
+          valid: false,
+          error: 'No ENS name found for this address'
+        };
+      }
+      // If only patterns are specified but no ENS name exists, fail
+      if (ensDomainPatterns && ensDomainPatterns.length > 0) {
+        return {
+          valid: false,
+          error: `ENS domain matching pattern required: ${ensDomainPatterns.join(', ')}`
+        };
+      }
+      // Should not reach here due to early return, but just in case
+      return { valid: true };
     }
 
     // Verify forward resolution (name -> address) to prevent spoofing

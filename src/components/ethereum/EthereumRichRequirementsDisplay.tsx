@@ -270,8 +270,8 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
     });
   }
 
-  // ENS verification with real data
-  const ensVerification = requirements.requiresENS ? {
+  // ENS verification with real data - Fixed to handle patterns even when requiresENS is false
+  const ensVerification = (requirements.requiresENS || requirements.ensDomainPatterns) ? {
     hasENS: userStatus.ensStatus || false,
     isLoading: false
   } : undefined;
@@ -392,8 +392,8 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
             </div>
           )}
           
-          {/* ENS Name Requirement */}
-          {requirements.requiresENS && (
+          {/* ENS Name Requirement - Fixed to show for patterns too */}
+          {(requirements.requiresENS || requirements.ensDomainPatterns) && (
             <div className={`flex items-center justify-between p-3 rounded-lg border min-h-[60px] ${
               getRequirementStyling(ensVerification?.isLoading || false, ensVerification?.hasENS)
             }`}>
@@ -402,10 +402,18 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
                   <Hash className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">ENS Name</div>
+                  <div className="font-medium text-sm">
+                    {requirements.ensDomainPatterns ? 'ENS Domain Pattern' : 'ENS Name'}
+                  </div>
                   <div className="text-xs text-muted-foreground">
-                    Required: Valid ENS domain
-                    {ensVerification?.hasENS ? ' • You have: ENS name verified' : ' • You have: No ENS name'}
+                    Required: {requirements.ensDomainPatterns 
+                      ? `ENS domain matching: ${requirements.ensDomainPatterns.join(', ')}`
+                      : 'Valid ENS domain'
+                    }
+                    {ensVerification?.hasENS 
+                      ? ` • You have: ${userStatus.ensName || 'ENS name verified'}`
+                      : ' • You have: No ENS name'
+                    }
                   </div>
                 </div>
               </div>
@@ -643,7 +651,7 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
                 requirementChecks.push(ethVerification.meetsRequirement);
               }
               
-              // Check ENS requirement
+              // Check ENS requirement - Fixed to properly handle ENS patterns
               if (ensVerification) {
                 requirementChecks.push(ensVerification.hasENS);
               }
@@ -681,13 +689,8 @@ export const EthereumRichRequirementsDisplay: React.FC<EthereumRichRequirementsD
                 });
               }
               
-              // Check ENS pattern requirements
-              if (requirements.ensDomainPatterns) {
-                requirements.ensDomainPatterns.forEach(() => {
-                  // TODO: Add actual ENS pattern verification logic
-                  requirementChecks.push(false);
-                });
-              }
+              // ENS pattern requirements are now handled in the main ENS check above
+              // No separate verification needed since patterns are integrated
               
               // 🚀 NEW: Apply fulfillment mode logic
               let requirementsMet = false;

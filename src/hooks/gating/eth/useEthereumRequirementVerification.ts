@@ -110,32 +110,53 @@ export const useEthereumRequirementVerification = (
           };
         }
 
-        // 2. ENS Status
-        if (requirements.requiresENS) {
+        // 2. ENS Status - Fixed to check patterns even when requiresENS is false
+        if (requirements.requiresENS || requirements.ensDomainPatterns) {
             const hasENS = !!ensProfile.name;
-            let isMet = hasENS;
+            let isMet = false;
             let error: string | undefined;
 
-            if (hasENS && requirements.ensDomainPatterns && requirements.ensDomainPatterns.length > 0) {
-                const matchesPattern = requirements.ensDomainPatterns.some(pattern => {
-                    if (pattern === '*') return true;
-                    if (pattern.startsWith('*.')) {
-                        return ensProfile.name!.endsWith(pattern.slice(1));
-                    }
-                    return ensProfile.name === pattern;
-                });
+            // If ENS is required, user must have ENS name
+            if (requirements.requiresENS && !hasENS) {
+                isMet = false;
+                error = 'ENS name is required';
+            }
+            // If only patterns are specified (requiresENS is false), having no ENS is still valid unless patterns require specific domains
+            else if (!requirements.requiresENS && !hasENS && requirements.ensDomainPatterns) {
+                // For pattern-only requirements, no ENS name means requirement is not met
+                isMet = false;
+                error = `ENS domain matching pattern required: ${requirements.ensDomainPatterns.join(', ')}`;
+            }
+            // Check pattern matching if ENS name exists
+            else if (hasENS) {
+                isMet = true; // Default to true if ENS exists
+                
+                // Apply pattern restrictions if specified
+                if (requirements.ensDomainPatterns && requirements.ensDomainPatterns.length > 0) {
+                    const matchesPattern = requirements.ensDomainPatterns.some(pattern => {
+                        if (pattern === '*') return true;
+                        if (pattern.startsWith('*.')) {
+                            return ensProfile.name!.endsWith(pattern.slice(1));
+                        }
+                        return ensProfile.name === pattern;
+                    });
 
-                if (!matchesPattern) {
-                    isMet = false;
-                    error = `ENS does not match pattern: ${requirements.ensDomainPatterns.join(', ')}`;
+                    if (!matchesPattern) {
+                        isMet = false;
+                        error = `ENS does not match pattern: ${requirements.ensDomainPatterns.join(', ')}`;
+                    }
                 }
+            }
+            // If requiresENS is false and no patterns specified, and user has ENS, that's valid
+            else if (!requirements.requiresENS && hasENS) {
+                isMet = true;
             }
             
             newState.verificationStatus.ens = {
                 isMet: isMet,
                 isLoading: false,
                 current: ensProfile.name,
-                required: requirements.ensDomainPatterns?.join(', ') || 'Any ENS',
+                required: requirements.ensDomainPatterns?.join(', ') || (requirements.requiresENS ? 'Any ENS' : 'ENS Pattern'),
                 error: error,
             };
         }
