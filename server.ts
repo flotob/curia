@@ -1,3 +1,12 @@
+// Register TypeScript path aliases for Node.js runtime
+import { register } from 'tsconfig-paths';
+register({
+  baseUrl: '.',
+  paths: {
+    '@/*': ['./src/*']
+  }
+});
+
 import dotenv from 'dotenv';
 
 // Load environment variables for custom server (development only)
