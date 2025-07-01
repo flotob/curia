@@ -20,6 +20,12 @@
     "src/lib/db.ts",
     "src/lib/socket.ts",
     "src/lib/telegram/directMetadataFetcher.ts",
+    "src/lib/telegram/TelegramService.ts",
+    "src/lib/telegram/TelegramEventHandler.ts",
+    "src/lib/telegram/shareUrlGenerator.ts",
+    "src/lib/telegram/ogImageGenerator.ts",
+    "src/lib/telegram/directUrlGenerator.ts",
+    "src/lib/semantic-urls.ts",
     "src/lib/queries/enrichedPosts.ts",
     "src/types/settings.ts",
     "src/types/process.d.ts"
