@@ -9,6 +9,7 @@
  */
 
 import { query } from '../db';
+import { getAccessibleBoards } from '../boardPermissions';
 
 // ========================================
 // TYPESCRIPT INTERFACES
@@ -811,19 +812,41 @@ export async function getPostsForCommunity(
   userId?: string,
   options: Partial<PostQueryOptions> = {}
 ): Promise<PaginatedPostsResult> {
-  return executePostsQueryPaginated({
-    // communityId,  // ❌ REMOVED: This filters out imported boards (b.community_id = importing_community_id)
-    boardIds: accessibleBoardIds,  // ✅ This correctly includes both owned and imported board IDs
-    userId,
-    includeUserVoting: !!userId,
-    includeShareStats: true,
-    includeLockInfo: true,
-    includeBoardInfo: true,
-    includeAuthorInfo: true,
-    sortBy: 'popularity',
-    limit: 20,
-    ...options
-  });
+  
+  // 🧠 SMART FILTERING: Check if community has imported boards
+  const allBoards = await getAccessibleBoards(communityId);
+  const hasImportedBoards = allBoards.some((board: { is_imported: boolean }) => board.is_imported);
+  
+  if (hasImportedBoards) {
+    // Mixed case: Use board-only filtering (safe for imported boards)
+    return executePostsQueryPaginated({
+      boardIds: accessibleBoardIds,
+      userId,
+      includeUserVoting: !!userId,
+      includeShareStats: true,
+      includeLockInfo: true,
+      includeBoardInfo: true,
+      includeAuthorInfo: true,
+      sortBy: 'popularity',
+      limit: 20,
+      ...options
+    });
+  } else {
+    // Pure case: Use optimized community + board filtering
+    return executePostsQueryPaginated({
+      communityId,           // ✅ Safe to use - no imported boards to exclude
+      boardIds: accessibleBoardIds,
+      userId,
+      includeUserVoting: !!userId,
+      includeShareStats: true,
+      includeLockInfo: true,
+      includeBoardInfo: true,
+      includeAuthorInfo: true,
+      sortBy: 'popularity',
+      limit: 20,
+      ...options
+    });
+  }
 }
 
 /**
