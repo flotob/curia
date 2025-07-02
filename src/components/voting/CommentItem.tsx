@@ -28,6 +28,7 @@ import TiptapImage from '@tiptap/extension-image'; // For rendering images, if t
 import { MarkdownUtils } from '@/utils/markdownUtils';
 import { MentionExtension } from '@/components/mentions/MentionExtension';
 import { UserProfilePopover } from '@/components/mentions/UserProfilePopover';
+import { ReactionBar } from '../reactions/ReactionBar';
 
 const lowlight = createLowlight(common);
 
@@ -285,6 +286,14 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         >
           <EditorContent editor={editor} />
         </article>
+      </div>
+
+      {/* ReactionBar for comments */}
+      <div className="pl-1 mt-1 opacity-60 hover:opacity-100 transition-opacity duration-300">
+        <ReactionBar 
+          commentId={comment.id}
+          className="text-xs"
+        />
       </div>
 
       {/* Inline Reply Form */}
