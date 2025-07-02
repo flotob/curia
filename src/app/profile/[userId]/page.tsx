@@ -601,7 +601,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <div className="container mx-auto px-4 py-8 max-w-full">
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
             <Link href={buildHomeUrl()}>

@@ -273,7 +273,7 @@ export default function CommunitySettingsPage() {
 
   return (
     <div 
-      className="min-h-screen bg-gradient-to-br from-white/95 via-white to-slate-50/95 dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-800/95"
+      className="min-h-screen"
       style={{ backgroundColor: bgColor }}
     >
       <div className="container mx-auto px-4 py-8">

@@ -117,7 +117,7 @@ export default function AdminDashboardPage() {
     return (
       <div className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             <div className="animate-pulse space-y-6">
               <div className="h-8 w-64 rounded bg-slate-200 dark:bg-slate-700" />
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -188,9 +188,9 @@ export default function AdminDashboardPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white/95 via-white to-slate-50/95 dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-800/95">
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <Link href={buildUrl('/')}>

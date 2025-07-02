@@ -102,7 +102,7 @@ export default function SharedBoardsPage() {
   // Show error if no community ID is available
   if (!communityId) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="container mx-auto px-4 py-6 max-w-4xl">
         <Card className="border-yellow-200 dark:border-yellow-800">
           <CardContent className="p-6">
             <div className="text-center text-yellow-600 dark:text-yellow-400">
@@ -124,7 +124,7 @@ export default function SharedBoardsPage() {
   // Show error if API call failed
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="container mx-auto px-4 py-6 max-w-4xl">
         <Card className="border-red-200 dark:border-red-800">
           <CardContent className="p-6">
             <div className="text-center text-red-600 dark:text-red-400">
@@ -142,7 +142,7 @@ export default function SharedBoardsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
       <div className="mb-6">
         <Link href="/partnerships" className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 mb-4">
           <ArrowLeft className="h-4 w-4" />
