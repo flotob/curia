@@ -503,6 +503,33 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    newSocket.on('commentReactionUpdate', (reactionData: { 
+      commentId: number;
+      postId: number; 
+      emoji: string; 
+      action: string; 
+      userId: string; 
+      reactions: unknown[]; 
+      board_id: number; 
+      post_title: string; 
+      board_name: string;
+      comment_preview: string;
+      isCrossCommunityNotification?: boolean;
+      sourceCommunityName?: string;
+      crossCommunityNav?: { communityShortId: string; pluginId: string };
+    }) => {
+      console.log(`[Socket] Comment reaction update for post "${reactionData.post_title}": ${reactionData.action} ${reactionData.emoji} by ${reactionData.userId} on comment ${reactionData.commentId}`);
+      if (reactionData.userId !== userId) {
+        // Skip toast notifications for comment reactions (they're frequent and less important)
+        // But still invalidate caches for real-time updates
+        console.log(`[RQ Invalidate] Invalidating comments for post: ${reactionData.postId} due to comment reaction.`);
+        queryClient.invalidateQueries({ queryKey: ['comments', reactionData.postId] });
+        // MOST IMPORTANTLY: Invalidate the specific reaction cache for this comment
+        console.log(`[RQ Invalidate] Invalidating reaction cache for comment: ${reactionData.commentId}`);
+        queryClient.invalidateQueries({ queryKey: ['reactions', 'comment', reactionData.commentId] });
+      }
+    });
+
     newSocket.on('newComment', (commentData: {
       postId: number;
       post_title: string;

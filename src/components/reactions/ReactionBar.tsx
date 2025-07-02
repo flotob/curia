@@ -210,9 +210,19 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
     return `${firstTwo} and ${remaining} others reacted with ${reaction.emoji}`;
   };
 
+  // Determine if this is for comments (smaller size)
+  const isComment = !!commentId;
+  const buttonHeight = isComment ? "h-6" : "h-8";
+  const plusIconSize = isComment ? "h-3 w-3" : "h-4 w-4";
+  const emojiTextSize = isComment ? "text-xs" : "text-sm";
+  const countTextSize = isComment ? "text-[10px]" : "text-xs";
+  const addButtonSize = isComment ? "h-6 w-6" : "h-8 w-8";
+  const containerPadding = isComment ? "py-1" : "py-2";
+  const gapSize = isComment ? "gap-1" : "gap-2";
+
   return (
-    <div className={cn("overflow-x-auto scrollbar-hide py-2 w-0 min-w-full", className)}>
-      <div className="flex items-center gap-2 min-w-max">
+    <div className={cn(`overflow-x-auto scrollbar-hide ${containerPadding} w-0 min-w-full`, className)}>
+      <div className={`flex items-center ${gapSize} min-w-max`}>
         {/* Existing reaction pills */}
         {reactions.map((reaction) => {
         const userHasReacted = userReactions.includes(reaction.emoji);
@@ -224,15 +234,15 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
             size="sm"
             onClick={() => reactionMutation.mutate(reaction.emoji)}
             className={cn(
-              "h-8 px-2 py-1 rounded-full border transition-all duration-200",
+              `${buttonHeight} px-2 py-1 rounded-full border transition-all duration-200`,
               userHasReacted 
                 ? "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50" 
                 : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             )}
             title={getTooltipText(reaction)}
           >
-            <span className="text-sm mr-1">{reaction.emoji}</span>
-            <span className="text-xs font-medium">{reaction.count}</span>
+            <span className={`${emojiTextSize} mr-1`}>{reaction.emoji}</span>
+            <span className={`${countTextSize} font-medium`}>{reaction.count}</span>
           </Button>
         );
       })}
@@ -244,10 +254,10 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300"
+              className={`${addButtonSize} p-0 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300`}
               title="Add reaction"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className={plusIconSize} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent 
@@ -264,6 +274,9 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
               maxFrequentRows={2}
               perLine={8}
               set="native"
+              emojiSize={isComment ? 16 : 20}
+              emojiButtonSize={isComment ? 24 : 32}
+              style={{ height: isComment ? '300px' : '400px' }}
             />
           </DropdownMenuContent>
         </DropdownMenu>
