@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
@@ -35,8 +35,6 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
   const [postId, setPostId] = useState<string>('');
   const [isSharedLinkRedirecting, setIsSharedLinkRedirecting] = useState(false);
 
-
-  
   // All hooks must be called at the top level
   const { token, user } = useAuth();
   const router = useRouter();
@@ -56,25 +54,95 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     });
   }, [params]);
 
+  // 🔗 SHARED LINK DETECTION: Handle external share links FIRST (before any queries)
+  const isSharedLink = useMemo(() => {
+    if (!searchParams || !boardId || !postId) return false;
+    
+    const shareToken = searchParams.get('token');
+    const communityShortId = searchParams.get('communityShortId');
+    const pluginId = searchParams.get('pluginId');
+
+    return !!(shareToken && communityShortId && pluginId);
+  }, [searchParams, boardId, postId]);
+
+  // Handle shared link redirection immediately
+  useEffect(() => {
+    if (!isSharedLink) return;
+
+    console.log(`[PostDetailPage] 🔗 Shared link detected, redirecting to Common Ground...`);
+    setIsSharedLinkRedirecting(true);
+    
+    const shareToken = searchParams!.get('token');
+    const communityShortId = searchParams!.get('communityShortId');
+    const pluginId = searchParams!.get('pluginId');
+    const highlightComment = searchParams!.get('highlight'); // Comment to highlight
+    
+    const sharedContentToken = `${postId}-${boardId}-${Date.now()}`;
+    const postData = JSON.stringify({ 
+      postId, 
+      boardId, 
+      token: shareToken, 
+      timestamp: Date.now(),
+      ...(highlightComment && { commentId: highlightComment })
+    });
+
+    document.cookie = `shared_content_token=${sharedContentToken}; path=/; SameSite=None; Secure; max-age=${60 * 60 * 24 * 7}`;
+    document.cookie = `shared_post_data=${encodeURIComponent(postData)}; path=/; SameSite=None; Secure; max-age=${60 * 60 * 24 * 7}`;
+
+    const commonGroundBaseUrl = process.env.NEXT_PUBLIC_COMMON_GROUND_BASE_URL || 'https://app.commonground.wtf';
+    const redirectUrl = `${commonGroundBaseUrl}/c/${communityShortId}/plugin/${pluginId}`;
+    
+    // Small delay to ensure cookies are set
+    setTimeout(() => {
+      window.location.href = redirectUrl;
+    }, 100);
+  }, [isSharedLink, searchParams, boardId, postId]);
+
+  // Handle comment highlighting from URL parameters
+  useEffect(() => {
+    if (!searchParams || isSharedLink || isSharedLinkRedirecting) return;
+    
+    const highlightParam = searchParams.get('highlight');
+    if (highlightParam) {
+      const commentId = parseInt(highlightParam, 10);
+      if (!isNaN(commentId)) {
+        console.log(`[PostDetailPage] Comment highlight requested: ${commentId}`);
+        setHighlightedCommentId(commentId);
+        
+        // Auto-scroll to comment after a brief delay to ensure components are loaded
+        setTimeout(() => {
+          const commentElement = document.getElementById(`comment-${commentId}`);
+          if (commentElement) {
+            commentElement.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            });
+            console.log(`[PostDetailPage] Scrolled to comment ${commentId}`);
+          } else {
+            console.warn(`[PostDetailPage] Comment element ${commentId} not found for scrolling`);
+          }
+        }, 1000); // Give time for comments to load
+        
+        // Clear highlight after 4 seconds
+        setTimeout(() => {
+          setHighlightedCommentId(null);
+        }, 4000);
+      }
+    }
+  }, [searchParams, isSharedLink, isSharedLinkRedirecting]);
+
   const boardIdNum = parseInt(boardId, 10);
   const postIdNum = parseInt(postId, 10);
 
-  // Fetch the specific post
+  // Fetch the specific post (disabled for shared links)
   const { data: post, isLoading: isLoadingPost, error: postError } = useQuery<ApiPost>({
     queryKey: ['post', postIdNum],
     queryFn: async () => {
       if (!token) throw new Error('No auth token');
       return authFetchJson<ApiPost>(`/api/posts/${postIdNum}`, { token });
     },
-    enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLinkRedirecting,
+    enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLink && !isSharedLinkRedirecting,
   });
-
-  // Bookmark functionality (handled internally by BookmarkButton)
-  // const { isBookmarked, toggleBookmark } = useBookmarks(postIdNum);
-
-
-
-
 
   // Navigation helpers
   const buildUrl = useCallback((path: string, additionalParams: Record<string, string> = {}) => {
@@ -127,17 +195,17 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     enableGlobalShortcuts: true,
   });
 
-  // Fetch comments for the post
+  // Fetch comments for the post (disabled for shared links)
   const { data: comments, isLoading: isLoadingComments } = useQuery<ApiComment[]>({
     queryKey: ['comments', postIdNum],
     queryFn: async () => {
       if (!token) throw new Error('No auth token');
       return authFetchJson<ApiComment[]>(`/api/posts/${postIdNum}/comments`, { token });
     },
-    enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLinkRedirecting,
+    enabled: !!token && !isNaN(postIdNum) && !!postId && !isSharedLink && !isSharedLinkRedirecting,
   });
 
-  // Fetch board info
+  // Fetch board info (disabled for shared links)
   const { data: boardInfo } = useQuery<ApiBoard | null>({
     queryKey: ['board', boardIdNum],
     queryFn: async () => {
@@ -154,49 +222,16 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
         return null;
       }
     },
-    enabled: !!token && !!user?.cid && !isNaN(boardIdNum) && !!boardId && !isSharedLinkRedirecting,
+    enabled: !!token && !!user?.cid && !isNaN(boardIdNum) && !!boardId && !isSharedLink && !isSharedLinkRedirecting,
   });
 
-  // 🔗 SHARED LINK DETECTION: Handle external share links
+  // 🔗 REAL-TIME: Auto-join board room (disabled for shared links)
   useEffect(() => {
-    if (!searchParams || !boardId || !postId) return;
-
-    const shareToken = searchParams.get('token');
-    const communityShortId = searchParams.get('communityShortId');
-    const pluginId = searchParams.get('pluginId');
-
-    const isSharedLink = shareToken && communityShortId && pluginId;
-
-    if (isSharedLink) {
-      console.log(`[PostDetailPage] 🔗 Shared link detected, redirecting to Common Ground...`);
-      setIsSharedLinkRedirecting(true);
-      
-      const sharedContentToken = `${postId}-${boardId}-${Date.now()}`;
-      const postData = JSON.stringify({ 
-        postId, 
-        boardId, 
-        token: shareToken, 
-        timestamp: Date.now() 
-      });
-
-      document.cookie = `shared_content_token=${sharedContentToken}; path=/; SameSite=None; Secure; max-age=${60 * 60 * 24 * 7}`;
-      document.cookie = `shared_post_data=${encodeURIComponent(postData)}; path=/; SameSite=None; Secure; max-age=${60 * 60 * 24 * 7}`;
-
-      const commonGroundBaseUrl = process.env.NEXT_PUBLIC_COMMON_GROUND_BASE_URL || 'https://app.commonground.wtf';
-      const redirectUrl = `${commonGroundBaseUrl}/c/${communityShortId}/plugin/${pluginId}`;
-      
-      window.location.href = redirectUrl;
-      return;
-    }
-  }, [searchParams, boardId, postId]);
-
-  // 🚀 REAL-TIME: Auto-join board room
-  useEffect(() => {
-    if (!isConnected || isNaN(boardIdNum) || !boardId) return;
+    if (!isConnected || isNaN(boardIdNum) || !boardId || isSharedLink || isSharedLinkRedirecting) return;
 
     joinBoard(boardIdNum);
     return () => leaveBoard(boardIdNum);
-  }, [isConnected, boardIdNum, joinBoard, leaveBoard, boardId]);
+  }, [isConnected, boardIdNum, joinBoard, leaveBoard, boardId, isSharedLink, isSharedLinkRedirecting]);
 
   // Handle comment posting
   const handleCommentPosted = useCallback((newComment: ApiComment) => {
@@ -217,64 +252,19 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
     return <div>Loading...</div>;
   }
 
-  if (isSharedLinkRedirecting) {
-    return (
-      <div className="text-center content-gap-1">
-        <div className="skeleton-container">
-          <div className="skeleton-content text-center">
-            <div className="loading-spinner"></div>
-            <h1 className="loading-title">
-              Opening in Common Ground...
-            </h1>
-            <p className="loading-text">
-              Redirecting to the full forum experience...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoadingPost) {
+  // Show proper loading state for shared links (instead of "Post Not Found")
+  if (isSharedLink || isSharedLinkRedirecting) {
     return (
       <FadeIn>
-        {/* Breadcrumb Skeleton */}
-        <div className="skeleton-line w-64" />
-        
-        {/* Post Skeleton */}
-        <div className="skeleton-container">
-          <header className="skeleton-header">
-            <div className="content-gap-compact">
-              <div className="skeleton-line w-32" />
-              <div className="skeleton-line" />
-            </div>
-          </header>
-          <div className="skeleton-content">
-            <div className="content-gap-compact">
-              <div className="skeleton-line" />
-              <div className="skeleton-line w-3/4" />
-              <div className="skeleton-line w-1/2" />
-            </div>
-          </div>
-        </div>
-
-        {/* Comments Skeleton */}
-        <div className="skeleton-container">
-          <header className="skeleton-header">
-            <div className="skeleton-line w-24" />
-          </header>
-          <div className="skeleton-content">
-            <div className="content-gap-1">
-              {[1, 2, 3].map((i) => (
-                <FadeIn key={i} delay={i * 100}>
-                  <div className="skeleton-comment">
-                    <div className="skeleton-line w-48" />
-                    <div className="skeleton-line" />
-                    <div className="skeleton-line w-2/3" />
-                  </div>
-                </FadeIn>
-              ))}
-            </div>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Opening Discussion...
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Redirecting to the full conversation in Common Ground
+            </p>
           </div>
         </div>
       </FadeIn>
@@ -313,8 +303,6 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
       </FadeIn>
     );
   }
-
-
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -373,31 +361,14 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
       
       {/* Comments List - Free Floating */}
       <FadeIn delay={300}>
-        <div className="mt-6">
-          {isLoadingComments ? (
-            <StaggerChildren staggerDelay={100}>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="skeleton-comment">
-                  <div className="skeleton-line w-48" />
-                  <div className="skeleton-line" />
-                  <div className="skeleton-line w-2/3" />
-                </div>
-              ))}
-            </StaggerChildren>
-          ) : comments && comments.length > 0 ? (
+        <div className="comments-section">
+          <StaggerChildren>
             <CommentList 
               postId={postIdNum} 
               highlightCommentId={highlightedCommentId}
               onCommentHighlighted={() => setHighlightedCommentId(null)}
             />
-          ) : (
-            <div className="empty-comments">
-              <MessageSquare size={48} className="empty-icon" />
-              <p className="empty-text">
-                No comments yet. Be the first to start the discussion!
-              </p>
-            </div>
-          )}
+          </StaggerChildren>
         </div>
       </FadeIn>
     </div>

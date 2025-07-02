@@ -152,18 +152,36 @@ export default function HomePage() {
     
     console.log('[HomePage] 🔍 Running shared content detection...');
     
-    const { isShared, postData } = getSharedContentInfo();
+    const { isShared, postData, boardData } = getSharedContentInfo();
     
-    if (isShared && postData) {
-      console.log('[HomePage] 🔗 Shared content detected, navigating to post:', postData);
-      
+    if (isShared) {
       // Log debug info for browser compatibility testing
       logCookieDebugInfo();
       
-      // Navigate to the shared post
-      const postUrl = buildUrl(`/board/${postData.boardId}/post/${postData.postId}`);
-      console.log('[HomePage] Navigating to shared post URL:', postUrl);
-      router.push(postUrl);
+      if (postData) {
+        console.log('[HomePage] 🔗 Shared post content detected, navigating to post:', postData);
+        
+        // Build post URL with optional comment highlighting
+        let postUrl: string;
+        if (postData.commentId) {
+          postUrl = buildUrl(`/board/${postData.boardId}/post/${postData.postId}`, {
+            highlight: postData.commentId
+          });
+          console.log('[HomePage] Navigating to post with comment highlight:', postUrl);
+        } else {
+          postUrl = buildUrl(`/board/${postData.boardId}/post/${postData.postId}`);
+          console.log('[HomePage] Navigating to shared post URL:', postUrl);
+        }
+        
+        router.push(postUrl);
+      } else if (boardData) {
+        console.log('[HomePage] 🔗 Shared board content detected, navigating to board:', boardData);
+        
+        // Navigate to board view
+        const boardUrl = buildUrl('/', { boardId: boardData.boardId });
+        console.log('[HomePage] Navigating to shared board URL:', boardUrl);
+        router.push(boardUrl);
+      }
       
       // Clear the cookies after processing to avoid repeated redirects
       clearSharedContentCookies();

@@ -29,7 +29,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { BoardVerificationApiResponse } from '@/types/boardVerification';
-import { buildExternalShareUrl } from '@/utils/urlBuilder';
+import { buildExternalShareUrl, buildExternalBoardUrl } from '@/utils/urlBuilder';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 
 // Navigation context interface
@@ -230,6 +230,99 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
     }
   };
 
+  // Share board using the new board sharing functionality
+  const handleShareBoard = async () => {
+    if (!currentBoard) {
+      console.error('[ContextualNavigationCard] Cannot share board: missing board data');
+      return;
+    }
+
+    let generatedShareUrl: string;
+    
+    try {
+      console.log(`[ContextualNavigationCard] Generating share URL for board ${currentBoard.id}`);
+      
+      // Detect shared board and get appropriate community context
+      let communityShortId = user?.communityShortId;
+      let pluginId = user?.pluginId;
+
+      // For shared boards, use source community context instead of importing community
+      if (currentBoard.is_imported && currentBoard.source_community_id && token) {
+        try {
+          console.log(`[ContextualNavigationCard] Shared board detected, fetching source community context for ${currentBoard.source_community_id}`);
+          const sourceCommunity = await authFetchJson<ApiCommunity>(
+            `/api/communities/${currentBoard.source_community_id}`, 
+            { token }
+          );
+          communityShortId = sourceCommunity.community_short_id;
+          pluginId = sourceCommunity.plugin_id;
+          console.log(`[ContextualNavigationCard] Using source community context: ${communityShortId} / ${pluginId}`);
+        } catch (error) {
+          console.warn('[ContextualNavigationCard] Failed to fetch source community context, using importing community context:', error);
+          // Fall back to importing community context
+        }
+      }
+
+      generatedShareUrl = await buildExternalBoardUrl(
+        currentBoard.id,
+        communityShortId || undefined,
+        pluginId || undefined,
+        currentBoard.name
+      );
+      
+      console.log(`[ContextualNavigationCard] Successfully created board semantic URL: ${generatedShareUrl}`);
+      
+    } catch (shareUrlError) {
+      console.warn('[ContextualNavigationCard] Failed to create board semantic URL, using internal fallback:', shareUrlError);
+      
+      // Fallback to internal URL if semantic URL generation fails
+      try {
+        generatedShareUrl = `${window.location.origin}/?boardId=${currentBoard.id}`;
+        console.log(`[ContextualNavigationCard] Using board internal fallback URL: ${generatedShareUrl}`);
+      } catch (fallbackError) {
+        console.error('[ContextualNavigationCard] Failed to generate any board URL:', fallbackError);
+        return;
+      }
+    }
+
+    // Try Web Share API first (mobile-friendly)
+    const isWebShareSupported = typeof navigator.share === 'function';
+    const isMobileDevice = 'ontouchstart' in window || 
+                          navigator.maxTouchPoints > 0 ||
+                          /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isWebShareSupported && isMobileDevice) {
+      try {
+        await navigator.share({
+          title: `${currentBoard.name} - Board`,
+          text: `Check out the ${currentBoard.name} discussion board`,
+          url: generatedShareUrl,
+        });
+        console.log('[ContextualNavigationCard] Successfully shared board using Web Share API');
+        return;
+        
+      } catch (webShareError) {
+        // Check if this is a user cancellation (not an error we should log)
+        if (webShareError instanceof Error && webShareError.name === 'AbortError') {
+          console.log('[ContextualNavigationCard] User cancelled board Web Share');
+          return;
+        }
+        
+        console.warn('[ContextualNavigationCard] Board Web Share API failed, falling back to clipboard:', webShareError);
+        // Continue to clipboard fallback
+      }
+    }
+
+    // Fallback: Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(generatedShareUrl);
+      toast.success('Board link copied to clipboard');
+    } catch (err) {
+      console.error('[ContextualNavigationCard] Failed to copy board link:', err);
+      toast.error('Failed to copy board link');
+    }
+  };
+
 
 
   // Render based on navigation context
@@ -405,13 +498,24 @@ export const ContextualNavigationCard: React.FC<ContextualNavigationCardProps> =
       return (
         <Card className={cn("mb-4", className)}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center">
-              {currentBoard?.is_imported ? (
-                <LinkIcon className="h-4 w-4 mr-2 text-cyan-600 dark:text-cyan-400" />
-              ) : (
-                <Hash className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-              )}
-              <span>{currentBoard?.is_imported ? 'Shared Board' : 'Current Board'}</span>
+            <CardTitle className="text-sm flex items-center justify-between">
+              <div className="flex items-center">
+                {currentBoard?.is_imported ? (
+                  <LinkIcon className="h-4 w-4 mr-2 text-cyan-600 dark:text-cyan-400" />
+                ) : (
+                  <Hash className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
+                )}
+                <span>{currentBoard?.is_imported ? 'Shared Board' : 'Current Board'}</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleShareBoard}
+                className="h-6 w-6 p-0"
+                title="Share board"
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
