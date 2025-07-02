@@ -7,6 +7,7 @@ export interface TippingEligibilityResponse {
   eligible: boolean;
   upAddress?: string;
   verifiedAt?: string;
+  source?: 'common_ground_profile' | 'lock_verification' | 'up_name_resolution';
   reason?: string;
   timestamp: string;
 }

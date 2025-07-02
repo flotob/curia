@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { withAuth, AuthenticatedRequest, RouteContext } from '@/lib/withAuth';
 import { UserSettings } from '@/types/user';
+import { resolveUPHandleToAddress, isValidUPHandle } from '@/lib/upNameResolution';
 
 interface TippingEligibilityResponse {
   eligible: boolean;
   upAddress?: string;
   verifiedAt?: string;
-  source?: 'common_ground_profile' | 'lock_verification';
+  source?: 'common_ground_profile' | 'lock_verification' | 'up_name_resolution';
   reason?: string;
 }
 
@@ -29,7 +30,7 @@ function extractUpAddress(verificationData: unknown): string | null {
 
 /**
  * Check if a user is eligible for tipping based on LUKSO addresses from multiple sources
- * Priority: 1) Common Ground profile data, 2) Legacy lock verification data
+ * Priority: 1) Common Ground profile data, 2) Legacy lock verification data, 3) UP name resolution
  */
 async function checkTippingEligibility(userId: string): Promise<TippingEligibilityResponse> {
   try {
@@ -102,7 +103,52 @@ async function checkTippingEligibility(userId: string): Promise<TippingEligibili
       }
     }
     
-    // No valid LUKSO address found in either source
+    // Method 3: Try UP name resolution if we have a handle but no address
+    if (userResult.rows.length > 0) {
+      const userRow = userResult.rows[0];
+      const settings: UserSettings = userRow.settings || {};
+      
+      // Check if we have a UP username but no address
+      const upUsername = settings.lukso?.username;
+      const upAddress = settings.lukso?.address;
+      
+      if (upUsername && !upAddress && isValidUPHandle(upUsername)) {
+        console.log(`[TippingEligibility] User ${userId} has UP handle but no address, attempting resolution: ${upUsername}`);
+        
+        try {
+          const resolvedAddress = await resolveUPHandleToAddress(upUsername);
+          
+          if (resolvedAddress) {
+            console.log(`[TippingEligibility] User ${userId} eligible via UP name resolution: ${resolvedAddress} (${upUsername})`);
+            
+            // Optionally store the resolved address for future use
+            try {
+              await query(
+                `UPDATE users SET settings = jsonb_set(settings, '{lukso,address}', $1) WHERE user_id = $2`,
+                [JSON.stringify(resolvedAddress), userId]
+              );
+              console.log(`[TippingEligibility] Stored resolved address for user ${userId}`);
+            } catch (updateError) {
+              console.warn(`[TippingEligibility] Failed to store resolved address for user ${userId}:`, updateError);
+              // Continue anyway - we still have the address for this request
+            }
+            
+            return {
+              eligible: true,
+              upAddress: resolvedAddress,
+              verifiedAt: new Date().toISOString(),
+              source: 'up_name_resolution'
+            };
+          } else {
+            console.log(`[TippingEligibility] Failed to resolve UP handle for user ${userId}: ${upUsername}`);
+          }
+        } catch (resolutionError) {
+          console.warn(`[TippingEligibility] Error during UP name resolution for user ${userId}:`, resolutionError);
+        }
+      }
+    }
+    
+    // No valid LUKSO address found in any source
     console.log(`[TippingEligibility] No valid LUKSO address found for user: ${userId}`);
     return {
       eligible: false,
