@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Home, LayoutDashboard, Settings, ChevronRight, ChevronDown, Plus, X, Lock, Shield, Bell, Handshake, Share2, BarChart3 } from 'lucide-react';
+import { Home, LayoutDashboard, Settings, ChevronRight, ChevronDown, Plus, X, Lock, Shield, Bell, Handshake, Share2, BarChart3, Trophy } from 'lucide-react';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
@@ -76,7 +76,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isWhatsNewPage = pathname === '/whats-new';
   const isPartnershipsPage = pathname === '/partnerships';
   const isAdminDashboardPage = pathname === '/admin-dashboard';
-  const isHome = !currentBoardId && !isLocksPage && !isCreateBoardPage && !isWhatsNewPage && !isPartnershipsPage && !isAdminDashboardPage;
+  const isLeaderboardPage = pathname === '/leaderboard';
+  const isHome = !currentBoardId && !isLocksPage && !isCreateBoardPage && !isWhatsNewPage && !isPartnershipsPage && !isAdminDashboardPage && !isLeaderboardPage;
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
@@ -318,6 +319,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Active indicator */}
           {isWhatsNewPage && (
             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5 rounded-xl" />
+          )}
+        </Link>
+
+        {/* Leaderboard Link */}
+        <Link
+          href={buildUrl('/leaderboard')}
+          className={cn(
+            'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden',
+            isLeaderboardPage
+              ? theme === 'dark'
+                ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-300 shadow-lg shadow-yellow-500/10'
+                : 'bg-gradient-to-r from-yellow-500/10 to-amber-500/10 text-yellow-700 shadow-lg shadow-yellow-500/10'
+              : theme === 'dark'
+                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+          )}
+        >
+          <div className={cn(
+            'p-1.5 rounded-lg mr-3 transition-all duration-200',
+            isLeaderboardPage
+              ? theme === 'dark'
+                ? 'bg-yellow-500/20 text-yellow-300'
+                : 'bg-yellow-500/10 text-yellow-600'
+              : theme === 'dark'
+                ? 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-slate-300'
+                : 'bg-slate-200/50 text-slate-500 group-hover:bg-slate-300/50 group-hover:text-slate-700'
+          )}>
+            <Trophy size={16} />
+          </div>
+          <span className="flex-1">Leaderboard</span>
+          {isLeaderboardPage && (
+            <ChevronRight size={14} className="opacity-60" />
+          )}
+          
+          {/* Active indicator */}
+          {isLeaderboardPage && (
+            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-amber-500/5 rounded-xl" />
           )}
         </Link>
 
