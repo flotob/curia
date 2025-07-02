@@ -116,16 +116,6 @@ async function importBoardHandler(req: AuthenticatedRequest, context: RouteConte
       return NextResponse.json({ error: 'Source community has not enabled board sharing for this partnership' }, { status: 403 });
     }
 
-    // Check if this board is already imported
-    const existingImport = await query(
-      'SELECT id FROM imported_boards WHERE source_board_id = $1 AND importing_community_id = $2 AND is_active = true',
-      [sourceBoardId, communityId]
-    );
-
-    if (existingImport.rows.length > 0) {
-      return NextResponse.json({ error: 'Board is already imported by this community' }, { status: 409 });
-    }
-
     // Verify importing community exists
     const targetCommunityResult = await query(
       'SELECT id, name FROM communities WHERE id = $1',
@@ -136,19 +126,24 @@ async function importBoardHandler(req: AuthenticatedRequest, context: RouteConte
       return NextResponse.json({ error: 'Importing community not found' }, { status: 404 });
     }
 
-    // Create the imported board entry
+    // UPSERT: Create new import or reactivate existing one
     const result = await query(`
       INSERT INTO imported_boards (
         source_board_id, source_community_id, importing_community_id, 
-        imported_by_user_id, is_active
-      ) VALUES ($1, $2, $3, $4, $5)
+        imported_by_user_id, is_active, imported_at
+      ) VALUES ($1, $2, $3, $4, true, CURRENT_TIMESTAMP)
+      ON CONFLICT (importing_community_id, source_board_id) 
+      DO UPDATE SET 
+        is_active = true,
+        imported_by_user_id = EXCLUDED.imported_by_user_id,
+        imported_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `, [
       sourceBoardId,
       sourceCommunityId,
       communityId,
-      requestingUserId,
-      true
+      requestingUserId
     ]);
 
     const importedBoard = result.rows[0];
@@ -192,7 +187,7 @@ async function importBoardHandler(req: AuthenticatedRequest, context: RouteConte
       imported_by_user_name: completeImportedBoard.imported_by_user_name
     };
 
-    console.log(`[API] Board imported: "${sourceBoard.name}" (ID: ${sourceBoardId}) from ${sourceCommunityId} to ${communityId} by user ${requestingUserId}`);
+    console.log(`[API] Board imported/reactivated: "${sourceBoard.name}" (ID: ${sourceBoardId}) from ${sourceCommunityId} to ${communityId} by user ${requestingUserId}`);
 
     // 🚀 EMIT REAL-TIME EVENT: Board imported notification to importing community
     const emitter = process.customEventEmitter;
