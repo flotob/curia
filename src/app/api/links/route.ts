@@ -17,6 +17,8 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       boardId,
       boardName,
       commentId,
+      userId,
+      username,
       shareSource = 'direct_share',
       expiresIn,
       customSlug,
@@ -24,26 +26,64 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       pluginId: overridePluginId
     } = body;
 
-    // Validate required fields - postId and postTitle are optional for board-only links
-    if (!boardId || !boardName) {
+    // Determine link type and validate accordingly
+    const isUserLink = !!userId;
+    const isBoardLink = !!boardId && !postId && !userId;
+    const isPostLink = !!postId;
+    
+    if (!isUserLink && !isBoardLink && !isPostLink) {
       return NextResponse.json(
-        { error: 'Missing required fields: boardId, boardName' },
+        { error: 'Must provide either userId (user profile), boardId (board-only), or postId (post/comment)' },
         { status: 400 }
       );
     }
     
-    // For post-specific links, both postId and postTitle are required
-    if (postId && !postTitle) {
-      return NextResponse.json(
-        { error: 'postTitle is required when postId is provided' },
-        { status: 400 }
-      );
+    // Validate user profile links
+    if (isUserLink) {
+      if (!username) {
+        return NextResponse.json(
+          { error: 'username is required for user profile links' },
+          { status: 400 }
+        );
+      }
+      if (postId || boardId) {
+        return NextResponse.json(
+          { error: 'User profile links cannot have postId or boardId' },
+          { status: 400 }
+        );
+      }
     }
-    if (!postId && postTitle) {
-      return NextResponse.json(
-        { error: 'postId is required when postTitle is provided' },
-        { status: 400 }
-      );
+    
+    // Validate board-only links
+    if (isBoardLink) {
+      if (!boardName) {
+        return NextResponse.json(
+          { error: 'boardName is required for board-only links' },
+          { status: 400 }
+        );
+      }
+      if (userId || postId) {
+        return NextResponse.json(
+          { error: 'Board-only links cannot have userId or postId' },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // Validate post/comment links
+    if (isPostLink) {
+      if (!postTitle || !boardId || !boardName) {
+        return NextResponse.json(
+          { error: 'postTitle, boardId, and boardName are required for post links' },
+          { status: 400 }
+        );
+      }
+      if (userId) {
+        return NextResponse.json(
+          { error: 'Post links cannot have userId' },
+          { status: 400 }
+        );
+      }
     }
 
     // Get user context from authenticated request
@@ -75,6 +115,8 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       boardId,
       boardName,
       commentId,
+      userId,
+      username,
       communityShortId, // 🆕 Current community short ID - may trigger bulk migration
       pluginId,
       sharedByUserId,
@@ -83,8 +125,8 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       customSlug
     };
 
-    const targetType = postId ? (commentId ? 'comment' : 'post') : 'board';
-    const targetId = commentId || postId || boardId;
+    const targetType = userId ? 'user' : postId ? (commentId ? 'comment' : 'post') : 'board';
+    const targetId = userId || commentId || postId || boardId;
     console.log(`[API] Creating/updating semantic URL for ${targetType} ${targetId} with community ${communityShortId}`);
 
     const semanticUrl = await SemanticUrlService.createOrUpdate(semanticUrlParams);

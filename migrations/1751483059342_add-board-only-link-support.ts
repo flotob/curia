@@ -21,18 +21,28 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       type: 'integer',
       references: 'comments(id)',
       onDelete: 'CASCADE',
-      comment: 'ID of the target comment (null for post-only or board-only links)'
+      comment: 'ID of the target comment (null for post-only, board-only, or user profile links)'
     }
   });
   
-  // 4. Make post_title nullable (for board-only links)
+  // 4. Add user_id field for user profile links
+  pgm.addColumn('links', {
+    user_id: {
+      type: 'text',
+      references: 'users(user_id)',
+      onDelete: 'CASCADE',
+      comment: 'ID of the target user profile (null for post, board, or comment links)'
+    }
+  });
+  
+     // 5. Make post_title nullable (for board-only and user profile links)
   pgm.alterColumn('links', 'post_title', {
     type: 'varchar(500)',
     notNull: false,
-    comment: 'Original post title for regenerating URLs (null for board-only links)'
+    comment: 'Original post title for regenerating URLs (null for board-only and user profile links)'
   });
   
-  // 4. Re-add the foreign key constraint with proper null handling
+  // 6. Re-add the foreign key constraint with proper null handling
   pgm.addConstraint('links', 'links_post_id_fkey', {
     foreignKeys: {
       columns: 'post_id',
@@ -41,13 +51,14 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     }
   });
   
-  // 5. Update the unique constraint to handle board-only vs post-specific links
+  // 7. Update the unique constraints to handle all link types
   // Drop the existing unique constraint
   pgm.dropConstraint('links', 'links_unique_path');
   
-  // Create separate unique constraints:
-  // - For post links: community_short_id + board_slug + slug (when post_id is not null)
-  // - For board links: community_short_id + board_slug (when post_id is null and slug is 'board')
+  // Create separate unique constraints for different link types:
+  // - Post links: community_short_id + board_slug + slug (when post_id IS NOT NULL)
+  // - Board links: community_short_id + board_slug (when post_id IS NULL AND user_id IS NULL)
+  // - User links: community_short_id + slug (when user_id IS NOT NULL) - uses 'users' as board_slug
   
   // Unique constraint for post-specific links
   pgm.addIndex('links', ['community_short_id', 'board_slug', 'slug'], {
@@ -56,11 +67,18 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     where: 'post_id IS NOT NULL'
   });
   
-  // Unique constraint for board-only links  
+  // Unique constraint for board-only links (excludes user profile links)
   pgm.addIndex('links', ['community_short_id', 'board_slug'], {
     unique: true,
     name: 'links_unique_board_path',
-    where: 'post_id IS NULL'
+    where: 'post_id IS NULL AND user_id IS NULL'
+  });
+  
+  // Unique constraint for user profile links
+  pgm.addIndex('links', ['community_short_id', 'slug'], {
+    unique: true,
+    name: 'links_unique_user_path',
+    where: 'user_id IS NOT NULL'
   });
   
   console.log('Board-only link support added successfully');
@@ -78,6 +96,10 @@ export async function down(pgm: MigrationBuilder): Promise<void> {
     name: 'links_unique_board_path'
   });
   
+  pgm.dropIndex('links', ['community_short_id', 'slug'], {
+    name: 'links_unique_user_path'
+  });
+  
   // 2. Re-add the original unique constraint (this will fail if there are board-only links)
   pgm.addIndex('links', ['community_short_id', 'board_slug', 'slug'], {
     unique: true,
@@ -87,24 +109,27 @@ export async function down(pgm: MigrationBuilder): Promise<void> {
   // 3. Drop foreign key constraint
   pgm.dropConstraint('links', 'links_post_id_fkey');
   
-  // 4. Drop comment_id field
+  // 4. Drop user_id field
+  pgm.dropColumn('links', 'user_id');
+  
+  // 5. Drop comment_id field
   pgm.dropColumn('links', 'comment_id');
   
-  // 5. Make post_title not null again
+  // 6. Make post_title not null again
   pgm.alterColumn('links', 'post_title', {
     type: 'varchar(500)',
     notNull: true,
     comment: 'Original post title for regenerating URLs'
   });
   
-  // 6. Make post_id not null again (this will fail if there are board-only links)
+  // 7. Make post_id not null again (this will fail if there are board-only or user links)
   pgm.alterColumn('links', 'post_id', {
     type: 'integer',
     notNull: true,
     comment: 'ID of the target post'
   });
   
-  // 7. Re-add the foreign key constraint
+  // 8. Re-add the foreign key constraint
   pgm.addConstraint('links', 'links_post_id_fkey', {
     foreignKeys: {
       columns: 'post_id',

@@ -17,13 +17,15 @@ export interface SemanticUrlData {
   slug: string;
   communityShortId: string;
   boardSlug: string;
-  postId: number | null; // Nullable for board-only links
-  boardId: number;
+  postId: number | null; // Nullable for board-only and user profile links
+  boardId: number | null; // Nullable for user profile links
   commentId?: number | null; // Optional comment ID for comment-specific links
+  userId?: string | null; // Optional user ID for user profile links
   pluginId: string;
   shareToken: string;
-  postTitle: string | null; // Nullable for board-only links
-  boardName: string;
+  postTitle: string | null; // Nullable for board-only and user profile links
+  boardName: string | null; // Nullable for user profile links
+  username?: string | null; // Username for user profile links
   sharedByUserId?: string;
   shareSource?: string;
   accessCount: number;
@@ -37,13 +39,24 @@ export interface SemanticUrlData {
  * Parameters for creating a new semantic URL
  */
 export interface CreateSemanticUrlParams {
-  postId?: number | null; // Optional for board-only links
-  postTitle?: string | null; // Optional for board-only links
-  boardId: number;
-  boardName: string;
-  commentId?: number | null; // Optional for comment-specific links
+  // Post/comment link fields (null for board-only or user profile links)
+  postId?: number | null;
+  postTitle?: string | null;
+  commentId?: number | null;
+  
+  // Board link fields (null for user profile links)
+  boardId?: number | null;
+  boardName?: string | null;
+  
+  // User profile link fields (null for post/board links)
+  userId?: string | null;
+  username?: string | null;
+  
+  // Required fields
   communityShortId: string;
   pluginId: string;
+  
+  // Optional metadata
   sharedByUserId?: string;
   shareSource?: string;
   expiresIn?: string; // '7d', '30d', 'never'
@@ -58,13 +71,15 @@ interface LinkDbRow {
   slug: string;
   community_short_id: string;
   board_slug: string;
-  post_id: number | null; // Nullable for board-only links
-  board_id: number;
+  post_id: number | null; // Nullable for board-only and user profile links
+  board_id: number | null; // Nullable for user profile links
   comment_id?: number | null; // Optional comment ID
+  user_id?: string | null; // Optional user ID for user profile links
   plugin_id: string;
   share_token: string;
-  post_title: string | null; // Nullable for board-only links
-  board_name: string;
+  post_title: string | null; // Nullable for board-only and user profile links
+  board_name: string | null; // Nullable for user profile links
+  username?: string | null; // Username for user profile links (may need JOIN)
   shared_by_user_id?: string;
   share_source?: string;
   access_count: number;
@@ -300,6 +315,8 @@ export class SemanticUrlService {
       boardId,
       boardName,
       commentId,
+      userId,
+      username,
       communityShortId,
       pluginId,
       sharedByUserId,
@@ -308,26 +325,68 @@ export class SemanticUrlService {
       customSlug
     } = params;
     
-    // Validate required parameters - postId and postTitle are optional for board-only links
-    if (!boardId || !boardName || !communityShortId || !pluginId) {
-      throw new Error('Missing required parameters for semantic URL creation');
+    // Validate required base parameters
+    if (!communityShortId || !pluginId) {
+      throw new Error('Missing required parameters: communityShortId, pluginId');
     }
     
-    // For post-specific links, both postId and postTitle are required
-    if (postId && !postTitle) {
-      throw new Error('postTitle is required when postId is provided');
-    }
-    if (!postId && postTitle) {
-      throw new Error('postId is required when postTitle is provided');
+    // Determine link type and validate accordingly
+    const isUserLink = !!userId;
+    const isBoardLink = !!boardId && !postId && !userId;
+    const isPostLink = !!postId;
+    
+    if (!isUserLink && !isBoardLink && !isPostLink) {
+      throw new Error('Must provide either userId (user profile), boardId (board-only), or postId (post/comment)');
     }
     
-          try {
-        // Generate URL-safe slugs
-        const boardSlug = this.createSlug(boardName);
-        const baseSlug = customSlug || (postTitle ? this.createSlug(postTitle) : 'board');
-        
-        // Handle slug collisions by appending numbers if needed
-        const slug = await this.ensureUniqueSlug(communityShortId, boardSlug, baseSlug);
+    // Validate user profile links
+    if (isUserLink) {
+      if (!username) {
+        throw new Error('username is required for user profile links');
+      }
+      if (postId || boardId) {
+        throw new Error('User profile links cannot have postId or boardId');
+      }
+    }
+    
+    // Validate board-only links
+    if (isBoardLink) {
+      if (!boardName) {
+        throw new Error('boardName is required for board-only links');
+      }
+      if (userId || postId) {
+        throw new Error('Board-only links cannot have userId or postId');
+      }
+    }
+    
+    // Validate post/comment links
+    if (isPostLink) {
+      if (!postTitle || !boardId || !boardName) {
+        throw new Error('postTitle, boardId, and boardName are required for post links');
+      }
+      if (userId) {
+        throw new Error('Post links cannot have userId');
+      }
+    }
+    
+                     try {
+         // Generate URL-safe slugs based on link type
+         let boardSlug: string;
+         let baseSlug: string;
+         
+         if (isUserLink) {
+           boardSlug = 'users'; // Fixed board slug for user profiles
+           baseSlug = customSlug || this.createSlug(username!);
+         } else if (isBoardLink) {
+           boardSlug = this.createSlug(boardName!);
+           baseSlug = customSlug || 'board';
+         } else { // isPostLink
+           boardSlug = this.createSlug(boardName!);
+           baseSlug = customSlug || this.createSlug(postTitle!);
+         }
+         
+         // Handle slug collisions by appending numbers if needed
+         const slug = await this.ensureUniqueSlug(communityShortId, boardSlug, baseSlug);
       
       // Calculate expiration date if specified
       const expiresAt = this.calculateExpiration(expiresIn);
@@ -338,16 +397,16 @@ export class SemanticUrlService {
               // Insert into database with initial community short ID in history
         const result = await query(`
           INSERT INTO links (
-            slug, community_short_id, board_slug, post_id, board_id, comment_id,
+            slug, community_short_id, board_slug, post_id, board_id, comment_id, user_id,
             plugin_id, share_token, post_title, board_name,
             shared_by_user_id, share_source, expires_at, community_shortid_history
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, ARRAY[$14::text])
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ARRAY[$15::text])
           RETURNING *
         `, [
-          slug, communityShortId, boardSlug, postId || null, boardId, commentId || null,
-          pluginId, shareToken, postTitle || null, boardName,
+          slug, communityShortId, boardSlug, postId || null, boardId || null, commentId || null, userId || null,
+          pluginId, shareToken, postTitle || null, boardName || null,
           sharedByUserId || null, shareSource, expiresAt ? expiresAt.toISOString() : null,
-          communityShortId // $14 - for the initial history array
+          communityShortId // $15 - for the initial history array
         ]);
       
       if (result.rows.length === 0) {
@@ -356,8 +415,8 @@ export class SemanticUrlService {
       
       const createdUrl = this.mapDbResult(result.rows[0]);
       
-              const targetType = postId ? (commentId ? 'comment' : 'post') : 'board';
-        const targetId = commentId || postId || boardId;
+              const targetType = userId ? 'user' : postId ? (commentId ? 'comment' : 'post') : 'board';
+        const targetId = userId || commentId || postId || boardId;
         console.log(`[SemanticUrlService] Created semantic URL: /c/${communityShortId}/${boardSlug}/${slug} → ${targetType} ${targetId}`);
       
       return createdUrl;
@@ -731,10 +790,12 @@ export class SemanticUrlService {
       postId: row.post_id,
       boardId: row.board_id,
       commentId: row.comment_id,
+      userId: row.user_id,
       pluginId: row.plugin_id,
       shareToken: row.share_token,
       postTitle: row.post_title,
       boardName: row.board_name,
+      username: row.username,
       sharedByUserId: row.shared_by_user_id,
       shareSource: row.share_source,
       accessCount: row.access_count,
