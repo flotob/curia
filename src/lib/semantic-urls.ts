@@ -17,11 +17,12 @@ export interface SemanticUrlData {
   slug: string;
   communityShortId: string;
   boardSlug: string;
-  postId: number;
+  postId: number | null; // Nullable for board-only links
   boardId: number;
+  commentId?: number | null; // Optional comment ID for comment-specific links
   pluginId: string;
   shareToken: string;
-  postTitle: string;
+  postTitle: string | null; // Nullable for board-only links
   boardName: string;
   sharedByUserId?: string;
   shareSource?: string;
@@ -36,10 +37,11 @@ export interface SemanticUrlData {
  * Parameters for creating a new semantic URL
  */
 export interface CreateSemanticUrlParams {
-  postId: number;
-  postTitle: string;
+  postId?: number | null; // Optional for board-only links
+  postTitle?: string | null; // Optional for board-only links
   boardId: number;
   boardName: string;
+  commentId?: number | null; // Optional for comment-specific links
   communityShortId: string;
   pluginId: string;
   sharedByUserId?: string;
@@ -56,11 +58,12 @@ interface LinkDbRow {
   slug: string;
   community_short_id: string;
   board_slug: string;
-  post_id: number;
+  post_id: number | null; // Nullable for board-only links
   board_id: number;
+  comment_id?: number | null; // Optional comment ID
   plugin_id: string;
   share_token: string;
-  post_title: string;
+  post_title: string | null; // Nullable for board-only links
   board_name: string;
   shared_by_user_id?: string;
   share_source?: string;
@@ -296,6 +299,7 @@ export class SemanticUrlService {
       postTitle,
       boardId,
       boardName,
+      commentId,
       communityShortId,
       pluginId,
       sharedByUserId,
@@ -304,18 +308,26 @@ export class SemanticUrlService {
       customSlug
     } = params;
     
-    // Validate required parameters
-    if (!postId || !postTitle || !boardId || !boardName || !communityShortId || !pluginId) {
+    // Validate required parameters - postId and postTitle are optional for board-only links
+    if (!boardId || !boardName || !communityShortId || !pluginId) {
       throw new Error('Missing required parameters for semantic URL creation');
     }
     
-    try {
-      // Generate URL-safe slugs
-      const boardSlug = this.createSlug(boardName);
-      const baseSlug = customSlug || this.createSlug(postTitle);
-      
-      // Handle slug collisions by appending numbers if needed
-      const slug = await this.ensureUniqueSlug(communityShortId, boardSlug, baseSlug);
+    // For post-specific links, both postId and postTitle are required
+    if (postId && !postTitle) {
+      throw new Error('postTitle is required when postId is provided');
+    }
+    if (!postId && postTitle) {
+      throw new Error('postId is required when postTitle is provided');
+    }
+    
+          try {
+        // Generate URL-safe slugs
+        const boardSlug = this.createSlug(boardName);
+        const baseSlug = customSlug || (postTitle ? this.createSlug(postTitle) : 'board');
+        
+        // Handle slug collisions by appending numbers if needed
+        const slug = await this.ensureUniqueSlug(communityShortId, boardSlug, baseSlug);
       
       // Calculate expiration date if specified
       const expiresAt = this.calculateExpiration(expiresIn);
@@ -323,20 +335,20 @@ export class SemanticUrlService {
       // Generate unique share token
       const shareToken = this.generateShareToken();
       
-      // Insert into database with initial community short ID in history
-      const result = await query(`
-        INSERT INTO links (
-          slug, community_short_id, board_slug, post_id, board_id,
-          plugin_id, share_token, post_title, board_name,
-          shared_by_user_id, share_source, expires_at, community_shortid_history
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, ARRAY[$13::text])
-        RETURNING *
-      `, [
-        slug, communityShortId, boardSlug, postId, boardId,
-        pluginId, shareToken, postTitle, boardName,
-        sharedByUserId || null, shareSource, expiresAt ? expiresAt.toISOString() : null,
-        communityShortId // $13 - for the initial history array
-      ]);
+              // Insert into database with initial community short ID in history
+        const result = await query(`
+          INSERT INTO links (
+            slug, community_short_id, board_slug, post_id, board_id, comment_id,
+            plugin_id, share_token, post_title, board_name,
+            shared_by_user_id, share_source, expires_at, community_shortid_history
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, ARRAY[$14::text])
+          RETURNING *
+        `, [
+          slug, communityShortId, boardSlug, postId || null, boardId, commentId || null,
+          pluginId, shareToken, postTitle || null, boardName,
+          sharedByUserId || null, shareSource, expiresAt ? expiresAt.toISOString() : null,
+          communityShortId // $14 - for the initial history array
+        ]);
       
       if (result.rows.length === 0) {
         throw new Error('Failed to create semantic URL - no rows returned');
@@ -344,7 +356,9 @@ export class SemanticUrlService {
       
       const createdUrl = this.mapDbResult(result.rows[0]);
       
-      console.log(`[SemanticUrlService] Created semantic URL: /c/${communityShortId}/${boardSlug}/${slug} → post ${postId}`);
+              const targetType = postId ? (commentId ? 'comment' : 'post') : 'board';
+        const targetId = commentId || postId || boardId;
+        console.log(`[SemanticUrlService] Created semantic URL: /c/${communityShortId}/${boardSlug}/${slug} → ${targetType} ${targetId}`);
       
       return createdUrl;
       
@@ -716,6 +730,7 @@ export class SemanticUrlService {
       boardSlug: row.board_slug,
       postId: row.post_id,
       boardId: row.board_id,
+      commentId: row.comment_id,
       pluginId: row.plugin_id,
       shareToken: row.share_token,
       postTitle: row.post_title,

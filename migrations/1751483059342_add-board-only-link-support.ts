@@ -15,7 +15,17 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     comment: 'ID of the target post (null for board-only links)'
   });
   
-  // 3. Make post_title nullable (for board-only links)
+  // 3. Add comment_id field for comment-specific links
+  pgm.addColumn('links', {
+    comment_id: {
+      type: 'integer',
+      references: 'comments(id)',
+      onDelete: 'CASCADE',
+      comment: 'ID of the target comment (null for post-only or board-only links)'
+    }
+  });
+  
+  // 4. Make post_title nullable (for board-only links)
   pgm.alterColumn('links', 'post_title', {
     type: 'varchar(500)',
     notNull: false,
@@ -77,21 +87,24 @@ export async function down(pgm: MigrationBuilder): Promise<void> {
   // 3. Drop foreign key constraint
   pgm.dropConstraint('links', 'links_post_id_fkey');
   
-  // 4. Make post_title not null again
+  // 4. Drop comment_id field
+  pgm.dropColumn('links', 'comment_id');
+  
+  // 5. Make post_title not null again
   pgm.alterColumn('links', 'post_title', {
     type: 'varchar(500)',
     notNull: true,
     comment: 'Original post title for regenerating URLs'
   });
   
-  // 5. Make post_id not null again (this will fail if there are board-only links)
+  // 6. Make post_id not null again (this will fail if there are board-only links)
   pgm.alterColumn('links', 'post_id', {
     type: 'integer',
     notNull: true,
     comment: 'ID of the target post'
   });
   
-  // 6. Re-add the foreign key constraint
+  // 7. Re-add the foreign key constraint
   pgm.addConstraint('links', 'links_post_id_fkey', {
     foreignKeys: {
       columns: 'post_id',

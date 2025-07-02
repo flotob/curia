@@ -16,6 +16,7 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       postTitle,
       boardId,
       boardName,
+      commentId,
       shareSource = 'direct_share',
       expiresIn,
       customSlug,
@@ -23,10 +24,24 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       pluginId: overridePluginId
     } = body;
 
-    // Validate required fields
-    if (!postId || !postTitle || !boardId || !boardName) {
+    // Validate required fields - postId and postTitle are optional for board-only links
+    if (!boardId || !boardName) {
       return NextResponse.json(
-        { error: 'Missing required fields: postId, postTitle, boardId, boardName' },
+        { error: 'Missing required fields: boardId, boardName' },
+        { status: 400 }
+      );
+    }
+    
+    // For post-specific links, both postId and postTitle are required
+    if (postId && !postTitle) {
+      return NextResponse.json(
+        { error: 'postTitle is required when postId is provided' },
+        { status: 400 }
+      );
+    }
+    if (!postId && postTitle) {
+      return NextResponse.json(
+        { error: 'postId is required when postTitle is provided' },
         { status: 400 }
       );
     }
@@ -59,6 +74,7 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       postTitle,
       boardId,
       boardName,
+      commentId,
       communityShortId, // 🆕 Current community short ID - may trigger bulk migration
       pluginId,
       sharedByUserId,
@@ -67,7 +83,9 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       customSlug
     };
 
-    console.log(`[API] Creating/updating semantic URL for post ${postId} with community ${communityShortId}`);
+    const targetType = postId ? (commentId ? 'comment' : 'post') : 'board';
+    const targetId = commentId || postId || boardId;
+    console.log(`[API] Creating/updating semantic URL for ${targetType} ${targetId} with community ${communityShortId}`);
 
     const semanticUrl = await SemanticUrlService.createOrUpdate(semanticUrlParams);
     const fullUrl = SemanticUrlService.buildFullUrl(semanticUrl);
@@ -78,7 +96,7 @@ async function createSemanticUrl(req: AuthenticatedRequest) {
       ? ` (migrated from: ${semanticUrl.communityShortIdHistory.slice(0, -1).join(', ')})`
       : '';
 
-    console.log(`[API] Semantic URL ready for post ${postId}: ${fullUrl}${migrationInfo}`);
+    console.log(`[API] Semantic URL ready for ${targetType} ${targetId}: ${fullUrl}${migrationInfo}`);
 
     return NextResponse.json({
       id: semanticUrl.id,
