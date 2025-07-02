@@ -19,12 +19,13 @@ import {
   MessageSquare,
   AlertCircle,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
-import type { ImportableBoardsData, ImportableBoard, ImportBoardRequest } from '@/types/sharedBoards';
+import type { ImportableBoardsData, ImportableBoard, ImportBoardRequest, ImportedBoard } from '@/types/sharedBoards';
 
 export default function SharedBoardsPage() {
   const { token, user } = useAuth();
@@ -42,6 +43,16 @@ export default function SharedBoardsPage() {
     queryFn: async (): Promise<ImportableBoardsData> => {
       if (!communityId) throw new Error('Community ID is required');
       return authFetchJson<ImportableBoardsData>(`/api/communities/${communityId}/importable-boards`, { token });
+    },
+    enabled: !!token && !!communityId
+  });
+
+  // Fetch currently imported boards
+  const { data: importedBoards, isLoading: importedBoardsLoading } = useQuery({
+    queryKey: ['imported-boards', communityId],
+    queryFn: async (): Promise<ImportedBoard[]> => {
+      if (!communityId) throw new Error('Community ID is required');
+      return authFetchJson<ImportedBoard[]>(`/api/communities/${communityId}/shared-boards`, { token });
     },
     enabled: !!token && !!communityId
   });
@@ -74,6 +85,33 @@ export default function SharedBoardsPage() {
     }
   });
 
+  // Undo import mutation
+  const undoImportMutation = useMutation({
+    mutationFn: async (importedBoardId: number): Promise<{ boardName: string; sourceCommunity: string }> => {
+      if (!communityId) throw new Error('Community ID is required');
+      return authFetchJson<{ boardName: string; sourceCommunity: string }>(`/api/communities/${communityId}/imported-boards/${importedBoardId}`, {
+        method: 'DELETE',
+        token
+      });
+    },
+    onSuccess: (data: { boardName: string; sourceCommunity: string }) => {
+      toast({
+        title: 'Board Removed Successfully',
+        description: `"${data.boardName}" has been removed from your sidebar.`
+      });
+      // Invalidate and refetch relevant queries
+      queryClient.invalidateQueries({ queryKey: ['importable-boards', communityId] });
+      queryClient.invalidateQueries({ queryKey: ['imported-boards', communityId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to Remove Board',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
   const partnerships = importableData?.partnerships || [];
   const boards = importableData?.boards || [];
 
@@ -97,6 +135,10 @@ export default function SharedBoardsPage() {
       sourceBoardId: board.id,
       sourceCommunityId: board.source_community_id
     });
+  };
+
+  const handleUndoImport = (importedBoard: ImportedBoard) => {
+    undoImportMutation.mutate(importedBoard.id);
   };
 
   // Show error if no community ID is available
@@ -161,13 +203,16 @@ export default function SharedBoardsPage() {
           
           {/* Refresh Button */}
           <Button
-            onClick={() => refetch()}
+            onClick={() => {
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ['imported-boards', communityId] });
+            }}
             variant="outline"
             size="sm"
-            disabled={isLoading}
+            disabled={isLoading || importedBoardsLoading}
             className="flex items-center gap-2 flex-shrink-0"
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${isLoading || importedBoardsLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -202,6 +247,73 @@ export default function SharedBoardsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Currently Imported Boards Section */}
+      {importedBoards && importedBoards.length > 0 && (
+        <Card className="mb-6 border-green-200 bg-green-50/30 dark:border-green-800 dark:bg-green-900/10">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-300">
+              <CheckCircle className="h-5 w-5" />
+              Currently Added Boards ({importedBoards.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {importedBoards.map((importedBoard) => (
+              <div key={importedBoard.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    {importedBoard.source_community_logo_url && (
+                      <AvatarImage 
+                        src={importedBoard.source_community_logo_url} 
+                        alt={importedBoard.source_community_name}
+                        className="object-cover"
+                      />
+                    )}
+                    <AvatarFallback className="text-xs">
+                      {importedBoard.source_community_name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-medium text-sm">{importedBoard.board_name}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      from {importedBoard.source_community_name} • Added {formatDistanceToNow(new Date(importedBoard.imported_at), { addSuffix: true })}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => handleUndoImport(importedBoard)}
+                  disabled={undoImportMutation.isPending}
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-600 dark:hover:bg-red-900/20"
+                >
+                  {undoImportMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    <>
+                      <X className="h-3 w-3 mr-1" />
+                      Remove
+                    </>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Available Boards Section */}
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Available Boards to Add
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 text-sm">
+          Boards from partner communities that you can add to your sidebar
+        </p>
+      </div>
 
       {isLoading ? (
         <div className="space-y-4">
@@ -341,7 +453,8 @@ export default function SharedBoardsPage() {
             </p>
             <p className="mt-2">
               {boards.filter(b => !b.is_already_imported).length} boards available to add, {' '}
-              {boards.filter(b => b.is_already_imported).length} already added.
+              {boards.filter(b => b.is_already_imported).length} already added, {' '}
+              {importedBoards?.length || 0} currently in your sidebar.
             </p>
           </CardContent>
         </Card>
