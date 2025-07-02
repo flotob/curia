@@ -81,8 +81,9 @@ async function handler(req: AuthenticatedRequest) {
         u.user_id,
         u.name,
         u.profile_picture_url,
-        u.created_at,
-        u.roles,
+        u.updated_at,
+        u.settings->>'roles' as roles,
+        uc.first_visited_at as created_at,
         (
           SELECT MAX(activity_time) FROM (
             SELECT MAX(created_at) as activity_time FROM posts WHERE author_user_id = u.user_id
@@ -91,8 +92,9 @@ async function handler(req: AuthenticatedRequest) {
           ) activities
         ) as last_active
       FROM users u
+      LEFT JOIN user_communities uc ON u.user_id = uc.user_id
       ${searchCondition}
-      ORDER BY ${safeSortBy} ${safeSortOrder.toUpperCase()}
+      ORDER BY ${safeSortBy === 'created_at' ? 'uc.first_visited_at' : `u.${safeSortBy}`} ${safeSortOrder.toUpperCase()}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -111,15 +113,25 @@ async function handler(req: AuthenticatedRequest) {
         joined_date: row.created_at
       };
 
+      // Parse roles from JSON string if it exists
+      let roles: string[] = [];
+      if (row.roles) {
+        try {
+          roles = Array.isArray(row.roles) ? row.roles : JSON.parse(row.roles);
+        } catch {
+          roles = [row.roles]; // Fallback if it's a simple string
+        }
+      }
+
       return {
         user_id: row.user_id,
         name: row.name || 'Unknown User',
         profile_picture_url: row.profile_picture_url,
-        created_at: row.created_at,
+        created_at: row.created_at || row.updated_at, // Fallback to updated_at if no first_visited_at
         last_active: row.last_active,
         stats: userStats,
-        roles: row.roles ? (Array.isArray(row.roles) ? row.roles : [row.roles]) : [],
-        isAdmin: row.roles?.includes('admin') || row.user_id === process.env.NEXT_PUBLIC_SUPERADMIN_ID
+        roles: roles,
+        isAdmin: roles.includes('admin') || row.user_id === process.env.NEXT_PUBLIC_SUPERADMIN_ID
       };
     });
 

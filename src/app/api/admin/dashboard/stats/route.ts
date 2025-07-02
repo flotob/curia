@@ -84,11 +84,11 @@ async function handler(req: AuthenticatedRequest) {
       // Total users
       query('SELECT COUNT(*) as count FROM users'),
       
-      // New users this week
-      query('SELECT COUNT(*) as count FROM users WHERE created_at >= $1', [oneWeekAgo.toISOString()]),
+      // New users this week (based on first community visit)
+      query('SELECT COUNT(DISTINCT user_id) as count FROM user_communities WHERE first_visited_at >= $1', [oneWeekAgo.toISOString()]),
       
-      // New users this month
-      query('SELECT COUNT(*) as count FROM users WHERE created_at >= $1', [oneMonthAgo.toISOString()]),
+      // New users this month (based on first community visit)
+      query('SELECT COUNT(DISTINCT user_id) as count FROM user_communities WHERE first_visited_at >= $1', [oneMonthAgo.toISOString()]),
       
       // Active users this week (users who posted or commented)
       query(`
@@ -97,7 +97,7 @@ async function handler(req: AuthenticatedRequest) {
           UNION
           SELECT author_user_id as user_id FROM comments WHERE created_at >= $1
         ) active_users
-      `, [oneWeekAgo.toISOString(), oneWeekAgo.toISOString()]),
+      `, [oneWeekAgo.toISOString()]),
       
       // Total posts
       query('SELECT COUNT(*) as count FROM posts'),
@@ -120,7 +120,7 @@ async function handler(req: AuthenticatedRequest) {
       // Total boards
       query('SELECT COUNT(*) as count FROM boards'),
       
-      // User growth data (last 30 days)
+      // User growth data (last 30 days) - based on community visits
       query(`
         WITH date_series AS (
           SELECT generate_series(
@@ -131,17 +131,17 @@ async function handler(req: AuthenticatedRequest) {
         ),
         daily_users AS (
           SELECT 
-            DATE(created_at) as date,
-            COUNT(*) as new_users
-          FROM users 
-          WHERE created_at >= CURRENT_DATE - INTERVAL '29 days'
-          GROUP BY DATE(created_at)
+            DATE(first_visited_at) as date,
+            COUNT(DISTINCT user_id) as new_users
+          FROM user_communities 
+          WHERE first_visited_at >= CURRENT_DATE - INTERVAL '29 days'
+          GROUP BY DATE(first_visited_at)
         ),
         cumulative_users AS (
           SELECT 
             ds.date,
             COALESCE(du.new_users, 0) as new_users,
-            (SELECT COUNT(*) FROM users WHERE DATE(created_at) <= ds.date) as total_users
+            (SELECT COUNT(DISTINCT user_id) FROM user_communities WHERE DATE(first_visited_at) <= ds.date) as total_users
           FROM date_series ds
           LEFT JOIN daily_users du ON ds.date = du.date
         )
