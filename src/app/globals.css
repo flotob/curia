@@ -142,6 +142,11 @@
     --rk-z-index: 10005;
     --rk-overlay-z-index: 10004;
     --rk-modal-z-index: 10006;
+
+    /* Custom Background Variables */
+    --bg-overlay-color: transparent;
+    --bg-opacity: 1;
+    --bg-blend-mode: normal;
   }
   .dark {
     --background: 240 10% 3.9%;
@@ -197,6 +202,32 @@
     /* Prevent horizontal scroll at body level */
     overflow-x: hidden;
     min-width: 320px; /* Minimum supported width */
+  }
+  
+  /* Custom Background Support */
+  body.has-custom-background {
+    position: relative;
+  }
+  
+  /* Background overlay support */
+  body.has-background-overlay::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-overlay-color);
+    opacity: var(--bg-opacity);
+    mix-blend-mode: var(--bg-blend-mode);
+    pointer-events: none;
+    z-index: -2;
+  }
+  
+  /* Ensure content appears above background */
+  body.has-custom-background > * {
+    position: relative;
+    z-index: 1;
   }
   
   /* Mobile-first responsive images */
@@ -700,12 +731,11 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
 }
 
 /* Prevent zoom on input focus (iOS Safari) */
-input, textarea, select {
-  font-size: 16px;
-}
-
-@media screen and (max-width: 768px) {
-  input, textarea, select {
-    font-size: 16px; /* Prevents zoom on iOS */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+    transform: scale(1);
   }
 }

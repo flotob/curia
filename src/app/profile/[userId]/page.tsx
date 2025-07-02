@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommunitySelector } from '@/components/whats-new/CommunitySelector';
+import { UserBackgroundSettings } from '@/components/settings/UserBackgroundSettings';
 import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 
 // Enhanced interfaces adapted for user activity
@@ -675,6 +676,13 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Background Customization - Only visible on own profile */}
+          {profile && userId === user?.userId && (
+            <div className="mb-6">
+              <UserBackgroundSettings />
             </div>
           )}
 

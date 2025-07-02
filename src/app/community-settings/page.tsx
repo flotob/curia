@@ -26,6 +26,7 @@ import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { CommunityAccessForm } from '@/components/CommunityAccessForm';
 import { TelegramGroupsSection } from '@/components/settings/TelegramGroupsSection';
+import { CommunityBackgroundSettings } from '@/components/settings/CommunityBackgroundSettings';
 // Removed server-side import - now using API endpoint
 
 export default function CommunitySettingsPage() {
@@ -500,6 +501,16 @@ export default function CommunitySettingsPage() {
             <TelegramGroupsSection 
               communityId={user?.cid || ''} 
               theme={theme} 
+            />
+          </div>
+
+          {/* Community Background Customization */}
+          <div className="mb-6">
+            <CommunityBackgroundSettings 
+              currentSettings={communitySettings?.settings || {}}
+              onSettingsChange={(settings: CommunitySettings) => updateCommunityMutation.mutate(settings)}
+              isLoading={updateCommunityMutation.isPending}
+              theme={theme}
             />
           </div>
 
