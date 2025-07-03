@@ -17,6 +17,8 @@
     "migrate:down": "npx tsx ./node_modules/.bin/node-pg-migrate down -m migrations"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.0-beta.3",
+    "@ai-sdk/react": "^2.0.0-beta.6",
     "@common-ground-dao/cg-plugin-lib": "^0.9.13",
     "@common-ground-dao/cg-plugin-lib-host": "^0.9.6",
     "@emoji-mart/data": "^1.2.1",
@@ -54,6 +56,7 @@
     "@web3-onboard/core": "^2.24.1",
     "@web3-onboard/injected-wallets": "^2.11.3",
     "@web3-onboard/react": "^2.11.0",
+    "ai": "^5.0.0-beta.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "crypto": "^1.0.1",
@@ -62,6 +65,7 @@
     "emoji-regex-xs": "^2.0.1",
     "ethereum-identity-kit": "^0.2.48",
     "ethers": "^5.7.2",
+    "framer-motion": "^12.23.0",
     "highlight.js": "^11.11.1",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
@@ -81,7 +85,8 @@
     "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.8.10",
     "viem": "^2.31.0",
-    "wagmi": "^2.15.6"
+    "wagmi": "^2.15.6",
+    "zod": "^3.25.71"
   },
   "resolutions": {
     "ethereumjs-abi": "^0.6.8"
