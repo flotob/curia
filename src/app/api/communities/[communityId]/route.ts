@@ -51,8 +51,35 @@ async function getCommunityHandler(req: AuthenticatedRequest, context: RouteCont
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    const community: ApiCommunity = result.rows[0];
-    console.log(`[API] Community ${communityId} has ${community.telegram_groups_count} active Telegram groups`);
+    const rawCommunity = result.rows[0];
+
+    // Parse settings if they're stored as a string
+    let parsedSettings: CommunitySettings = {};
+    if (rawCommunity.settings) {
+      if (typeof rawCommunity.settings === 'string') {
+        try {
+          parsedSettings = JSON.parse(rawCommunity.settings);
+        } catch (parseError) {
+          console.error(`[API] Failed to parse community settings JSON:`, parseError);
+          parsedSettings = {};
+        }
+      } else if (typeof rawCommunity.settings === 'object') {
+        parsedSettings = rawCommunity.settings as CommunitySettings;
+      }
+    }
+
+    const community: ApiCommunity = {
+      id: rawCommunity.id,
+      name: rawCommunity.name,
+      settings: parsedSettings,
+      created_at: rawCommunity.created_at,
+      updated_at: rawCommunity.updated_at,
+      community_short_id: rawCommunity.community_short_id,
+      plugin_id: rawCommunity.plugin_id,
+      logo_url: rawCommunity.logo_url,
+      telegram_groups_count: rawCommunity.telegram_groups_count
+    };
+
     return NextResponse.json(community);
   } catch (error) {
     console.error(`[API] Error fetching community ${communityId}:`, error);

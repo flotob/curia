@@ -324,10 +324,10 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
               
               {/* Custom Background Button */}
               <Button
-                variant={!localSettings.disableCommunityBackground ? "default" : "outline"}
+                variant={!localSettings.disableCommunityBackground && localSettings.imageUrl.trim() ? "default" : "outline"}
                 className={cn(
                   "w-full justify-start h-auto p-4 text-left",
-                  !localSettings.disableCommunityBackground && "bg-primary text-primary-foreground"
+                  !localSettings.disableCommunityBackground && localSettings.imageUrl.trim() && "bg-primary text-primary-foreground"
                 )}
                 onClick={() => updateSetting('disableCommunityBackground', false)}
                 disabled={isLoading}
@@ -335,19 +335,50 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-3 h-3 rounded-full border-2",
-                    !localSettings.disableCommunityBackground 
+                    !localSettings.disableCommunityBackground && localSettings.imageUrl.trim()
                       ? "bg-current border-current" 
                       : "border-muted-foreground"
                   )} />
                   <div>
                     <div className="font-medium">
-                      {!localSettings.disableCommunityBackground ? "✓ " : ""}Custom Background Experience
+                      {!localSettings.disableCommunityBackground && localSettings.imageUrl.trim() ? "✓ " : ""}Custom Background Experience
                     </div>
                     <div className={cn(
                       "text-sm opacity-80",
-                      !localSettings.disableCommunityBackground ? "text-primary-foreground/80" : "text-muted-foreground"
+                      !localSettings.disableCommunityBackground && localSettings.imageUrl.trim() ? "text-primary-foreground/80" : "text-muted-foreground"
                     )}>
                       Set your own background or see community backgrounds
+                    </div>
+                  </div>
+                </div>
+              </Button>
+              
+              {/* Reset to Default Button */}
+              <Button
+                variant={!localSettings.disableCommunityBackground && !localSettings.imageUrl.trim() ? "default" : "outline"}
+                className={cn(
+                  "w-full justify-start h-auto p-4 text-left",
+                  !localSettings.disableCommunityBackground && !localSettings.imageUrl.trim() && "bg-primary text-primary-foreground"
+                )}
+                onClick={handleClear}
+                disabled={isLoading}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-3 h-3 rounded-full border-2",
+                    !localSettings.disableCommunityBackground && !localSettings.imageUrl.trim()
+                      ? "bg-current border-current" 
+                      : "border-muted-foreground"
+                  )} />
+                  <div>
+                    <div className="font-medium">
+                      {!localSettings.disableCommunityBackground && !localSettings.imageUrl.trim() ? "✓ " : ""}Default Community Experience
+                    </div>
+                    <div className={cn(
+                      "text-sm opacity-80",
+                      !localSettings.disableCommunityBackground && !localSettings.imageUrl.trim() ? "text-primary-foreground/80" : "text-muted-foreground"
+                    )}>
+                      See community backgrounds when available, default otherwise
                     </div>
                   </div>
                 </div>

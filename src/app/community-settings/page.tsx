@@ -156,10 +156,15 @@ export default function CommunitySettingsPage() {
     queryKey: ['communitySettings', user?.cid],
     queryFn: async () => {
       if (!user?.cid || !token) throw new Error('No community ID or token available');
+      console.log(`[CommunitySettingsPage] Fetching community settings for ${user.cid}`);
       const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, { token });
+      console.log(`[CommunitySettingsPage] Got community response:`, response);
+      console.log(`[CommunitySettingsPage] Community settings:`, response.settings);
+      console.log(`[CommunitySettingsPage] Background field:`, response.settings?.background);
       return response;
     },
     enabled: !!user?.cid && !!token,
+    staleTime: 0, // Always fetch fresh data for settings page
   });
 
   // Update community settings mutation
@@ -178,6 +183,15 @@ export default function CommunitySettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communitySettings'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['communitySettings', user?.cid],
+        refetchType: 'active' // Force immediate refetch of active queries
+      });
+      // Also invalidate BackgroundContext cache
+      queryClient.invalidateQueries({ 
+        queryKey: ['backgroundCommunitySettings', user?.cid],
+        refetchType: 'active'
+      });
       toast({
         title: "Settings updated",
         description: "Community settings updated successfully!",

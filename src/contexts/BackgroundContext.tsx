@@ -68,7 +68,7 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
 
   // Fetch community settings (including background) - now using correct response structure
   const { data: communitySettings, isLoading: communityLoading, refetch: refetchCommunity } = useQuery<CommunitySettings>({
-    queryKey: ['communitySettings', user?.cid],
+    queryKey: ['backgroundCommunitySettings', user?.cid],
     queryFn: async () => {
       if (!token || !user?.cid) throw new Error('Community not available');
       console.log(`[BackgroundContext] Fetching community settings for ${user.cid}`);
@@ -80,8 +80,9 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
         created_at: string; 
         updated_at: string;
       }>(`/api/communities/${user.cid}`, { token });
-      console.log(`[BackgroundContext] Got community response:`, Object.keys(response));
-      console.log(`[BackgroundContext] Community settings:`, Object.keys(response.settings || {}));
+      console.log(`[BackgroundContext] Got community response:`, response);
+      console.log(`[BackgroundContext] Community settings:`, response.settings);
+      console.log(`[BackgroundContext] Background field:`, response.settings?.background);
       return response.settings; // Extract settings from full community object
     },
     enabled: !!token && !!user?.cid,
