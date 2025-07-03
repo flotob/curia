@@ -30,7 +30,7 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
   theme = 'light',
   className
 }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -38,42 +38,76 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
   // Update user settings mutation
   const updateUserSettingsMutation = useMutation({
     mutationFn: async (backgroundSettings: BackgroundSettings | null) => {
-      if (!token) throw new Error('Authentication required');
+      console.log(`[UserBackgroundSettings] Mutation starting with:`, backgroundSettings);
       
-      const newSettings: UserSettings = {
-        ...currentSettings,
-        background: backgroundSettings || undefined
-      };
-
-      console.log(`[UserBackgroundSettings] Updating user settings:`, Object.keys(newSettings));
-
-      // Use the new unified settings endpoint
-      const response = await authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ settings: newSettings }),
-        token
-      });
+      if (!token) {
+        console.error(`[UserBackgroundSettings] No token available`);
+        throw new Error('Authentication required');
+      }
       
-      return response;
+      let newSettings: UserSettings;
+      
+      if (backgroundSettings === null) {
+        // When removing background, explicitly exclude it from settings
+        const settingsWithoutBackground = { ...currentSettings };
+        delete settingsWithoutBackground?.background;
+        newSettings = {
+          ...settingsWithoutBackground,
+          background: undefined // Explicitly set to undefined for API removal
+        };
+        console.log(`[UserBackgroundSettings] Removing background from user settings`);
+      } else {
+        // When updating background, include it in settings
+        newSettings = {
+          ...currentSettings,
+          background: backgroundSettings
+        };
+        console.log(`[UserBackgroundSettings] Updating background in user settings`);
+      }
+
+      console.log(`[UserBackgroundSettings] Sending to API:`, Object.keys(newSettings));
+      console.log(`[UserBackgroundSettings] Full payload:`, JSON.stringify({ settings: newSettings }, null, 2));
+
+      try {
+        // Use the new unified settings endpoint
+        const response = await authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ settings: newSettings }),
+          token
+        });
+        
+        console.log(`[UserBackgroundSettings] API response:`, response);
+        return response;
+      } catch (error) {
+        console.error(`[UserBackgroundSettings] API call failed:`, error);
+        throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log(`[UserBackgroundSettings] Mutation succeeded:`, data);
+      // Invalidate the EXACT same query keys that BackgroundContext uses
+      if (user?.userId) {
+        queryClient.invalidateQueries({ queryKey: ['userSettings', user.userId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['currentUserSettings', user?.userId] });
+      
+      // Also invalidate profile queries for the profile page
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      queryClient.invalidateQueries({ queryKey: ['userSettings'] });
-      // Also refresh the background context
-      queryClient.invalidateQueries({ queryKey: ['userSettings', token] });
+      
       toast({
         title: "Background updated",
         description: "Your personal background has been saved successfully!",
       });
     },
     onError: (error: Error) => {
-      console.error('Failed to update user background:', error);
+      console.error('[UserBackgroundSettings] Mutation error:', error);
+      console.error('[UserBackgroundSettings] Error details:', error.message, error.stack);
       toast({
         title: "Update failed",
-        description: "Failed to save your background settings. Please try again.",
+        description: `Failed to save your background settings: ${error.message}`,
         variant: "destructive",
       });
     },

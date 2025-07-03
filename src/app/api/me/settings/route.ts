@@ -83,11 +83,32 @@ async function updateUserSettingsHandler(req: AuthenticatedRequest) {
       currentSettings = typeof current === 'string' ? JSON.parse(current) : current;
     }
 
-    // Merge new settings with existing settings (instead of overwriting)
-    const mergedSettings: UserSettings = {
-      ...currentSettings,
-      ...settings
-    };
+    // Merge new settings with existing settings, handling field removal
+    const mergedSettings: UserSettings = { ...currentSettings };
+    
+    // Check if we need to remove any fields that are present in current but missing from new
+    const currentKeys = Object.keys(currentSettings);
+    const newKeys = Object.keys(settings);
+    
+    // Remove fields that exist in current but are missing from new settings
+    for (const key of currentKeys) {
+      if (!newKeys.includes(key)) {
+        delete mergedSettings[key as keyof UserSettings];
+        console.log(`[API /api/me/settings] Removing field '${key}' (not present in new settings)`);
+      }
+    }
+    
+    // Apply each new setting, removing fields that are explicitly set to undefined/null
+    for (const [key, value] of Object.entries(settings)) {
+      if (value === undefined || value === null) {
+        // Explicitly remove the field from merged settings
+        delete mergedSettings[key as keyof UserSettings];
+        console.log(`[API /api/me/settings] Removing field '${key}' (explicitly set to undefined/null)`);
+      } else {
+        // Update/add the field
+        (mergedSettings as any)[key] = value;
+      }
+    }
 
     console.log(`[API /api/me/settings] Merging settings for user ${user.sub}. Current keys:`, Object.keys(currentSettings), 'New keys:', Object.keys(settings), 'Merged keys:', Object.keys(mergedSettings));
 

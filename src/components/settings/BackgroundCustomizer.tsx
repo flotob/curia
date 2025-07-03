@@ -189,21 +189,34 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
     }
   }, [localSettings, isValidUrl, originalSettings, hasChanges, onSettingsChange]);
 
-  // Clear settings
+  // Clear settings and save to database
   const handleClear = useCallback(() => {
     setLocalSettings(DEFAULT_SETTINGS);
-    onSettingsChange(null);
     setIsValidUrl(false);
     setOriginalSettings(undefined);
     setHasChanges(false);
+    // Actually save the cleared state to database
+    onSettingsChange(null);
   }, [onSettingsChange]);
 
-  // Reset to defaults
+  // Reset to defaults (form only, doesn't save)
   const handleReset = useCallback(() => {
-    setLocalSettings(DEFAULT_SETTINGS);
-    setIsValidUrl(false);
-    setHasChanges(true); // Mark as changed since we're resetting
-  }, []);
+    if (originalSettings) {
+      // Reset to original settings
+      setLocalSettings(originalSettings);
+      setHasChanges(false);
+      if (originalSettings.imageUrl?.trim()) {
+        validateImageUrl(originalSettings.imageUrl);
+      } else {
+        setIsValidUrl(false);
+      }
+    } else {
+      // Reset to default values
+      setLocalSettings(DEFAULT_SETTINGS);
+      setIsValidUrl(false);
+      setHasChanges(true); // Mark as changed since we're resetting from nothing
+    }
+  }, [originalSettings, validateImageUrl]);
 
   // Check if apply button should be enabled
   const canApply = () => {
@@ -439,10 +452,10 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
               </div>
             </div>
 
-            {/* Preview Toggle */}
+            {/* Preview Controls */}
             <Separator />
             
-            <div className="flex items-center justify-between">
+            <div className="space-y-3">
               <div>
                 <Label>Live Preview</Label>
                 <p className={cn(
@@ -452,16 +465,19 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
                   See how your background will look in real-time
                 </p>
               </div>
-              <Button
-                variant={previewEnabled ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPreviewEnabled(!previewEnabled)}
-                disabled={(!isValidUrl && !originalSettings?.imageUrl) || isLoading}
-                className="gap-2"
-              >
-                {previewEnabled ? <EyeOff size={16} /> : <Eye size={16} />}
-                {previewEnabled ? 'Hide Preview' : 'Show Preview'}
-              </Button>
+              
+              <div className="flex items-center justify-center">
+                <Button
+                  variant={previewEnabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPreviewEnabled(!previewEnabled)}
+                  disabled={(!isValidUrl && !originalSettings?.imageUrl) || isLoading}
+                  className="gap-2"
+                >
+                  {previewEnabled ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {previewEnabled ? 'Hide Preview' : 'Show Preview'}
+                </Button>
+              </div>
             </div>
 
             {/* Preview Area */}
@@ -493,36 +509,50 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
             {/* Action Buttons */}
             <Separator />
             
-            <div className="flex flex-wrap gap-2 justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReset}
-                disabled={isLoading}
-                className="gap-2"
-              >
-                <RotateCcw size={16} />
-                Reset
-              </Button>
+            <div className="space-y-3">
+              <div>
+                <Label>Actions</Label>
+                <p className={cn(
+                  "text-sm",
+                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                )}>
+                  Apply your changes or remove your background completely
+                </p>
+              </div>
               
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClear}
-                disabled={isLoading}
-              >
-                Clear Background
-              </Button>
-              
-              <Button
-                onClick={handleApply}
-                disabled={!canApply() || isLoading}
-                size="sm"
-                className="gap-2"
-              >
-                {isLoading && <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />}
-                {hasChanges ? 'Apply Changes' : 'Apply Background'}
-              </Button>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReset}
+                  disabled={isLoading}
+                  className="gap-2"
+                >
+                  <RotateCcw size={16} />
+                  Reset Form
+                </Button>
+                
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleClear}
+                  disabled={isLoading}
+                  className="gap-2"
+                >
+                  <X size={16} />
+                  Remove Background
+                </Button>
+                
+                <Button
+                  onClick={handleApply}
+                  disabled={!canApply() || isLoading}
+                  size="sm"
+                  className="gap-2"
+                >
+                  {isLoading && <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />}
+                  {hasChanges ? 'Save Changes' : 'Save Background'}
+                </Button>
+              </div>
             </div>
           </>
         )}
