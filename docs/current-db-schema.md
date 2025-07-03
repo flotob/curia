@@ -1,5 +1,115 @@
 -- Adminer 5.2.1 PostgreSQL 17.5 dump
 
+DROP TABLE IF EXISTS "ai_conversations";
+CREATE TABLE "public"."ai_conversations" (
+    "id" uuid DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" text NOT NULL,
+    "community_id" text NOT NULL,
+    "conversation_type" text NOT NULL,
+    "title" text,
+    "status" text DEFAULT '''active''' NOT NULL,
+    "metadata" jsonb DEFAULT '{}' NOT NULL,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "completed_at" timestamptz,
+    CONSTRAINT "ai_conversations_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "ai_conversations_conversation_type_check" CHECK (conversation_type = ANY (ARRAY['admin_assistant'::text, 'onboarding_quiz'::text])),
+    CONSTRAINT "ai_conversations_status_check" CHECK (status = ANY (ARRAY['active'::text, 'completed'::text, 'archived'::text]))
+) WITH (oids = false);
+
+CREATE INDEX ai_conversations_user_id_index ON public.ai_conversations USING btree (user_id);
+
+CREATE INDEX ai_conversations_community_id_index ON public.ai_conversations USING btree (community_id);
+
+CREATE INDEX ai_conversations_conversation_type_index ON public.ai_conversations USING btree (conversation_type);
+
+CREATE INDEX ai_conversations_status_index ON public.ai_conversations USING btree (status);
+
+CREATE INDEX ai_conversations_created_at_index ON public.ai_conversations USING btree (created_at);
+
+CREATE INDEX ai_conversations_user_id_conversation_type_status_index ON public.ai_conversations USING btree (user_id, conversation_type, status);
+
+
+DELIMITER ;;
+
+CREATE TRIGGER "set_timestamp_ai_conversations" BEFORE UPDATE ON "public"."ai_conversations" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
+
+DELIMITER ;
+
+DROP TABLE IF EXISTS "ai_messages";
+CREATE TABLE "public"."ai_messages" (
+    "id" uuid DEFAULT gen_random_uuid() NOT NULL,
+    "conversation_id" uuid NOT NULL,
+    "role" text NOT NULL,
+    "content" text NOT NULL,
+    "tool_calls" jsonb,
+    "tool_results" jsonb,
+    "metadata" jsonb DEFAULT '{}' NOT NULL,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "message_index" integer NOT NULL,
+    CONSTRAINT "ai_messages_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "ai_messages_role_check" CHECK (role = ANY (ARRAY['user'::text, 'assistant'::text, 'system'::text]))
+) WITH (oids = false);
+
+COMMENT ON COLUMN "public"."ai_messages"."tool_calls" IS 'Tool calls made by the assistant';
+
+COMMENT ON COLUMN "public"."ai_messages"."tool_results" IS 'Results from tool executions';
+
+COMMENT ON COLUMN "public"."ai_messages"."metadata" IS 'Token counts, processing time, etc.';
+
+COMMENT ON COLUMN "public"."ai_messages"."message_index" IS 'Order of message in conversation';
+
+CREATE INDEX ai_messages_conversation_id_index ON public.ai_messages USING btree (conversation_id);
+
+CREATE INDEX ai_messages_role_index ON public.ai_messages USING btree (role);
+
+CREATE INDEX ai_messages_created_at_index ON public.ai_messages USING btree (created_at);
+
+CREATE INDEX ai_messages_conversation_id_message_index_index ON public.ai_messages USING btree (conversation_id, message_index);
+
+
+DROP TABLE IF EXISTS "ai_usage_logs";
+CREATE TABLE "public"."ai_usage_logs" (
+    "id" uuid DEFAULT gen_random_uuid() NOT NULL,
+    "conversation_id" uuid NOT NULL,
+    "message_id" uuid NOT NULL,
+    "user_id" text NOT NULL,
+    "community_id" text NOT NULL,
+    "api_provider" text DEFAULT '''openai''' NOT NULL,
+    "model" text NOT NULL,
+    "prompt_tokens" integer DEFAULT '0' NOT NULL,
+    "completion_tokens" integer DEFAULT '0' NOT NULL,
+    "total_tokens" integer DEFAULT '0' NOT NULL,
+    "estimated_cost_usd" numeric(10,6) DEFAULT '0' NOT NULL,
+    "processing_time_ms" integer,
+    "tool_calls_count" integer DEFAULT '0' NOT NULL,
+    "success" boolean DEFAULT true NOT NULL,
+    "error_message" text,
+    "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "ai_usage_logs_pkey" PRIMARY KEY ("id")
+) WITH (oids = false);
+
+COMMENT ON COLUMN "public"."ai_usage_logs"."model" IS 'AI model used (e.g., gpt-4o)';
+
+COMMENT ON COLUMN "public"."ai_usage_logs"."estimated_cost_usd" IS 'Estimated cost in USD';
+
+COMMENT ON COLUMN "public"."ai_usage_logs"."processing_time_ms" IS 'Time taken to process the request';
+
+CREATE INDEX ai_usage_logs_conversation_id_index ON public.ai_usage_logs USING btree (conversation_id);
+
+CREATE INDEX ai_usage_logs_user_id_index ON public.ai_usage_logs USING btree (user_id);
+
+CREATE INDEX ai_usage_logs_community_id_index ON public.ai_usage_logs USING btree (community_id);
+
+CREATE INDEX ai_usage_logs_created_at_index ON public.ai_usage_logs USING btree (created_at);
+
+CREATE INDEX ai_usage_logs_success_index ON public.ai_usage_logs USING btree (success);
+
+CREATE INDEX ai_usage_logs_user_id_created_at_index ON public.ai_usage_logs USING btree (user_id, created_at);
+
+CREATE INDEX ai_usage_logs_community_id_created_at_index ON public.ai_usage_logs USING btree (community_id, created_at);
+
+
 DROP TABLE IF EXISTS "boards";
 DROP SEQUENCE IF EXISTS boards_id_seq;
 CREATE SEQUENCE boards_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -739,6 +849,16 @@ CREATE TABLE "public"."votes" (
 ) WITH (oids = false);
 
 
+ALTER TABLE ONLY "public"."ai_conversations" ADD CONSTRAINT "ai_conversations_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."ai_conversations" ADD CONSTRAINT "ai_conversations_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+
+ALTER TABLE ONLY "public"."ai_messages" ADD CONSTRAINT "ai_messages_conversation_id_fkey" FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE NOT DEFERRABLE;
+
+ALTER TABLE ONLY "public"."ai_usage_logs" ADD CONSTRAINT "ai_usage_logs_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."ai_usage_logs" ADD CONSTRAINT "ai_usage_logs_conversation_id_fkey" FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."ai_usage_logs" ADD CONSTRAINT "ai_usage_logs_message_id_fkey" FOREIGN KEY (message_id) REFERENCES ai_messages(id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE ONLY "public"."ai_usage_logs" ADD CONSTRAINT "ai_usage_logs_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE NOT DEFERRABLE;
+
 ALTER TABLE ONLY "public"."boards" ADD CONSTRAINT "boards_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
 
 ALTER TABLE ONLY "public"."bookmarks" ADD CONSTRAINT "bookmarks_community_id_fkey" FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE NOT DEFERRABLE;
@@ -864,4 +984,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-07-01 16:45:53 UTC
+-- 2025-07-03 06:57:19 UTC
