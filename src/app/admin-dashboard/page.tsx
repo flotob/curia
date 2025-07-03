@@ -192,7 +192,7 @@ export default function AdminDashboardPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
+          <Card variant="header" className="mb-8 p-6">
             <Link href={buildUrl('/')}>
               <Button variant="ghost" className="mb-4">
                 <ArrowLeft size={16} className="mr-2" />
@@ -208,7 +208,7 @@ export default function AdminDashboardPage() {
             <p className="text-slate-600 dark:text-slate-400">
               Community analytics and user management
             </p>
-          </div>
+          </Card>
 
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

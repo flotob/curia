@@ -343,10 +343,10 @@ export default function WhatsNewPage() {
     const pagination = categoryPagination[categoryKey];
     
     return (
-      <div className="space-y-4">
+      <Card className="overflow-hidden">
         {/* Header */}
         <div 
-          className={`flex items-center justify-between py-4 border-l-4 pl-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${color}`}
+          className={`flex items-center justify-between py-4 border-l-4 pl-4 cursor-pointer hover:bg-muted/50 transition-colors ${color}`}
           onClick={() => toggleCategory(categoryKey)}
         >
           <div className="flex items-center gap-3">
@@ -372,7 +372,7 @@ export default function WhatsNewPage() {
 
         {/* Filter and Pagination Controls */}
         {!isCollapsed && (
-          <div className="px-4 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg space-y-3">
+          <div className="px-4 py-2 bg-muted/30 border-t space-y-3">
             {/* Filter Controls */}
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -399,32 +399,32 @@ export default function WhatsNewPage() {
             {/* Pagination Controls */}
             {query.data?.pagination && (
               <div className="flex items-center justify-between gap-2">
-                                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={pagination.page === 0}
-                    onClick={() => updateCategoryPage(categoryKey, pagination.page - 1)}
-                    className="flex-shrink-0"
-                  >
-                    Prev
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page === 0}
+                  onClick={() => updateCategoryPage(categoryKey, pagination.page - 1)}
+                  className="flex-shrink-0"
+                >
+                  Prev
+                </Button>
                 <span className="text-sm text-muted-foreground px-1 text-center flex-shrink-0">
                   Page {pagination.page + 1}
                 </span>
-                                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!query.data?.pagination?.hasMore}
-                    onClick={() => updateCategoryPage(categoryKey, pagination.page + 1)}
-                    className="flex-shrink-0"
-                  >
-                    Next
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!query.data?.pagination?.hasMore}
+                  onClick={() => updateCategoryPage(categoryKey, pagination.page + 1)}
+                  className="flex-shrink-0"
+                >
+                  Next
+                </Button>
               </div>
             )}
           </div>
         )}
-      </div>
+      </Card>
     );
   };
 
@@ -679,7 +679,8 @@ export default function WhatsNewPage() {
             </Link>
           </div>
 
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
+          <Card variant="header" className="p-4 sm:p-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
               <div className="flex-1 min-w-0">
                 <h1 className="text-3xl font-bold mb-2">What&apos;s New</h1>
                 <p className="text-muted-foreground mb-4">
@@ -736,6 +737,7 @@ export default function WhatsNewPage() {
                 )}
               </Button>
             </div>
+          </Card>
         </div>
 
         {isLoading ? (

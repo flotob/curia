@@ -5,6 +5,7 @@ import { LockBrowser } from '@/components/locks/LockBrowser';
 import { LockCreationModal } from '@/components/locks/LockCreationModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Plus } from 'lucide-react';
 
 export default function LocksPage() {
@@ -30,21 +31,23 @@ export default function LocksPage() {
   }, [queryClient]);
 
   return (
-          <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-            Access Control Locks
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2">
-            Browse and manage reusable access control configurations for your community.
-          </p>
+    <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-8">
+      <Card variant="header" className="mb-6 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              Access Control Locks
+            </h1>
+            <p className="text-slate-600 dark:text-slate-400 mt-2">
+              Browse and manage reusable access control configurations for your community.
+            </p>
+          </div>
+          <Button onClick={handleCreateNewLock} className="flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Create New Lock</span>
+          </Button>
         </div>
-        <Button onClick={handleCreateNewLock} className="flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Create New Lock</span>
-        </Button>
-      </div>
+      </Card>
       
       <LockBrowser />
       

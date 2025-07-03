@@ -32,6 +32,7 @@ import { BoardAccessForm } from '@/components/BoardAccessForm';
 import { BoardLockGatingForm } from '@/components/BoardLockGatingForm';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useToast } from '@/hooks/use-toast';
+import { Card } from '@/components/ui/card';
 
 interface DeleteBoardResponse {
   boardName: string;
@@ -339,7 +340,7 @@ export default function BoardSettingsPage() {
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <Card variant="header" className="p-6">
           <div className="flex items-center space-x-4">
             <Link href={buildUrl('/', { boardId: boardId || '' })}>
               <Button variant="ghost" size="sm">
@@ -362,7 +363,7 @@ export default function BoardSettingsPage() {
               </p>
             </div>
           </div>
-        </div>
+        </Card>
 
         <form onSubmit={handleSave} className="space-y-6">
           {/* Board Details */}

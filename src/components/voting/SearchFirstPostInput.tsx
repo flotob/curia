@@ -9,7 +9,7 @@ import { ApiPost } from '@/app/api/posts/route';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Search, ArrowUp, MessageSquare, Plus, TrendingUp, X, Edit3, Lightbulb } from 'lucide-react';
+import { Loader2, Search, ArrowUp, MessageSquare, Plus, TrendingUp, X, Edit3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VoteButton } from './VoteButton';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -36,7 +36,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   onPostCreated,
   enableGlobalSearch = false
 }) => {
-  const { token, isAuthenticated, user } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const { openSearch } = useGlobalSearch();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -46,8 +46,6 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   const [showInlineForm, setShowInlineForm] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [modalOpen, setModalOpen] = useState(false); // Track if modal should stay open
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipDismissed, setTooltipDismissed] = useState(false);
 
   // Mobile detection
   useEffect(() => {
@@ -72,37 +70,6 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
         : "What's on your mind? Start typing to search or create a post...";
     }
   }, [enableGlobalSearch, isMobile]);
-
-  // First-time user tooltip management
-  useEffect(() => {
-    // Don't show tooltip if:
-    // - User is not authenticated
-    // - Tooltip was manually dismissed
-    // - Input is currently focused (user is interacting)
-    // - User stats haven't loaded yet (avoid race condition)
-    if (!isAuthenticated || !user?.stats || tooltipDismissed || isFocused) return;
-
-    // Check if user is new (no posts created) AND stats are actually loaded
-    const isNewUser = user.stats.isNewUser;
-    const statsLoaded = user.stats.postCount !== undefined && user.stats.commentCount !== undefined;
-    const hasSeenTooltip = localStorage.getItem('searchInputTooltip') === 'dismissed';
-
-         if (isNewUser && statsLoaded && !hasSeenTooltip && !isFocused) {
-       // Show tooltip after a short delay, only for verified new users
-       const timer = setTimeout(() => {
-         setShowTooltip(true);
-       }, 2000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isAuthenticated, user?.stats, tooltipDismissed, isFocused]);
-
-  // Handle tooltip dismissal
-  const handleTooltipDismiss = useCallback(() => {
-    setShowTooltip(false);
-    setTooltipDismissed(true);
-    localStorage.setItem('searchInputTooltip', 'dismissed');
-  }, []);
 
   // Search for similar posts
   const { 
@@ -251,34 +218,35 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
   }
 
   return (
-    <div className="relative w-full mx-auto mt-4 sm:mt-6 mb-6 sm:mb-8">
-      {/* Main Search Input Container - Hide when modal is open */}
-      {!showResults && (
-        <div className="relative z-10">
-          <div className="relative">
-            <Search 
-              size={22} 
-              className={cn(
-                "absolute left-5 top-1/2 transform -translate-y-1/2 transition-colors duration-200 pointer-events-none",
-                isFocused ? "text-primary" : "text-muted-foreground"
-              )} 
-            />
+    <div className="relative w-full max-w-full">
+      {/* Main Search Input */}
+      <Card className="relative group transition-all duration-300 p-0">
+        <div className="relative flex items-center">
+          {/* Search Icon */}
+          <div className={cn(
+            "absolute left-4 z-10 transition-colors duration-200",
+            isFocused ? "text-primary" : "text-muted-foreground"
+          )}>
+            <Search className="h-6 w-6" />
+          </div>
+          
+          {/* Input Field */}
+          <div className="relative w-full">
             
             <Input
               placeholder={getPlaceholderText()}
               value={currentInput}
               className={cn(
                 "pl-14 pr-6 py-8 text-lg transition-all duration-200 font-medium",
-                "bg-background border-2 rounded-2xl shadow-lg",
+                "border-0 rounded-2xl shadow-none bg-transparent",
                 isFocused 
-                  ? "border-primary shadow-xl shadow-primary/10" 
-                  : "border-muted hover:border-primary/50 hover:shadow-xl",
+                  ? "shadow-xl shadow-primary/10" 
+                  : "hover:shadow-xl",
                 "focus:outline-none focus:ring-2 focus:ring-primary/20",
                 enableGlobalSearch && "cursor-pointer"
               )}
               onChange={(e) => handleInputChange(e.target.value)}
               onFocus={() => {
-                handleTooltipDismiss(); // Dismiss tooltip when user interacts
                 if (currentInput.trim().length >= 3) {
                   setIsFocused(true);
                 }
@@ -291,7 +259,7 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
                   }
                 }, 150);
               }}
-              onClick={enableGlobalSearch ? handleSearchClick : handleTooltipDismiss}
+              onClick={enableGlobalSearch ? handleSearchClick : () => {}}
               readOnly={enableGlobalSearch}
             />
             
@@ -302,39 +270,8 @@ export const SearchFirstPostInput: React.FC<SearchFirstPostInputProps> = ({
               </div>
             )}
           </div>
-
-          {/* First-time user tooltip */}
-          {showTooltip && (
-            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 translate-y-full z-20 animate-in slide-in-from-top-2 duration-300">
-              <div className="relative w-[calc(100vw-2rem)] max-w-sm sm:max-w-md mx-auto">
-                {/* Tooltip arrow */}
-                <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-slate-900 dark:border-b-slate-50"></div>
-                
-                {/* Tooltip content */}
-                <div className="bg-slate-900 dark:bg-slate-50 text-slate-50 dark:text-slate-900 backdrop-blur-sm text-sm font-medium px-5 py-4 rounded-xl shadow-lg border border-slate-700 dark:border-slate-200">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Lightbulb size={16} className="text-yellow-400 dark:text-yellow-500 flex-shrink-0" />
-                    <span className="font-semibold">💡 Pro tip</span>
-                  </div>
-                  <p className="mb-3 text-slate-200 dark:text-slate-700 leading-relaxed">
-                    This is your gateway to discovery! Start typing to search existing discussions, or create your first post to join the conversation.
-                  </p>
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleTooltipDismiss}
-                      className="h-8 px-4 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600 dark:bg-slate-200 dark:hover:bg-slate-300 dark:text-slate-800 dark:border-slate-300 font-medium"
-                    >
-                      Got it!
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
-      )}
+      </Card>
 
       {/* Full-Screen Search Results Overlay */}
       {showResults && (

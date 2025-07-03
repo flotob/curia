@@ -1,20 +1,28 @@
 import * as React from "react"
-
+import { useCardStyling } from "@/hooks/useCardStyling"
 import { cn } from "@/lib/utils"
 
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-xl border bg-card text-card-foreground shadow",
-      className
-    )}
-    {...props}
-  />
-))
+  React.HTMLAttributes<HTMLDivElement> & { 
+    variant?: 'card' | 'header' | 'content';
+    forceSolid?: boolean; // Force solid styling even with background active
+  }
+>(({ className, variant = 'card', forceSolid = false, ...props }, ref) => {
+  const { getCardStyle } = useCardStyling();
+  
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "rounded-xl text-card-foreground",
+        forceSolid ? "border bg-card shadow" : getCardStyle(variant),
+        className
+      )}
+      {...props}
+    />
+  );
+});
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<

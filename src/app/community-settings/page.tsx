@@ -32,7 +32,6 @@ import { CommunityBackgroundSettings } from '@/components/settings/CommunityBack
 export default function CommunitySettingsPage() {
   const { cgInstance, isInitializing } = useCgLib();
   const searchParams = useSearchParams();
-  const [bgColor, setBgColor] = useState('#ffffff');
   const [copiedConnectCode, setCopiedConnectCode] = useState(false);
   const connectCodeInputRef = useRef<HTMLInputElement>(null);
   const { user, token } = useAuth();
@@ -46,8 +45,6 @@ export default function CommunitySettingsPage() {
   useEffect(() => {
     const cgTheme = searchParams?.get('cg_theme') || 'light';
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
-    
-    setBgColor(cgBgColor);
     
     // Set CSS custom properties for dynamic theming
     document.documentElement.style.setProperty('--cg-bg', cgBgColor);
@@ -222,11 +219,8 @@ export default function CommunitySettingsPage() {
   // Admin access control
   if (user && !user.isAdmin) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: bgColor }}
-      >
-        <div className="text-center space-y-4">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card variant="content" className="text-center space-y-4 p-8">
           <h1 className="text-2xl font-semibold text-red-600 dark:text-red-400">
             Access Denied
           </h1>
@@ -239,26 +233,23 @@ export default function CommunitySettingsPage() {
               Back to Home
             </Button>
           </Link>
-        </div>
+        </Card>
       </div>
     );
   }
 
   if (isInitializing || isLoadingCommunityInfo) {
     return (
-      <div 
-        className="min-h-screen"
-        style={{ backgroundColor: bgColor }}
-      >
+      <div className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
-            <div className="animate-pulse space-y-6">
+            <Card variant="content" className="animate-pulse space-y-6 p-8">
               <div className="h-8 w-64 rounded bg-slate-200 dark:bg-slate-700" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="h-64 rounded-xl bg-slate-200 dark:bg-slate-700" />
                 <div className="h-64 rounded-xl bg-slate-200 dark:bg-slate-700" />
               </div>
-            </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -267,11 +258,8 @@ export default function CommunitySettingsPage() {
 
   if (!communityInfo) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: bgColor }}
-      >
-        <div className="text-center space-y-4">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card variant="content" className="text-center space-y-4 p-8">
           <div className="text-2xl font-semibold text-slate-700 dark:text-slate-300">
             Unable to load community information
           </div>
@@ -281,20 +269,17 @@ export default function CommunitySettingsPage() {
               Back to Home
             </Button>
           </Link>
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div 
-      className="min-h-screen"
-      style={{ backgroundColor: bgColor }}
-    >
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
+          <Card variant="header" className="mb-8 p-6">
             <Link href={buildUrl('/')}>
               <Button variant="ghost" className="mb-4">
                 <ArrowLeft size={16} className="mr-2" />
@@ -310,7 +295,7 @@ export default function CommunitySettingsPage() {
             <p className="text-slate-600 dark:text-slate-400">
               View and manage your community configuration
             </p>
-          </div>
+          </Card>
 
           {/* Telegram Notifications Section */}
           <Card className="mb-6">
