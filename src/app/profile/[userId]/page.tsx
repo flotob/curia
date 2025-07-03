@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommunitySelector } from '@/components/whats-new/CommunitySelector';
 import { UserBackgroundSettings } from '@/components/settings/UserBackgroundSettings';
+import { UserSettings } from '@/types/user';
 import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 
 // Enhanced interfaces adapted for user activity
@@ -162,6 +163,18 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
     staleTime: 30000, // 30 seconds
   });
 
+  // Fetch current user settings (only when viewing own profile)
+  const { data: currentUserSettings, isLoading: userSettingsLoading } = useQuery<{ settings: UserSettings }>({
+    queryKey: ['currentUserSettings', user?.userId],
+    queryFn: async () => {
+      if (!token) throw new Error('Authentication required');
+      console.log(`[ProfilePage] Fetching current user settings for background form`);
+      return authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, { token });
+    },
+    enabled: !!token && !!user?.userId && userId === user?.userId, // Only fetch for own profile
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // Fetch summary data
   const { data: summaryData, isLoading: summaryLoading } = useQuery<UserActivityResponse>({
     queryKey: ['userActivitySummary', userId, selectedCommunityId],
@@ -291,7 +304,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
     );
   }
 
-  const isLoading = profileLoading || summaryLoading || postsByUserQuery.isLoading || commentsByUserQuery.isLoading || reactionsByUserQuery.isLoading || postsUserCommentedOnQuery.isLoading;
+  const isLoading = profileLoading || summaryLoading || userSettingsLoading || postsByUserQuery.isLoading || commentsByUserQuery.isLoading || reactionsByUserQuery.isLoading || postsUserCommentedOnQuery.isLoading;
 
   const summary = summaryData?.summary;
   const profile = userProfile?.user;
@@ -682,7 +695,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
           {/* Background Customization - Only visible on own profile */}
           {profile && userId === user?.userId && (
             <div className="mb-6">
-              <UserBackgroundSettings />
+              <UserBackgroundSettings 
+                currentSettings={currentUserSettings?.settings}
+              />
             </div>
           )}
 

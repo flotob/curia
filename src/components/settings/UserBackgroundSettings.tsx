@@ -45,7 +45,10 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
         background: backgroundSettings || undefined
       };
 
-      const response = await authFetchJson<{ user: any }>(`/api/me`, {
+      console.log(`[UserBackgroundSettings] Updating user settings:`, Object.keys(newSettings));
+
+      // Use the new unified settings endpoint
+      const response = await authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -59,6 +62,8 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       queryClient.invalidateQueries({ queryKey: ['userSettings'] });
+      // Also refresh the background context
+      queryClient.invalidateQueries({ queryKey: ['userSettings', token] });
       toast({
         title: "Background updated",
         description: "Your personal background has been saved successfully!",
@@ -108,7 +113,7 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
           <Alert>
             <Info size={16} />
             <AlertDescription>
-              Set a personal background image that will appear on all Common Ground pages when you're logged in.
+              Set a personal background image that will appear on all Common Ground pages when you&apos;re logged in.
             </AlertDescription>
           </Alert>
         )}
@@ -142,7 +147,7 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
               <AlertDescription>
                 <strong>Tips:</strong> Use high-resolution images (1920x1080+) for best quality. 
                 Keep opacity low (20-40%) so text remains readable. Your background is personal - 
-                other users won't see it unless they also set their own.
+                other users won&apos;t see it unless they also set their own.
               </AlertDescription>
             </Alert>
           </div>

@@ -88,6 +88,19 @@ interface UserSettings {
   };
   premium?: string;      // "GOLD"
   email?: string;        // "fg@blockchain.lawyer"
+  
+  // 🔧 CRITICAL FIX: Add background settings to session API interface
+  background?: {
+    imageUrl: string;           // URL to the background image
+    repeat: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y' | 'space' | 'round';
+    size: 'auto' | 'cover' | 'contain' | string; // CSS background-size values
+    position: string;           // CSS background-position (e.g., 'center center', 'top left')
+    attachment: 'scroll' | 'fixed' | 'local';
+    opacity: number;            // 0-1, for overlay effect
+    overlayColor?: string;      // Optional overlay color (hex)
+    blendMode?: string;         // CSS mix-blend-mode
+  };
+  
   // Future: Add other social platforms as needed
 }
 
@@ -228,12 +241,30 @@ export async function POST(req: NextRequest) {
         );
         console.log(`[/api/auth/session] Upserted default board for community ${communityId}. Board ID: ${boardResult.rows[0]?.id}`);
 
-        // 3. Extract and prepare Common Ground profile data for settings
-        const userSettings: UserSettings = {};
+        // 3. Fetch existing user settings to preserve them (especially background settings)
+        let existingSettings: UserSettings = {};
+        try {
+          const existingUserResult = await query(
+            `SELECT settings FROM users WHERE user_id = $1`,
+            [userId]
+          );
+          
+          if (existingUserResult.rows.length > 0 && existingUserResult.rows[0].settings) {
+            const existing = existingUserResult.rows[0].settings;
+            existingSettings = typeof existing === 'string' ? JSON.parse(existing) : existing;
+            console.log(`[/api/auth/session] Found existing settings for ${userId}:`, Object.keys(existingSettings));
+          }
+        } catch (error) {
+          console.warn(`[/api/auth/session] Error fetching existing settings for ${userId}:`, error);
+          // Continue with empty existing settings if query fails
+        }
+
+        // 4. Extract and prepare Common Ground profile data for settings (merge with existing)
+        const newProfileData: Partial<UserSettings> = {};
         
         // Capture LUKSO profile data if available
         if (body.lukso?.address && body.lukso?.username) {
-          userSettings.lukso = {
+          newProfileData.lukso = {
             username: body.lukso.username,
             address: body.lukso.address
           };
@@ -242,28 +273,34 @@ export async function POST(req: NextRequest) {
         
         // Capture other social/blockchain data if available
         if (body.ethereum?.address) {
-          userSettings.ethereum = { address: body.ethereum.address };
+          newProfileData.ethereum = { address: body.ethereum.address };
         }
         if (body.twitter?.username) {
-          userSettings.twitter = { username: body.twitter.username };
+          newProfileData.twitter = { username: body.twitter.username };
         }
         if (body.farcaster?.displayName && body.farcaster?.username && body.farcaster?.fid) {
-          userSettings.farcaster = {
+          newProfileData.farcaster = {
             displayName: body.farcaster.displayName,
             username: body.farcaster.username,
             fid: body.farcaster.fid
           };
         }
         if (body.premium) {
-          userSettings.premium = body.premium;
+          newProfileData.premium = body.premium;
         }
         if (body.email) {
-          userSettings.email = body.email;
+          newProfileData.email = body.email;
         }
 
-        console.log(`[/api/auth/session] User settings for ${userId}:`, userSettings);
+        // 🔧 CRITICAL FIX: Merge new profile data with existing settings (preserving background!)
+        const mergedSettings: UserSettings = {
+          ...existingSettings,  // Keep existing settings (especially background)
+          ...newProfileData     // Update with new Common Ground profile data
+        };
 
-        // 4. Ensure user record exists with Common Ground profile data
+        console.log(`[/api/auth/session] Merging settings for ${userId}. Existing keys:`, Object.keys(existingSettings), 'New profile keys:', Object.keys(newProfileData), 'Merged keys:', Object.keys(mergedSettings));
+
+        // 5. Ensure user record exists with merged settings
         await query(
           `INSERT INTO users (user_id, name, profile_picture_url, settings, updated_at)
            VALUES ($1, $2, $3, $4, NOW())
@@ -272,10 +309,10 @@ export async function POST(req: NextRequest) {
              profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, users.profile_picture_url),
              settings = EXCLUDED.settings,
              updated_at = NOW();`,
-          [userId, name ?? null, profilePictureUrl ?? null, JSON.stringify(userSettings)]
+          [userId, name ?? null, profilePictureUrl ?? null, JSON.stringify(mergedSettings)]
         );
 
-        // 5. Track user-community relationship for cross-device "What's New"
+        // 6. Track user-community relationship for cross-device "What's New"
         const userCommunityResult = await query(
           `INSERT INTO user_communities (user_id, community_id, first_visited_at, last_visited_at, visit_count, created_at, updated_at)
            VALUES ($1, $2, NOW(), NOW(), 1, NOW(), NOW())
@@ -290,7 +327,7 @@ export async function POST(req: NextRequest) {
         const visitInfo = userCommunityResult.rows[0];
         console.log(`[/api/auth/session] Updated user-community relationship for ${userId} in ${communityId}. Visit count: ${visitInfo?.visit_count}, First visit: ${visitInfo?.first_visited_at}`);
 
-        // 6. Auto-sync friends if provided (non-blocking)
+        // 7. Auto-sync friends if provided (non-blocking)
         if (body.friends && Array.isArray(body.friends) && body.friends.length > 0) {
           console.log(`[/api/auth/session] Starting automatic friends sync for ${userId} (${body.friends.length} friends)`);
           

@@ -102,13 +102,8 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [isValidUrl, setIsValidUrl] = useState(false);
   const [urlValidationLoading, setUrlValidationLoading] = useState(false);
-
-  // Sync with external settings changes
-  useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
-    }
-  }, [settings]);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [originalSettings, setOriginalSettings] = useState<BackgroundSettings | undefined>(settings);
 
   // Validate image URL
   const validateImageUrl = useCallback(async (url: string) => {
@@ -135,6 +130,42 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
     }
   }, []);
 
+  // Sync with external settings changes and validate existing URL
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
+      setOriginalSettings(settings);
+      setHasChanges(false);
+      
+      // Validate existing URL if it exists
+      if (settings.imageUrl?.trim()) {
+        validateImageUrl(settings.imageUrl);
+      } else {
+        setIsValidUrl(false);
+      }
+    }
+  }, [settings, validateImageUrl]);
+
+  // Detect changes by comparing with original settings
+  useEffect(() => {
+    if (!originalSettings) {
+      setHasChanges(!!localSettings.imageUrl.trim());
+      return;
+    }
+
+    const settingsChanged = 
+      localSettings.imageUrl !== originalSettings.imageUrl ||
+      localSettings.repeat !== originalSettings.repeat ||
+      localSettings.size !== originalSettings.size ||
+      localSettings.position !== originalSettings.position ||
+      localSettings.attachment !== originalSettings.attachment ||
+      localSettings.opacity !== originalSettings.opacity ||
+      localSettings.overlayColor !== originalSettings.overlayColor ||
+      localSettings.blendMode !== originalSettings.blendMode;
+
+    setHasChanges(settingsChanged);
+  }, [localSettings, originalSettings]);
+
   // Update local settings and validate URL
   const updateSetting = useCallback(<K extends keyof BackgroundSettings>(
     key: K,
@@ -148,39 +179,71 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
     }
   }, [localSettings, validateImageUrl]);
 
-  // Apply settings
+  // Apply settings - now smarter about when it's enabled
   const handleApply = useCallback(() => {
-    if (isValidUrl && localSettings.imageUrl.trim()) {
+    // If we have a valid URL or if we're modifying existing valid settings
+    if ((isValidUrl && localSettings.imageUrl.trim()) || (originalSettings?.imageUrl && hasChanges)) {
       onSettingsChange(localSettings);
+      setOriginalSettings(localSettings);
+      setHasChanges(false);
     }
-  }, [localSettings, isValidUrl, onSettingsChange]);
+  }, [localSettings, isValidUrl, originalSettings, hasChanges, onSettingsChange]);
 
   // Clear settings
   const handleClear = useCallback(() => {
     setLocalSettings(DEFAULT_SETTINGS);
     onSettingsChange(null);
     setIsValidUrl(false);
+    setOriginalSettings(undefined);
+    setHasChanges(false);
   }, [onSettingsChange]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
     setLocalSettings(DEFAULT_SETTINGS);
     setIsValidUrl(false);
+    setHasChanges(true); // Mark as changed since we're resetting
   }, []);
 
-  // Generate preview styles
-  const previewStyles = previewEnabled && isValidUrl ? {
-    backgroundImage: `url(${localSettings.imageUrl})`,
-    backgroundRepeat: localSettings.repeat,
-    backgroundSize: localSettings.size,
-    backgroundPosition: localSettings.position,
-    backgroundAttachment: localSettings.attachment,
-    opacity: localSettings.opacity,
-    ...(localSettings.overlayColor && {
-      backgroundColor: localSettings.overlayColor,
-      backgroundBlendMode: localSettings.blendMode || 'normal'
-    })
-  } : {};
+  // Check if apply button should be enabled
+  const canApply = () => {
+    // If we have a valid URL and content, allow apply
+    if (isValidUrl && localSettings.imageUrl.trim()) {
+      return true;
+    }
+    
+    // If we have existing settings and user made changes, allow apply (trust existing URL is valid)
+    if (originalSettings?.imageUrl && hasChanges && localSettings.imageUrl.trim()) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Generate preview styles (matches BackgroundContext approach)
+  const previewStyles = previewEnabled && (isValidUrl || originalSettings?.imageUrl) ? (() => {
+    const styles: React.CSSProperties = {
+      backgroundImage: `url(${localSettings.imageUrl})`,
+      backgroundRepeat: localSettings.repeat,
+      backgroundSize: localSettings.size,
+      backgroundPosition: localSettings.position,
+      backgroundAttachment: localSettings.attachment,
+    };
+
+    // Handle overlay color and blend mode (same as BackgroundContext)
+    if (localSettings.overlayColor) {
+      styles.backgroundColor = localSettings.overlayColor;
+      styles.backgroundBlendMode = localSettings.blendMode || 'normal';
+    }
+
+    // Handle opacity using multiple backgrounds (same as BackgroundContext)
+    if (localSettings.opacity < 1) {
+      const opacityOverlay = `linear-gradient(rgba(0, 0, 0, ${1 - localSettings.opacity}), rgba(0, 0, 0, ${1 - localSettings.opacity}))`;
+      styles.backgroundImage = `${opacityOverlay}, url(${localSettings.imageUrl})`;
+    }
+
+    return styles;
+  })() : {};
 
   return (
     <Card className={cn("w-full", className)}>
@@ -393,7 +456,7 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
                 variant={previewEnabled ? "default" : "outline"}
                 size="sm"
                 onClick={() => setPreviewEnabled(!previewEnabled)}
-                disabled={!isValidUrl || isLoading}
+                disabled={(!isValidUrl && !originalSettings?.imageUrl) || isLoading}
                 className="gap-2"
               >
                 {previewEnabled ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -453,12 +516,12 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
               
               <Button
                 onClick={handleApply}
-                disabled={!isValidUrl || !localSettings.imageUrl.trim() || isLoading}
+                disabled={!canApply() || isLoading}
                 size="sm"
                 className="gap-2"
               >
                 {isLoading && <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />}
-                Apply Background
+                {hasChanges ? 'Apply Changes' : 'Apply Background'}
               </Button>
             </div>
           </>
