@@ -140,18 +140,28 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
       
       <CardContent className="space-y-4">
         {/* Current Status */}
-        {currentBackgroundSettings ? (
+        {currentBackgroundSettings?.disableCommunityBackground ? (
+          <Alert>
+            <Info size={16} />
+            <AlertDescription>
+              <strong>Clean experience active.</strong> You&apos;re using the default Common Ground background. 
+              Community backgrounds and custom backgrounds are disabled.
+            </AlertDescription>
+          </Alert>
+        ) : currentBackgroundSettings?.imageUrl?.trim() ? (
           <Alert>
             <Palette size={16} />
             <AlertDescription>
-              You have a custom background set. It will appear across all Common Ground pages you visit.
+              <strong>Custom background active.</strong> Your personal background image will appear 
+              across all Common Ground pages you visit.
             </AlertDescription>
           </Alert>
         ) : (
           <Alert>
             <Info size={16} />
             <AlertDescription>
-              Set a personal background image that will appear on all Common Ground pages when you&apos;re logged in.
+              Using default settings. You&apos;ll see community backgrounds when available, 
+              or the default Common Ground background otherwise.
             </AlertDescription>
           </Alert>
         )}
