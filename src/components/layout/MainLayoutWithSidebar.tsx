@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useBackground } from '@/contexts/BackgroundContext';
 import { Sidebar } from './Sidebar';
 import { MultiCommunityPresenceSidebar } from '@/components/presence/MultiCommunityPresenceSidebar';
 import { MiniPresenceWidget } from '@/components/presence/MiniPresenceWidget'; // Enhanced multi-device presence
@@ -33,6 +34,7 @@ interface MainLayoutWithSidebarProps {
 
 export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ children }) => {
   const { user, isAuthenticated, token } = useAuth();
+  const { activeBackground } = useBackground();
   const { cgInstance, isInitializing: isCgLibInitializing, initError: cgLibError } = useCgLib();
   
   // Enhanced sidebar state management with mini mode
@@ -45,6 +47,9 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+
+  // Determine if we should use frosted glass styling
+  const hasActiveBackground = !!(activeBackground && activeBackground.imageUrl);
 
   // Enhanced screen size detection with mini mode
   useEffect(() => {
@@ -506,17 +511,31 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
             {showSidebar && (
               <aside className={cn(
                 "transition-all duration-300 border-l w-64 xl:w-72",
-                theme === 'dark' ? 'border-slate-700/40 bg-background' : 'border-slate-200/60 bg-background',
+                hasActiveBackground
+                  ? [
+                      // Frosted glass when background is active
+                      'backdrop-blur-md shadow-xl',
+                      theme === 'dark' 
+                        ? 'bg-slate-900/20 border-slate-700/30 shadow-slate-900/20' 
+                        : 'bg-white/20 border-slate-200/30 shadow-slate-900/10'
+                    ]
+                  : [
+                      // Original solid styling when no background
+                      'shadow-lg',
+                      theme === 'dark' 
+                        ? 'bg-background border-slate-700/40' 
+                        : 'bg-background border-slate-200/60'
+                    ],
                 // Large screen sticky positioning (fixed to right side)
-                !isMobile && !isTablet && "lg:fixed lg:right-0 lg:top-0 lg:h-screen lg:z-30 lg:shadow-lg",
+                !isMobile && !isTablet && "lg:fixed lg:right-0 lg:top-0 lg:h-screen lg:z-30",
                 !isMobile && !isTablet && rightSidebarOpen && "lg:block",
                 !isMobile && !isTablet && !rightSidebarOpen && "lg:hidden xl:block", // xl+ always visible
                 // Tablet: Hidden by default, overlay when toggled (same as mobile)
                 isTablet && !rightSidebarOpen && "hidden",
-                isTablet && rightSidebarOpen && "fixed right-0 top-0 h-full bg-background z-50 shadow-lg block",
+                isTablet && rightSidebarOpen && "fixed right-0 top-0 h-full z-50 shadow-lg block",
                 // Mobile: Hidden by default, overlay when toggled
                 isMobile && !rightSidebarOpen && "hidden",
-                isMobile && rightSidebarOpen && "fixed right-0 top-0 h-full bg-background z-50 shadow-lg block"
+                isMobile && rightSidebarOpen && "fixed right-0 top-0 h-full z-50 shadow-lg block"
               )} data-right-sidebar>
                 {/* Mobile and Tablet close button */}
                 {(isMobile || isTablet) && rightSidebarOpen && (

@@ -3,14 +3,13 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Palette,
   Sparkles,
   Info,
-  Eye,
-  EyeOff
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { BackgroundCustomizer, BackgroundSettings } from './BackgroundCustomizer';
 import { UserSettings } from '@/types/user';
@@ -105,10 +104,31 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
 
   return (
     <Card className={cn("w-full", className)}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles size={20} />
-          Customize Your CG Experience
+      <CardHeader 
+        className="cursor-pointer hover:bg-muted/50 transition-colors touch-manipulation select-none"
+        onClick={() => setIsExpanded(!isExpanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        aria-expanded={isExpanded}
+        aria-controls="background-customizer-content"
+      >
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles size={20} />
+            Customize Your CG Experience
+          </div>
+          <div className="flex items-center">
+            {isExpanded ? 
+              <ChevronUp size={20} className="text-muted-foreground hover:text-foreground transition-colors min-w-[24px]" /> : 
+              <ChevronDown size={20} className="text-muted-foreground hover:text-foreground transition-colors min-w-[24px]" />
+            }
+          </div>
         </CardTitle>
         <p className={cn(
           "text-sm",
@@ -136,20 +156,9 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
           </Alert>
         )}
 
-        {/* Expand/Collapse Button */}
-        <Button
-          variant={isExpanded ? "default" : "outline"}
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full gap-2"
-          disabled={updateUserSettingsMutation.isPending}
-        >
-          {isExpanded ? <EyeOff size={16} /> : <Eye size={16} />}
-          {isExpanded ? 'Hide Customization' : 'Customize Background'}
-        </Button>
-
         {/* Background Customizer */}
         {isExpanded && (
-          <div className="space-y-4">
+          <div className="space-y-4" id="background-customizer-content">
             <BackgroundCustomizer
               title="Personal Background"
               description="This background will be visible to you across all Common Ground pages. Other users will see their own backgrounds or the community default."

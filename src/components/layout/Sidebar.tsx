@@ -8,6 +8,7 @@ import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBackground } from '@/contexts/BackgroundContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSearchParams, usePathname } from 'next/navigation';
@@ -30,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose 
 }) => {
   const { user } = useAuth();
+  const { activeBackground } = useBackground();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -37,6 +39,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   // Extract theme from Common Ground URL parameters
   const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
+  
+  // Determine if we should use frosted glass styling
+  const hasActiveBackground = !!(activeBackground && activeBackground.imageUrl);
   
   // Fetch shared boards data
   const { data: sharedBoards, isLoading: sharedBoardsLoading } = useSharedBoards(communityInfo?.id);
@@ -155,15 +160,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  // Responsive theme styles using Tailwind dark: prefix
-  const sidebarBg = 'bg-gradient-to-br from-white/95 via-white to-slate-50/95 dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-800/95 backdrop-blur-xl';
-  const borderColor = 'border-slate-200/60 dark:border-slate-700/40';
+  // Conditional styling: frosted glass when background is active, solid when not
+  const sidebarBg = cn(
+    'transition-all duration-300',
+    hasActiveBackground 
+      ? [
+          // Frosted glass effect when background image is active
+          'backdrop-blur-md border-r shadow-xl',
+          theme === 'dark' 
+            ? 'bg-slate-900/20 border-slate-700/30 shadow-slate-900/20' 
+            : 'bg-white/20 border-slate-200/30 shadow-slate-900/10'
+        ]
+      : [
+          // Original solid styling when no background
+          'bg-gradient-to-br border-r shadow-xl shadow-slate-900/5',
+          theme === 'dark'
+            ? 'from-slate-900/95 via-slate-900 to-slate-800/95 border-slate-700/40'
+            : 'from-white/95 via-white to-slate-50/95 border-slate-200/60'
+        ]
+  );
 
   return (
     <aside className={cn(
-      'w-64 h-screen flex flex-col border-r shadow-xl shadow-slate-900/5 transition-transform duration-300',
+      'w-64 h-screen flex flex-col transition-transform duration-300',
       sidebarBg,
-      borderColor,
       // Mobile positioning and animation
       isMobile ? [
         'fixed top-0 left-0 z-50',
@@ -229,12 +249,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-b from-transparent to-slate-100/20 dark:to-slate-900/20 pointer-events-none" />
       </div>
 
-      {/* Navigation Section - Beautiful menu */}
+      {/* Navigation Section - Conditional styling based on background */}
       <nav className={cn(
         "flex-1 px-3 py-4 space-y-1 overflow-y-auto",
-        theme === 'dark' 
-          ? 'bg-gradient-to-b from-slate-950/70 to-slate-900/80 shadow-inner shadow-slate-950/20' 
-          : 'bg-gradient-to-b from-slate-50/90 to-slate-100/70 shadow-inner shadow-slate-200/30'
+        hasActiveBackground
+          ? [
+              // Frosted glass when background is active
+              'backdrop-blur-sm',
+              theme === 'dark' 
+                ? 'bg-slate-950/10 shadow-inner shadow-slate-950/10' 
+                : 'bg-slate-50/10 shadow-inner shadow-slate-200/10'
+            ]
+          : [
+              // Original solid styling when no background
+              theme === 'dark' 
+                ? 'bg-gradient-to-b from-slate-950/70 to-slate-900/80 shadow-inner shadow-slate-950/20' 
+                : 'bg-gradient-to-b from-slate-50/90 to-slate-100/70 shadow-inner shadow-slate-200/30'
+            ]
       )}>
         {/* Home Link */}
         <Link
