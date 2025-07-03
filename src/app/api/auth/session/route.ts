@@ -71,37 +71,29 @@ interface CommunityRole {
 
 // User settings interface for Common Ground profile data
 interface UserSettings {
-  lukso?: {
-    username: string;  // "florian#0a60"
-    address: string;   // "0x0a607f902CAa16a27AA3Aabd968892aa89ABDa92"
+  luksoAddress?: string;
+  username?: string;
+  bio?: string;
+  social?: {
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+    website?: string;
   };
-  ethereum?: {
-    address: string;
-  };
-  twitter?: {
-    username: string; // "heckerhut"
-  };
-  farcaster?: {
-    displayName: string; // "Florian"
-    username: string;    // "flx"
-    fid: number;         // 13216
-  };
-  premium?: string;      // "GOLD"
-  email?: string;        // "fg@blockchain.lawyer"
-  
-  // 🔧 CRITICAL FIX: Add background settings to session API interface
+  email?: string;
+  premiumStatus?: boolean;
   background?: {
-    imageUrl: string;           // URL to the background image
-    repeat: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y' | 'space' | 'round';
-    size: 'auto' | 'cover' | 'contain' | string; // CSS background-size values
-    position: string;           // CSS background-position (e.g., 'center center', 'top left')
-    attachment: 'scroll' | 'fixed' | 'local';
-    opacity: number;            // 0-1, for overlay effect
-    overlayColor?: string;      // Optional overlay color (hex)
-    blendMode?: string;         // CSS mix-blend-mode
+    imageUrl: string;
+    repeat: string;
+    size: string;
+    position: string;
+    attachment: string;
+    opacity: number;
+    overlayColor?: string;
+    blendMode?: string;
+    useThemeColor?: boolean;
+    disableCommunityBackground?: boolean;
   };
-  
-  // Future: Add other social platforms as needed
 }
 
 interface SessionRequestBody {
@@ -264,29 +256,29 @@ export async function POST(req: NextRequest) {
         
         // Capture LUKSO profile data if available
         if (body.lukso?.address && body.lukso?.username) {
-          newProfileData.lukso = {
-            username: body.lukso.username,
-            address: body.lukso.address
-          };
+          newProfileData.luksoAddress = body.lukso.address;
+          newProfileData.username = body.lukso.username;
           console.log(`[/api/auth/session] Captured LUKSO profile for ${userId}: ${body.lukso.address} (${body.lukso.username})`);
         }
         
-        // Capture other social/blockchain data if available
-        if (body.ethereum?.address) {
-          newProfileData.ethereum = { address: body.ethereum.address };
-        }
+        // Capture Twitter data if available
         if (body.twitter?.username) {
-          newProfileData.twitter = { username: body.twitter.username };
+          newProfileData.social = { twitter: body.twitter.username };
         }
+        
+        // Capture Ethereum address if available
+        if (body.ethereum?.address) {
+          // Store in bio or other field since we simplified the interface
+          console.log(`[/api/auth/session] Captured Ethereum address for ${userId}: ${body.ethereum.address}`);
+        }
+        
+        // Capture Farcaster profile data if available
         if (body.farcaster?.displayName && body.farcaster?.username && body.farcaster?.fid) {
-          newProfileData.farcaster = {
-            displayName: body.farcaster.displayName,
-            username: body.farcaster.username,
-            fid: body.farcaster.fid
-          };
+          newProfileData.bio = body.farcaster.displayName; // Store display name in bio
+          console.log(`[/api/auth/session] Captured Farcaster profile for ${userId}: ${body.farcaster.displayName} (@${body.farcaster.username}, FID: ${body.farcaster.fid})`);
         }
         if (body.premium) {
-          newProfileData.premium = body.premium;
+          newProfileData.premiumStatus = true;
         }
         if (body.email) {
           newProfileData.email = body.email;

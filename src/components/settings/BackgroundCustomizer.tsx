@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,8 @@ export interface BackgroundSettings {
   opacity: number;
   overlayColor?: string;
   blendMode?: string;
+  useThemeColor?: boolean; // Use theme background color instead of custom overlay
+  disableCommunityBackground?: boolean; // Explicitly disable community background without setting custom image
 }
 
 interface BackgroundCustomizerProps {
@@ -50,7 +53,9 @@ const DEFAULT_SETTINGS: BackgroundSettings = {
   attachment: 'scroll',
   opacity: 0.3,
   overlayColor: '#000000',
-  blendMode: 'normal'
+  blendMode: 'normal',
+  useThemeColor: false,
+  disableCommunityBackground: false
 };
 
 const BACKGROUND_SIZE_OPTIONS = [
@@ -96,6 +101,7 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   theme = 'light',
   className
 }) => {
+  const searchParams = useSearchParams();
   const [localSettings, setLocalSettings] = useState<BackgroundSettings>(
     settings || DEFAULT_SETTINGS
   );
@@ -104,6 +110,9 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   const [urlValidationLoading, setUrlValidationLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [originalSettings, setOriginalSettings] = useState<BackgroundSettings | undefined>(settings);
+
+  // Read theme from Common Ground URL parameters (same as other components)
+  const cgTheme = searchParams?.get('cg_theme') || 'light';
 
   // Validate image URL
   const validateImageUrl = useCallback(async (url: string) => {
@@ -161,7 +170,9 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
       localSettings.attachment !== originalSettings.attachment ||
       localSettings.opacity !== originalSettings.opacity ||
       localSettings.overlayColor !== originalSettings.overlayColor ||
-      localSettings.blendMode !== originalSettings.blendMode;
+      localSettings.blendMode !== originalSettings.blendMode ||
+      localSettings.useThemeColor !== originalSettings.useThemeColor ||
+      localSettings.disableCommunityBackground !== originalSettings.disableCommunityBackground;
 
     setHasChanges(settingsChanged);
   }, [localSettings, originalSettings]);
@@ -181,8 +192,10 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
 
   // Apply settings - now smarter about when it's enabled
   const handleApply = useCallback(() => {
-    // If we have a valid URL or if we're modifying existing valid settings
-    if ((isValidUrl && localSettings.imageUrl.trim()) || (originalSettings?.imageUrl && hasChanges)) {
+    // Always save the current localSettings as-is, don't create new objects that lose data
+    if ((isValidUrl && localSettings.imageUrl.trim()) || (originalSettings?.imageUrl && hasChanges) || 
+        (hasChanges && (localSettings.disableCommunityBackground !== originalSettings?.disableCommunityBackground || 
+                       localSettings.useThemeColor !== originalSettings?.useThemeColor))) {
       onSettingsChange(localSettings);
       setOriginalSettings(localSettings);
       setHasChanges(false);
@@ -220,6 +233,16 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
 
   // Check if apply button should be enabled
   const canApply = () => {
+    // If user has changed the community background disable setting, allow saving
+    if (hasChanges && localSettings.disableCommunityBackground !== originalSettings?.disableCommunityBackground) {
+      return true;
+    }
+    
+    // If user has changed the theme color setting, allow saving
+    if (hasChanges && localSettings.useThemeColor !== originalSettings?.useThemeColor) {
+      return true;
+    }
+    
     // If we have a valid URL and content, allow apply
     if (isValidUrl && localSettings.imageUrl.trim()) {
       return true;
@@ -243,8 +266,23 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
       backgroundAttachment: localSettings.attachment,
     };
 
-    // Handle overlay color and blend mode (same as BackgroundContext)
-    if (localSettings.overlayColor) {
+    // Handle overlay color and blend mode
+    if (localSettings.useThemeColor) {
+      // Read theme color from CSS custom properties (set by theme-provider.tsx)
+      const computedStyle = getComputedStyle(document.documentElement);
+      const backgroundHsl = computedStyle.getPropertyValue('--background').trim();
+      
+      if (backgroundHsl) {
+        // Convert HSL values to CSS color format
+        styles.backgroundColor = `hsl(${backgroundHsl})`;
+      } else {
+        // Fallback to hardcoded values if CSS variables not available
+        styles.backgroundColor = cgTheme === 'dark' ? '#0f172a' : '#ffffff';
+      }
+      
+      styles.backgroundBlendMode = localSettings.blendMode || 'normal';
+    } else if (localSettings.overlayColor) {
+      // Use custom overlay color
       styles.backgroundColor = localSettings.overlayColor;
       styles.backgroundBlendMode = localSettings.blendMode || 'normal';
     }
@@ -308,6 +346,47 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
             </AlertDescription>
           </Alert>
         </div>
+
+        {/* Community Background Override - Only show in user context */}
+        {title.includes('Personal') && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label>Community Background Preference</Label>
+              <p className={cn(
+                "text-sm",
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+              )}>
+                Control whether community default backgrounds are shown when you don&apos;t have a custom background set
+              </p>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="disableCommunityBackground"
+                  checked={localSettings.disableCommunityBackground || false}
+                  onChange={(e) => updateSetting('disableCommunityBackground', e.target.checked)}
+                  disabled={isLoading}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="disableCommunityBackground" className="text-sm font-normal">
+                  Always use default Common Ground background (ignore community backgrounds)
+                </Label>
+              </div>
+              
+              {localSettings.disableCommunityBackground && (
+                <div className="p-3 rounded-lg border bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                  <p className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-yellow-300' : 'text-yellow-800'
+                  )}>
+                    Community background disabled. You&apos;ll see the default Common Ground background even if your community has set a custom background.
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Settings Grid */}
         {localSettings.imageUrl && (
@@ -431,25 +510,65 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
             </div>
 
             {/* Overlay Color */}
-            <div className="space-y-2">
-              <Label htmlFor="overlayColor">Overlay Color (Optional)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="overlayColor"
-                  type="color"
-                  value={localSettings.overlayColor || '#000000'}
-                  onChange={(e) => updateSetting('overlayColor', e.target.value)}
+            <div className="space-y-3">
+              <Label>Background Overlay</Label>
+              <p className={cn(
+                "text-sm",
+                theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+              )}>
+                Add a color overlay to blend with your background image
+              </p>
+              
+              {/* Theme Color Toggle */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="useThemeColor"
+                  checked={localSettings.useThemeColor || false}
+                  onChange={(e) => updateSetting('useThemeColor', e.target.checked)}
                   disabled={isLoading}
-                  className="w-16 h-10 p-1 border rounded"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <Input
-                  placeholder="#000000"
-                  value={localSettings.overlayColor || ''}
-                  onChange={(e) => updateSetting('overlayColor', e.target.value)}
-                  disabled={isLoading}
-                  className="flex-1"
-                />
+                <Label htmlFor="useThemeColor" className="text-sm font-normal">
+                  Use theme background color
+                </Label>
               </div>
+              
+              {/* Custom Color Inputs - only show when not using theme color */}
+              {!localSettings.useThemeColor && (
+                <div className="space-y-2">
+                  <Label htmlFor="overlayColor">Custom Overlay Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="overlayColor"
+                      type="color"
+                      value={localSettings.overlayColor || '#000000'}
+                      onChange={(e) => updateSetting('overlayColor', e.target.value)}
+                      disabled={isLoading}
+                      className="w-16 h-10 p-1 border rounded"
+                    />
+                    <Input
+                      placeholder="#000000 or none"
+                      value={localSettings.overlayColor || ''}
+                      onChange={(e) => updateSetting('overlayColor', e.target.value)}
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Theme Color Preview */}
+              {localSettings.useThemeColor && (
+                <div className="p-3 rounded-lg border bg-muted/50">
+                  <p className={cn(
+                    "text-sm",
+                    theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                  )}>
+                    Using {cgTheme === 'dark' ? 'dark' : 'light'} theme background color for overlay
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Preview Controls */}
@@ -501,7 +620,7 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
                   "text-xs mt-2 text-center",
                   theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
                 )}>
-                  This is how your background will appear across the app
+                  This background will be visible to you across all Common Ground pages. Other users will see their own backgrounds or the community default.
                 </p>
               </div>
             )}

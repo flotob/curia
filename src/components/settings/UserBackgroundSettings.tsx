@@ -38,10 +38,7 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
   // Update user settings mutation
   const updateUserSettingsMutation = useMutation({
     mutationFn: async (backgroundSettings: BackgroundSettings | null) => {
-      console.log(`[UserBackgroundSettings] Mutation starting with:`, backgroundSettings);
-      
       if (!token) {
-        console.error(`[UserBackgroundSettings] No token available`);
         throw new Error('Authentication required');
       }
       
@@ -55,39 +52,27 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
           ...settingsWithoutBackground,
           background: undefined // Explicitly set to undefined for API removal
         };
-        console.log(`[UserBackgroundSettings] Removing background from user settings`);
       } else {
         // When updating background, include it in settings
         newSettings = {
           ...currentSettings,
           background: backgroundSettings
         };
-        console.log(`[UserBackgroundSettings] Updating background in user settings`);
       }
 
-      console.log(`[UserBackgroundSettings] Sending to API:`, Object.keys(newSettings));
-      console.log(`[UserBackgroundSettings] Full payload:`, JSON.stringify({ settings: newSettings }, null, 2));
-
-      try {
-        // Use the new unified settings endpoint
-        const response = await authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ settings: newSettings }),
-          token
-        });
-        
-        console.log(`[UserBackgroundSettings] API response:`, response);
-        return response;
-      } catch (error) {
-        console.error(`[UserBackgroundSettings] API call failed:`, error);
-        throw error;
-      }
+      // Use the new unified settings endpoint
+      const response = await authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ settings: newSettings }),
+        token
+      });
+      
+      return response;
     },
-    onSuccess: (data) => {
-      console.log(`[UserBackgroundSettings] Mutation succeeded:`, data);
+    onSuccess: () => {
       // Invalidate the EXACT same query keys that BackgroundContext uses
       if (user?.userId) {
         queryClient.invalidateQueries({ queryKey: ['userSettings', user.userId] });
@@ -103,8 +88,7 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
       });
     },
     onError: (error: Error) => {
-      console.error('[UserBackgroundSettings] Mutation error:', error);
-      console.error('[UserBackgroundSettings] Error details:', error.message, error.stack);
+      console.error('Failed to update user background:', error);
       toast({
         title: "Update failed",
         description: `Failed to save your background settings: ${error.message}`,

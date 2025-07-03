@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { authFetchJson } from '@/utils/authFetch';
@@ -17,6 +18,8 @@ interface BackgroundSettings {
   opacity: number;
   overlayColor?: string;
   blendMode?: string;
+  useThemeColor?: boolean; // Use theme background color instead of custom overlay
+  disableCommunityBackground?: boolean; // Explicitly disable community background without setting custom image
 }
 
 interface BackgroundContextType {
@@ -43,7 +46,11 @@ interface BackgroundProviderProps {
 
 export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children }) => {
   const { user, token } = useAuth();
+  const searchParams = useSearchParams();
   const [activeBackground, setActiveBackground] = useState<BackgroundSettings | null>(null);
+
+  // Read theme from Common Ground URL parameters
+  const cgTheme = searchParams?.get('cg_theme') || 'light';
 
   // Fetch user settings (including background) - now using correct endpoint
   const { data: userSettings, isLoading: userLoading, refetch: refetchUser } = useQuery<UserSettings>({
@@ -88,28 +95,37 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
     
     console.log(`[BackgroundContext] Background priority check:`, {
       userBackground: userBg ? 'present' : 'none',
-      communityBackground: communityBg ? 'present' : 'none'
+      communityBackground: communityBg ? 'present' : 'none',
+      userDisablesCommunity: userBg?.disableCommunityBackground || false,
+      cgTheme
     });
     
-    // User background takes priority
+    // User background takes priority if they have a custom image
     if (userBg && userBg.imageUrl) {
       console.log(`[BackgroundContext] Using user background: ${userBg.imageUrl}`);
       setActiveBackground(userBg);
-    } else if (communityBg && communityBg.imageUrl) {
+    } 
+    // Check if user has explicitly disabled community backgrounds
+    else if (userBg?.disableCommunityBackground) {
+      console.log(`[BackgroundContext] User has disabled community backgrounds - using no background`);
+      setActiveBackground(null);
+    }
+    // Fall back to community background if available
+    else if (communityBg && communityBg.imageUrl) {
       console.log(`[BackgroundContext] Using community background: ${communityBg.imageUrl}`);
       setActiveBackground(communityBg);
     } else {
       console.log(`[BackgroundContext] No backgrounds available`);
       setActiveBackground(null);
     }
-  }, [userSettings?.background, communitySettings?.background]);
+  }, [userSettings?.background, communitySettings?.background, cgTheme]);
 
   // Apply background styles to the document body
   useEffect(() => {
     const body = document.body;
     
     if (activeBackground && activeBackground.imageUrl) {
-      console.log(`[BackgroundContext] Applying background to body:`, activeBackground.imageUrl);
+      console.log(`[BackgroundContext] Applying background to body:`, activeBackground.imageUrl, `(theme: ${cgTheme})`);
       
       // Apply background image properties directly to body
       body.style.backgroundImage = `url(${activeBackground.imageUrl})`;
@@ -118,9 +134,27 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
       body.style.backgroundPosition = activeBackground.position;
       body.style.backgroundAttachment = activeBackground.attachment;
       
-      // Handle overlay color and blend mode (based on web search results)
-      if (activeBackground.overlayColor) {
-        // Apply overlay color and blend mode directly to body
+      // Handle overlay color and blend mode using Common Ground theme
+      if (activeBackground.useThemeColor) {
+        // Read theme color from CSS custom properties (set by theme-provider.tsx)
+        const computedStyle = getComputedStyle(document.documentElement);
+        const backgroundHsl = computedStyle.getPropertyValue('--background').trim();
+        
+        if (backgroundHsl) {
+          // Convert HSL values to CSS color format
+          const themeColor = `hsl(${backgroundHsl})`;
+          body.style.backgroundColor = themeColor;
+          console.log(`[BackgroundContext] Applied dynamic theme color: ${themeColor} (${backgroundHsl}) for theme: ${cgTheme}`);
+        } else {
+          // Fallback to hardcoded values if CSS variables not available
+          const fallbackColor = cgTheme === 'dark' ? '#0f172a' : '#ffffff';
+          body.style.backgroundColor = fallbackColor;
+          console.log(`[BackgroundContext] CSS variables not found, using fallback: ${fallbackColor} for theme: ${cgTheme}`);
+        }
+        
+        body.style.backgroundBlendMode = activeBackground.blendMode || 'normal';
+      } else if (activeBackground.overlayColor) {
+        // Apply custom overlay color and blend mode directly to body
         body.style.backgroundColor = activeBackground.overlayColor;
         body.style.backgroundBlendMode = activeBackground.blendMode || 'normal';
       } else {
@@ -133,7 +167,7 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
       if (activeBackground.opacity < 1) {
         const opacityOverlay = `linear-gradient(rgba(0, 0, 0, ${1 - activeBackground.opacity}), rgba(0, 0, 0, ${1 - activeBackground.opacity}))`;
         
-        if (activeBackground.overlayColor) {
+        if (activeBackground.overlayColor || activeBackground.useThemeColor) {
           // Combine image + opacity overlay + color overlay
           body.style.backgroundImage = `${opacityOverlay}, url(${activeBackground.imageUrl})`;
         } else {
@@ -154,7 +188,7 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
       body.style.removeProperty('background-blend-mode');
       body.classList.remove('has-custom-background');
     }
-  }, [activeBackground]);
+  }, [activeBackground, cgTheme]);
 
   const refreshBackgrounds = () => {
     console.log(`[BackgroundContext] Refreshing backgrounds`);

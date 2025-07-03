@@ -28,6 +28,8 @@ export interface UserSettings {
     opacity: number;            // 0-1, for overlay effect
     overlayColor?: string;      // Optional overlay color (hex)
     blendMode?: string;         // CSS mix-blend-mode
+    useThemeColor?: boolean;    // Use theme background color instead of custom overlay
+    disableCommunityBackground?: boolean; // Explicitly disable community background without setting custom image
   };
   
   // Future: Add other social platforms as needed

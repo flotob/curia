@@ -12,8 +12,6 @@ async function getUserSettingsHandler(req: AuthenticatedRequest) {
   }
 
   try {
-    console.log(`[API /api/me/settings] GET called by user ${user.sub}`);
-
     // Fetch user settings from database
     const result = await query(
       'SELECT settings FROM users WHERE user_id = $1',
@@ -35,8 +33,6 @@ async function getUserSettingsHandler(req: AuthenticatedRequest) {
         settings = userRow.settings;
       }
     }
-
-    console.log(`[API /api/me/settings] Returning settings for user ${user.sub}:`, Object.keys(settings));
 
     return NextResponse.json({ settings });
   } catch (error) {
@@ -63,8 +59,6 @@ async function updateUserSettingsHandler(req: AuthenticatedRequest) {
     if (!settings) {
       return NextResponse.json({ error: 'Settings are required' }, { status: 400 });
     }
-
-    console.log(`[API /api/me/settings] PATCH updating settings for user ${user.sub}:`, Object.keys(settings));
 
     // Validate settings structure (basic validation)
     if (typeof settings !== 'object') {
@@ -94,7 +88,6 @@ async function updateUserSettingsHandler(req: AuthenticatedRequest) {
     for (const key of currentKeys) {
       if (!newKeys.includes(key)) {
         delete mergedSettings[key as keyof UserSettings];
-        console.log(`[API /api/me/settings] Removing field '${key}' (not present in new settings)`);
       }
     }
     
@@ -103,14 +96,11 @@ async function updateUserSettingsHandler(req: AuthenticatedRequest) {
       if (value === undefined || value === null) {
         // Explicitly remove the field from merged settings
         delete mergedSettings[key as keyof UserSettings];
-        console.log(`[API /api/me/settings] Removing field '${key}' (explicitly set to undefined/null)`);
       } else {
         // Update/add the field
         (mergedSettings as any)[key] = value;
       }
     }
-
-    console.log(`[API /api/me/settings] Merging settings for user ${user.sub}. Current keys:`, Object.keys(currentSettings), 'New keys:', Object.keys(settings), 'Merged keys:', Object.keys(mergedSettings));
 
     // Update user settings in database
     const result = await query(
@@ -132,8 +122,6 @@ async function updateUserSettingsHandler(req: AuthenticatedRequest) {
     if (typeof parsedSettings === 'string') {
       parsedSettings = JSON.parse(parsedSettings);
     }
-
-    console.log(`[API /api/me/settings] Successfully updated settings for user ${user.sub}`);
 
     return NextResponse.json({ settings: parsedSettings });
 
