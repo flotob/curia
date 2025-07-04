@@ -19,6 +19,7 @@ import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
 import { MultiCommunityPresenceSidebar } from '@/components/presence/MultiCommunityPresenceSidebar';
 import { MiniPresenceWidget } from '@/components/presence/MiniPresenceWidget';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
+import { AIChatBubble } from '@/components/ai/AIChatBubble';
 
 interface MainLayoutWithSidebarProps {
   children: React.ReactNode;
@@ -577,6 +578,15 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
             )}
           </div>
         </main>
+
+        {/* AI Chat Bubble - Fixed positioning for authenticated users */}
+        <AIChatBubble 
+          context={{
+            type: navigationContext.type as 'post' | 'comment' | 'general',
+            boardId: currentBoard?.id,
+            postId: currentPost?.id
+          }}
+        />
       </div>
     </CommunityAccessGate>
   );

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { MessageCircle, X, Sparkles, Send, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { MessageCircle, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';

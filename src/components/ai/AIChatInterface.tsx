@@ -25,7 +25,7 @@ interface Message {
 }
 
 export function AIChatInterface({ className, context, onNewMessage }: AIChatInterfaceProps) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -63,30 +63,86 @@ export function AIChatInterface({ className, context, onNewMessage }: AIChatInte
     }
 
     try {
-      const response = await authFetchJson<any>('/api/ai/chat', {
+      // Use fetch directly to handle SSE stream
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        body: {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
           messages: [...messages, userMessage].map(msg => ({
             role: msg.role,
             content: msg.content
           })),
           context,
-        }
+        })
       });
 
-      // For now, we'll handle a simple JSON response
-      // Later we can implement streaming
-      if (response.content) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.content,
-          metadata: response.metadata
-        };
-        
-        setMessages(prev => [...prev, assistantMessage]);
-        onNewMessage?.();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+
+      // Handle SSE stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let assistantMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: ''
+      };
+
+      // Add assistant message to UI immediately
+      setMessages(prev => [...prev, assistantMessage]);
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6); // Remove 'data: '
+              
+              if (data === '[DONE]') {
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                
+                if (parsed.type === 'text-delta') {
+                  // Update assistant message content
+                  assistantMessage.content += parsed.delta; // ✅ Fixed: was parsed.textDelta
+                  setMessages(prev => 
+                    prev.map(msg => 
+                      msg.id === assistantMessage.id 
+                        ? { ...msg, content: assistantMessage.content }
+                        : msg
+                    )
+                  );
+                } else if (parsed.type === 'error') {
+                  throw new Error(parsed.errorText || 'AI generation error');
+                }
+              } catch (parseError) {
+                console.warn('Failed to parse SSE data:', data);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // SSE streaming is complete, trigger callback
+      onNewMessage?.();
     } catch (err) {
       console.error('Chat error:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
