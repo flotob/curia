@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { AIChatInterface } from './AIChatInterface';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useCardStyling } from '@/hooks/useCardStyling';
 
 interface AIChatBubbleProps {
   className?: string;
@@ -21,6 +22,9 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const { isAuthenticated, user } = useAuth();
+  
+  // Get card styling for background-aware gradients (same as PostCard)
+  const { hasActiveBackground } = useCardStyling();
 
   // Only show for authenticated users
   if (!isAuthenticated || !user) {
@@ -43,10 +47,15 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="mb-4 w-96 h-[600px] bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+            className={cn(
+              "mb-4 w-96 h-[600px] rounded-lg overflow-hidden",
+              hasActiveBackground 
+                ? 'backdrop-blur-md bg-white/20 border-white/30 shadow-xl dark:bg-black/20 dark:border-black/30'
+                : 'bg-card border border-border shadow-2xl'
+            )}
           >
             {/* Chat Header */}
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+            <div className="flex items-center justify-between p-4 bg-primary text-primary-foreground">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                   <Sparkles size={16} />
@@ -72,8 +81,10 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
 
             {/* Chat Interface */}
             <AIChatInterface
-              context={context}
-              onNewMessage={() => setHasNewMessage(true)}
+              context={context ? {
+                boardId: context.boardId?.toString(),
+                postId: context.postId?.toString()
+              } : undefined}
               className="h-[calc(600px-80px)]"
             />
           </motion.div>
@@ -89,8 +100,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
           onClick={toggleChat}
           className={cn(
             "w-14 h-14 rounded-full shadow-lg relative",
-            "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700",
-            "text-white border-0"
+            "bg-primary hover:bg-primary/90",
+            "text-primary-foreground border-0"
           )}
         >
           <AnimatePresence mode="wait">
