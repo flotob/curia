@@ -21,13 +21,11 @@ interface TagSuggestion {
 
 interface TagFilterComponentProps {
   boardId?: string | null;
-  theme?: 'light' | 'dark';
   className?: string;
 }
 
 export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
   boardId,
-  theme = 'light',
   className = ''
 }) => {
   const searchParams = useSearchParams();
@@ -327,7 +325,7 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
               
               {!isLoading && filteredSuggestions.length === 0 && searchQuery && (
                 <div className="text-xs text-muted-foreground py-2">
-                  No tags found matching "{searchQuery}"
+                  No tags found matching &quot;{searchQuery}&quot;
                 </div>
               )}
               

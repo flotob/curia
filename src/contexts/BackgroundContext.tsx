@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import { useQuery } from '@tanstack/react-query';
@@ -20,12 +20,14 @@ interface BackgroundSettings {
   blendMode?: string;
   useThemeColor?: boolean; // Use theme background color instead of custom overlay
   disableCommunityBackground?: boolean; // Explicitly disable community background without setting custom image
+  forceTheme?: 'light' | 'dark' | null; // Force specific theme mode when this background is active (null = respect system)
 }
 
 interface BackgroundContextType {
   userBackground: BackgroundSettings | null;
   communityBackground: BackgroundSettings | null;
   activeBackground: BackgroundSettings | null;
+  effectiveTheme: 'light' | 'dark'; // NEW: The theme that should be used (considering forced themes)
   isLoading: boolean;
   refreshBackgrounds: () => void;
 }
@@ -121,6 +123,44 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
     }
   }, [userSettings?.background, communitySettings?.background, cgTheme]);
 
+  // Calculate effective theme (considers forced themes from backgrounds) - STABLE with useMemo
+  const effectiveTheme = useMemo(() => {
+    const systemTheme = cgTheme as 'light' | 'dark';
+    const forcedTheme = activeBackground?.forceTheme;
+    
+    // Only override system theme if background explicitly forces a theme
+    const result = forcedTheme || systemTheme;
+    console.log(`[BackgroundContext] Calculating effectiveTheme: system=${systemTheme}, forced=${forcedTheme}, result=${result}`);
+    return result;
+  }, [cgTheme, activeBackground?.forceTheme]);
+
+  // Dispatch background forced theme changes to CgThemeSynchronizer
+  useEffect(() => {
+    const forcedTheme = activeBackground?.forceTheme;
+    console.log(`[BackgroundContext] Dispatching background theme change: ${forcedTheme}`, {
+      activeBackground: activeBackground ? 'present' : 'null',
+      hasForceTheme: !!forcedTheme,
+      forceThemeValue: forcedTheme
+    });
+    
+    // Dispatch custom event to notify CgThemeSynchronizer
+    const event = new CustomEvent('background-theme-change', { detail: forcedTheme });
+    window.dispatchEvent(event);
+  }, [activeBackground?.forceTheme]);
+
+  // Also dispatch initial theme on mount to handle cases where listener sets up after background loads
+  useEffect(() => {
+    const forcedTheme = activeBackground?.forceTheme;
+    if (forcedTheme) {
+      console.log(`[BackgroundContext] Dispatching initial background theme: ${forcedTheme}`);
+      const event = new CustomEvent('background-theme-change', { detail: forcedTheme });
+      // Small delay to ensure listener is ready
+      setTimeout(() => {
+        window.dispatchEvent(event);
+      }, 100);
+    }
+  }, [activeBackground]); // Trigger when activeBackground changes, not just forceTheme
+
   // Apply background styles to the document body
   useEffect(() => {
     const body = document.body;
@@ -201,6 +241,7 @@ export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children
     userBackground: userSettings?.background || null,
     communityBackground: communitySettings?.background || null,
     activeBackground,
+    effectiveTheme,
     isLoading: userLoading || communityLoading,
     refreshBackgrounds
   };

@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } from '@/utils/cookieUtils';
 import '@/utils/cookieDebug'; // Load cookie debug utilities
-import { Card } from '@/components/ui/card';
 import { useCardStyling } from '@/hooks/useCardStyling';
 
 export default function HomePage() {
@@ -341,7 +340,6 @@ export default function HomePage() {
           <section className="max-w-3xl mx-auto">
             <TagFilterComponent
               boardId={boardId}
-              theme={theme}
               className="mb-4"
             />
           </section>

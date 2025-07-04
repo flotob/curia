@@ -19,6 +19,7 @@ export interface CommunitySettings {
     opacity: number;            // 0-1, for overlay effect
     overlayColor?: string;      // Optional overlay color (hex)
     blendMode?: string;         // CSS mix-blend-mode
+    forceTheme?: 'light' | 'dark' | null; // Force specific theme mode when this background is active (null = respect system)
   };
   
   // Future community-wide settings:

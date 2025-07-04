@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,10 @@ import {
   RotateCcw, 
   Info, 
   Check,
-  X
+  X,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +33,7 @@ export interface BackgroundSettings {
   blendMode?: string;
   useThemeColor?: boolean; // Use theme background color instead of custom overlay
   disableCommunityBackground?: boolean; // Explicitly disable community background without setting custom image
+  forceTheme?: 'light' | 'dark' | null; // Force specific theme mode when this background is active (null = respect system)
 }
 
 interface BackgroundCustomizerProps {
@@ -49,11 +52,12 @@ const DEFAULT_SETTINGS: BackgroundSettings = {
   size: 'cover',
   position: 'center center',
   attachment: 'scroll',
-  opacity: 0.3,
+  opacity: 1,
   overlayColor: '#000000',
   blendMode: 'normal',
-  useThemeColor: false,
-  disableCommunityBackground: false
+  useThemeColor: true,
+  disableCommunityBackground: false,
+  forceTheme: null, // Default: respect system theme
 };
 
 const BACKGROUND_SIZE_OPTIONS = [
@@ -99,7 +103,6 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   theme = 'light',
   className
 }) => {
-  const searchParams = useSearchParams();
   const [localSettings, setLocalSettings] = useState<BackgroundSettings>(
     settings || DEFAULT_SETTINGS
   );
@@ -107,9 +110,6 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   const [urlValidationLoading, setUrlValidationLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [originalSettings, setOriginalSettings] = useState<BackgroundSettings | undefined>(settings);
-
-  // Read theme from Common Ground URL parameters (same as other components)
-  const cgTheme = searchParams?.get('cg_theme') || 'light';
 
   // Validate image URL
   const validateImageUrl = useCallback(async (url: string) => {
@@ -569,71 +569,143 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
                   </div>
                 </div>
 
-                {/* Overlay Color */}
-                <div className="space-y-3">
-                  <Label>Background Overlay</Label>
-                  <p className={cn(
-                    "text-sm",
-                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                  )}>
-                    Add a color overlay to blend with your background image
-                  </p>
+                {/* Overlay Settings */}
+                <div className="space-y-4">
+                  <Label className="text-sm font-medium">Overlay & Blend Mode</Label>
                   
-                  {/* Theme Color Toggle */}
                   <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
                       id="useThemeColor"
                       checked={localSettings.useThemeColor || false}
                       onChange={(e) => updateSetting('useThemeColor', e.target.checked)}
-                      disabled={isLoading}
-                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                      className="rounded border-gray-300"
                     />
-                    <Label htmlFor="useThemeColor" className="text-sm font-normal">
-                      Use theme background color
+                    <Label htmlFor="useThemeColor" className="text-sm">
+                      Use dynamic theme color as overlay
                     </Label>
                   </div>
-                  
-                  {/* Custom Color Inputs - only show when not using theme color */}
+
                   {!localSettings.useThemeColor && (
-                    <div className="space-y-2">
-                      <Label htmlFor="overlayColor">Custom Overlay Color</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="overlayColor"
-                          type="color"
-                          value={localSettings.overlayColor || '#000000'}
-                          onChange={(e) => updateSetting('overlayColor', e.target.value)}
-                          disabled={isLoading}
-                          className="w-16 h-10 p-1 border rounded"
-                        />
-                        <Input
-                          placeholder="#000000 or none"
-                          value={localSettings.overlayColor || ''}
-                          onChange={(e) => updateSetting('overlayColor', e.target.value)}
-                          disabled={isLoading}
-                          className="flex-1"
-                        />
-                      </div>
+                    <div>
+                      <Label htmlFor="overlayColor" className="text-sm">Custom Overlay Color</Label>
+                      <Input
+                        id="overlayColor"
+                        type="color"
+                        value={localSettings.overlayColor || '#000000'}
+                        onChange={(e) => updateSetting('overlayColor', e.target.value)}
+                        className="h-10 w-20"
+                      />
                     </div>
                   )}
-                  
-                  {/* Theme Color Preview */}
-                  {localSettings.useThemeColor && (
-                    <div className="p-3 rounded-lg border bg-muted/50">
-                      <p className={cn(
-                        "text-sm",
-                        theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-                      )}>
-                        Using {cgTheme === 'dark' ? 'dark' : 'light'} theme background color for overlay
-                      </p>
-                    </div>
-                  )}
+
+                  <div>
+                    <Label htmlFor="blendMode" className="text-sm">Blend Mode</Label>
+                    <Select 
+                      value={localSettings.blendMode || 'normal'} 
+                      onValueChange={(value) => updateSetting('blendMode', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="multiply">Multiply</SelectItem>
+                        <SelectItem value="screen">Screen</SelectItem>
+                        <SelectItem value="overlay">Overlay</SelectItem>
+                        <SelectItem value="soft-light">Soft Light</SelectItem>
+                        <SelectItem value="hard-light">Hard Light</SelectItem>
+                        <SelectItem value="color-dodge">Color Dodge</SelectItem>
+                        <SelectItem value="color-burn">Color Burn</SelectItem>
+                        <SelectItem value="darken">Darken</SelectItem>
+                        <SelectItem value="lighten">Lighten</SelectItem>
+                        <SelectItem value="difference">Difference</SelectItem>
+                        <SelectItem value="exclusion">Exclusion</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Theme Forcing Settings */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Monitor size={16} className="text-muted-foreground" />
+                    <Label className="text-sm font-medium">Theme Control</Label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <Label className="text-sm text-muted-foreground">
+                      Choose how this background affects the interface theme
+                    </Label>
+                    
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateSetting('forceTheme', null)}
+                        className={cn(
+                          'flex items-center space-x-3 p-3 rounded-lg border text-left transition-colors',
+                          (localSettings.forceTheme === null || localSettings.forceTheme === undefined)
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-muted hover:bg-muted/50'
+                        )}
+                      >
+                        <Monitor size={16} />
+                        <div>
+                          <div className="font-medium text-sm">Respect System Theme</div>
+                          <div className="text-xs text-muted-foreground">Follow user&apos;s light/dark mode preference</div>
+                        </div>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => updateSetting('forceTheme', 'light')}
+                        className={cn(
+                          'flex items-center space-x-3 p-3 rounded-lg border text-left transition-colors',
+                          localSettings.forceTheme === 'light'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-muted hover:bg-muted/50'
+                        )}
+                      >
+                        <Sun size={16} />
+                        <div>
+                          <div className="font-medium text-sm">Force Light Mode</div>
+                          <div className="text-xs text-muted-foreground">Always use light theme with this background</div>
+                        </div>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => updateSetting('forceTheme', 'dark')}
+                        className={cn(
+                          'flex items-center space-x-3 p-3 rounded-lg border text-left transition-colors',
+                          localSettings.forceTheme === 'dark'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-muted hover:bg-muted/50'
+                        )}
+                      >
+                        <Moon size={16} />
+                        <div>
+                          <div className="font-medium text-sm">Force Dark Mode</div>
+                          <div className="text-xs text-muted-foreground">Always use dark theme with this background</div>
+                        </div>
+                      </button>
+                    </div>
+                    
+                    {localSettings.forceTheme && (
+                      <Alert>
+                        <Info size={16} />
+                        <AlertDescription className="text-sm">
+                          This background will override the system theme and force{' '}
+                          <strong>{localSettings.forceTheme} mode</strong> for better visual consistency.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                </div>
+
                 <Separator />
-                
+
+                {/* Action Buttons */}
                 <div className="space-y-3">
                   <div>
                     <Label>Actions</Label>
