@@ -9,18 +9,19 @@ import { Badge } from '@/components/ui/badge';
 import { X, MessageSquare, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 import { authFetchJson } from '@/utils/authFetch';
 import { TelegramGroupResponse } from '@/app/api/telegram/groups/route';
 import { TelegramBannerUtils } from '@/utils/telegramBannerUtils';
 
 interface TelegramSetupBannerProps {
   communityId: string;
-  theme: 'light' | 'dark';
   buildUrl: (path: string, additionalParams?: Record<string, string>) => string;
 }
 
-export function TelegramSetupBanner({ communityId, theme, buildUrl }: TelegramSetupBannerProps) {
+export function TelegramSetupBanner({ communityId, buildUrl }: TelegramSetupBannerProps) {
   const { token, user } = useAuth();
+  const theme = useEffectiveTheme();
   const [isLocallyDismissed, setIsLocallyDismissed] = useState(false);
 
   // Check if user is admin

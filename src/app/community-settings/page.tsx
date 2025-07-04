@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CommunityAccessForm } from '@/components/CommunityAccessForm';
 import { TelegramGroupsSection } from '@/components/settings/TelegramGroupsSection';
 import { CommunityBackgroundSettings } from '@/components/settings/CommunityBackgroundSettings';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 // Removed server-side import - now using API endpoint
 
 export default function CommunitySettingsPage() {
@@ -38,17 +39,15 @@ export default function CommunitySettingsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  // Extract theme from Common Ground URL parameters
-  const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
+  // Use the effective theme from our theme orchestrator
+  const theme = useEffectiveTheme();
 
   // Initialize Common Ground compatibility parameters
   useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
     
     // Set CSS custom properties for dynamic theming
     document.documentElement.style.setProperty('--cg-bg', cgBgColor);
-    document.documentElement.setAttribute('data-cg-theme', cgTheme);
   }, [searchParams]);
 
   // Helper function to preserve existing URL params

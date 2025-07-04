@@ -1,31 +1,23 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Menu, X, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBackground } from '@/contexts/BackgroundContext';
-import { Sidebar } from './Sidebar';
-import { MultiCommunityPresenceSidebar } from '@/components/presence/MultiCommunityPresenceSidebar';
-import { MiniPresenceWidget } from '@/components/presence/MiniPresenceWidget'; // Enhanced multi-device presence
-import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCgLib } from '@/contexts/CgLibContext';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
-import { useCgLib } from '@/contexts/CgLibContext';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { Sidebar } from './Sidebar';
 import { Button } from '@/components/ui/button';
-
-import { 
-  Menu,
-  Users, // Phase 2: For right sidebar toggle
-  X,     // Phase 2: For close button
-  // PlusCircle, 
-  // Settings, 
-  // MoreHorizontal, 
-  // Plus 
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useSearchParams, usePathname, useRouter } from 'next/navigation';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';
+import { MultiCommunityPresenceSidebar } from '@/components/presence/MultiCommunityPresenceSidebar';
+import { MiniPresenceWidget } from '@/components/presence/MiniPresenceWidget';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
 
 interface MainLayoutWithSidebarProps {
@@ -43,7 +35,10 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false); // New: Tablet detection
   const [isMiniMode, setIsMiniMode] = useState(false); // New: Mini widget mode (200x200px)
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
+  // Use the effective theme from our theme orchestrator
+  const theme = useEffectiveTheme();
+  
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -85,12 +80,6 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
       window.removeEventListener('resize', checkScreenSize);
     };
   }, [isMiniMode]);
-
-  // Get theme from URL params
-  useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
-    setTheme(cgTheme as 'light' | 'dark');
-  }, [searchParams]);
 
   // Phase 2: Enhanced outside click handling for both sidebars
   useEffect(() => {

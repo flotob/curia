@@ -20,6 +20,7 @@ import {
   Monitor
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 
 // Background settings type (shared between user and community)
 export interface BackgroundSettings {
@@ -42,7 +43,6 @@ interface BackgroundCustomizerProps {
   settings?: BackgroundSettings;
   onSettingsChange: (settings: BackgroundSettings | null) => void;
   isLoading?: boolean;
-  theme?: 'light' | 'dark';
   className?: string;
 }
 
@@ -100,9 +100,11 @@ export const BackgroundCustomizer: React.FC<BackgroundCustomizerProps> = ({
   settings,
   onSettingsChange,
   isLoading = false,
-  theme = 'light',
   className
 }) => {
+  // Use the effective theme from our theme orchestrator instead of prop
+  const theme = useEffectiveTheme();
+  
   const [localSettings, setLocalSettings] = useState<BackgroundSettings>(
     settings || DEFAULT_SETTINGS
   );

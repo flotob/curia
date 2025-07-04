@@ -11,10 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Users, MessageSquare, ExternalLink, Gift } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCardStyling } from '@/hooks/useCardStyling';
 import { preserveCgParams } from '@/utils/urlBuilder';
 import { useTippingEligibility } from '@/hooks/useTippingEligibility';
 import { TippingModal } from '@/components/tipping/TippingModal';
 import { authFetch } from '@/utils/authFetch';
+import { cn } from '@/lib/utils';
 
 interface UserProfile {
   id: string;
@@ -64,6 +66,9 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
     avatarUrl?: string;
   } | null>(null);
   const { token } = useAuth();
+
+  // Get card styling for conditional frosted glass background
+  const { getCardStyle } = useCardStyling();
 
   // Check tipping eligibility for this user
   const { 
@@ -158,7 +163,7 @@ export const UserProfilePopover: React.FC<UserProfilePopoverProps> = ({
           {children}
         </DropdownMenuTrigger>
       <DropdownMenuContent 
-        className="w-80 p-0" 
+        className={cn("w-80 p-0", getCardStyle('content'))} 
         side="left" 
         align="center"
         sideOffset={12}

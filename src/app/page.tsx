@@ -1,6 +1,6 @@
 'use client'; // Marking as client component as FeedList uses client-side hooks
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
@@ -33,7 +33,7 @@ export default function HomePage() {
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
   const [showExpandedForm, setShowExpandedForm] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [initialPostTitle, setInitialPostTitle] = useState('');
@@ -43,12 +43,6 @@ export default function HomePage() {
 
   // Get boardId from URL params for board-specific filtering
   const boardId = searchParams?.get('boardId');
-
-  // Initialize theme from URL params (same as sidebar)
-  useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
-    setTheme(cgTheme as 'light' | 'dark');
-  }, [searchParams]);
 
   // Handle create post from URL params (mobile navigation from search)
   useEffect(() => {
@@ -362,7 +356,6 @@ export default function HomePage() {
             <section className="max-w-3xl mx-auto">
               <TelegramSetupBanner 
                 communityId={communityInfo.id}
-                theme={theme}
                 buildUrl={buildUrl}
               />
             </section>

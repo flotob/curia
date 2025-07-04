@@ -46,6 +46,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 }
 
 // Internal component to handle theme updates from URL parameters AND background forced themes
+// This is now the THEME ORCHESTRATOR - single source of truth for all theme decisions
 function CgThemeSynchronizer() {
   const { setTheme, theme } = useTheme();
   const searchParams = useSearchParams();
@@ -93,12 +94,23 @@ function CgThemeSynchronizer() {
       shouldChange: theme !== effectiveTheme
     });
 
-    // Only set theme if it's different from current theme
+    // 1. Update next-themes system (existing functionality)
     if (theme !== effectiveTheme) {
       console.log(`[CgThemeSynchronizer] Setting theme to: ${effectiveTheme} (was: ${theme}, url: ${urlTheme}, forced: ${backgroundForcedTheme})`);
       setTheme(effectiveTheme);
     } else {
       console.log(`[CgThemeSynchronizer] Theme already correct, no change needed`);
+    }
+
+    // 2. NEW: Update global theme state for components that read theme manually
+    // This makes CgThemeSynchronizer the single source of truth for ALL theme decisions
+    if (typeof window !== 'undefined') {
+      window.__EFFECTIVE_THEME__ = effectiveTheme;
+      console.log(`[CgThemeSynchronizer] Setting global effective theme: ${effectiveTheme}`);
+      
+      // Dispatch event for components that want to listen for theme changes
+      const themeEvent = new CustomEvent('effective-theme-change', { detail: effectiveTheme });
+      window.dispatchEvent(themeEvent);
     }
 
     // Apply custom background color

@@ -103,12 +103,11 @@ export const CommunityBackgroundSettings: React.FC<CommunityBackgroundSettingsPr
         {isExpanded && (
           <div className="space-y-4" id="community-background-customizer-content">
             <BackgroundCustomizer
-              title="Community Default Background"
-              description="This background will be visible to all community members who haven&apos;t set their own personal background."
+              title="Community Background"
+              description="Set a custom background for your community that all members will see"
               settings={currentBackgroundSettings}
               onSettingsChange={handleBackgroundChange}
               isLoading={isLoading}
-              theme={theme}
             />
 
             {/* Community Guidelines */}

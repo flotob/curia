@@ -171,11 +171,10 @@ export const UserBackgroundSettings: React.FC<UserBackgroundSettingsProps> = ({
           <div className="space-y-4" id="background-customizer-content">
             <BackgroundCustomizer
               title="Personal Background"
-              description="This background will be visible to you across all Common Ground pages. Other users will see their own backgrounds or the community default."
+              description="Customize your personal background experience. This will override community backgrounds."
               settings={currentBackgroundSettings}
               onSettingsChange={handleBackgroundChange}
               isLoading={updateUserSettingsMutation.isPending}
-              theme={theme}
             />
 
             {/* Usage Tips */}
