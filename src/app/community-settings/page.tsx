@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSearchParams } from 'next/navigation';
@@ -26,31 +26,28 @@ import { authFetchJson } from '@/utils/authFetch';
 import { useToast } from '@/hooks/use-toast';
 import { CommunityAccessForm } from '@/components/CommunityAccessForm';
 import { TelegramGroupsSection } from '@/components/settings/TelegramGroupsSection';
+import { CommunityBackgroundSettings } from '@/components/settings/CommunityBackgroundSettings';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 // Removed server-side import - now using API endpoint
 
 export default function CommunitySettingsPage() {
   const { cgInstance, isInitializing } = useCgLib();
   const searchParams = useSearchParams();
-  const [bgColor, setBgColor] = useState('#ffffff');
   const [copiedConnectCode, setCopiedConnectCode] = useState(false);
   const connectCodeInputRef = useRef<HTMLInputElement>(null);
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  // Extract theme from Common Ground URL parameters
-  const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
+  // Use the effective theme from our theme orchestrator
+  const theme = useEffectiveTheme();
 
   // Initialize Common Ground compatibility parameters
   useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
-    
-    setBgColor(cgBgColor);
     
     // Set CSS custom properties for dynamic theming
     document.documentElement.style.setProperty('--cg-bg', cgBgColor);
-    document.documentElement.setAttribute('data-cg-theme', cgTheme);
   }, [searchParams]);
 
   // Helper function to preserve existing URL params
@@ -155,10 +152,15 @@ export default function CommunitySettingsPage() {
     queryKey: ['communitySettings', user?.cid],
     queryFn: async () => {
       if (!user?.cid || !token) throw new Error('No community ID or token available');
+      console.log(`[CommunitySettingsPage] Fetching community settings for ${user.cid}`);
       const response = await authFetchJson<ApiCommunity>(`/api/communities/${user.cid}`, { token });
+      console.log(`[CommunitySettingsPage] Got community response:`, response);
+      console.log(`[CommunitySettingsPage] Community settings:`, response.settings);
+      console.log(`[CommunitySettingsPage] Background field:`, response.settings?.background);
       return response;
     },
     enabled: !!user?.cid && !!token,
+    staleTime: 0, // Always fetch fresh data for settings page
   });
 
   // Update community settings mutation
@@ -177,6 +179,15 @@ export default function CommunitySettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communitySettings'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['communitySettings', user?.cid],
+        refetchType: 'active' // Force immediate refetch of active queries
+      });
+      // Also invalidate BackgroundContext cache
+      queryClient.invalidateQueries({ 
+        queryKey: ['backgroundCommunitySettings', user?.cid],
+        refetchType: 'active'
+      });
       toast({
         title: "Settings updated",
         description: "Community settings updated successfully!",
@@ -207,11 +218,8 @@ export default function CommunitySettingsPage() {
   // Admin access control
   if (user && !user.isAdmin) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: bgColor }}
-      >
-        <div className="text-center space-y-4">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card variant="content" className="text-center space-y-4 p-8">
           <h1 className="text-2xl font-semibold text-red-600 dark:text-red-400">
             Access Denied
           </h1>
@@ -224,26 +232,23 @@ export default function CommunitySettingsPage() {
               Back to Home
             </Button>
           </Link>
-        </div>
+        </Card>
       </div>
     );
   }
 
   if (isInitializing || isLoadingCommunityInfo) {
     return (
-      <div 
-        className="min-h-screen"
-        style={{ backgroundColor: bgColor }}
-      >
+      <div className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
-            <div className="animate-pulse space-y-6">
+            <Card variant="content" className="animate-pulse space-y-6 p-8">
               <div className="h-8 w-64 rounded bg-slate-200 dark:bg-slate-700" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="h-64 rounded-xl bg-slate-200 dark:bg-slate-700" />
                 <div className="h-64 rounded-xl bg-slate-200 dark:bg-slate-700" />
               </div>
-            </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -252,11 +257,8 @@ export default function CommunitySettingsPage() {
 
   if (!communityInfo) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: bgColor }}
-      >
-        <div className="text-center space-y-4">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card variant="content" className="text-center space-y-4 p-8">
           <div className="text-2xl font-semibold text-slate-700 dark:text-slate-300">
             Unable to load community information
           </div>
@@ -266,20 +268,17 @@ export default function CommunitySettingsPage() {
               Back to Home
             </Button>
           </Link>
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div 
-      className="min-h-screen"
-      style={{ backgroundColor: bgColor }}
-    >
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
+          <Card variant="header" className="mb-8 p-6">
             <Link href={buildUrl('/')}>
               <Button variant="ghost" className="mb-4">
                 <ArrowLeft size={16} className="mr-2" />
@@ -295,7 +294,7 @@ export default function CommunitySettingsPage() {
             <p className="text-slate-600 dark:text-slate-400">
               View and manage your community configuration
             </p>
-          </div>
+          </Card>
 
           {/* Telegram Notifications Section */}
           <Card className="mb-6">
@@ -500,6 +499,16 @@ export default function CommunitySettingsPage() {
             <TelegramGroupsSection 
               communityId={user?.cid || ''} 
               theme={theme} 
+            />
+          </div>
+
+          {/* Community Background Customization */}
+          <div className="mb-6">
+            <CommunityBackgroundSettings 
+              currentSettings={communitySettings?.settings || {}}
+              onSettingsChange={(settings: CommunitySettings) => updateCommunityMutation.mutate(settings)}
+              isLoading={updateCommunityMutation.isPending}
+              theme={theme}
             />
           </div>
 

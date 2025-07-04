@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
+import { useCardStyling } from '@/hooks/useCardStyling';
 
 interface TagSuggestion {
   tag: string;
@@ -20,13 +21,11 @@ interface TagSuggestion {
 
 interface TagFilterComponentProps {
   boardId?: string | null;
-  theme?: 'light' | 'dark';
   className?: string;
 }
 
 export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
   boardId,
-  theme = 'light',
   className = ''
 }) => {
   const searchParams = useSearchParams();
@@ -132,6 +131,9 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
     prevBoardIdRef.current = boardId;
   }, [boardId, clearAllTags]);
 
+  // Get card styling for background awareness
+  const { hasActiveBackground } = useCardStyling();
+
   const toggleExpanded = useCallback(() => {
     setIsExpanded(!isExpanded);
     
@@ -168,9 +170,8 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
               selectedTags.length > 0 
                 ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10' 
                 : 'border-muted hover:bg-muted/50',
-              theme === 'dark' 
-                ? 'hover:bg-slate-800' 
-                : 'hover:bg-slate-50'
+              // Add conditional translucency based on background
+              hasActiveBackground && 'backdrop-blur-sm bg-white/20 border-white/30 hover:bg-white/30 dark:bg-black/20 dark:border-black/30 dark:hover:bg-black/30'
             )}
           >
             <Filter size={12} className="mr-1.5" />
@@ -193,7 +194,10 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
               variant="ghost"
               size="sm"
               onClick={clearAllTags}
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+              className={cn(
+                "h-8 w-8 p-0 text-muted-foreground hover:text-foreground",
+                hasActiveBackground && 'hover:bg-white/20 dark:hover:bg-black/20'
+              )}
             >
               <X size={12} />
             </Button>
@@ -298,7 +302,7 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
                 <>
                   <div className="flex items-center text-xs font-medium text-muted-foreground">
                     <TrendingUp size={12} className="mr-1" />
-                    {searchQuery ? `Results for &ldquo;${searchQuery}&rdquo;` : 'Popular tags'}
+                    {searchQuery ? `Results for "${searchQuery}"` : 'Popular tags'}
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                     {filteredSuggestions.map((suggestion) => (
@@ -321,7 +325,7 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
               
               {!isLoading && filteredSuggestions.length === 0 && searchQuery && (
                 <div className="text-xs text-muted-foreground py-2">
-                  No tags found matching &ldquo;{searchQuery}&rdquo;
+                  No tags found matching &quot;{searchQuery}&quot;
                 </div>
               )}
               
@@ -336,4 +340,4 @@ export const TagFilterComponent: React.FC<TagFilterComponentProps> = ({
       )}
     </div>
   );
-}; 
+};

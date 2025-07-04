@@ -222,106 +222,108 @@ export const LockBrowser: React.FC<LockBrowserProps> = ({
       </div>
       
       {/* Search and Controls */}
-      <div className="flex flex-col gap-3">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search locks by name or description..."
-            value={filters.search}
-            onChange={(e) => updateFilter('search', e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        
-        {/* View Mode Toggle - moved to filters row */}
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-muted-foreground">View</span>
-          <div className="flex border rounded-md">
-            <Button
-              type="button"
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('grid')}
-              className="rounded-r-none"
-            >
-              <Grid3X3 className="h-4 w-4" />
-              <span className="ml-1 hidden sm:inline">Grid</span>
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className="rounded-l-none"
-            >
-              <List className="h-4 w-4" />
-              <span className="ml-1 hidden sm:inline">List</span>
-            </Button>
+      <Card className="p-4">
+        <div className="flex flex-col gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search locks by name or description..."
+              value={filters.search}
+              onChange={(e) => updateFilter('search', e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          {/* View Mode Toggle - moved to filters row */}
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-muted-foreground">View</span>
+            <div className="flex border rounded-md">
+              <Button
+                type="button"
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="rounded-r-none"
+              >
+                <Grid3X3 className="h-4 w-4" />
+                <span className="ml-1 hidden sm:inline">Grid</span>
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="rounded-l-none"
+              >
+                <List className="h-4 w-4" />
+                <span className="ml-1 hidden sm:inline">List</span>
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Filter Tabs */}
-        <div className="grid grid-cols-2 sm:flex sm:border sm:rounded-md gap-1 sm:gap-0">
-          {[
-            { key: 'all' as FilterMode, label: 'All', count: filterCounts.total, icon: null },
-            { key: 'mine' as FilterMode, label: 'Mine', count: filterCounts.mine, icon: Users },
-            { key: 'templates' as FilterMode, label: 'Templates', count: filterCounts.templates, icon: Star },
-            { key: 'public' as FilterMode, label: 'Public', count: filterCounts.public, icon: null }
-          ].map((tab, index) => (
-            <Button
-              type="button"
-              key={tab.key}
-              variant={filters.filter === tab.key ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => updateFilter('filter', tab.key)}
-              className={`
-                flex items-center space-x-1 justify-center
-                sm:flex-none sm:border-0
-                ${index === 0 ? 'sm:rounded-r-none' : ''}
-                ${index > 0 && index < 3 ? 'sm:border-l sm:rounded-none' : ''}
-                ${index === 3 ? 'sm:border-l sm:rounded-l-none' : ''}
-              `}
-            >
-              {tab.icon && <tab.icon className="h-3 w-3" />}
-              <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {tab.count}
-                </Badge>
-              )}
-            </Button>
-          ))}
-        </div>
         
-        {/* Sort */}
-        <div className="flex border rounded-md sm:flex-shrink-0">
-          {[
-            { key: 'recent' as SortMode, label: 'Recent', icon: Clock },
-            { key: 'popular' as SortMode, label: 'Popular', icon: TrendingUp },
-            { key: 'name' as SortMode, label: 'Name', icon: SortAsc }
-          ].map((sort, index) => (
-            <Button
-              type="button"
-              key={sort.key}
-              variant={filters.sort === sort.key ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => updateFilter('sort', sort.key)}
-              className={`
-                ${index === 0 ? '' : 'border-l rounded-l-none'}
-                ${index === 2 ? '' : 'rounded-r-none'}
-                flex items-center space-x-1 flex-1 sm:flex-none justify-center
-              `}
-            >
-              {sort.icon && <sort.icon className="h-3 w-3" />}
-              <span className="hidden sm:inline">{sort.label}</span>
-            </Button>
-          ))}
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mt-3">
+          {/* Filter Tabs */}
+          <div className="grid grid-cols-2 sm:flex sm:border sm:rounded-md gap-1 sm:gap-0">
+            {[
+              { key: 'all' as FilterMode, label: 'All', count: filterCounts.total, icon: null },
+              { key: 'mine' as FilterMode, label: 'Mine', count: filterCounts.mine, icon: Users },
+              { key: 'templates' as FilterMode, label: 'Templates', count: filterCounts.templates, icon: Star },
+              { key: 'public' as FilterMode, label: 'Public', count: filterCounts.public, icon: null }
+            ].map((tab, index) => (
+              <Button
+                type="button"
+                key={tab.key}
+                variant={filters.filter === tab.key ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => updateFilter('filter', tab.key)}
+                className={`
+                  flex items-center space-x-1 justify-center
+                  sm:flex-none sm:border-0
+                  ${index === 0 ? 'sm:rounded-r-none' : ''}
+                  ${index > 0 && index < 3 ? 'sm:border-l sm:rounded-none' : ''}
+                  ${index === 3 ? 'sm:border-l sm:rounded-l-none' : ''}
+                `}
+              >
+                {tab.icon && <tab.icon className="h-3 w-3" />}
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {tab.count}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
+          
+          {/* Sort */}
+          <div className="flex border rounded-md sm:flex-shrink-0">
+            {[
+              { key: 'recent' as SortMode, label: 'Recent', icon: Clock },
+              { key: 'popular' as SortMode, label: 'Popular', icon: TrendingUp },
+              { key: 'name' as SortMode, label: 'Name', icon: SortAsc }
+            ].map((sort, index) => (
+              <Button
+                type="button"
+                key={sort.key}
+                variant={filters.sort === sort.key ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => updateFilter('sort', sort.key)}
+                className={`
+                  ${index === 0 ? '' : 'border-l rounded-l-none'}
+                  ${index === 2 ? '' : 'rounded-r-none'}
+                  flex items-center space-x-1 flex-1 sm:flex-none justify-center
+                `}
+              >
+                {sort.icon && <sort.icon className="h-3 w-3" />}
+                <span className="hidden sm:inline">{sort.label}</span>
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
+      </Card>
       
       {/* Content */}
       {error && (

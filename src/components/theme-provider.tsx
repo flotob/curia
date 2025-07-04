@@ -45,7 +45,8 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
   };
 }
 
-// Internal component to handle theme updates from URL parameters
+// Internal component to handle theme updates from URL parameters AND background forced themes
+// This is now the THEME ORCHESTRATOR - single source of truth for all theme decisions
 function CgThemeSynchronizer() {
   const { setTheme, theme } = useTheme();
   const searchParams = useSearchParams();
@@ -53,12 +54,63 @@ function CgThemeSynchronizer() {
   const cgBgColor = searchParams?.get('cg_bg_color'); // e.g., '%23161820'
   const cgFgColor = searchParams?.get('cg_fg_color'); // Optional, e.g., '%23ffffff'
 
+  // Access background context for forced themes - but safely handle if not available
+  const [backgroundForcedTheme, setBackgroundForcedTheme] = React.useState<'light' | 'dark' | null>(null);
+
+  // Debug: Log when component mounts
   React.useEffect(() => {
-    // Set light/dark mode
-    if (cgTheme === 'dark' || cgTheme === 'light') {
-      if (theme !== cgTheme) {
-        setTheme(cgTheme);
-      }
+    console.log('[CgThemeSynchronizer] Component mounted, initial state:', {
+      theme,
+      cgTheme,
+      backgroundForcedTheme
+    });
+  }, []);
+
+  // Listen for background forced theme changes via custom event
+  React.useEffect(() => {
+    const handleBackgroundThemeChange = (event: CustomEvent<'light' | 'dark' | null>) => {
+      console.log('[CgThemeSynchronizer] Background forced theme changed:', event.detail);
+      setBackgroundForcedTheme(event.detail);
+    };
+
+    console.log('[CgThemeSynchronizer] Setting up background theme event listener');
+    window.addEventListener('background-theme-change', handleBackgroundThemeChange as EventListener);
+    return () => {
+      console.log('[CgThemeSynchronizer] Removing background theme event listener');
+      window.removeEventListener('background-theme-change', handleBackgroundThemeChange as EventListener);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    // Determine effective theme: background forced theme > URL theme
+    const urlTheme = cgTheme === 'dark' || cgTheme === 'light' ? cgTheme : 'light';
+    const effectiveTheme = backgroundForcedTheme || urlTheme;
+
+    console.log(`[CgThemeSynchronizer] Theme calculation:`, {
+      currentTheme: theme,
+      urlTheme,
+      backgroundForcedTheme,
+      effectiveTheme,
+      shouldChange: theme !== effectiveTheme
+    });
+
+    // 1. Update next-themes system (existing functionality)
+    if (theme !== effectiveTheme) {
+      console.log(`[CgThemeSynchronizer] Setting theme to: ${effectiveTheme} (was: ${theme}, url: ${urlTheme}, forced: ${backgroundForcedTheme})`);
+      setTheme(effectiveTheme);
+    } else {
+      console.log(`[CgThemeSynchronizer] Theme already correct, no change needed`);
+    }
+
+    // 2. NEW: Update global theme state for components that read theme manually
+    // This makes CgThemeSynchronizer the single source of truth for ALL theme decisions
+    if (typeof window !== 'undefined') {
+      window.__EFFECTIVE_THEME__ = effectiveTheme;
+      console.log(`[CgThemeSynchronizer] Setting global effective theme: ${effectiveTheme}`);
+      
+      // Dispatch event for components that want to listen for theme changes
+      const themeEvent = new CustomEvent('effective-theme-change', { detail: effectiveTheme });
+      window.dispatchEvent(themeEvent);
     }
 
     // Apply custom background color
@@ -95,9 +147,8 @@ function CgThemeSynchronizer() {
         console.warn('[CgThemeSynchronizer] Invalid cg_fg_color:', cgFgColor, e);
       }
     }
-    // Important: This effect should run when these params change.
-    // It might also need to revert to default shadcn theme colors if params are removed.
-  }, [cgTheme, cgBgColor, cgFgColor, setTheme, theme]);
+    // CRITICAL: Remove setTheme from dependencies to prevent infinite loop
+  }, [cgTheme, cgBgColor, cgFgColor, backgroundForcedTheme, theme]);
 
   return null; // This component does not render anything itself
 }

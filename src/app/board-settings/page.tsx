@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { authFetchJson } from '@/utils/authFetch';
 import { useCgLib } from '@/contexts/CgLibContext';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
+import { authFetchJson } from '@/utils/authFetch';
 import { useCommunityData } from '@/hooks/useCommunityData';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 // ApiCommunity removed - using centralized community data hook
@@ -32,6 +33,7 @@ import { BoardAccessForm } from '@/components/BoardAccessForm';
 import { BoardLockGatingForm } from '@/components/BoardLockGatingForm';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useToast } from '@/hooks/use-toast';
+import { Card } from '@/components/ui/card';
 
 interface DeleteBoardResponse {
   boardName: string;
@@ -50,16 +52,12 @@ export default function BoardSettingsPage() {
   const [boardName, setBoardName] = useState('');
   const [boardDescription, setBoardDescription] = useState('');
   const [boardSettings, setBoardSettings] = useState<BoardSettings>({});
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Initialize theme from URL params
-  useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
-    setTheme(cgTheme as 'light' | 'dark');
-  }, [searchParams]);
+  // Use the effective theme from our theme orchestrator
+  const theme = useEffectiveTheme();
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
@@ -339,7 +337,7 @@ export default function BoardSettingsPage() {
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <Card variant="header" className="p-6">
           <div className="flex items-center space-x-4">
             <Link href={buildUrl('/', { boardId: boardId || '' })}>
               <Button variant="ghost" size="sm">
@@ -362,7 +360,7 @@ export default function BoardSettingsPage() {
               </p>
             </div>
           </div>
-        </div>
+        </Card>
 
         <form onSubmit={handleSave} className="space-y-6">
           {/* Board Details */}

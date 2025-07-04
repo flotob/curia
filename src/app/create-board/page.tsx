@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { authFetchJson } from '@/utils/authFetch';
 import { useCgLib } from '@/contexts/CgLibContext';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
+import { authFetchJson } from '@/utils/authFetch';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
@@ -32,17 +33,7 @@ export default function CreateBoardPage() {
   const [boardName, setBoardName] = useState('');
   const [boardDescription, setBoardDescription] = useState('');
   const [boardSettings, setBoardSettings] = useState<BoardSettings>({});
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-
-  // Initialize theme from URL params
-  useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
-    
-    setTheme(cgTheme as 'light' | 'dark');
-    
-    // Set CSS custom properties for dynamic theming
-    document.documentElement.setAttribute('data-cg-theme', cgTheme);
-  }, [searchParams]);
+  const theme = useEffectiveTheme();
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
@@ -87,7 +78,7 @@ export default function CreateBoardPage() {
   });
 
   // Helper functions for generating section summaries - memoized to prevent re-render issues
-  const getBoardDetailsSummary = useMemo(() => {
+  const getBoardDetailsSummary = React.useMemo(() => {
     if (!boardName) return 'Not configured';
     const descPreview = boardDescription ? 
       (boardDescription.length > 40 ? `${boardDescription.slice(0, 40)}...` : boardDescription) 
@@ -100,7 +91,7 @@ export default function CreateBoardPage() {
     );
   }, [boardName, boardDescription]);
 
-  const getVisibilityAccessSummary = useMemo(() => {
+  const getVisibilityAccessSummary = React.useMemo(() => {
     const hasRoleRestrictions = SettingsUtils.hasPermissionRestrictions(boardSettings);
     if (!hasRoleRestrictions) {
       return <span className="text-emerald-600 dark:text-emerald-400">All members</span>;
@@ -114,7 +105,7 @@ export default function CreateBoardPage() {
     );
   }, [boardSettings]);
 
-  const getWriteAccessSummary = useMemo(() => {
+  const getWriteAccessSummary = React.useMemo(() => {
     const hasLockGating = SettingsUtils.hasBoardLockGating(boardSettings);
     if (!hasLockGating) {
       return <span className="text-emerald-600 dark:text-emerald-400">No restrictions</span>;

@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommunitySelector } from '@/components/whats-new/CommunitySelector';
+import { UserBackgroundSettings } from '@/components/settings/UserBackgroundSettings';
+import { UserSettings } from '@/types/user';
 import { useCrossCommunityNavigation } from '@/hooks/useCrossCommunityNavigation';
 
 // Enhanced interfaces adapted for user activity
@@ -161,6 +163,18 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
     staleTime: 30000, // 30 seconds
   });
 
+  // Fetch current user settings (only when viewing own profile)
+  const { data: currentUserSettings, isLoading: userSettingsLoading } = useQuery<{ settings: UserSettings }>({
+    queryKey: ['currentUserSettings', user?.userId],
+    queryFn: async () => {
+      if (!token) throw new Error('Authentication required');
+      console.log(`[ProfilePage] Fetching current user settings for background form`);
+      return authFetchJson<{ settings: UserSettings }>(`/api/me/settings`, { token });
+    },
+    enabled: !!token && !!user?.userId && userId === user?.userId, // Only fetch for own profile
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // Fetch summary data
   const { data: summaryData, isLoading: summaryLoading } = useQuery<UserActivityResponse>({
     queryKey: ['userActivitySummary', userId, selectedCommunityId],
@@ -290,7 +304,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
     );
   }
 
-  const isLoading = profileLoading || summaryLoading || postsByUserQuery.isLoading || commentsByUserQuery.isLoading || reactionsByUserQuery.isLoading || postsUserCommentedOnQuery.isLoading;
+  const isLoading = profileLoading || summaryLoading || userSettingsLoading || postsByUserQuery.isLoading || commentsByUserQuery.isLoading || reactionsByUserQuery.isLoading || postsUserCommentedOnQuery.isLoading;
 
   const summary = summaryData?.summary;
   const profile = userProfile?.user;
@@ -340,10 +354,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
     const pagination = categoryPagination[categoryKey];
     
     return (
-      <div className="space-y-4">
+      <Card className="overflow-hidden">
         {/* Header */}
         <div 
-          className={`flex items-center justify-between py-4 border-l-4 pl-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${color}`}
+          className={`flex items-center justify-between py-4 border-l-4 pl-4 cursor-pointer hover:bg-muted/50 transition-colors ${color}`}
           onClick={() => toggleCategory(categoryKey)}
         >
           <div className="flex items-center gap-3">
@@ -369,7 +383,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
 
         {/* Filter and Pagination Controls */}
         {!isCollapsed && (
-          <div className="px-4 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg space-y-3">
+          <div className="px-4 py-2 bg-muted/30 border-t space-y-3">
             {/* Filter Controls */}
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -421,7 +435,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
             )}
           </div>
         )}
-      </div>
+      </Card>
     );
   };
 
@@ -614,7 +628,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
 
           {/* Profile Header */}
           {profile && (
-            <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-xl p-4 sm:p-6 mb-6 overflow-hidden">
+            <Card variant="header" className="p-4 sm:p-6 mb-6 overflow-hidden">
               <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-4">
                 <Avatar className="h-16 w-16 flex-shrink-0">
                   <AvatarImage 
@@ -675,66 +689,77 @@ export default function UserProfilePage({ params }: { params: Promise<{ userId: 
                   )}
                 </div>
               </div>
+            </Card>
+          )}
+
+          {/* Background Customization - Only visible on own profile */}
+          {profile && userId === user?.userId && (
+            <div className="mb-6">
+              <UserBackgroundSettings 
+                currentSettings={currentUserSettings?.settings}
+              />
             </div>
           )}
 
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-2xl sm:text-3xl font-bold mb-2">
-                {profile ? `${profile.name}'s Activity` : 'User Activity'}
-              </h2>
-              <p className="text-muted-foreground mb-4">
-                Activity across communities
-              </p>
-              
-              {/* Community Selector */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                <span className="text-sm font-medium text-muted-foreground flex-shrink-0">Community:</span>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0">
-                  <CommunitySelector
-                    currentCommunityId={selectedCommunityId}
-                    onCommunityChange={setSelectedCommunityId}
-                    className="w-full sm:w-auto"
-                  />
-                  
-                  {/* Cross-Community Indicator */}
-                  {selectedCommunityId !== user?.cid && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 flex-shrink-0">
-                      <Globe className="h-3 w-3 mr-1" />
-                      Cross-Community View
-                    </Badge>
-                  )}
-                  
-                  {/* Loading Indicator */}
-                  {isLoading && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-shrink-0">
-                      <div className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      Loading activity...
-                    </div>
-                  )}
+          <Card variant="header" className="p-4 sm:p-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-2xl sm:text-3xl font-bold mb-2">
+                  {profile ? `${profile.name}'s Activity` : 'User Activity'}
+                </h2>
+                <p className="text-muted-foreground mb-4">
+                  Activity across communities
+                </p>
+                
+                {/* Community Selector */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <span className="text-sm font-medium text-muted-foreground flex-shrink-0">Community:</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0">
+                    <CommunitySelector
+                      currentCommunityId={selectedCommunityId}
+                      onCommunityChange={setSelectedCommunityId}
+                      className="w-full sm:w-auto"
+                    />
+                    
+                    {/* Cross-Community Indicator */}
+                    {selectedCommunityId !== user?.cid && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 flex-shrink-0">
+                        <Globe className="h-3 w-3 mr-1" />
+                        Cross-Community View
+                      </Badge>
+                    )}
+                    
+                    {/* Loading Indicator */}
+                    {isLoading && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-shrink-0">
+                        <div className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        Loading activity...
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowOnlyNew(!showOnlyNew)}
+                className="gap-2 self-start flex-shrink-0"
+              >
+                {showOnlyNew ? (
+                  <>
+                    <Eye size={16} />
+                    Show All
+                  </>
+                ) : (
+                  <>
+                    <EyeOff size={16} />
+                    New Only
+                  </>
+                )}
+              </Button>
             </div>
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowOnlyNew(!showOnlyNew)}
-              className="gap-2 self-start flex-shrink-0"
-            >
-              {showOnlyNew ? (
-                <>
-                  <Eye size={16} />
-                  Show All
-                </>
-              ) : (
-                <>
-                  <EyeOff size={16} />
-                  New Only
-                </>
-              )}
-            </Button>
-          </div>
+          </Card>
         </div>
 
         {isLoading ? (

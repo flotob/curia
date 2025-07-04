@@ -8,6 +8,20 @@ export interface CommunitySettings {
     allowedRoles?: string[]; // Role IDs that can access the entire plugin
     // Future: allowedUsers?: string[]; // Individual user overrides
   };
+  
+  // Background customization settings for the entire community
+  background?: {
+    imageUrl: string;           // URL to the background image
+    repeat: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y' | 'space' | 'round';
+    size: 'auto' | 'cover' | 'contain' | string; // CSS background-size values
+    position: string;           // CSS background-position (e.g., 'center center', 'top left')
+    attachment: 'scroll' | 'fixed' | 'local';
+    opacity: number;            // 0-1, for overlay effect
+    overlayColor?: string;      // Optional overlay color (hex)
+    blendMode?: string;         // CSS mix-blend-mode
+    forceTheme?: 'light' | 'dark' | null; // Force specific theme mode when this background is active (null = respect system)
+  };
+  
   // Future community-wide settings:
   // branding?: { customTheme: string; logoOverride: string };
   // features?: { enableNotifications: boolean; enableIntegrations: boolean };

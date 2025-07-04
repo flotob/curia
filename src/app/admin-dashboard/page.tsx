@@ -1,24 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'next/navigation';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
-  BarChart3, 
   Users, 
   MessageSquare, 
-  TrendingUp, 
-  ArrowLeft, 
+  TrendingUp,
   Search,
   ChevronLeft,
   ChevronRight,
   Activity,
+  BarChart3,
+  ArrowLeft,
   Zap
 } from 'lucide-react';
 import { authFetchJson } from '@/utils/authFetch';
@@ -43,8 +44,8 @@ export default function AdminDashboardPage() {
   const [userSearch, setUserSearch] = useState('');
   const [userPage, setUserPage] = useState(1);
   
-  // Extract theme from Common Ground URL parameters
-  const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
+  // Use the effective theme from our theme orchestrator
+  const theme = useEffectiveTheme();
 
   // Helper function to preserve existing URL params
   const buildUrl = (path: string, additionalParams: Record<string, string> = {}) => {
@@ -192,7 +193,7 @@ export default function AdminDashboardPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
+          <Card variant="header" className="mb-8 p-6">
             <Link href={buildUrl('/')}>
               <Button variant="ghost" className="mb-4">
                 <ArrowLeft size={16} className="mr-2" />
@@ -208,7 +209,7 @@ export default function AdminDashboardPage() {
             <p className="text-slate-600 dark:text-slate-400">
               Community analytics and user management
             </p>
-          </div>
+          </Card>
 
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

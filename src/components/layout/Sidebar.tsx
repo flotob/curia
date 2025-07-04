@@ -8,11 +8,13 @@ import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBackground } from '@/contexts/BackgroundContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSearchParams, usePathname } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
 import { useSharedBoards } from '@/hooks/useSharedBoards';
+import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 
 interface SidebarProps {
   communityInfo: CommunityInfoResponsePayload | null;
@@ -30,13 +32,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose 
 }) => {
   const { user } = useAuth();
+  const { activeBackground } = useBackground();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [adminSectionExpanded, setAdminSectionExpanded] = useState(false);
   
-  // Extract theme from Common Ground URL parameters
-  const theme = (searchParams?.get('cg_theme') || 'light') as 'light' | 'dark';
+  // Use the effective theme from our theme orchestrator
+  const theme = useEffectiveTheme();
+  
+  // Determine if we should use frosted glass styling
+  const hasActiveBackground = !!(activeBackground && activeBackground.imageUrl);
   
   // Fetch shared boards data
   const { data: sharedBoards, isLoading: sharedBoardsLoading } = useSharedBoards(communityInfo?.id);
@@ -44,13 +50,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     setMounted(true);
     
-    // Get theme and background color from URL params for Common Ground compatibility
+    // Get background color from URL params for Common Ground compatibility
     const cgBgColor = searchParams?.get('cg_bg_color') || '#ffffff';
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
     
     // Set CSS custom properties for dynamic theming
     document.documentElement.style.setProperty('--cg-bg', cgBgColor);
-    document.documentElement.setAttribute('data-cg-theme', cgTheme);
   }, [searchParams]);
 
   if (!mounted || !communityInfo) {
@@ -156,15 +160,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  // Responsive theme styles using Tailwind dark: prefix
-  const sidebarBg = 'bg-gradient-to-br from-white/95 via-white to-slate-50/95 dark:from-slate-900/95 dark:via-slate-900 dark:to-slate-800/95 backdrop-blur-xl';
-  const borderColor = 'border-slate-200/60 dark:border-slate-700/40';
+  // Conditional styling: frosted glass when background is active, solid when not
+  const sidebarBg = cn(
+    'transition-all duration-300',
+    hasActiveBackground 
+      ? [
+          // Frosted glass effect when background image is active
+          'backdrop-blur-md border-r shadow-xl',
+          theme === 'dark' 
+            ? 'bg-slate-900/20 border-slate-700/30 shadow-slate-900/20' 
+            : 'bg-white/20 border-slate-200/30 shadow-slate-900/10'
+        ]
+      : [
+          // Original solid styling when no background
+          'bg-gradient-to-br border-r shadow-xl shadow-slate-900/5',
+          theme === 'dark'
+            ? 'from-slate-900/95 via-slate-900 to-slate-800/95 border-slate-700/40'
+            : 'from-white/95 via-white to-slate-50/95 border-slate-200/60'
+        ]
+  );
 
   return (
     <aside className={cn(
-      'w-64 h-screen flex flex-col border-r shadow-xl shadow-slate-900/5 transition-transform duration-300',
+      'w-64 h-screen flex flex-col transition-transform duration-300',
       sidebarBg,
-      borderColor,
       // Mobile positioning and animation
       isMobile ? [
         'fixed top-0 left-0 z-50',
@@ -230,12 +249,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-b from-transparent to-slate-100/20 dark:to-slate-900/20 pointer-events-none" />
       </div>
 
-      {/* Navigation Section - Beautiful menu */}
+      {/* Navigation Section - Conditional styling based on background */}
       <nav className={cn(
         "flex-1 px-3 py-4 space-y-1 overflow-y-auto",
-        theme === 'dark' 
-          ? 'bg-gradient-to-b from-slate-950/70 to-slate-900/80 shadow-inner shadow-slate-950/20' 
-          : 'bg-gradient-to-b from-slate-50/90 to-slate-100/70 shadow-inner shadow-slate-200/30'
+        hasActiveBackground
+          ? [
+              // Frosted glass when background is active
+              'backdrop-blur-sm',
+              theme === 'dark' 
+                ? 'bg-slate-950/10 shadow-inner shadow-slate-950/10' 
+                : 'bg-slate-50/10 shadow-inner shadow-slate-200/10'
+            ]
+          : [
+              // Original solid styling when no background
+              theme === 'dark' 
+                ? 'bg-gradient-to-b from-slate-950/70 to-slate-900/80 shadow-inner shadow-slate-950/20' 
+                : 'bg-gradient-to-b from-slate-50/90 to-slate-100/70 shadow-inner shadow-slate-200/30'
+            ]
       )}>
         {/* Home Link */}
         <Link
@@ -247,8 +277,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 shadow-lg shadow-blue-500/10'
                 : 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-700 shadow-lg shadow-blue-500/10'
               : theme === 'dark'
-                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                ? hasActiveBackground 
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                  : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                : hasActiveBackground
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
           )}
         >
           <div className={cn(
@@ -284,8 +318,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300 shadow-lg shadow-orange-500/10'
                 : 'bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-700 shadow-lg shadow-orange-500/10'
               : theme === 'dark'
-                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                ? hasActiveBackground 
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                  : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                : hasActiveBackground
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
           )}
         >
           <div className={cn(
@@ -382,8 +420,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 shadow-lg shadow-emerald-500/10'
                             : 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-700 shadow-lg shadow-emerald-500/10'
                           : theme === 'dark'
-                            ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                            ? hasActiveBackground 
+                              ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                              : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                            : hasActiveBackground
+                              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                       )}
                     >
                       <div className="mr-3">
@@ -407,8 +449,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className={cn(
                           'absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 z-10',
                           theme === 'dark'
-                            ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/80'
-                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/80'
+                            ? hasActiveBackground
+                              ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/80'
+                            : hasActiveBackground
+                              ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/40'
+                              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/80'
                         )}
                         onClick={(e) => e.stopPropagation()}
                         title={`Settings for ${board.name}`}
@@ -425,14 +471,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Link
                   href={buildUrl('/create-board')}
                   className={cn(
-                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2 relative overflow-hidden',
+                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
                     isCreateBoardPage
                       ? theme === 'dark'
                         ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 shadow-lg shadow-green-500/10'
                         : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 shadow-lg shadow-green-500/10'
                       : theme === 'dark'
-                        ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                        ? hasActiveBackground
+                          ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 border border-slate-700/50'
+                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                        : hasActiveBackground
+                          ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/40 border border-slate-200/60'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                   )}
                 >
                   <div className={cn(
@@ -466,8 +516,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={cn(
                     'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
                     theme === 'dark'
-                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                      ? hasActiveBackground
+                        ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 border border-slate-700/50'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : hasActiveBackground
+                        ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/40 border border-slate-200/60'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                   )}
                   title="Add Shared Board"
                 >
@@ -530,8 +584,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 shadow-lg shadow-green-500/10'
                       : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 shadow-lg shadow-green-500/10'
                     : theme === 'dark'
-                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                      ? hasActiveBackground
+                        ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 border border-slate-700/50'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : hasActiveBackground
+                        ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/40 border border-slate-200/60'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                 )}
               >
                 <div className={cn(
@@ -565,8 +623,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
                   theme === 'dark'
-                    ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                    ? hasActiveBackground
+                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 border border-slate-700/50'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                    : hasActiveBackground
+                      ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/40 border border-slate-200/60'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                 )}
                 title="Add Shared Board"
               >
@@ -612,8 +674,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 shadow-lg shadow-cyan-500/10'
                             : 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10 text-cyan-700 shadow-lg shadow-cyan-500/10'
                           : theme === 'dark'
-                            ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                            ? hasActiveBackground 
+                              ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                              : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                            : hasActiveBackground
+                              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                       )}
                     >
                       <div className="mr-3">
@@ -693,10 +759,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Link
                   href={buildUrl('/shared-boards')}
                   className={cn(
-                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-2 relative overflow-hidden',
+                    'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mt-1 relative overflow-hidden',
                     theme === 'dark'
-                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
+                      ? hasActiveBackground
+                        ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 border border-slate-700/50'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-slate-700/50'
+                      : hasActiveBackground
+                        ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/40 border border-slate-200/60'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80 border border-slate-200/60'
                   )}
                   title="Add Shared Board"
                 >
@@ -755,8 +825,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ? 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-300 shadow-lg shadow-violet-500/10'
                   : 'bg-gradient-to-r from-violet-500/10 to-purple-500/10 text-violet-700 shadow-lg shadow-violet-500/10'
                 : theme === 'dark'
-                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? hasActiveBackground 
+                    ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                    : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                  : hasActiveBackground
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
             )}
           >
             <div className={cn(
@@ -817,8 +891,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={cn(
               'group flex items-center w-full px-3 py-3 text-sm font-medium transition-all duration-200',
               theme === 'dark'
-                ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/40'
+                ? hasActiveBackground
+                  ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                : hasActiveBackground
+                  ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/20'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/40'
             )}
           >
             <div className={cn(
@@ -855,8 +933,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 shadow-lg shadow-blue-500/10'
                       : 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-700 shadow-lg shadow-blue-500/10'
                     : theme === 'dark'
-                      ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      ? hasActiveBackground 
+                        ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                        : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                      : hasActiveBackground
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 )}
               >
                 <div className={cn(
@@ -892,8 +974,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 shadow-lg shadow-indigo-500/10'
                       : 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-indigo-700 shadow-lg shadow-indigo-500/10'
                     : theme === 'dark'
-                      ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      ? hasActiveBackground 
+                        ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                        : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                      : hasActiveBackground
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 )}
               >
                 <div className={cn(
@@ -925,8 +1011,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
                   theme === 'dark'
-                    ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    ? hasActiveBackground 
+                      ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                      : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                    : hasActiveBackground
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 )}
               >
                 <div className={cn(
@@ -961,8 +1051,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 shadow-lg shadow-emerald-500/10'
                 : 'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-700 shadow-lg shadow-emerald-500/10'
               : theme === 'dark'
-                ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                ? hasActiveBackground 
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/30'
+                  : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
+                : hasActiveBackground
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/40'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
           )}
         >
           <Avatar className={cn(

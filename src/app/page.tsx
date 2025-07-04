@@ -1,6 +1,6 @@
 'use client'; // Marking as client component as FeedList uses client-side hooks
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FeedList } from '@/components/voting/FeedList';
@@ -12,7 +12,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
 import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
@@ -26,6 +25,7 @@ import {
 } from 'lucide-react';
 import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } from '@/utils/cookieUtils';
 import '@/utils/cookieDebug'; // Load cookie debug utilities
+import { useCardStyling } from '@/hooks/useCardStyling';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
@@ -33,19 +33,16 @@ export default function HomePage() {
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
   const [showExpandedForm, setShowExpandedForm] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [initialPostTitle, setInitialPostTitle] = useState('');
 
+  // Get card styling for conditional header display
+  const { hasActiveBackground } = useCardStyling();
+
   // Get boardId from URL params for board-specific filtering
   const boardId = searchParams?.get('boardId');
-
-  // Initialize theme from URL params (same as sidebar)
-  useEffect(() => {
-    const cgTheme = searchParams?.get('cg_theme') || 'light';
-    setTheme(cgTheme as 'light' | 'dark');
-  }, [searchParams]);
 
   // Handle create post from URL params (mobile navigation from search)
   useEffect(() => {
@@ -337,7 +334,6 @@ export default function HomePage() {
           <section className="max-w-3xl mx-auto">
             <TagFilterComponent
               boardId={boardId}
-              theme={theme}
               className="mb-4"
             />
           </section>
@@ -360,7 +356,6 @@ export default function HomePage() {
             <section className="max-w-3xl mx-auto">
               <TelegramSetupBanner 
                 communityId={communityInfo.id}
-                theme={theme}
                 buildUrl={buildUrl}
               />
             </section>
@@ -368,13 +363,11 @@ export default function HomePage() {
 
           {/* Feed Section */}
           <main className="max-w-3xl mx-auto space-y-6">
-          <div className="space-y-4 mb-6">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className={cn(
-                  'text-xl font-semibold',
-                  theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-                )}>
+          {/* Recent Discussions Header - Only show in solid background mode */}
+          {!hasActiveBackground && (
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-xl font-semibold">
                   {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
                 </h2>
                 
@@ -387,25 +380,19 @@ export default function HomePage() {
                       className="h-6 w-6 p-0 rounded-full hover:bg-muted"
                       title="Board Settings"
                     >
-                      <Settings size={16} className={cn(
-                        'transition-colors',
-                        theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
-                      )} />
+                      <Settings size={16} className="transition-colors text-muted-foreground hover:text-foreground" />
                     </Button>
                   </Link>
                 )}
               </div>
               
               {boardId && boardInfo && boardInfo.description && (
-                <p className={cn(
-                  'text-sm mt-1',
-                  theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-                )}>
+                <p className="text-sm text-muted-foreground">
                   {boardInfo.description}
                 </p>
               )}
             </div>
-          </div>
+          )}
 
           {/* Board Access Status - Show lock gating requirements */}
           {boardId && boardVerificationStatus && communityInfo?.id && (

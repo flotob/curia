@@ -42,6 +42,8 @@ import { buildExternalShareUrl } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
 import { ReactionBar } from '../reactions/ReactionBar';
 import { UserProfilePopover } from '../mentions/UserProfilePopover';
+import { Card } from '@/components/ui/card';
+import { useCardStyling } from '@/hooks/useCardStyling';
 
 // Tiptap imports for rendering post content
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -96,6 +98,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const router = useRouter();
   const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(post.created_at);
+
+  // Get card styling for background-aware gradients
+  const { hasActiveBackground } = useCardStyling();
 
   // Gating detection - check both legacy gating and lock-based gating
   const hasLegacyGating = SettingsUtils.hasUPGating(post.settings);
@@ -566,10 +571,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   }, [contentDisplayEditor, router, post.content, buildInternalUrl]); // Rerun if editor or router changes, or content changes (rebinding needed)
 
   return (
-    <div 
+    <Card 
       id={`postcard-${post.id}`}
       className={cn(
-        "post-container group",
+        "group",
         hasGating && "gated"
       )} 
     >
@@ -671,7 +676,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   >
                     <EditorContent editor={contentDisplayEditor} />
                   </div>
-                  {!isPostContentExpanded && (
+                  {!isPostContentExpanded && !hasActiveBackground && (
                     <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none" />
                   )}
                 </div>
@@ -934,6 +939,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
         isGenerating={isGeneratingShareUrl}
         isWebShareFallback={isWebShareFallback}
       />
-    </div>
+    </Card>
   );
 }; 

@@ -381,7 +381,7 @@ export const EnrichedPostsQuery = {
     }
     
     return {
-      clause: `AND (
+      clause: `(
         p.upvote_count < $${paramIndex} OR 
         (p.upvote_count = $${paramIndex} AND p.created_at < $${paramIndex + 1}) OR
         (p.upvote_count = $${paramIndex} AND p.created_at = $${paramIndex + 1} AND p.id < $${paramIndex + 2})

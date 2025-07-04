@@ -186,8 +186,6 @@
   }
 }
 
-
-
 @layer base {
   * {
     @apply border-border;
@@ -197,6 +195,17 @@
     /* Prevent horizontal scroll at body level */
     overflow-x: hidden;
     min-width: 320px; /* Minimum supported width */
+  }
+  
+  /* Custom Background Support */
+  body.has-custom-background {
+    position: relative;
+  }
+  
+  /* Ensure content appears above background */
+  body.has-custom-background > * {
+    position: relative;
+    z-index: 1;
   }
   
   /* Mobile-first responsive images */
@@ -700,12 +709,11 @@ button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
 }
 
 /* Prevent zoom on input focus (iOS Safari) */
-input, textarea, select {
-  font-size: 16px;
-}
-
-@media screen and (max-width: 768px) {
-  input, textarea, select {
-    font-size: 16px; /* Prevents zoom on iOS */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+    transform: scale(1);
   }
 }
