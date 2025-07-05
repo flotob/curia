@@ -14,8 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Loader2, X } from 'lucide-react';
 import { checkBoardAccess, getUserRoles } from '@/lib/roleService';
-import { PostSettings } from '@/types/settings';
+import { PostSettings, SettingsUtils, CommunitySettings } from '@/types/settings';
 import { PostGatingSelector } from '@/components/locks/PostGatingSelector';
+import { PostImprovementModal } from '@/components/ai/PostImprovementModal';
+import { authFetch } from '@/utils/authFetch';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -76,6 +78,10 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [postSettings, setPostSettings] = useState<PostSettings>({});
 
+  // AI Post Improvement State
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [pendingPostData, setPendingPostData] = useState<CreatePostMutationPayload | null>(null);
+
   // Handle pre-selected lock from lock creation flow
   useEffect(() => {
     if (preSelectedLockId) {
@@ -95,6 +101,16 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
     queryFn: async () => {
       if (!user?.cid || !token) throw new Error('Community context or token not available');
       return authFetchJson<ApiBoard[]>(`/api/communities/${user.cid}/boards`, { token });
+    },
+    enabled: !!isAuthenticated && !!token && !!user?.cid,
+  });
+
+  // Fetch community data for AI configuration
+  const { data: communityData } = useQuery<{ id: string; name: string; settings: CommunitySettings }>({
+    queryKey: ['community', user?.cid],
+    queryFn: async () => {
+      if (!user?.cid || !token) throw new Error('Community context or token not available');
+      return authFetchJson<{ id: string; name: string; settings: CommunitySettings }>(`/api/communities/${user.cid}`, { token });
     },
     enabled: !!isAuthenticated && !!token && !!user?.cid,
   });
@@ -184,6 +200,25 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
     },
   });
 
+  // Validation function
+  const validatePost = async (postData: CreatePostMutationPayload): Promise<{ valid: boolean; error?: string }> => {
+    if (!token) throw new Error('Authentication required to validate post.');
+    
+    try {
+      const response = await authFetch('/api/posts/validate', {
+        method: 'POST',
+        token,
+        body: JSON.stringify(postData),
+      });
+      
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Validation error:', error);
+      return { valid: false, error: 'Failed to validate post. Please try again.' };
+    }
+  };
+
   const createPostMutation = useMutation<ApiPost, Error, CreatePostMutationPayload>({
     mutationFn: async (postData) => {
       if (!token) throw new Error('Authentication required to create a post.');
@@ -248,14 +283,6 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         return;
     }
 
-    // 🚀 BOARD LOCK VERIFICATION: Check if user can post to this board
-    if (boardVerificationStatus && !boardVerificationStatus.hasWriteAccess) {
-      const { verifiedCount, requiredCount } = boardVerificationStatus;
-      const lockText = requiredCount === 1 ? 'lock' : 'locks';
-      setError(`Board verification required: You need to verify ${requiredCount} ${lockText} before posting. Currently verified: ${verifiedCount}/${requiredCount}. Please complete verification first.`);
-      return;
-    }
-
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
     
     // Extract lockId from postSettings if it exists
@@ -269,14 +296,69 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
     }
     const markdownContent = MarkdownUtils.getMarkdown(contentEditor);
     
-    createPostMutation.mutate({ 
+    const postData: CreatePostMutationPayload = { 
       title, 
       content: markdownContent, 
       tags: tagsArray, 
       boardId: selectedBoardId, 
       settings,
       lockId 
-    });
+    };
+
+    // Step 1: Validate the post first
+    const validationResult = await validatePost(postData);
+    
+    if (!validationResult.valid) {
+      setError(validationResult.error || 'Post validation failed. Please try again.');
+      return;
+    }
+
+    // Step 2: Check if AI improvement is enabled for this community
+    const communitySettings = communityData?.settings || {};
+    const userRoles = user?.roles || [];
+    const canUseAI = SettingsUtils.canUserUseAIPostImprovement(communitySettings, userRoles);
+    
+    if (canUseAI) {
+      console.log('[ExpandedNewPostForm] AI improvement enabled - showing AI modal');
+      // Store the validated post data and show AI modal
+      setPendingPostData(postData);
+      setShowAIModal(true);
+    } else {
+      console.log('[ExpandedNewPostForm] AI improvement disabled - creating post directly');
+      // Create post directly without AI improvement
+      createPostMutation.mutate(postData);
+    }
+  };
+
+  // AI Modal Handlers
+  const handleAIAccept = (improvedContent: { title: string; content: string }) => {
+    console.log('[ExpandedNewPostForm] AI improvements accepted');
+    if (pendingPostData) {
+      const improvedPostData = {
+        ...pendingPostData,
+        title: improvedContent.title,
+        content: improvedContent.content,
+      };
+      createPostMutation.mutate(improvedPostData);
+    }
+    setShowAIModal(false);
+    setPendingPostData(null);
+  };
+
+  const handleAIReject = () => {
+    console.log('[ExpandedNewPostForm] AI improvements rejected - using original content');
+    if (pendingPostData) {
+      createPostMutation.mutate(pendingPostData);
+    }
+    setShowAIModal(false);
+    setPendingPostData(null);
+  };
+
+  const handleAICancel = () => {
+    console.log('[ExpandedNewPostForm] AI modal cancelled');
+    setShowAIModal(false);
+    setPendingPostData(null);
+    // Don't create the post - user can modify and resubmit
   };
 
   if (!isAuthenticated) {
@@ -453,6 +535,24 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
           </Button>
         </CardFooter>
       </form>
+
+      {/* AI Post Improvement Modal */}
+      {showAIModal && pendingPostData && (
+        <PostImprovementModal
+          isOpen={showAIModal}
+          onClose={handleAICancel}
+          originalContent={pendingPostData.content}
+          originalTitle={pendingPostData.title}
+          contentType="post"
+          onSubmitOriginal={handleAIReject}
+          onSubmitImproved={(improvedContent) => {
+            handleAIAccept({
+              title: pendingPostData.title,
+              content: improvedContent,
+            });
+          }}
+        />
+      )}
     </Card>
   );
 }; 
