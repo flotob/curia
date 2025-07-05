@@ -46,6 +46,7 @@ export function PostImprovementModal({
   const [error, setError] = useState<string>('');
   const [hasChanges, setHasChanges] = useState(false);
   const [requestAbortController, setRequestAbortController] = useState<AbortController | null>(null);
+  const [isAutoSubmitting, setIsAutoSubmitting] = useState(false);
   const hasStartedImprovement = useRef(false);
 
   const improveContent = async () => {
@@ -175,7 +176,11 @@ export function PostImprovementModal({
       setHasChanges(meaningful);
 
       if (!meaningful) {
-        setError('No significant improvements were found. Your content is already well-written!');
+        // Content is already great - auto-submit after brief success message
+        setIsAutoSubmitting(true);
+        setTimeout(() => {
+          onSubmitOriginal();
+        }, 1500); // Give user time to see the positive feedback
       }
 
     } catch (err) {
@@ -215,6 +220,7 @@ export function PostImprovementModal({
       setError('');
       setHasChanges(false);
       setIsImproving(false);
+      setIsAutoSubmitting(false);
       hasStartedImprovement.current = false; // Reset ref for next time
     }
   }, [isOpen, requestAbortController]);
@@ -316,22 +322,17 @@ export function PostImprovementModal({
                 />
               </div>
             </div>
-          ) : improvedContent && !hasChanges ? (
+          ) : isAutoSubmitting ? (
             <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="flex items-center gap-3">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              </div>
               <div className="text-center">
                 <h3 className="font-semibold mb-2">Content looks great!</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Your content is already well-written. No significant improvements were found.
+                <p className="text-sm text-muted-foreground">
+                  Your content is already well-written. Posting now...
                 </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={onClose}>
-                    Cancel
-                  </Button>
-                  <Button onClick={onSubmitOriginal}>
-                    Post Content
-                  </Button>
-                </div>
               </div>
             </div>
           ) : null}
