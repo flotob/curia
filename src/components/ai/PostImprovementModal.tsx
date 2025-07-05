@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -46,6 +46,7 @@ export function PostImprovementModal({
   const [error, setError] = useState<string>('');
   const [hasChanges, setHasChanges] = useState(false);
   const [requestAbortController, setRequestAbortController] = useState<AbortController | null>(null);
+  const hasStartedImprovement = useRef(false);
 
   const improveContent = async () => {
     if (!originalContent.trim()) {
@@ -191,9 +192,10 @@ export function PostImprovementModal({
     }
   };
 
-  // Start improvement when modal opens
+  // Start improvement when modal opens (prevent double-firing in dev mode)
   useEffect(() => {
-    if (isOpen && originalContent && !improvedContent && !isImproving) {
+    if (isOpen && originalContent && !improvedContent && !isImproving && !hasStartedImprovement.current) {
+      hasStartedImprovement.current = true;
       improveContent();
     }
   }, [isOpen, originalContent]);
@@ -213,6 +215,7 @@ export function PostImprovementModal({
       setError('');
       setHasChanges(false);
       setIsImproving(false);
+      hasStartedImprovement.current = false; // Reset ref for next time
     }
   }, [isOpen, requestAbortController]);
 
