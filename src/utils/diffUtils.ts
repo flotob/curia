@@ -2,25 +2,33 @@ import { diffLines, diffWordsWithSpace, Change } from 'diff';
 
 // Interfaces for diff display components
 export interface DiffLine {
-  type: 'added' | 'removed' | 'unchanged';
+  type: 'added' | 'removed' | 'unchanged' | 'modified';
   content: string;
   lineNumber: number;
   originalLineNumber?: number;
   improvedLineNumber?: number;
+  wordDiff?: WordDiffSegment[]; // For modified lines
+}
+
+export interface WordDiffSegment {
+  type: 'added' | 'removed' | 'unchanged';
+  content: string;
 }
 
 export interface SideBySideDiff {
   leftLines: Array<{
     content: string;
     lineNumber: number;
-    type: 'unchanged' | 'removed';
+    type: 'unchanged' | 'removed' | 'modified';
     isEmpty?: boolean;
+    wordDiff?: WordDiffSegment[]; // For modified lines
   }>;
   rightLines: Array<{
     content: string; 
     lineNumber: number;
-    type: 'unchanged' | 'added';
+    type: 'unchanged' | 'added' | 'modified';
     isEmpty?: boolean;
+    wordDiff?: WordDiffSegment[]; // For modified lines
   }>;
   stats: {
     additions: number;
@@ -37,6 +45,55 @@ export interface InlineDiff {
     deletions: number;
     modifications: number;
   };
+}
+
+/**
+ * Calculate similarity between two strings (0-1 scale)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  if (str1 === str2) return 1;
+  if (str1.length === 0 || str2.length === 0) return 0;
+  
+  // Simple similarity based on common characters
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  let matches = 0;
+  for (let i = 0; i < shorter.length; i++) {
+    if (longer.includes(shorter[i])) {
+      matches++;
+    }
+  }
+  
+  return matches / longer.length;
+}
+
+/**
+ * Find best matching line for modification detection
+ */
+function findBestMatch(targetLine: string, candidateLines: string[]): { index: number; similarity: number } {
+  let bestMatch = { index: -1, similarity: 0 };
+  
+  candidateLines.forEach((line, index) => {
+    const similarity = calculateSimilarity(targetLine, line);
+    if (similarity > bestMatch.similarity && similarity > 0.3) { // 30% similarity threshold
+      bestMatch = { index, similarity };
+    }
+  });
+  
+  return bestMatch;
+}
+
+/**
+ * Generate word-level diff segments for two lines
+ */
+export function generateWordDiffForLines(originalLine: string, improvedLine: string): WordDiffSegment[] {
+  const changes = diffWordsWithSpace(originalLine, improvedLine);
+  
+  return changes.map((change: Change) => ({
+    type: change.added ? 'added' : change.removed ? 'removed' : 'unchanged',
+    content: change.value
+  }));
 }
 
 /**
@@ -81,7 +138,7 @@ export function generateLineDiff(original: string, improved: string): DiffLine[]
 }
 
 /**
- * Generate side-by-side diff view (GitHub style)
+ * Generate side-by-side diff view (GitHub style) with word-level highlighting
  */
 export function generateSideBySideDiff(original: string, improved: string): SideBySideDiff {
   const changes = diffLines(original, improved);
@@ -93,7 +150,13 @@ export function generateSideBySideDiff(original: string, improved: string): Side
   let rightLineNumber = 1;
   let additions = 0;
   let deletions = 0;
+  let modifications = 0;
 
+  // Collect removed and added lines for modification detection
+  const removedLines: Array<{ content: string; index: number }> = [];
+  const addedLines: Array<{ content: string; index: number }> = [];
+
+  // First pass: collect all changes
   changes.forEach((change: Change) => {
     const lines = change.value.split('\n');
     if (lines[lines.length - 1] === '') {
@@ -101,24 +164,23 @@ export function generateSideBySideDiff(original: string, improved: string): Side
     }
 
     if (change.added) {
-      // Added lines - show only on right side
       lines.forEach(line => {
+        addedLines.push({ content: line, index: rightLines.length });
+        rightLines.push({
+          content: line,
+          lineNumber: rightLineNumber++,
+          type: 'added'
+        });
         leftLines.push({
           content: '',
           lineNumber: leftLineNumber,
           type: 'unchanged',
           isEmpty: true
         });
-        rightLines.push({
-          content: line,
-          lineNumber: rightLineNumber++,
-          type: 'added'
-        });
-        additions++;
       });
     } else if (change.removed) {
-      // Removed lines - show only on left side  
       lines.forEach(line => {
+        removedLines.push({ content: line, index: leftLines.length });
         leftLines.push({
           content: line,
           lineNumber: leftLineNumber++,
@@ -130,7 +192,6 @@ export function generateSideBySideDiff(original: string, improved: string): Side
           type: 'unchanged',
           isEmpty: true
         });
-        deletions++;
       });
     } else {
       // Unchanged lines - show on both sides
@@ -149,13 +210,57 @@ export function generateSideBySideDiff(original: string, improved: string): Side
     }
   });
 
+  // Second pass: detect modifications
+  const processedRemoved = new Set<number>();
+  const processedAdded = new Set<number>();
+
+  removedLines.forEach(({ content: removedContent, index: removedIndex }) => {
+    if (processedRemoved.has(removedIndex)) return;
+
+    const addedCandidates = addedLines
+      .filter(({ index }) => !processedAdded.has(index))
+      .map(({ content }) => content);
+
+    const match = findBestMatch(removedContent, addedCandidates);
+    
+    if (match.index !== -1) {
+      const matchedAddedLine = addedLines.find(({ content }) => content === addedCandidates[match.index]);
+      if (matchedAddedLine) {
+        const addedIndex = matchedAddedLine.index;
+        const wordDiff = generateWordDiffForLines(removedContent, matchedAddedLine.content);
+        
+        // Update left side (removed/modified)
+        leftLines[removedIndex] = {
+          ...leftLines[removedIndex],
+          type: 'modified',
+          wordDiff
+        };
+        
+        // Update right side (added/modified)
+        rightLines[addedIndex] = {
+          ...rightLines[addedIndex],
+          type: 'modified',
+          wordDiff
+        };
+        
+        processedRemoved.add(removedIndex);
+        processedAdded.add(addedIndex);
+        modifications++;
+      }
+    }
+  });
+
+  // Count final stats
+  additions = rightLines.filter(line => line.type === 'added').length;
+  deletions = leftLines.filter(line => line.type === 'removed').length;
+
   return {
     leftLines,
     rightLines,
     stats: {
       additions,
       deletions,
-      modifications: Math.min(additions, deletions),
+      modifications,
       totalLines: Math.max(leftLines.length, rightLines.length)
     }
   };
@@ -165,16 +270,55 @@ export function generateSideBySideDiff(original: string, improved: string): Side
  * Generate inline diff view with word-level highlighting
  */
 export function generateInlineDiff(original: string, improved: string): InlineDiff {
-  const lines = generateLineDiff(original, improved);
-  const stats = {
-    additions: lines.filter(l => l.type === 'added').length,
-    deletions: lines.filter(l => l.type === 'removed').length,
-    modifications: 0
-  };
+  const sideBySideDiff = generateSideBySideDiff(original, improved);
+  const lines: DiffLine[] = [];
+  let lineNumber = 1;
   
-  stats.modifications = Math.min(stats.additions, stats.deletions);
+  // Process left and right lines together to handle modifications
+  for (let i = 0; i < Math.max(sideBySideDiff.leftLines.length, sideBySideDiff.rightLines.length); i++) {
+    const leftLine = sideBySideDiff.leftLines[i];
+    const rightLine = sideBySideDiff.rightLines[i];
+    
+    if (leftLine && rightLine) {
+      if (leftLine.type === 'modified' && rightLine.type === 'modified') {
+        // Show as single modified line
+        lines.push({
+          type: 'modified',
+          content: rightLine.content,
+          lineNumber: lineNumber++,
+          wordDiff: rightLine.wordDiff
+        });
+      } else if (leftLine.type === 'unchanged' && rightLine.type === 'unchanged') {
+        // Unchanged line
+        lines.push({
+          type: 'unchanged',
+          content: leftLine.content,
+          lineNumber: lineNumber++
+        });
+      } else {
+        // Handle separate removed and added lines
+        if (leftLine.type === 'removed' && !leftLine.isEmpty) {
+          lines.push({
+            type: 'removed',
+            content: leftLine.content,
+            lineNumber: lineNumber++
+          });
+        }
+        if (rightLine.type === 'added' && !rightLine.isEmpty) {
+          lines.push({
+            type: 'added',
+            content: rightLine.content,
+            lineNumber: lineNumber++
+          });
+        }
+      }
+    }
+  }
 
-  return { lines, stats };
+  return { 
+    lines, 
+    stats: sideBySideDiff.stats 
+  };
 }
 
 /**

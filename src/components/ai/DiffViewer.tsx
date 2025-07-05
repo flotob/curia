@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { Badge } from '@/components/ui/badge';
 import { Copy, Check, Plus, Minus, FileText } from 'lucide-react';
-import { generateSideBySideDiff, generateInlineDiff, type SideBySideDiff, type InlineDiff } from '@/utils/diffUtils';
+import { generateSideBySideDiff, generateInlineDiff, type SideBySideDiff, type InlineDiff, type WordDiffSegment } from '@/utils/diffUtils';
 import { cn } from '@/lib/utils';
 
 interface DiffViewerProps {
@@ -44,6 +44,72 @@ export function DiffViewer({
     }
   };
 
+  const renderWordDiff = (segments: WordDiffSegment[], type: 'original' | 'improved') => {
+    if (!segments || segments.length === 0) return null;
+    
+    return segments.map((segment, index) => {
+      if (segment.type === 'unchanged') {
+        return <span key={index}>{segment.content}</span>;
+      }
+      
+      // For original side, highlight removed segments, show added as plain text
+      if (type === 'original') {
+        if (segment.type === 'removed') {
+          return (
+            <span key={index} className="bg-red-200 dark:bg-red-900/50 text-red-800 dark:text-red-200 px-0.5 rounded">
+              {segment.content}
+            </span>
+          );
+        }
+        // Don't show added segments on original side
+        return null;
+      }
+      
+      // For improved side, highlight added segments, show removed as plain text
+      if (type === 'improved') {
+        if (segment.type === 'added') {
+          return (
+            <span key={index} className="bg-green-200 dark:bg-green-900/50 text-green-800 dark:text-green-200 px-0.5 rounded">
+              {segment.content}
+            </span>
+          );
+        }
+        // Don't show removed segments on improved side
+        return null;
+      }
+      
+      return null;
+    });
+  };
+
+  const renderInlineWordDiff = (segments: WordDiffSegment[]) => {
+    if (!segments || segments.length === 0) return null;
+    
+    return segments.map((segment, index) => {
+      if (segment.type === 'unchanged') {
+        return <span key={index}>{segment.content}</span>;
+      }
+      
+      if (segment.type === 'removed') {
+        return (
+          <span key={index} className="bg-red-200 dark:bg-red-900/50 text-red-800 dark:text-red-200 px-0.5 rounded">
+            {segment.content}
+          </span>
+        );
+      }
+      
+      if (segment.type === 'added') {
+        return (
+          <span key={index} className="bg-green-200 dark:bg-green-900/50 text-green-800 dark:text-green-200 px-0.5 rounded">
+            {segment.content}
+          </span>
+        );
+      }
+      
+      return null;
+    });
+  };
+
   const renderSideBySideView = (diff: SideBySideDiff) => (
     <div className="grid grid-cols-2 h-full min-h-0">
       {/* Left: Original */}
@@ -76,14 +142,18 @@ export function DiffViewer({
                 key={i}
                 className={cn(
                   'flex hover:bg-muted/50',
-                  line.type === 'removed' && 'bg-red-50 dark:bg-red-950/10'
+                  line.type === 'removed' && 'bg-red-50 dark:bg-red-950/10',
+                  line.type === 'modified' && 'bg-red-50 dark:bg-red-950/10'
                 )}
               >
                 <span className="inline-block w-12 px-2 py-1 text-right text-muted-foreground bg-muted/30 border-r border-border">
                   {line.isEmpty ? '' : line.lineNumber}
                 </span>
                 <span className="flex-1 px-3 py-1 whitespace-pre-wrap break-words">
-                  {line.content}
+                  {line.type === 'modified' && line.wordDiff 
+                    ? renderWordDiff(line.wordDiff, 'original')
+                    : line.content
+                  }
                 </span>
               </div>
             ))}
@@ -121,14 +191,18 @@ export function DiffViewer({
                 key={i}
                 className={cn(
                   'flex hover:bg-muted/50',
-                  line.type === 'added' && 'bg-green-50 dark:bg-green-950/10'
+                  line.type === 'added' && 'bg-green-50 dark:bg-green-950/10',
+                  line.type === 'modified' && 'bg-green-50 dark:bg-green-950/10'
                 )}
               >
                 <span className="inline-block w-12 px-2 py-1 text-right text-muted-foreground bg-muted/30 border-r border-border">
                   {line.isEmpty ? '' : line.lineNumber}
                 </span>
                 <span className="flex-1 px-3 py-1 whitespace-pre-wrap break-words">
-                  {line.content}
+                  {line.type === 'modified' && line.wordDiff 
+                    ? renderWordDiff(line.wordDiff, 'improved')
+                    : line.content
+                  }
                 </span>
               </div>
             ))}
@@ -147,18 +221,23 @@ export function DiffViewer({
             className={cn(
               'flex hover:bg-muted/50',
               line.type === 'added' && 'bg-green-50 dark:bg-green-950/10',
-              line.type === 'removed' && 'bg-red-50 dark:bg-red-950/10'
+              line.type === 'removed' && 'bg-red-50 dark:bg-red-950/10',
+              line.type === 'modified' && 'bg-orange-50 dark:bg-orange-950/10'
             )}
           >
             <span className="inline-block w-8 px-2 py-1 text-center text-muted-foreground bg-muted/30 border-r border-border">
               {line.type === 'added' && <Plus className="w-3 h-3 text-green-600" />}
               {line.type === 'removed' && <Minus className="w-3 h-3 text-red-600" />}
+              {line.type === 'modified' && <FileText className="w-3 h-3 text-orange-600" />}
             </span>
             <span className="inline-block w-12 px-2 py-1 text-right text-muted-foreground bg-muted/30 border-r border-border">
               {line.lineNumber}
             </span>
             <span className="flex-1 px-3 py-1 whitespace-pre-wrap break-words">
-              {line.content}
+              {line.type === 'modified' && line.wordDiff 
+                ? renderInlineWordDiff(line.wordDiff)
+                : line.content
+              }
             </span>
           </div>
         ))}
@@ -184,6 +263,11 @@ export function DiffViewer({
             {sideBySideDiff.stats.deletions > 0 && (
               <Badge variant="outline" className="text-red-600">
                 -{sideBySideDiff.stats.deletions}
+              </Badge>
+            )}
+            {sideBySideDiff.stats.modifications > 0 && (
+              <Badge variant="outline" className="text-orange-600">
+                ~{sideBySideDiff.stats.modifications}
               </Badge>
             )}
             <span>·</span>
