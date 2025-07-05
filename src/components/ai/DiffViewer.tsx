@@ -325,7 +325,7 @@ export function DiffViewer({
           <div className="flex gap-2 w-full sm:w-auto">
             {onCancel && (
               <Button variant="outline" onClick={onCancel} className="flex-1 sm:flex-none">
-                Cancel
+                Back
               </Button>
             )}
             <Button variant="outline" onClick={onReject} className="flex-1 sm:flex-none">

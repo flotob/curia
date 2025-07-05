@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, AlertCircle, CheckCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, Sparkles, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { DiffViewer } from './DiffViewer';
 import { hasMeaningfulChanges } from '@/utils/diffUtils';
 import { authFetch } from '@/utils/authFetch';
@@ -48,6 +49,20 @@ export function PostImprovementModal({
   const [requestAbortController, setRequestAbortController] = useState<AbortController | null>(null);
   const [isAutoSubmitting, setIsAutoSubmitting] = useState(false);
   const hasStartedImprovement = useRef(false);
+  
+  // Enhanced loading experience
+  const [progressValue, setProgressValue] = useState(0);
+  const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  
+  const statusMessages = [
+    "Analyzing your content...",
+    "Applying grammar improvements...", 
+    "Enhancing clarity and flow...",
+    "Adding professional polish...",
+    "Finalizing suggestions..."
+  ];
 
   const improveContent = async () => {
     if (!originalContent.trim()) {
@@ -205,6 +220,39 @@ export function PostImprovementModal({
     }
   }, [isOpen, originalContent]);
 
+  // Enhanced loading experience - progress bar and status updates
+  useEffect(() => {
+    if (!isImproving) return;
+
+    // Reset values
+    setProgressValue(0);
+    setCurrentStatusIndex(0);
+    setElapsedTime(0);
+    setShowConfirmationModal(false);
+
+    // Progress timer - 0 to 100% over 60 seconds
+    const progressInterval = setInterval(() => {
+      setProgressValue(prev => {
+        const newValue = prev + (100 / 60); // ~1.67% per second
+        return Math.min(newValue, 100);
+      });
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+
+    // Status message timer - change every 12 seconds
+    const statusInterval = setInterval(() => {
+      setCurrentStatusIndex(prev => {
+        const nextIndex = (prev + 1) % statusMessages.length;
+        return nextIndex;
+      });
+    }, 12000);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(statusInterval);
+    };
+  }, [isImproving, statusMessages.length]);
+
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
@@ -222,6 +270,12 @@ export function PostImprovementModal({
       setIsImproving(false);
       setIsAutoSubmitting(false);
       hasStartedImprovement.current = false; // Reset ref for next time
+      
+      // Reset enhanced loading state
+      setProgressValue(0);
+      setCurrentStatusIndex(0);
+      setElapsedTime(0);
+      setShowConfirmationModal(false);
     }
   }, [isOpen, requestAbortController]);
 
@@ -262,13 +316,34 @@ export function PostImprovementModal({
 
         <div className="flex-1 overflow-hidden flex flex-col">
           {isImproving ? (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-4">
+            <div className="flex-1 flex flex-col items-center justify-center space-y-6 p-8">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <div className="text-center">
-                <h3 className="font-semibold mb-2">Analyzing and improving your content...</h3>
+              
+              <div className="text-center space-y-4 w-full max-w-md">
+                <h3 className="font-semibold text-lg">{statusMessages[currentStatusIndex]}</h3>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Progress</span>
+                    <span>{elapsedTime}s / ~60s</span>
+                  </div>
+                  <Progress value={progressValue} className="w-full h-2" />
+                </div>
+                
                 <p className="text-sm text-muted-foreground">
-                  This may take a few seconds while our AI reviews your content for improvements.
+                  Our AI is carefully reviewing your content for improvements.
+                  This usually takes 30-60 seconds.
                 </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowConfirmationModal(true)}
+                  className="text-sm"
+                >
+                  Post without improvements
+                </Button>
               </div>
             </div>
           ) : error ? (
@@ -340,6 +415,65 @@ export function PostImprovementModal({
 
         {/* Footer removed - action buttons are now in DiffViewer */}
       </DialogContent>
+
+      {/* Confirmation Modal for "Post without improvements" */}
+      <Dialog open={showConfirmationModal} onOpenChange={setShowConfirmationModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-orange-500" />
+              Post without AI improvements?
+            </DialogTitle>
+            <DialogDescription>
+              You're about to post your original content without AI suggestions.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="text-center space-y-3">
+              <div className="text-2xl font-bold text-orange-600">
+                {Math.max(0, 60 - elapsedTime)}s
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {60 - elapsedTime > 0 
+                  ? `Only ${60 - elapsedTime} seconds remaining! AI improvements are almost ready.`
+                  : "AI improvements should be ready any moment now."
+                }
+              </p>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>AI Progress</span>
+                  <span>{Math.round(progressValue)}%</span>
+                </div>
+                <Progress value={progressValue} className="w-full h-1" />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowConfirmationModal(false)}
+                className="flex-1"
+              >
+                Wait for AI
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowConfirmationModal(false);
+                  if (requestAbortController) {
+                    requestAbortController.abort();
+                  }
+                  onSubmitOriginal();
+                }}
+                className="flex-1"
+              >
+                Post Original
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 } 
