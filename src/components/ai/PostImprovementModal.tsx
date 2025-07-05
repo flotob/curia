@@ -292,9 +292,9 @@ export function PostImprovementModal({
             </div>
           ) : improvedContent && hasChanges ? (
             <div className="flex-1 overflow-hidden flex flex-col">
-              {/* Improvement Summary */}
+              {/* Improvement Summary - Hidden on mobile */}
               {improvementSummary && (
-                <div className="flex-shrink-0 p-4 bg-muted/30 border-b border-border">
+                <div className="hidden md:block flex-shrink-0 p-4 bg-muted/30 border-b border-border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-600" />

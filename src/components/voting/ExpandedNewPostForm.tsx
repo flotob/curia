@@ -81,6 +81,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   // AI Post Improvement State
   const [showAIModal, setShowAIModal] = useState(false);
   const [pendingPostData, setPendingPostData] = useState<CreatePostMutationPayload | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
 
   // Handle pre-selected lock from lock creation flow
   useEffect(() => {
@@ -305,28 +306,35 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
       lockId 
     };
 
-    // Step 1: Validate the post first
-    const validationResult = await validatePost(postData);
+    // Show loading state immediately
+    setIsValidating(true);
     
-    if (!validationResult.valid) {
-      setError(validationResult.error || 'Post validation failed. Please try again.');
-      return;
-    }
+    try {
+      // Step 1: Validate the post first
+      const validationResult = await validatePost(postData);
+      
+      if (!validationResult.valid) {
+        setError(validationResult.error || 'Post validation failed. Please try again.');
+        return;
+      }
 
-    // Step 2: Check if AI improvement is enabled for this community
-    const communitySettings = communityData?.settings || {};
-    const userRoles = user?.roles || [];
-    const canUseAI = SettingsUtils.canUserUseAIPostImprovement(communitySettings, userRoles);
-    
-    if (canUseAI) {
-      console.log('[ExpandedNewPostForm] AI improvement enabled - showing AI modal');
-      // Store the validated post data and show AI modal
-      setPendingPostData(postData);
-      setShowAIModal(true);
-    } else {
-      console.log('[ExpandedNewPostForm] AI improvement disabled - creating post directly');
-      // Create post directly without AI improvement
-      createPostMutation.mutate(postData);
+      // Step 2: Check if AI improvement is enabled for this community
+      const communitySettings = communityData?.settings || {};
+      const userRoles = user?.roles || [];
+      const canUseAI = SettingsUtils.canUserUseAIPostImprovement(communitySettings, userRoles);
+      
+      if (canUseAI) {
+        console.log('[ExpandedNewPostForm] AI improvement enabled - showing AI modal');
+        // Store the validated post data and show AI modal
+        setPendingPostData(postData);
+        setShowAIModal(true);
+      } else {
+        console.log('[ExpandedNewPostForm] AI improvement disabled - creating post directly');
+        // Create post directly without AI improvement
+        createPostMutation.mutate(postData);
+      }
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -522,15 +530,18 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
             type="submit" 
             disabled={
               createPostMutation.isPending || 
+              isValidating ||
               contentEditor?.isEmpty || 
               (boardVerificationStatus ? !boardVerificationStatus.hasWriteAccess : false)
             } 
             className="text-sm sm:text-base px-3 sm:px-4"
           >
-            {createPostMutation.isPending && <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />} 
+            {(createPostMutation.isPending || isValidating) && <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />} 
             {boardVerificationStatus && !boardVerificationStatus.hasWriteAccess 
               ? "🔒 Verification Required" 
-              : "Submit Post"
+              : isValidating 
+                ? "Validating..." 
+                : "Submit Post"
             }
           </Button>
         </CardFooter>

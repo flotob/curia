@@ -38,14 +38,7 @@ export interface SideBySideDiff {
   };
 }
 
-export interface InlineDiff {
-  lines: DiffLine[];
-  stats: {
-    additions: number;
-    deletions: number;
-    modifications: number;
-  };
-}
+
 
 /**
  * Calculate similarity between two strings (0-1 scale)
@@ -266,60 +259,7 @@ export function generateSideBySideDiff(original: string, improved: string): Side
   };
 }
 
-/**
- * Generate inline diff view with word-level highlighting
- */
-export function generateInlineDiff(original: string, improved: string): InlineDiff {
-  const sideBySideDiff = generateSideBySideDiff(original, improved);
-  const lines: DiffLine[] = [];
-  let lineNumber = 1;
-  
-  // Process left and right lines together to handle modifications
-  for (let i = 0; i < Math.max(sideBySideDiff.leftLines.length, sideBySideDiff.rightLines.length); i++) {
-    const leftLine = sideBySideDiff.leftLines[i];
-    const rightLine = sideBySideDiff.rightLines[i];
-    
-    if (leftLine && rightLine) {
-      if (leftLine.type === 'modified' && rightLine.type === 'modified') {
-        // Show as single modified line
-        lines.push({
-          type: 'modified',
-          content: rightLine.content,
-          lineNumber: lineNumber++,
-          wordDiff: rightLine.wordDiff
-        });
-      } else if (leftLine.type === 'unchanged' && rightLine.type === 'unchanged') {
-        // Unchanged line
-        lines.push({
-          type: 'unchanged',
-          content: leftLine.content,
-          lineNumber: lineNumber++
-        });
-      } else {
-        // Handle separate removed and added lines
-        if (leftLine.type === 'removed' && !leftLine.isEmpty) {
-          lines.push({
-            type: 'removed',
-            content: leftLine.content,
-            lineNumber: lineNumber++
-          });
-        }
-        if (rightLine.type === 'added' && !rightLine.isEmpty) {
-          lines.push({
-            type: 'added',
-            content: rightLine.content,
-            lineNumber: lineNumber++
-          });
-        }
-      }
-    }
-  }
 
-  return { 
-    lines, 
-    stats: sideBySideDiff.stats 
-  };
-}
 
 /**
  * Generate word-level diff for inline display
