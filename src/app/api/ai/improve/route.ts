@@ -38,6 +38,8 @@ IMPORTANT RULES:
 - Preserve markdown formatting if present
 - Keep the same tone (formal/casual/technical)
 - Focus on making existing content clearer and more professional
+- NEVER add titles or headlines to content that doesn't already have them
+- If content already starts with a title/headline, do NOT duplicate it
 
 Return your improvements with specific details about what was changed and why.`;
 
@@ -79,7 +81,7 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
 
     // Prepare the improvement prompt
     const fullPrompt = type === 'post' && title 
-      ? `Improve this ${type} with title "${title}":\n\n${content}`
+      ? `Improve this ${type} content. The title is "${title}" and is handled separately - do NOT include or repeat the title in your improved content. Only improve the body content:\n\n${content}`
       : `Improve this ${type}:\n\n${content}`;
 
     const result = await streamText({

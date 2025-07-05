@@ -45,9 +45,9 @@ export function DiffViewer({
   };
 
   const renderSideBySideView = (diff: SideBySideDiff) => (
-    <div className="grid grid-cols-2 h-full flex-1">
+    <div className="grid grid-cols-2 h-full min-h-0">
       {/* Left: Original */}
-      <div className="border-r border-border flex flex-col h-full">
+      <div className="border-r border-border flex flex-col h-full min-h-0">
         <div className="flex items-center justify-between px-4 py-2 bg-red-50 dark:bg-red-950/20 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
             <Minus className="w-4 h-4 text-red-600" />
@@ -69,7 +69,7 @@ export function DiffViewer({
             )}
           </Button>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto min-h-0">
           <div className="font-mono text-sm">
             {diff.leftLines.map((line, i) => (
               <div
@@ -92,7 +92,7 @@ export function DiffViewer({
       </div>
 
       {/* Right: Improved */}
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center justify-between px-4 py-2 bg-green-50 dark:bg-green-950/20 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
             <Plus className="w-4 h-4 text-green-600" />
@@ -114,7 +114,7 @@ export function DiffViewer({
             )}
           </Button>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto min-h-0">
           <div className="font-mono text-sm">
             {diff.rightLines.map((line, i) => (
               <div
@@ -139,7 +139,7 @@ export function DiffViewer({
   );
 
   const renderInlineView = (diff: InlineDiff) => (
-    <div className="h-full overflow-auto">
+    <div className="h-full overflow-auto min-h-0">
       <div className="font-mono text-sm">
         {diff.lines.map((line, i) => (
           <div
