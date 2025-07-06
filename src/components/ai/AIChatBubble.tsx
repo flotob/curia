@@ -38,7 +38,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   return (
-    <div className={cn("fixed bottom-6 right-6 z-40", className)}>
+    <div className={cn("fixed bottom-0 right-2 md:right-6 z-40 -mr-8 -mb-8", className)}>
       <div className="relative">
         {/* Chat Window - Positioned absolutely */}
         <AnimatePresence>
@@ -50,7 +50,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
               transition={{ duration: 0.2, ease: 'easeOut' }}
               style={{ transformOrigin: 'bottom right' }}
               className={cn(
-                "absolute bottom-[234px] right-[130px] mb-2",
+                "absolute bottom-[180px] right-[100px] mb-2 md:bottom-[234px] md:right-[130px]",
                 "w-80 sm:w-96 md:w-[420px] rounded-lg overflow-hidden",
                 "h-[80vh] max-h-[800px] min-h-[400px]",
                 hasActiveBackground

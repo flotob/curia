@@ -15,7 +15,26 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
   const modelRef = useRef<HTMLDivElement>(null);
   const [isClicked, setIsClicked] = useState(false);
   const [currentModelViewer, setCurrentModelViewer] = useState<HTMLElement | null>(null);
-  const CLIPPY_SIZE_PX = 234; // 180px * 1.3 = 234px
+  
+  // Responsive size: smaller on mobile, larger on desktop
+  const getClippySize = () => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768 ? 180 : 234; // 180px on mobile, 234px on desktop
+    }
+    return 234; // Default size for SSR
+  };
+  
+  const [CLIPPY_SIZE_PX, setClippySize] = useState(getClippySize());
+
+  // Update size on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setClippySize(getClippySize());
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (isOpen || !modelRef.current) return;
