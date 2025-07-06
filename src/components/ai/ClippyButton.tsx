@@ -11,12 +11,11 @@ interface ClippyButtonProps {
   hasNewMessage?: boolean;
 }
 
-
-
 export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: ClippyButtonProps) {
   const modelRef = useRef<HTMLDivElement>(null);
   const [isClicked, setIsClicked] = useState(false);
   const [currentModelViewer, setCurrentModelViewer] = useState<HTMLElement | null>(null);
+  const CLIPPY_SIZE_PX = 234; // 180px * 1.3 = 234px
 
   useEffect(() => {
     if (isOpen || !modelRef.current) return;
@@ -45,11 +44,11 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
 
           modelViewer.setAttribute('environment-image', 'neutral');
           modelViewer.setAttribute('shadow-intensity', '0');
-          modelViewer.style.width = '180px';
-          modelViewer.style.height = '180px';
+          modelViewer.style.width = `${CLIPPY_SIZE_PX}px`;
+          modelViewer.style.height = `${CLIPPY_SIZE_PX}px`;
           modelViewer.style.background = 'transparent';
           modelViewer.style.pointerEvents = 'none';
-          modelViewer.style.transition = 'transform 0.3s ease-out';
+          modelViewer.style.transition = 'transform 0.3s ease-out, filter 0.3s ease-out';
           
           // Clear any existing content and add the model
           if (modelRef.current) {
@@ -62,7 +61,7 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
           console.error('Error creating model-viewer:', error);
           // Fallback to simple 3D icon
           if (modelRef.current) {
-            modelRef.current.innerHTML = '<div style="width: 180px; height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; border-radius: 50%; color: white; font-weight: bold; font-size: 24px; pointer-events: none;">3D</div>';
+            modelRef.current.innerHTML = `<div style="width: ${CLIPPY_SIZE_PX}px; height: ${CLIPPY_SIZE_PX}px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; border-radius: 50%; color: white; font-weight: bold; font-size: 24px; pointer-events: none;">3D</div>`;
           }
         }
       } else if (retryCount < maxRetries) {
@@ -74,7 +73,7 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
         console.error('Model-viewer failed to load after timeout');
         // Fallback to simple 3D icon
         if (modelRef.current) {
-          modelRef.current.innerHTML = '<div style="width: 180px; height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; border-radius: 50%; color: white; font-weight: bold; font-size: 24px; pointer-events: none;">3D</div>';
+          modelRef.current.innerHTML = `<div style="width: ${CLIPPY_SIZE_PX}px; height: ${CLIPPY_SIZE_PX}px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; border-radius: 50%; color: white; font-weight: bold; font-size: 24px; pointer-events: none;">3D</div>`;
         }
       }
     };
@@ -160,22 +159,20 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
   // Always show Clippy, but with different states when chat is open/closed
 
   return (
-    <div className={cn("fixed bottom-6 right-6 z-50", className)}>
+    <div className={cn("relative z-50", className)}>
       <div className="relative">
         {/* Clickable wrapper for the 3D model */}
         <div
           onClick={handleClippyClick}
           className="cursor-pointer flex items-center justify-center relative"
-          style={{ width: '180px', height: '180px' }}
+          style={{ width: `${CLIPPY_SIZE_PX}px`, height: `${CLIPPY_SIZE_PX}px` }}
         >
           {/* 3D Clippy Model Container */}
           <div 
             ref={modelRef}
             className="flex items-center justify-center"
-            style={{ width: '180px', height: '180px' }}
+            style={{ width: `${CLIPPY_SIZE_PX}px`, height: `${CLIPPY_SIZE_PX}px` }}
           />
-
-
 
           {/* New message indicator */}
           {hasNewMessage && !isOpen && (
@@ -185,12 +182,8 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
               className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full z-10"
             />
           )}
-
-
         </div>
-
-
-              </div>
+      </div>
     </div>
   );
 } 

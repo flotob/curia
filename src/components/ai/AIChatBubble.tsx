@@ -38,44 +38,52 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   return (
-    <>
-      {/* Chat Window - Positioned independently */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className={cn(
-              "fixed bottom-20 right-6 z-40",
-              "w-80 sm:w-96 md:w-[420px] rounded-lg overflow-hidden",
-              "h-[80vh] max-h-[800px] min-h-[400px]",
-              hasActiveBackground 
-                ? 'backdrop-blur-md bg-white/20 border-white/30 shadow-xl dark:bg-black/20 dark:border-black/30'
-                : 'bg-card border border-border shadow-2xl'
-            )}
-          >
-            {/* Chat Interface - no duplicate header */}
-            <AIChatInterface
-              context={context ? {
-                boardId: context.boardId?.toString(),
-                postId: context.postId?.toString()
-              } : undefined}
-              className="h-full"
-              onClose={toggleChat}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className={cn("fixed bottom-6 right-6 z-40", className)}>
+      <div className="relative">
+        {/* Chat Window - Positioned absolutely */}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              style={{ transformOrigin: 'bottom right' }}
+              className={cn(
+                "absolute bottom-[234px] right-[130px] mb-2",
+                "w-80 sm:w-96 md:w-[420px] rounded-lg overflow-hidden",
+                "h-[80vh] max-h-[800px] min-h-[400px]",
+                hasActiveBackground
+                  ? 'backdrop-blur-md bg-white/20 border-white/30 shadow-xl dark:bg-black/20 dark:border-black/30'
+                  : 'bg-card border border-border shadow-2xl'
+              )}
+            >
+              {/* Chat Interface - no duplicate header */}
+              <AIChatInterface
+                context={
+                  context
+                    ? {
+                        boardId: context.boardId?.toString(),
+                        postId: context.postId?.toString(),
+                      }
+                    : undefined
+                }
+                className="h-full"
+                onClose={toggleChat}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* 3D Clippy Button - Positioned independently, always in same spot */}
-      <ClippyButton 
-        isOpen={isOpen}
-        onClick={toggleChat}
-        hasNewMessage={hasNewMessage}
-        className={className}
-      />
-    </>
+        {/* 3D Clippy Button - Positioned absolutely */}
+        <div className="absolute bottom-0 right-0">
+          <ClippyButton
+            isOpen={isOpen}
+            onClick={toggleChat}
+            hasNewMessage={hasNewMessage}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
