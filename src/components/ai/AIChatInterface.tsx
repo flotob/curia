@@ -3,8 +3,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useChat } from '@ai-sdk/react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
 import { FunctionCardRenderer, isValidFunctionCardType } from './utils/FunctionCardRenderer';
 
@@ -115,6 +117,7 @@ function MarkdownContent({ content }: { content: string }) {
 export function AIChatInterface({ context, className, onClose }: AIChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const { user } = useAuth();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -182,9 +185,12 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-background/50">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
-            <Bot className="w-3.5 h-3.5 text-primary-foreground" />
-          </div>
+          <Avatar className="w-7 h-7">
+            <AvatarImage src="/clippy-icon.webp" alt="Clippy Assistant" />
+            <AvatarFallback>
+              <Bot className="w-3.5 h-3.5" />
+            </AvatarFallback>
+          </Avatar>
           <div>
             <h3 className="font-semibold text-sm">Community Assistant</h3>
             <p className="text-xs text-muted-foreground">
@@ -212,9 +218,12 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
           <div className="flex flex-col h-full">
             {/* Welcome Section - Compact */}
             <div className="text-center py-6">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center mx-auto mb-3">
-                <Bot className="w-6 h-6 text-primary-foreground" />
-              </div>
+              <Avatar className="w-12 h-12 mx-auto mb-3">
+                <AvatarImage src="/clippy-icon.webp" alt="Clippy Assistant" />
+                <AvatarFallback>
+                  <Bot className="w-6 h-6" />
+                </AvatarFallback>
+              </Avatar>
               <h4 className="font-semibold mb-1">Community Assistant</h4>
               <p className="text-sm text-muted-foreground">
                 Navigate, find discussions, and discover content
@@ -251,9 +260,12 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
                 }`}
               >
                 {message.role === 'assistant' && (
-                  <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-1">
-                    <Bot className="w-3.5 h-3.5 text-primary-foreground" />
-                  </div>
+                  <Avatar className="w-7 h-7 flex-shrink-0 mt-1">
+                    <AvatarImage src="/clippy-icon.webp" alt="Clippy Assistant" />
+                    <AvatarFallback>
+                      <Bot className="w-3.5 h-3.5" />
+                    </AvatarFallback>
+                  </Avatar>
                 )}
                 
                 <div
@@ -293,9 +305,12 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
                 </div>
 
                 {message.role === 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-1">
-                    <User className="w-3.5 h-3.5 text-primary-foreground" />
-                  </div>
+                  <Avatar className="w-7 h-7 flex-shrink-0 mt-1">
+                    <AvatarImage src={user?.picture || undefined} alt={user?.name || 'User'} />
+                    <AvatarFallback>
+                      <User className="w-3.5 h-3.5" />
+                    </AvatarFallback>
+                  </Avatar>
                 )}
               </div>
             ))}
