@@ -9,6 +9,8 @@ import ClippySpeechBubble from './ClippySpeechBubble';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCardStyling } from '@/hooks/useCardStyling';
 import { authFetch } from '@/utils/authFetch';
+import { useRouter } from 'next/navigation';
+import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
 
 interface AIChatBubbleProps {
   className?: string;
@@ -26,6 +28,17 @@ interface WelcomeResponse {
   hasCallToAction: boolean;
 }
 
+// ActionButton interface to match ClippySpeechBubble
+interface ActionButton {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  message?: string;
+  action?: 'chat' | 'navigate' | 'modal';
+  navigationPath?: string;
+  adminOnly?: boolean;
+}
+
 export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
@@ -36,6 +49,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [welcomeLoaded, setWelcomeLoaded] = useState(false);
   const chatInterfaceRef = useRef<AIChatInterfaceRef | null>(null);
   const { isAuthenticated, user, token } = useAuth();
+  const router = useRouter();
+  const { openSearch } = useGlobalSearch();
   
   // Get card styling for background-aware gradients (same as PostCard)
   const { hasActiveBackground } = useCardStyling();
@@ -128,18 +143,47 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   // Handle action button clicks from speech bubble
-  const handleActionClick = (message: string) => {
+  const handleActionClick = (button: ActionButton) => {
     // Hide speech bubble
     setSpeechBubbleVisible(false);
     
-    // Send message to chat interface
-    if (chatInterfaceRef.current) {
-      chatInterfaceRef.current.sendMessage(message);
+    switch (button.action) {
+      case 'chat':
+        // Send message to chat interface and open modal
+        if (button.message && chatInterfaceRef.current) {
+          chatInterfaceRef.current.sendMessage(button.message);
+        }
+        setIsOpen(true);
+        setHasNewMessage(false);
+        break;
+        
+      case 'navigate':
+        // Navigate to the specified path
+        if (button.navigationPath) {
+          router.push(button.navigationPath);
+        }
+        break;
+        
+      case 'modal':
+        // Open search modal with new post mode
+        if (button.id === 'create-post') {
+          openSearch({
+            initialQuery: 'Share your thoughts',
+            autoExpandForm: true,
+            initialTitle: 'Share your thoughts'
+          });
+        }
+        break;
+        
+      default:
+        // Fallback to chat behavior for backward compatibility
+        if (button.message && chatInterfaceRef.current) {
+          chatInterfaceRef.current.sendMessage(button.message);
+        }
+        setIsOpen(true);
+        setHasNewMessage(false);
+        break;
     }
-    
-    // Open chat modal
-    setIsOpen(true);
-    setHasNewMessage(false);
   };
 
   return (

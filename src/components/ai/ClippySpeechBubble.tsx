@@ -12,7 +12,9 @@ interface ActionButton {
   id: string;
   label: string;
   icon: React.ReactNode;
-  message: string; // The message to send to chat when clicked
+  message?: string; // The message to send to chat when clicked (optional for navigation buttons)
+  action?: 'chat' | 'navigate' | 'modal'; // Type of action to perform
+  navigationPath?: string; // Path to navigate to for navigation actions
   adminOnly?: boolean;
 }
 
@@ -20,7 +22,7 @@ interface ClippySpeechBubbleProps {
   message: string;
   isVisible: boolean;
   onClose: () => void;
-  onActionClick: (message: string) => void; // Callback to send message to chat and open modal
+  onActionClick: (button: ActionButton) => void; // Callback to handle different action types
   tone?: 'welcoming' | 'helpful' | 'encouraging' | 'admin-focused';
   duration?: number; // Auto-hide duration in ms
 }
@@ -32,19 +34,21 @@ const getActionButtons = (isAdmin: boolean): ActionButton[] => {
       id: 'help',
       label: 'Get Help',
       icon: <HelpCircle className="w-4 h-4" />,
-      message: 'I need help navigating the platform. Can you guide me?'
+      message: 'I need help navigating the platform. Can you guide me?',
+      action: 'chat'
     },
     {
       id: 'create-post',
       label: 'Create Post',
       icon: <Plus className="w-4 h-4" />,
-      message: 'I want to create a new post. Can you help me get started?'
+      action: 'modal'
     },
     {
       id: 'chat',
       label: 'Chat',
       icon: <MessageSquare className="w-4 h-4" />,
-      message: 'Hi! I\'d like to chat and learn more about what you can help me with.'
+      message: 'Hi! I\'d like to chat and learn more about what you can help me with.',
+      action: 'chat'
     }
   ];
 
@@ -53,21 +57,24 @@ const getActionButtons = (isAdmin: boolean): ActionButton[] => {
       id: 'analytics',
       label: 'View Analytics',
       icon: <BarChart3 className="w-4 h-4" />,
-      message: 'Show me community analytics and engagement metrics.',
+      action: 'navigate',
+      navigationPath: '/admin-dashboard',
       adminOnly: true
     },
     {
       id: 'manage-users',
       label: 'Manage Users',
       icon: <Users className="w-4 h-4" />,
-      message: 'I need help managing community members and permissions.',
+      action: 'navigate',
+      navigationPath: '/admin-dashboard',
       adminOnly: true
     },
     {
       id: 'settings',
       label: 'Settings',
       icon: <Settings className="w-4 h-4" />,
-      message: 'Help me configure community settings and preferences.',
+      action: 'navigate',
+      navigationPath: '/community-settings',
       adminOnly: true
     }
   ];
@@ -219,7 +226,7 @@ export default function ClippySpeechBubble({
                         key={button.id}
                         variant="outline"
                         size="sm"
-                        onClick={() => onActionClick(button.message)}
+                        onClick={() => onActionClick(button)}
                         className="h-8 px-3 text-xs bg-white/80 hover:bg-white dark:bg-gray-800/80 dark:hover:bg-gray-800 border-current/20 hover:border-current/40 transition-all duration-200"
                       >
                         {button.icon}

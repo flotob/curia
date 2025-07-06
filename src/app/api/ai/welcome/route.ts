@@ -12,11 +12,13 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     const userId = request.userContext.userId;
     const communityId = request.userContext.communityId;
     const isAdmin = request.userContext.isAdmin;
+    const userName = request.user?.name || 'Unknown';
     
     console.log('Welcome API - User context:', { 
       userId, 
       communityId, 
       isAdmin,
+      userName,
       hasUserContext: !!request.userContext
     });
 
@@ -31,6 +33,9 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     
     // Get user stats and community info
     try {
+      // User name comes from JWT, add it to context
+      contextInfo += `User name: ${userName}. `;
+      
       const userStatsResult = await query(
         `SELECT 
           (SELECT COUNT(*) FROM posts WHERE author_user_id = $1) as post_count,
@@ -85,9 +90,9 @@ Time: ${timeOfDay || 'unknown'}
 User role: ${isAdmin ? 'Admin' : 'Member'}
 First visit: ${isFirstVisit ? 'Yes' : 'No'}
 
-Make the message warm, contextual, and helpful. For admins, acknowledge their role. For active users, reference their contributions. Keep it concise and engaging.`;
+Make the message warm, contextual, and helpful. For admins, acknowledge their role. For active users, reference their contributions. Keep it concise and engaging. IMPORTANT: Always use the user's actual name (${userName}) in your response.`;
 
-    const userPrompt = 'Generate a personalized welcome message for this user.';
+    const userPrompt = `Generate a personalized welcome message for ${userName}.`;
 
     console.log('Welcome API - Calling OpenAI with generateText');
 
