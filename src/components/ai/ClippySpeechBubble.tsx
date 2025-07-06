@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { X, MessageSquare, Settings, Plus, HelpCircle, BarChart3, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from 'next-themes';
+import { preserveCgParams } from '@/utils/urlBuilder';
 
 interface ActionButton {
   id: string;
@@ -58,7 +59,7 @@ const getActionButtons = (isAdmin: boolean): ActionButton[] => {
       label: 'View Analytics',
       icon: <BarChart3 className="w-4 h-4" />,
       action: 'navigate',
-      navigationPath: '/admin-dashboard',
+      navigationPath: preserveCgParams('/admin-dashboard'),
       adminOnly: true
     },
     {
@@ -66,7 +67,7 @@ const getActionButtons = (isAdmin: boolean): ActionButton[] => {
       label: 'Manage Users',
       icon: <Users className="w-4 h-4" />,
       action: 'navigate',
-      navigationPath: '/admin-dashboard',
+      navigationPath: preserveCgParams('/admin-dashboard'),
       adminOnly: true
     },
     {
@@ -74,7 +75,7 @@ const getActionButtons = (isAdmin: boolean): ActionButton[] => {
       label: 'Settings',
       icon: <Settings className="w-4 h-4" />,
       action: 'navigate',
-      navigationPath: '/community-settings',
+      navigationPath: preserveCgParams('/community-settings'),
       adminOnly: true
     }
   ];
