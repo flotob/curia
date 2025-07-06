@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +15,8 @@ interface ClippyButtonProps {
 
 export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: ClippyButtonProps) {
   const modelRef = useRef<HTMLDivElement>(null);
+  const [isClicked, setIsClicked] = useState(false);
+  const [currentModelViewer, setCurrentModelViewer] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen || !modelRef.current) return;
@@ -40,15 +42,20 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
           modelViewer.setAttribute('disable-pan', '');
           modelViewer.setAttribute('disable-tap', '');
           modelViewer.setAttribute('loading', 'eager');
+
+          modelViewer.setAttribute('environment-image', 'neutral');
+          modelViewer.setAttribute('shadow-intensity', '0');
           modelViewer.style.width = '180px';
           modelViewer.style.height = '180px';
           modelViewer.style.background = 'transparent';
           modelViewer.style.pointerEvents = 'none';
+          modelViewer.style.transition = 'transform 0.3s ease-out';
           
           // Clear any existing content and add the model
           if (modelRef.current) {
             modelRef.current.innerHTML = '';
             modelRef.current.appendChild(modelViewer);
+            setCurrentModelViewer(modelViewer);
             console.log('Model-viewer element added successfully');
           }
         } catch (error) {
@@ -75,42 +82,89 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
     createModelViewer();
   }, [isOpen]);
 
-  // Show simple X when chat is open, 3D Clippy when closed
-  if (isOpen) {
-    return (
-      <div className={cn("fixed bottom-6 right-6 z-50", className)}>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <button
-            onClick={onClick}
-            className={cn(
-              "w-14 h-14 rounded-full shadow-lg",
-              "bg-primary hover:bg-primary/90",
-              "text-primary-foreground border-0",
-              "flex items-center justify-center"
-            )}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
+  // Smooth mouse following with realistic head movement
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!currentModelViewer || isClicked || isOpen) return;
+      
+      const buttonRect = modelRef.current?.getBoundingClientRect();
+      if (!buttonRect) return;
+      
+      const centerX = buttonRect.left + buttonRect.width / 2;
+      const centerY = buttonRect.top + buttonRect.height / 2;
+      
+      const mouseX = e.clientX - centerX;
+      const mouseY = e.clientY - centerY;
+      
+      // Calculate distance from center for more realistic movement
+      const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+      const maxDistance = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight) / 4;
+      
+      // Normalize to get realistic rotation ranges
+      const normalizedX = Math.max(-1, Math.min(1, mouseX / (buttonRect.width * 2)));
+      const normalizedY = Math.max(-1, Math.min(1, mouseY / (buttonRect.height * 2)));
+      
+      // Realistic head rotation: horizontal follows more than vertical
+      const horizontalRotation = -normalizedX * 25; // -25 to +25 degrees (flipped to look toward mouse)
+      const verticalAdjustment = -normalizedY * 10; // -10 to +10 degrees (flipped to look toward mouse)
+      
+      // Distance affects how much Clippy "leans" toward the cursor
+      const distanceEffect = Math.min(distance / maxDistance, 0.5); // Max 50% effect
+      const cameraDistance = 105 - (distanceEffect * 15); // Gets closer when mouse is closer
+      
+      const orbit = `${horizontalRotation}deg ${75 + verticalAdjustment}deg ${cameraDistance}%`;
+      currentModelViewer.setAttribute('camera-orbit', orbit);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, [currentModelViewer, isClicked, isOpen]);
+
+  // Handle state changes: brightness and camera position
+  useEffect(() => {
+    if (!currentModelViewer) return;
+
+    if (isOpen) {
+      // Chat is open: face user directly and brighten
+      currentModelViewer.style.filter = 'brightness(1.1) saturate(1.2)';
+      currentModelViewer.setAttribute('camera-orbit', '0deg 70deg 100%');
+    } else {
+      // Chat is closed: normal brightness, return to mouse following
+      currentModelViewer.style.filter = 'brightness(1) saturate(1)';
+      currentModelViewer.setAttribute('camera-orbit', '0deg 75deg 105%');
+    }
+  }, [isOpen, currentModelViewer]);
+
+  // Click reaction effect
+  const handleClippyClick = () => {
+    setIsClicked(true);
+    
+    if (currentModelViewer) {
+      // Brief zoom and face-forward effect
+      currentModelViewer.style.transform = 'scale(1.1)';
+      currentModelViewer.setAttribute('camera-orbit', '0deg 65deg 95%'); // Face user directly
+      
+      setTimeout(() => {
+        currentModelViewer.style.transform = 'scale(1)';
+        // Return to mouse following or face user if chat opens
+        if (!isOpen) {
+          currentModelViewer.setAttribute('camera-orbit', '0deg 75deg 105%');
+        }
+        setIsClicked(false);
+      }, 150);
+    }
+    
+    onClick();
+  };
+
+  // Always show Clippy, but with different states when chat is open/closed
 
   return (
     <div className={cn("fixed bottom-6 right-6 z-50", className)}>
-      <motion.div
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="relative"
-      >
+      <div className="relative">
         {/* Clickable wrapper for the 3D model */}
         <div
-          onClick={onClick}
+          onClick={handleClippyClick}
           className="cursor-pointer flex items-center justify-center relative"
           style={{ width: '180px', height: '180px' }}
         >
@@ -121,8 +175,10 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
             style={{ width: '180px', height: '180px' }}
           />
 
+
+
           {/* New message indicator */}
-          {hasNewMessage && (
+          {hasNewMessage && !isOpen && (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -130,27 +186,11 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
             />
           )}
 
-          {/* Subtle shadow for grounding */}
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-32 h-3 bg-black/10 rounded-full blur-sm -z-10" />
+
         </div>
 
-        {/* Sparkle animation for attention (similar to original) */}
-        <motion.div
-          className="absolute inset-0 rounded-full pointer-events-none"
-          animate={{
-            boxShadow: [
-              '0 0 0 0 rgba(59, 130, 246, 0.7)',
-              '0 0 0 20px rgba(59, 130, 246, 0)',
-              '0 0 0 0 rgba(59, 130, 246, 0)'
-            ]
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            repeatDelay: 4
-          }}
-        />
-      </motion.div>
+
+              </div>
     </div>
   );
 } 
