@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { AIChatInterface } from './AIChatInterface';
+import { AIChatInterface, AIChatInterfaceRef } from './AIChatInterface';
 import { ClippyButton } from './ClippyButton';
+import ClippySpeechBubble from './ClippySpeechBubble';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCardStyling } from '@/hooks/useCardStyling';
+import { authFetch } from '@/utils/authFetch';
 
 interface AIChatBubbleProps {
   className?: string;
@@ -17,13 +19,99 @@ interface AIChatBubbleProps {
   };
 }
 
+interface WelcomeResponse {
+  message: string;
+  tone: 'welcoming' | 'helpful' | 'encouraging' | 'admin-focused';
+  duration: number;
+  hasCallToAction: boolean;
+}
+
 export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+  const [speechBubbleVisible, setSpeechBubbleVisible] = useState(false);
+  const [speechMessage, setSpeechMessage] = useState('');
+  const [speechTone, setSpeechTone] = useState<'welcoming' | 'helpful' | 'encouraging' | 'admin-focused'>('welcoming');
+  const [welcomeLoading, setWelcomeLoading] = useState(false);
+  const [welcomeLoaded, setWelcomeLoaded] = useState(false);
+  const chatInterfaceRef = useRef<AIChatInterfaceRef | null>(null);
+  const { isAuthenticated, user, token } = useAuth();
   
   // Get card styling for background-aware gradients (same as PostCard)
   const { hasActiveBackground } = useCardStyling();
+
+  const getTimeOfDay = (): 'morning' | 'afternoon' | 'evening' => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'morning';
+    if (hour < 18) return 'afternoon';
+    return 'evening';
+  };
+
+  const showFallbackWelcome = () => {
+    const isAdmin = user?.isAdmin || false;
+    const welcomeMessage = isAdmin 
+      ? "Welcome back! Ready to check your community analytics or manage settings?"
+      : "Hi there! I can help you explore discussions, create posts, or answer questions.";
+    const tone = isAdmin ? 'admin-focused' : 'welcoming';
+    
+    setSpeechMessage(welcomeMessage);
+    setSpeechTone(tone);
+    setWelcomeLoaded(true);
+    
+    setTimeout(() => {
+      setSpeechBubbleVisible(true);
+    }, 1000);
+  };
+
+  const loadWelcomeMessage = useCallback(async () => {
+    setWelcomeLoading(true);
+    
+    try {
+      const response = await authFetch('/api/ai/welcome', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          context: {
+            isFirstVisit: true,
+            timeOfDay: getTimeOfDay(),
+            boardId: context?.boardId?.toString()
+          }
+        }),
+        token
+      });
+
+      if (response.ok) {
+        const data: WelcomeResponse = await response.json();
+        setSpeechMessage(data.message);
+        setSpeechTone(data.tone);
+        setWelcomeLoaded(true);
+        
+        // Show speech bubble after a brief delay for smooth UX
+        setTimeout(() => {
+          setSpeechBubbleVisible(true);
+        }, 1000);
+      } else {
+        console.error('Failed to load welcome message:', response.status);
+        // Show fallback message
+        showFallbackWelcome();
+      }
+    } catch (error) {
+      console.error('Error loading welcome message:', error);
+      // Show fallback message
+      showFallbackWelcome();
+    } finally {
+      setWelcomeLoading(false);
+    }
+  }, [token, context?.boardId]);
+
+  // Auto-load welcome message on component mount
+  useEffect(() => {
+    if (isAuthenticated && user && token && !welcomeLoaded && !welcomeLoading) {
+      loadWelcomeMessage();
+    }
+  }, [isAuthenticated, user, token, welcomeLoaded, welcomeLoading, loadWelcomeMessage]);
 
   // Only show for authenticated users
   if (!isAuthenticated || !user) {
@@ -34,12 +122,38 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     setIsOpen(!isOpen);
     if (!isOpen) {
       setHasNewMessage(false);
+      // Hide speech bubble when chat opens
+      setSpeechBubbleVisible(false);
     }
+  };
+
+  // Handle action button clicks from speech bubble
+  const handleActionClick = (message: string) => {
+    // Hide speech bubble
+    setSpeechBubbleVisible(false);
+    
+    // Send message to chat interface
+    if (chatInterfaceRef.current) {
+      chatInterfaceRef.current.sendMessage(message);
+    }
+    
+    // Open chat modal
+    setIsOpen(true);
+    setHasNewMessage(false);
   };
 
   return (
     <div className={cn("fixed bottom-0 right-2 md:right-6 z-40 -mr-8 -mb-8", className)}>
       <div className="relative">
+        {/* Speech Bubble */}
+        <ClippySpeechBubble
+          message={speechMessage}
+          isVisible={speechBubbleVisible}
+          onClose={() => setSpeechBubbleVisible(false)}
+          onActionClick={handleActionClick}
+          tone={speechTone}
+        />
+
         {/* Chat Window - Positioned absolutely */}
         <AnimatePresence>
           {isOpen && (
@@ -60,6 +174,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
             >
               {/* Chat Interface - no duplicate header */}
               <AIChatInterface
+                ref={chatInterfaceRef}
                 context={
                   context
                     ? {
@@ -79,7 +194,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
         <div className="absolute bottom-0 right-0">
           <ClippyButton
             isOpen={isOpen}
-            onClick={toggleChat}
+            onClick={toggleChat} // Always toggle chat, no special speech bubble logic
             hasNewMessage={hasNewMessage}
           />
         </div>
