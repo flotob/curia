@@ -80,58 +80,6 @@ export const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest
       model: openai('gpt-4o-mini'),
       messages,
       tools: {
-        analyzeContent: {
-          description: 'Analyze content for clarity, tone, structure, and engagement to provide specific feedback',
-          parameters: z.object({
-            content: z.string().describe('The content to analyze'),
-            analysisType: z.enum(['clarity', 'tone', 'structure', 'engagement', 'all']).describe('Type of analysis to perform')
-          }),
-          execute: async (params: { content: string; analysisType: string }) => {
-            // Simulated analysis - in production this could use additional AI calls or analysis libraries
-            const analysisResults = {
-              type: params.analysisType,
-              content: params.content,
-              clarity_score: Math.floor(Math.random() * 40) + 60, // 60-100
-              suggestions: [
-                'Consider breaking long sentences into shorter ones',
-                'Add more specific examples to support your points',
-                'Use stronger action verbs to increase engagement'
-              ],
-              tone: 'professional',
-              readability: 'good'
-            };
-            
-            return {
-              success: true,
-              messageForAI: `Content analysis complete. Clarity score: ${analysisResults.clarity_score}/100. Key suggestions: ${analysisResults.suggestions.join(', ')}.`,
-              analysisData: analysisResults
-            };
-          }
-        },
-        generateImprovements: {
-          description: 'Generate specific improvement suggestions for content based on analysis',
-          parameters: z.object({
-            originalContent: z.string().describe('The original content to improve'),
-            improvementType: z.enum(['grammar', 'style', 'engagement', 'structure']).describe('Type of improvements to generate')
-          }),
-          execute: async (params: { originalContent: string; improvementType: string }) => {
-            // Simulated improvement generation
-            const improvements = [
-              {
-                type: params.improvementType,
-                original: params.originalContent.substring(0, 50) + '...',
-                improved: 'Enhanced version with better ' + params.improvementType,
-                reason: `Improved ${params.improvementType} for better readability`
-              }
-            ];
-            
-            return {
-              success: true,
-              messageForAI: `Generated ${improvements.length} improvement suggestions focused on ${params.improvementType}.`,
-              improvements
-            };
-          }
-        },
         searchCommunityKnowledge: {
           description: 'Search through community posts and discussions for relevant information',
           parameters: z.object({
@@ -171,35 +119,6 @@ export const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest
                 errorForAI: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
               };
             }
-          }
-        },
-        suggestContentStructure: {
-          description: 'Suggest better organization and structure for content',
-          parameters: z.object({
-            content: z.string().describe('The content to restructure'),
-            contentType: z.enum(['post', 'comment', 'discussion']).describe('Type of content being structured')
-          }),
-          execute: async (params: { content: string; contentType: string }) => {
-            // Simulated structure suggestions
-            const suggestions = {
-              currentStructure: 'Single paragraph format',
-              suggestedStructure: [
-                'Introduction with clear thesis',
-                'Main points with supporting evidence',
-                'Conclusion with call to action'
-              ],
-              improvements: [
-                'Add clear headings to separate sections',
-                'Use bullet points for key information',
-                'Include a brief summary at the end'
-              ]
-            };
-            
-            return {
-              success: true,
-              messageForAI: `Generated structure suggestions for ${params.contentType}. Recommended organizing into ${suggestions.suggestedStructure.length} main sections.`,
-              structureSuggestions: suggestions
-            };
           }
         }
       },
