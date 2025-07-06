@@ -275,7 +275,7 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
                       : 'bg-muted text-foreground'
                   }`}
                 >
-                  <div className={`prose prose-sm max-w-none text-sm break-words ${
+                  <div className={`prose prose-sm max-w-none text-base break-words ${
                     message.role === 'user' 
                       ? 'prose-invert text-white' 
                       : 'dark:prose-invert text-foreground'
@@ -327,7 +327,7 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask about community, posts, or navigation..."
-            className="flex-1 min-h-[50px] max-h-[100px] resize-none text-sm leading-5"
+            className="flex-1 min-h-[50px] max-h-[100px] resize-none text-base"
             disabled={isLoading}
           />
           <Button

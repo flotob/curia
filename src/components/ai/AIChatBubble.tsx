@@ -50,8 +50,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
               transition={{ duration: 0.2, ease: 'easeOut' }}
               style={{ transformOrigin: 'bottom right' }}
               className={cn(
-                "absolute bottom-[180px] right-2 mb-2 md:bottom-[234px] md:right-[130px]",
-                "w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] md:w-80 lg:w-96 xl:w-[420px] rounded-lg overflow-hidden",
+                "absolute bottom-[170px] right-12 mb-2 md:bottom-[234px] md:right-[130px]",
+                "w-[90vw] sm:w-[85vw] md:w-80 lg:w-96 xl:w-[420px] rounded-lg overflow-hidden",
                 "h-[80vh] max-h-[800px] min-h-[400px]",
                 hasActiveBackground
                   ? 'backdrop-blur-md bg-white/20 border-white/30 shadow-xl dark:bg-black/20 dark:border-black/30'
