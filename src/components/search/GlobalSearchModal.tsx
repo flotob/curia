@@ -25,7 +25,15 @@ interface SearchResult extends ApiPost {
 }
 
 export function GlobalSearchModal() {
-  const { isSearchOpen, closeSearch, searchQuery: globalSearchQuery, setSearchQuery: setGlobalSearchQuery } = useGlobalSearch();
+  const { 
+    isSearchOpen, 
+    closeSearch, 
+    searchQuery: globalSearchQuery, 
+    setSearchQuery: setGlobalSearchQuery,
+    shouldAutoExpand,
+    autoExpandTitle,
+    clearAutoExpand
+  } = useGlobalSearch();
   const { token, isAuthenticated, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,6 +98,15 @@ export function GlobalSearchModal() {
       setSearchQuery(globalSearchQuery);
     }
   }, [isSearchOpen, globalSearchQuery, currentInput]);
+
+  // Handle auto-expand form when modal opens
+  useEffect(() => {
+    if (isSearchOpen && shouldAutoExpand) {
+      setShowInlineForm(true);
+      // Clear the auto-expand state after using it
+      clearAutoExpand();
+    }
+  }, [isSearchOpen, shouldAutoExpand, clearAutoExpand]);
 
   // Debounced search query update
   useEffect(() => {
@@ -541,7 +558,7 @@ export function GlobalSearchModal() {
                           handleClose();
                         }}
                         boardId={currentSearchScope}
-                        initialTitle={(currentInput || searchQuery).trim()}
+                        initialTitle={autoExpandTitle || (currentInput || searchQuery).trim()}
                         inline={true}
                       />
                     </div>
@@ -592,7 +609,7 @@ export function GlobalSearchModal() {
                             handleClose();
                           }}
                           boardId={currentSearchScope}
-                          initialTitle={(currentInput || searchQuery).trim()}
+                          initialTitle={autoExpandTitle || (currentInput || searchQuery).trim()}
                           inline={true}
                         />
                       </div>

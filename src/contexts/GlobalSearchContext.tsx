@@ -2,12 +2,22 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
+interface GlobalSearchOptions {
+  initialQuery?: string;
+  autoExpandForm?: boolean;
+  initialTitle?: string;
+}
+
 interface GlobalSearchContextType {
   isSearchOpen: boolean;
-  openSearch: (initialQuery?: string) => void;
+  openSearch: (options?: string | GlobalSearchOptions) => void;
   closeSearch: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  // Internal state for form expansion
+  shouldAutoExpand: boolean;
+  autoExpandTitle: string;
+  clearAutoExpand: () => void;
 }
 
 const GlobalSearchContext = createContext<GlobalSearchContextType | undefined>(undefined);
@@ -15,10 +25,33 @@ const GlobalSearchContext = createContext<GlobalSearchContextType | undefined>(u
 export function GlobalSearchProvider({ children }: { children: React.ReactNode }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [shouldAutoExpand, setShouldAutoExpand] = useState(false);
+  const [autoExpandTitle, setAutoExpandTitle] = useState('');
 
-  const openSearch = useCallback((initialQuery: string = '') => {
-    setSearchQuery(initialQuery);
+  const openSearch = useCallback((options?: string | GlobalSearchOptions) => {
+    // Handle backward compatibility - if string passed, treat as initialQuery
+    if (typeof options === 'string') {
+      setSearchQuery(options);
+      setShouldAutoExpand(false);
+      setAutoExpandTitle('');
+    } else if (options) {
+      // Handle new options object
+      setSearchQuery(options.initialQuery || '');
+      setShouldAutoExpand(options.autoExpandForm || false);
+      setAutoExpandTitle(options.initialTitle || options.initialQuery || '');
+    } else {
+      // No options provided
+      setSearchQuery('');
+      setShouldAutoExpand(false);
+      setAutoExpandTitle('');
+    }
+    
     setIsSearchOpen(true);
+  }, []);
+
+  const clearAutoExpand = useCallback(() => {
+    setShouldAutoExpand(false);
+    setAutoExpandTitle('');
   }, []);
 
   const closeSearch = useCallback(() => {
@@ -62,6 +95,9 @@ export function GlobalSearchProvider({ children }: { children: React.ReactNode }
     closeSearch,
     searchQuery,
     setSearchQuery,
+    shouldAutoExpand,
+    autoExpandTitle,
+    clearAutoExpand,
   };
 
   return (

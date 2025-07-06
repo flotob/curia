@@ -39,7 +39,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   return (
-    <div className={cn("fixed bottom-6 right-6 z-50", className)}>
+    <>
+      {/* Chat Window - Positioned independently */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -48,97 +49,77 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              "mb-4 w-96 h-[600px] rounded-lg overflow-hidden",
+              "fixed bottom-20 right-6 z-40",
+              "w-80 sm:w-96 md:w-[420px] rounded-lg overflow-hidden",
+              "h-[80vh] max-h-[800px] min-h-[400px]",
               hasActiveBackground 
                 ? 'backdrop-blur-md bg-white/20 border-white/30 shadow-xl dark:bg-black/20 dark:border-black/30'
                 : 'bg-card border border-border shadow-2xl'
             )}
           >
-            {/* Chat Header */}
-            <div className="flex items-center justify-between p-4 bg-primary text-primary-foreground">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                  <Sparkles size={16} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Community Assistant</h3>
-                  <p className="text-xs opacity-90">
-                    {context?.type === 'post' ? 'Help with navigation' :
-                     context?.type === 'comment' ? 'Find discussions' :
-                     'Community help'}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleChat}
-                className="text-white hover:bg-white/20 p-1 h-auto"
-              >
-                <X size={16} />
-              </Button>
-            </div>
-
-            {/* Chat Interface */}
+            {/* Chat Interface - no duplicate header */}
             <AIChatInterface
               context={context ? {
                 boardId: context.boardId?.toString(),
                 postId: context.postId?.toString()
               } : undefined}
-              className="h-[calc(600px-80px)]"
+              className="h-full"
+              onClose={toggleChat}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Floating Button */}
-      <motion.div
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Button
-          onClick={toggleChat}
-          className={cn(
-            "w-14 h-14 rounded-full shadow-lg relative",
-            "bg-primary hover:bg-primary/90",
-            "text-primary-foreground border-0"
-          )}
+      {/* Floating Button - Positioned independently, always in same spot */}
+      <div className={cn("fixed bottom-6 right-6 z-50", className)}>
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          {isOpen ? (
-            <X size={20} />
-          ) : (
-            <div className="relative">
-              <MessageCircle size={20} />
-              {hasNewMessage && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
-                />
-              )}
-            </div>
-          )}
+          <Button
+            onClick={toggleChat}
+            className={cn(
+              "w-14 h-14 rounded-full shadow-lg relative",
+              "bg-primary hover:bg-primary/90",
+              "text-primary-foreground border-0"
+            )}
+          >
+            {isOpen ? (
+              <X size={20} />
+            ) : (
+              <div className="relative">
+                <MessageCircle size={20} />
+                {hasNewMessage && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
+                  />
+                )}
+              </div>
+            )}
 
-          {/* Sparkle animation for attention */}
-          {!isOpen && (
-            <motion.div
-              className="absolute inset-0 rounded-full"
-              animate={{
-                boxShadow: [
-                  '0 0 0 0 rgba(59, 130, 246, 0.7)',
-                  '0 0 0 10px rgba(59, 130, 246, 0)',
-                  '0 0 0 0 rgba(59, 130, 246, 0)'
-                ]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                repeatDelay: 3
-              }}
-            />
-          )}
-        </Button>
-      </motion.div>
-    </div>
+            {/* Sparkle animation for attention */}
+            {!isOpen && (
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                animate={{
+                  boxShadow: [
+                    '0 0 0 0 rgba(59, 130, 246, 0.7)',
+                    '0 0 0 10px rgba(59, 130, 246, 0)',
+                    '0 0 0 0 rgba(59, 130, 246, 0)'
+                  ]
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatDelay: 3
+                }}
+              />
+            )}
+          </Button>
+        </motion.div>
+      </div>
+    </>
   );
 }
