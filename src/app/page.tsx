@@ -22,10 +22,13 @@ import { BoardAccessStatus } from '@/components/boards/BoardAccessStatus';
 import { BoardVerificationModal } from '@/components/boards/BoardVerificationModal';
 import { BoardVerificationApiResponse } from '@/types/boardVerification';
 import { 
-  Settings, 
+  Settings,
+  Rss,
 } from 'lucide-react';
 import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } from '@/utils/cookieUtils';
 import '@/utils/cookieDebug'; // Load cookie debug utilities
+import { RSSModal } from '@/components/modals/RSSModal';
+import { isBoardRSSEligible } from '@/lib/rss';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
@@ -37,6 +40,7 @@ export default function HomePage() {
   const [showExpandedForm, setShowExpandedForm] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [initialPostTitle, setInitialPostTitle] = useState('');
+  const [showRSSModal, setShowRSSModal] = useState(false);
 
   // Get boardId from URL params for board-specific filtering
   const boardId = searchParams?.get('boardId');
@@ -378,6 +382,22 @@ export default function HomePage() {
                   {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
                 </h2>
                 
+                {/* RSS Icon - Show for boards only */}
+                {boardId && boardInfo && communityInfo && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0 rounded-full hover:bg-muted"
+                    title="RSS Feed"
+                    onClick={() => setShowRSSModal(true)}
+                  >
+                    <Rss size={16} className={cn(
+                      'transition-colors',
+                      theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
+                    )} />
+                  </Button>
+                )}
+                
                 {/* Board Settings Gear - Admin Only */}
                 {user?.isAdmin && boardId && boardInfo && (
                   <Link href={buildUrl('/board-settings', { boardId })}>
@@ -422,6 +442,31 @@ export default function HomePage() {
           </main>
         </div>
       </div>
+
+      {/* RSS Modal */}
+      {showRSSModal && boardId && boardInfo && communityInfo && (
+        <RSSModal
+          isOpen={showRSSModal}
+          onClose={() => setShowRSSModal(false)}
+          boardId={parseInt(boardId, 10)}
+          boardName={boardInfo.name}
+          isRSSEligible={isBoardRSSEligible(boardInfo, {
+            id: communityInfo.id,
+            name: communityInfo.name,
+            community_short_id: communityInfo.communityShortId,
+            plugin_id: communityInfo.pluginId,
+            settings: communityInfo.settings
+          })}
+          theme={theme}
+          privacyReason={
+            (communityInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
+              ? 'This community is private'
+              : (boardInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
+              ? 'This board is private'
+              : 'This board has access restrictions'
+          }
+        />
+      )}
     </div>
   );
 }
