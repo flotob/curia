@@ -3,7 +3,7 @@ import { withAuthAndErrorHandling, EnhancedAuthRequest } from '@/lib/middleware/
 import { streamText, CoreMessage } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { query } from '@/lib/db';
-import { z } from 'zod';
+import { FunctionRegistry, type FunctionContext } from '@/lib/ai';
 
 // Request interface
 interface ChatRequest {
@@ -75,68 +75,23 @@ export const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest
       );
     }
 
+    // Create function context for AI tools
+    const functionContext: FunctionContext = {
+      userId,
+      communityId,
+      boardId: chatContext?.boardId,
+      postId: chatContext?.postId
+    };
+
+    // Get AI tools from function registry
+    const registry = new FunctionRegistry();
+    const tools = registry.getAllForAI(functionContext);
+
     // Generate AI response with tools using v4 syntax
     const result = await streamText({
       model: openai('gpt-4o-mini'),
       messages,
-      tools: {
-        searchCommunityKnowledge: {
-          description: 'Search through community posts and discussions for relevant information',
-          parameters: z.object({
-            query: z.string().describe('Search query to find relevant community content'),
-            limit: z.number().optional().describe('Maximum number of results to return (default: 5)')
-          }),
-          execute: async (params: { query: string; limit?: number }) => {
-            try {
-              // Search posts by title and content
-              const searchResults = await query(
-                `SELECT p.id, p.title, p.content, p.upvote_count, p.created_at, u.name as author_name
-                 FROM posts p 
-                 JOIN users u ON p.author_user_id = u.user_id
-                 JOIN boards b ON p.board_id = b.id
-                 WHERE b.community_id = $1 
-                 AND (p.title ILIKE $2 OR p.content ILIKE $2)
-                 ORDER BY p.upvote_count DESC, p.created_at DESC
-                 LIMIT $3`,
-                [communityId, `%${params.query}%`, params.limit || 5]
-              );
-              
-              const results = searchResults.rows.map(row => ({
-                title: row.title,
-                author: row.author_name,
-                upvotes: row.upvote_count,
-                snippet: row.content.substring(0, 200) + '...'
-              }));
-              
-              return {
-                success: true,
-                messageForAI: `Found ${results.length} relevant community posts about "${params.query}".`,
-                searchResults: results
-              };
-            } catch (error) {
-              return {
-                success: false,
-                errorForAI: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-              };
-            }
-          }
-        },
-        showPostCreationGuidance: {
-          description: 'Show guidance for creating a new post with actionable UI component',
-          parameters: z.object({
-            explanation: z.string().describe('Explain the search-first workflow for post creation'),
-            buttonText: z.string().describe('Text for the action button')
-          }),
-          execute: async (params: { explanation: string; buttonText: string }) => {
-            return {
-              type: 'post_creation_guidance',
-              explanation: params.explanation,
-              buttonText: params.buttonText,
-              workflow: 'search_first'
-            };
-          }
-        }
-      },
+      tools,
       system: `I'm your community guide - think of me as a friendly, knowledgeable community member who knows all the ins and outs of this platform. My goal is to help you navigate, discover great content, and participate successfully.
 
 ## 🎯 My Core Mission

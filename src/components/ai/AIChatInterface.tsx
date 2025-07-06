@@ -3,9 +3,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, Sparkles, Bot, User, PlusCircle, ArrowRight, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useChat } from '@ai-sdk/react';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
+import { FunctionCardRenderer, isValidFunctionCardType } from './utils/FunctionCardRenderer';
 
 interface ChatContext {
   boardId?: string;
@@ -109,57 +110,7 @@ function MarkdownContent({ content }: { content: string }) {
   return <div>{renderMarkdown(content)}</div>;
 }
 
-// Post Creation Guidance Card Component
-function PostCreationGuidanceCard({ data }: { data: any }) {
-  const { openSearch } = useGlobalSearch();
 
-  const handleOpenPostCreator = () => {
-    openSearch({
-      initialQuery: 'Share your thoughts or ask a question',
-      autoExpandForm: true,
-      initialTitle: 'Share your thoughts or ask a question'
-    });
-  };
-
-  return (
-    <div className="mt-2 p-3 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-md border border-blue-200/60 dark:border-blue-800/60">
-      <div className="flex items-start gap-2">
-        <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
-          <PlusCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-        </div>
-        
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-1 text-sm">
-            Creating a New Post
-          </h4>
-          
-          <p className="text-xs text-blue-700 dark:text-blue-200 mb-3 leading-relaxed">
-            {data.explanation}
-          </p>
-          
-          <div className="space-y-2">
-            <Button 
-              onClick={handleOpenPostCreator}
-              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 w-full justify-center"
-              size="sm"
-            >
-              <PlusCircle className="w-3 h-3" />
-              {data.buttonText}
-            </Button>
-            
-            <div className="flex items-center justify-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-              <span>Search</span>
-              <ArrowRight className="w-2 h-2" />
-              <span>Review</span>
-              <ArrowRight className="w-2 h-2" />
-              <span>Create</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function AIChatInterface({ context, className, onClose }: AIChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -176,6 +127,8 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
     'Help me navigate this board'
   ];
 
+  const { openSearch } = useGlobalSearch();
+  
   const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
     api: '/api/ai/chat',
     fetch: async (url, options) => {
@@ -188,6 +141,19 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
       context
     }
   });
+
+  const handleFunctionCardAction = (action: string, params?: any) => {
+    switch (action) {
+      case 'openPostCreator':
+        openSearch({
+          initialQuery: params?.initialQuery || 'Share your thoughts',
+          autoExpandForm: true,
+          initialTitle: params?.initialTitle
+        });
+        break;
+      // Handle other actions as we add more function cards
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -309,11 +275,14 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
                   {message.role === 'assistant' && (message as any).toolInvocations && (
                     <div className="mt-2">
                       {(message as any).toolInvocations.map((invocation: any, index: number) => {
-                        if (invocation.result?.type === 'post_creation_guidance') {
+                        const resultType = invocation.result?.type;
+                        if (resultType && isValidFunctionCardType(resultType)) {
                           return (
-                            <PostCreationGuidanceCard 
+                            <FunctionCardRenderer
                               key={index}
-                              data={invocation.result} 
+                              type={resultType}
+                              data={invocation.result}
+                              onAction={handleFunctionCardAction}
                             />
                           );
                         }
