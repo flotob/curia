@@ -48,6 +48,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [welcomeLoading, setWelcomeLoading] = useState(false);
   const [welcomeLoaded, setWelcomeLoaded] = useState(false);
   const chatInterfaceRef = useRef<AIChatInterfaceRef | null>(null);
+  const welcomeLoadingRef = useRef(false); // Ref-based guard against double calls in dev mode
   const { isAuthenticated, user, token } = useAuth();
   const router = useRouter();
   const { openSearch } = useGlobalSearch();
@@ -79,6 +80,13 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   const loadWelcomeMessage = useCallback(async () => {
+    // Prevent duplicate calls in development mode (React Strict Mode)
+    if (welcomeLoadingRef.current) {
+      console.log('Welcome API - Skipping duplicate call (React Strict Mode)');
+      return;
+    }
+    
+    welcomeLoadingRef.current = true;
     setWelcomeLoading(true);
     
     try {
@@ -118,6 +126,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
       showFallbackWelcome();
     } finally {
       setWelcomeLoading(false);
+      // Note: We don't reset welcomeLoadingRef.current here to prevent multiple calls
     }
   }, [token, context?.boardId]);
 
