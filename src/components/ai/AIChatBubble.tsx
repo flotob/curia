@@ -61,11 +61,11 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
                   <Sparkles size={16} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">AI Writing Assistant</h3>
+                  <h3 className="font-semibold text-sm">Community Assistant</h3>
                   <p className="text-xs opacity-90">
-                    {context?.type === 'post' ? 'Help with your post' :
-                     context?.type === 'comment' ? 'Help with your comment' :
-                     'Writing help'}
+                    {context?.type === 'post' ? 'Help with navigation' :
+                     context?.type === 'comment' ? 'Find discussions' :
+                     'Community help'}
                   </p>
                 </div>
               </div>
@@ -104,37 +104,20 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
             "text-primary-foreground border-0"
           )}
         >
-          <AnimatePresence mode="wait">
-            {isOpen ? (
-              <motion.div
-                key="close"
-                initial={{ rotate: -90, opacity: 0 }}
-                animate={{ rotate: 0, opacity: 1 }}
-                exit={{ rotate: 90, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <X size={20} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="open"
-                initial={{ rotate: 90, opacity: 0 }}
-                animate={{ rotate: 0, opacity: 1 }}
-                exit={{ rotate: -90, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="relative"
-              >
-                <MessageCircle size={20} />
-                {hasNewMessage && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
-                  />
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {isOpen ? (
+            <X size={20} />
+          ) : (
+            <div className="relative">
+              <MessageCircle size={20} />
+              {hasNewMessage && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
+                />
+              )}
+            </div>
+          )}
 
           {/* Sparkle animation for attention */}
           {!isOpen && (

@@ -115,10 +115,10 @@ export function AIChatInterface({ context, className }: AIChatInterfaceProps) {
   };
 
   const quickActions = [
-    'Analyze this content for clarity',
-    'Suggest improvements for engagement',
-    'Help me structure my post',
-    'Review grammar and tone'
+    'How do I create a new post?',
+    'Find recent discussions about React',
+    'What&apos;s trending in this community?',
+    'Help me navigate this board'
   ];
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
@@ -175,9 +175,9 @@ export function AIChatInterface({ context, className }: AIChatInterfaceProps) {
               <Bot className="w-8 h-8 text-primary-foreground" />
             </div>
             <div>
-              <h4 className="font-semibold mb-2">AI Writing Assistant</h4>
+              <h4 className="font-semibold mb-2">Community Assistant</h4>
               <p className="text-sm text-muted-foreground mb-4">
-                I can help you improve your writing, analyze content, and suggest better structure.
+                I can help you navigate the community, find relevant discussions, and discover trending content.
               </p>
               <div className="grid grid-cols-1 gap-2 max-w-sm">
                 {quickActions.map((action, index) => (
@@ -246,7 +246,7 @@ export function AIChatInterface({ context, className }: AIChatInterfaceProps) {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask me anything about writing, content structure, or style..."
+            placeholder="Ask me anything about the community, finding posts, or navigating the forum..."
             className="flex-1 min-h-[60px] max-h-[120px] resize-none"
             disabled={isLoading}
           />

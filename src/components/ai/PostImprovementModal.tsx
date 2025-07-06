@@ -425,7 +425,7 @@ export function PostImprovementModal({
               Post without AI improvements?
             </DialogTitle>
             <DialogDescription>
-              You're about to post your original content without AI suggestions.
+              You&apos;re about to post your original content without AI suggestions.
             </DialogDescription>
           </DialogHeader>
           
