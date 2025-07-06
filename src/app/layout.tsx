@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import 'highlight.js/styles/github-dark.css';
 import { Providers } from "./providers";
@@ -35,6 +36,26 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        {/* Google Model Viewer for 3D Clippy - Load as ES Module */}
+        <Script 
+          id="model-viewer-script"
+          strategy="afterInteractive"
+        >
+          {`
+            // Import model-viewer as ES module
+            import('https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js')
+              .then(() => {
+                console.log('Model-viewer ES module imported successfully');
+                if (window.customElements && window.customElements.get('model-viewer')) {
+                  console.log('model-viewer custom element is available');
+                }
+              })
+              .catch(err => {
+                console.error('Failed to import model-viewer ES module:', err);
+              });
+          `}
+        </Script>
+        
         <Suspense fallback={<div>Loading...</div>}>
           <ThemeProvider
             attribute="class"
@@ -53,6 +74,19 @@ export default function RootLayout({
             <ResponsiveToaster />
           </ThemeProvider>
         </Suspense>
+        
+        {/* License Attribution for 3D Clippy Model */}
+        <div className="fixed bottom-1 left-1 text-xs opacity-40 hover:opacity-80 transition-opacity z-30">
+          <a 
+            href="https://skfb.ly/ousxv" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground"
+            title="Clippy 3D Model Attribution"
+          >
+            &quot;Clippy&quot; by ironflower (CC BY-NC-SA)
+          </a>
+        </div>
       </body>
     </html>
   );

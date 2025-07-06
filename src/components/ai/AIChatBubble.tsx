@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MessageCircle, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { AIChatInterface } from './AIChatInterface';
+import { ClippyButton } from './ClippyButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCardStyling } from '@/hooks/useCardStyling';
 
@@ -70,56 +69,13 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
         )}
       </AnimatePresence>
 
-      {/* Floating Button - Positioned independently, always in same spot */}
-      <div className={cn("fixed bottom-6 right-6 z-50", className)}>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button
-            onClick={toggleChat}
-            className={cn(
-              "w-14 h-14 rounded-full shadow-lg relative",
-              "bg-primary hover:bg-primary/90",
-              "text-primary-foreground border-0"
-            )}
-          >
-            {isOpen ? (
-              <X size={20} />
-            ) : (
-              <div className="relative">
-                <MessageCircle size={20} />
-                {hasNewMessage && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Sparkle animation for attention */}
-            {!isOpen && (
-              <motion.div
-                className="absolute inset-0 rounded-full"
-                animate={{
-                  boxShadow: [
-                    '0 0 0 0 rgba(59, 130, 246, 0.7)',
-                    '0 0 0 10px rgba(59, 130, 246, 0)',
-                    '0 0 0 0 rgba(59, 130, 246, 0)'
-                  ]
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  repeatDelay: 3
-                }}
-              />
-            )}
-          </Button>
-        </motion.div>
-      </div>
+      {/* 3D Clippy Button - Positioned independently, always in same spot */}
+      <ClippyButton 
+        isOpen={isOpen}
+        onClick={toggleChat}
+        hasNewMessage={hasNewMessage}
+        className={className}
+      />
     </>
   );
 }
