@@ -134,8 +134,71 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
       currentModelViewer.setAttribute('camera-orbit', orbit);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    return () => document.removeEventListener('mousemove', handleMouseMove);
+    let lastScrollY = window.scrollY;
+    let scrollVelocity = 0;
+    let scrollTimeout: NodeJS.Timeout;
+
+    const handleScroll = () => {
+      if (!currentModelViewer || isClicked || isOpen) return;
+      
+      // Check if we're on mobile
+      const isMobile = window.innerWidth < 768;
+      if (!isMobile) return;
+      
+      const currentScrollY = window.scrollY;
+      const deltaY = currentScrollY - lastScrollY;
+      
+      // Calculate scroll velocity (positive = scrolling down, negative = scrolling up)
+      scrollVelocity = deltaY;
+      
+      // Normalize scroll velocity for head movement (-1 to 1)
+      const normalizedVelocity = Math.max(-1, Math.min(1, scrollVelocity / 50)); // Divide by 50 for sensitivity
+      
+      // Convert to camera angles
+      // When scrolling down (positive velocity), Clippy looks up (negative vertical adjustment)
+      // When scrolling up (negative velocity), Clippy looks down (positive vertical adjustment)
+      const verticalAdjustment = -normalizedVelocity * 20; // -20 to +20 degrees (reversed)
+      
+      // Slight horizontal movement based on scroll intensity for more natural feel
+      const horizontalVariation = Math.sin(Date.now() / 1000) * Math.abs(normalizedVelocity) * 5; // Subtle side-to-side
+      
+      // Distance effect: gets closer when scrolling faster
+      const scrollIntensity = Math.abs(normalizedVelocity);
+      const cameraDistance = 105 - (scrollIntensity * 15); // Gets closer when scrolling faster
+      
+      const orbit = `${horizontalVariation}deg ${75 + verticalAdjustment}deg ${cameraDistance}%`;
+      currentModelViewer.setAttribute('camera-orbit', orbit);
+      
+      lastScrollY = currentScrollY;
+      
+      // Reset to neutral position after scrolling stops
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        if (!currentModelViewer || isClicked || isOpen) return;
+        
+        // Smoothly return to neutral position
+        const neutralOrbit = `0deg 75deg 105%`;
+        currentModelViewer.setAttribute('camera-orbit', neutralOrbit);
+        scrollVelocity = 0;
+      }, 150); // Wait 150ms after scrolling stops
+    };
+
+    // Check if we're on mobile for scroll-based movement, desktop for mouse
+    const isMobile = window.innerWidth < 768;
+    
+    if (isMobile) {
+      // Mobile: use scroll-based head movement
+      window.addEventListener('scroll', handleScroll, { passive: true });
+    } else {
+      // Desktop: use mouse movement
+      document.addEventListener('mousemove', handleMouseMove);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimeout);
+    };
   }, [currentModelViewer, isClicked, isOpen]);
 
   // Handle state changes: brightness and camera position

@@ -327,7 +327,7 @@ export function AIChatInterface({ context, className, onClose }: AIChatInterface
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask about community, posts, or navigation..."
-            className="flex-1 min-h-[50px] max-h-[100px] resize-none text-sm"
+            className="flex-1 min-h-[50px] max-h-[100px] resize-none text-sm leading-5"
             disabled={isLoading}
           />
           <Button
