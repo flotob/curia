@@ -1,3 +1,42 @@
+export interface TrendingAnalysisData {
+  type: 'trending_analysis';
+  success: boolean;
+  messageForAI?: string;
+  errorForAI?: string;
+  displayMode: 'text_only'; // Forces text-only response, no UI card
+  analysisData?: {
+    posts: Array<{
+      id: number;
+      title: string;
+      content: string;
+      author: string;
+      board: string;
+      tags: string[];
+      upvotes: number;
+      comments: number;
+      created_at: string;
+      engagement_score: number;
+      top_comments: Array<{
+        id: number;
+        content: string;
+        author: string;
+        created_at: string;
+      }>;
+    }>;
+    metadata: {
+      timeframe_days: number;
+      total_posts: number;
+      board_distribution: Record<string, number>;
+      tag_frequency: Record<string, number>;
+      time_distribution: Record<string, number>;
+      average_engagement: number;
+      total_comments_analyzed: number;
+      most_active_boards: Array<{ board: string; posts: number }>;
+      trending_tags: Array<{ tag: string; frequency: number }>;
+    };
+  };
+}
+
 export interface SearchResultsData {
   type: 'search_results';
   success: boolean;
@@ -41,4 +80,4 @@ export interface PostCreationGuidance {
   workflow: string;
 }
 
-export type FunctionResult = SearchResultsData | PostCreationGuidance; 
+export type FunctionResult = SearchResults | SearchResultsData | PostCreationGuidance | TrendingAnalysisData; 

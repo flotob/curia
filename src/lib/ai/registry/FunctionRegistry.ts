@@ -1,6 +1,7 @@
 import { AIFunctionCall, FunctionContext } from '../types/FunctionCall';
 import { searchCommunityKnowledge } from '../functions/searchCommunityKnowledge';
 import { showPostCreationGuidance } from '../functions/showPostCreationGuidance';
+import { getCommunityTrends } from '../functions/getCommunityTrends';
 
 export class FunctionRegistry {
   private functions = new Map<string, AIFunctionCall>();
@@ -9,6 +10,7 @@ export class FunctionRegistry {
     // Register all available functions
     this.register(searchCommunityKnowledge);
     this.register(showPostCreationGuidance);
+    this.register(getCommunityTrends);
   }
   
   register(fn: AIFunctionCall) {

@@ -331,21 +331,43 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                         ? 'prose-invert text-white' 
                         : 'dark:prose-invert text-foreground'
                     }`}>
-                      {/* Hide AI message content when function call results exist since UI cards provide the value */}
+                      {/* Hide AI message content when function call UI cards exist, but show it for text_only mode */}
                       {message.role === 'assistant' && (message as any).toolInvocations ? (
-                        <div className="text-xs text-muted-foreground italic">
-                          {/* Just show a minimal indicator that AI processed the request */}
-                        </div>
+                        (() => {
+                          // Check if any tool invocation has displayMode: 'text_only'
+                          const hasTextOnlyMode = (message as any).toolInvocations.some(
+                            (inv: any) => inv.result?.displayMode === 'text_only'
+                          );
+                          
+                          if (hasTextOnlyMode) {
+                            // Show AI content when text_only mode is requested
+                            return <MarkdownContent content={message.content} />;
+                          } else {
+                            // Hide AI content when UI cards provide the value
+                            return (
+                              <div className="text-xs text-muted-foreground italic">
+                                {/* Just show a minimal indicator that AI processed the request */}
+                              </div>
+                            );
+                          }
+                        })()
                       ) : (
                         <MarkdownContent content={message.content} />
                       )}
                     </div>
                     
-                    {/* Render special UI components for tool call results */}
+                    {/* Render special UI components for tool call results (respecting displayMode) */}
                     {message.role === 'assistant' && (message as any).toolInvocations && (
                       <div className="mt-2">
                         {(message as any).toolInvocations.map((invocation: any, index: number) => {
                           const resultType = invocation.result?.type;
+                          const displayMode = invocation.result?.displayMode;
+                          
+                          // Skip UI card rendering if displayMode is 'text_only'
+                          if (displayMode === 'text_only') {
+                            return null;
+                          }
+                          
                           if (resultType && isValidFunctionCardType(resultType)) {
                             return (
                               <FunctionCardRenderer

@@ -6,7 +6,23 @@ import { SearchResultsData } from '@/lib/ai/types/FunctionResult';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useRouter } from 'next/navigation';
 import { buildPostUrl } from '@/utils/urlBuilder';
-import { useTimeSince } from '@/utils/timeUtils';
+
+// Simple time formatting utility function (not a hook)
+function formatTimeAgo(date: Date): string {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " year" : " years") + " ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " month" : " months") + " ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " day" : " days") + " ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " hour" : " hours") + " ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " minute" : " minutes") + " ago";
+  if (seconds < 10) return "just now";
+  return Math.floor(seconds) + " seconds ago";
+}
 
 export function SearchResultsCard({ 
   data, 
@@ -91,7 +107,7 @@ export function SearchResultsCard({
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="w-3 h-3" />
-                  <span>{useTimeSince(result.created_at)}</span>
+                  <span>{formatTimeAgo(new Date(result.created_at))}</span>
                 </div>
               </div>
             </div>

@@ -235,6 +235,19 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     }
   }, [isAuthenticated, user, token, welcomeLoaded, welcomeLoading, loadWelcomeMessage]);
 
+  // Function to send a message programmatically
+  const sendMessage = useCallback((message: string) => {
+    setInput(message);
+    // Trigger form submission after setting input
+    setTimeout(() => {
+      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+      // We'll handle this in AIChatInterface
+      if (chatInterfaceRef.current) {
+        (chatInterfaceRef.current as any).triggerSubmit?.(submitEvent);
+      }
+    }, 100);
+  }, [setInput]);
+
   // Only show for authenticated users
   if (!isAuthenticated || !user) {
     return null;
@@ -248,19 +261,6 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
       setSpeechBubbleVisible(false);
     }
   };
-
-  // Function to send a message programmatically
-  const sendMessage = useCallback((message: string) => {
-    setInput(message);
-    // Trigger form submission after setting input
-    setTimeout(() => {
-      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-      // We'll handle this in AIChatInterface
-      if (chatInterfaceRef.current) {
-        (chatInterfaceRef.current as any).triggerSubmit?.(submitEvent);
-      }
-    }, 100);
-  }, [setInput]);
 
   // Handle action button clicks from speech bubble
   const handleActionClick = (button: ActionButton) => {
