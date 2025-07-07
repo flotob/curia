@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -202,6 +202,8 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [userHasScrolled, setUserHasScrolled] = useState(false);
+    const [lastAssistantMessageId, setLastAssistantMessageId] = useState<string | null>(null);
+    const [hasScrolledToNewResponse, setHasScrolledToNewResponse] = useState(false);
     const { user } = useAuth();
     const { cgInstance } = useCgLib();
     const { data: communityData } = useCommunityData();
@@ -212,7 +214,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     const [isLockModalOpen, setIsLockModalOpen] = useState(false);
 
     // Simple, robust scroll behavior - only scroll when user is genuinely at bottom
-    const scrollToBottom = (force = false) => {
+    const scrollToBottom = useCallback((force = false) => {
       if (!messagesContainerRef.current) return;
       
       const container = messagesContainerRef.current;
@@ -230,7 +232,16 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
           setUserHasScrolled(false); // Reset tracking on user actions
         }
       }
-    };
+    }, [userHasScrolled]);
+
+    // Scroll to a specific message (for new assistant responses)
+    const scrollToMessage = useCallback((messageId: string) => {
+      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageElement && messagesContainerRef.current) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setUserHasScrolled(false); // Reset tracking since this is an automatic scroll
+      }
+    }, []);
 
     // Track user scroll behavior - very conservative
     const handleScroll = () => {
@@ -345,9 +356,32 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     };
 
     useEffect(() => {
-      // Only auto-scroll if user hasn't manually scrolled away from bottom
+      // Check for new assistant messages and scroll to them with delay
+      const latestAssistantMessage = [...messages]
+        .reverse()
+        .find(msg => msg.role === 'assistant');
+      
+      if (latestAssistantMessage && latestAssistantMessage.id !== lastAssistantMessageId && !hasScrolledToNewResponse) {
+        // New assistant message detected - scroll to it after a short delay
+        setLastAssistantMessageId(latestAssistantMessage.id);
+        setHasScrolledToNewResponse(true);
+        
+        // Wait 500ms to let some content appear, then scroll to the message
+        setTimeout(() => {
+          scrollToMessage(latestAssistantMessage.id);
+        }, 500);
+        
+        return; // Don't do normal scroll behavior for new assistant messages
+      }
+      
+      // Reset the scroll flag when loading stops (response complete)
+      if (!isLoading && hasScrolledToNewResponse) {
+        setHasScrolledToNewResponse(false);
+      }
+      
+      // Normal scroll behavior for other cases (user at bottom following conversation)
       scrollToBottom();
-    }, [messages]);
+    }, [messages, isLoading, lastAssistantMessageId, hasScrolledToNewResponse, scrollToBottom, scrollToMessage]);
 
     const handleQuickAction = (action: string) => {
       setInput(action);
@@ -478,6 +512,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                 {messages.map((message) => (
                   <div
                     key={message.id}
+                    data-message-id={message.id}
                     className={`flex gap-2 ${
                       message.role === 'user' ? 'justify-end' : 'justify-start'
                     }`}
