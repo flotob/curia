@@ -199,7 +199,9 @@ function MarkdownContent({ content }: { content: string }) {
 export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfaceProps>(
   ({ className, onClose, messages, input, handleInputChange, handleSubmit, isLoading, setInput, onClearChat }, ref) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [userHasScrolled, setUserHasScrolled] = useState(false);
     const { user } = useAuth();
     const { cgInstance } = useCgLib();
     const { data: communityData } = useCommunityData();
@@ -209,8 +211,45 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     const [selectedLock, setSelectedLock] = useState<LockWithStats | null>(null);
     const [isLockModalOpen, setIsLockModalOpen] = useState(false);
 
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Simple, robust scroll behavior - only scroll when user is genuinely at bottom
+    const scrollToBottom = (force = false) => {
+      if (!messagesContainerRef.current) return;
+      
+      const container = messagesContainerRef.current;
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      // Only auto-scroll in two cases:
+      // 1. Force mode (user sent a message) - always scroll
+      // 2. User is genuinely at bottom (≤2px) AND hasn't manually scrolled away
+      if (force || (distanceFromBottom <= 2 && !userHasScrolled)) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (force) {
+          setUserHasScrolled(false); // Reset tracking on user actions
+        }
+      }
+    };
+
+    // Track user scroll behavior - very conservative
+    const handleScroll = () => {
+      if (!messagesContainerRef.current) return;
+      
+      const container = messagesContainerRef.current;
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      if (distanceFromBottom <= 2) {
+        // User is genuinely at bottom - allow auto-scroll
+        setUserHasScrolled(false);
+      } else if (distanceFromBottom > 50) {
+        // User has scrolled significantly away - disable auto-scroll
+        setUserHasScrolled(true);
+      }
+      // Don't change state for middle zone (2-50px) to avoid flip-flopping
     };
 
     // Dynamic suggestions based on community name
@@ -242,6 +281,13 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
         }, 100);
       }
     }), [setInput]);
+
+    // Wrapper for handleSubmit to force scroll on form submission
+    const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+      handleSubmit(e);
+      // Force scroll to bottom when user submits a message
+      setTimeout(() => scrollToBottom(true), 100);
+    };
 
     const handleFunctionCardAction = (action: string, params?: any) => {
       switch (action) {
@@ -299,14 +345,16 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     };
 
     useEffect(() => {
+      // Only auto-scroll if user hasn't manually scrolled away from bottom
       scrollToBottom();
     }, [messages]);
 
     const handleQuickAction = (action: string) => {
       setInput(action);
-      // Automatically submit the message
+      // Automatically submit the message and force scroll to bottom for new interactions
       setTimeout(() => {
         submitForm();
+        scrollToBottom(true); // Force scroll for new user interactions
       }, 100);
     };
 
@@ -314,6 +362,8 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         submitForm();
+        // Force scroll to bottom when user sends a message
+        setTimeout(() => scrollToBottom(true), 100);
       }
     };
 
@@ -386,7 +436,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-2">
+          <div className="flex-1 overflow-y-auto px-4 py-2" ref={messagesContainerRef} onScroll={handleScroll}>
             {messages.length === 0 ? (
               <div className="flex flex-col h-full">
                 {/* Welcome Section - Compact */}
@@ -523,7 +573,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
           {/* Input */}
           <div className="border-t bg-background/50">
             <div className="p-3">
-              <form onSubmit={handleSubmit} ref={formRef} className="flex gap-2">
+              <form onSubmit={handleFormSubmit} ref={formRef} className="flex gap-2">
                 <Textarea
                   value={input}
                   onChange={handleInputChange}

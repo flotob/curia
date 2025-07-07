@@ -15,84 +15,112 @@ interface ChatRequest {
   };
 }
 
+// Function result types that have custom UI cards
+const UI_CARD_FUNCTION_TYPES = new Set([
+  'search_results',
+  'lock_search_results', 
+  'post_creation_guidance'
+]);
+
+// Helper to detect if tool results have custom UI cards
+function hasUICardResults(toolResults?: any[]): boolean {
+  return toolResults?.some(result => {
+    const resultType = result.result?.type;
+    return resultType && UI_CARD_FUNCTION_TYPES.has(resultType);
+  }) || false;
+}
+
 // Helper function to extract text content from CoreMessage
 function extractMessageContent(message: CoreMessage): string {
   if (typeof message.content === 'string') {
     return message.content;
-  } else if (Array.isArray(message.content)) {
+  }
+  if (Array.isArray(message.content)) {
     return message.content
       .filter(part => part.type === 'text')
-      .map(part => (part as any).text)
+      .map(part => (part as any).text || '')
       .join('');
   }
   return '';
 }
 
 export const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
-  try {
-    const { messages, conversationId: providedConversationId, context: chatContext }: ChatRequest = await request.json();
+  const { userContext } = request;
+  const body: ChatRequest = await request.json();
+  const { messages, conversationId, context } = body;
 
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
-    }
+  if (!messages || !Array.isArray(messages)) {
+    return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
+  }
 
-    // Get user and community context
-    const userId = request.userContext.userId;
-    const communityId = request.userContext.communityId;
+  const userId = userContext.userId;
+  const communityId = userContext.communityId;
 
-    // Create or use existing conversation
-    let conversationId = providedConversationId;
-    if (!conversationId) {
-      const conversationResult = await query(
-        `INSERT INTO ai_conversations (user_id, community_id, conversation_type, status, metadata) 
-         VALUES ($1, $2, $3, $4, $5) 
-         RETURNING id`,
-        [userId, communityId, 'admin_assistant', 'active', JSON.stringify(chatContext || {})]
-      );
-      conversationId = conversationResult.rows[0].id;
-    }
+  // Validate required context
+  if (!userId || !communityId) {
+    return NextResponse.json({ error: 'User and community context required' }, { status: 400 });
+  }
 
-    // Ensure we have a valid conversation ID
-    if (!conversationId) {
-      return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
-    }
+  // Type-safe after validation
+  const validatedUserId = userId as string;
+  const validatedCommunityId = communityId as string;
 
-    // Save the latest user message
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role === 'user') {
-      const userContent = extractMessageContent(lastMessage);
-      await query(
-        `INSERT INTO ai_messages (conversation_id, role, content, tool_calls, tool_results, message_index) 
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          conversationId,
-          'user',
-          userContent,
-          JSON.stringify([]),
-          JSON.stringify([]),
-          messages.length - 1
-        ]
-      );
-    }
+  // Create or get conversation
+  let currentConversationId = conversationId;
+  if (!currentConversationId) {
+    const result = await query(
+      `INSERT INTO ai_conversations (user_id, community_id, conversation_type, status, metadata) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id`,
+      [
+        validatedUserId,
+        validatedCommunityId,
+        'admin_assistant',
+        'active',
+        JSON.stringify({
+          title: 'New Conversation',
+          context: context || {},
+          created_at: new Date().toISOString()
+        })
+      ]
+    );
+    currentConversationId = result.rows[0]?.id;
+  }
 
-    // Create function context for AI tools
-    const functionContext: FunctionContext = {
-      userId,
-      communityId,
-      boardId: chatContext?.boardId,
-      postId: chatContext?.postId
-    };
+  // Ensure we have a valid conversation ID
+  if (!currentConversationId) {
+    return NextResponse.json({ error: 'Failed to create or retrieve conversation' }, { status: 500 });
+  }
 
-    // Get AI tools from function registry
-    const registry = new FunctionRegistry();
-    const tools = registry.getAllForAI(functionContext);
+  // Save user message
+  const lastMessage = messages[messages.length - 1];
+  const userContent = extractMessageContent(lastMessage);
+  
+  await query(
+    `INSERT INTO ai_messages (conversation_id, role, content, tool_calls, tool_results, message_index) 
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      currentConversationId,
+      'user',
+      userContent,
+      JSON.stringify([]),
+      JSON.stringify([]),
+      messages.length - 1
+    ]
+  );
 
-    // Generate AI response with tools using v4 syntax
-    const result = await streamText({
-      model: openai('gpt-4o-mini'),
-      messages,
-      tools,
-      system: `I'm your community guide - think of me as a friendly, knowledgeable community member who knows all the ins and outs of this platform. My goal is to help you navigate, discover great content, and participate successfully.
+  // Initialize function registry
+  const functionRegistry = new FunctionRegistry();
+  const functionContext: FunctionContext = {
+    userId: validatedUserId,
+    communityId: validatedCommunityId
+  };
+
+  // Get available tools
+  const tools = functionRegistry.getAllForAI(functionContext);
+
+  // System prompt with context
+  const systemPrompt = `I'm your community guide - think of me as a friendly, knowledgeable community member who knows all the ins and outs of this platform. My goal is to help you navigate, discover great content, and participate successfully.
 
 ## 🎯 My Core Mission
 Help users succeed in this community by providing navigation guidance, content discovery, and platform assistance with a warm, helpful approach.
@@ -149,79 +177,86 @@ Help users succeed in this community by providing navigation guidance, content d
 
 ## 📍 Current Context
 - Community: ${communityId}
-- Available functions: searchCommunityKnowledge, showPostCreationGuidance, searchLocks, getCommunityTrends
+- Available functions: searchCommunityKnowledge, showPostCreationGuidance, searchLocks, getCommunityTrends`;
 
-## 🎯 Common Scenarios I Excel At
-- Guiding new users through post creation (50% fail without help!)
-- Finding relevant discussions and trending topics
-- Explaining platform features like locks and gating
-- Helping users navigate between boards and communities
-- Suggesting appropriate boards for different content types
-
-Keep responses concise but warm. Use function calls strategically. Always aim to solve the user's immediate need while teaching them to be more self-sufficient.`,
-      temperature: 0.7,
-      maxSteps: 3, // Critical for tool calling
-      onFinish: async ({ usage, finishReason, text }) => {
-        try {
-          // Log usage statistics
-          if (usage) {
-            // Save the assistant message to get its ID
-            let assistantMessageId: string | null = null;
-            if (text) {
-              const messageResult = await query(
-                `INSERT INTO ai_messages (conversation_id, role, content, tool_calls, tool_results, message_index) 
-                 VALUES ($1, $2, $3, $4, $5, $6) 
-                 RETURNING id`,
-                [
-                  conversationId,
-                  'assistant',
-                  text,
-                  JSON.stringify([]),
-                  JSON.stringify([]),
-                  messages.length
-                ]
-              );
-              assistantMessageId = messageResult.rows[0].id;
-            }
-
-            // Calculate estimated cost (approximate OpenAI pricing)
-            const estimatedCost = (usage.promptTokens * 0.00015 + usage.completionTokens * 0.0006) / 1000;
-
-            // Log usage
-            await query(
-              `INSERT INTO ai_usage_logs (conversation_id, message_id, user_id, community_id, api_provider, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd, success) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-              [
-                conversationId,
-                assistantMessageId,
-                userId,
-                communityId,
-                'openai',
-                'gpt-4o-mini',
-                usage.promptTokens,
-                usage.completionTokens,
-                usage.totalTokens,
-                estimatedCost,
-                finishReason === 'stop'
-              ]
-            );
-          }
-        } catch (error) {
-          console.error('Failed to save AI response:', error);
-        }
+  // Generate streaming response with selective streaming logic
+  const result = await streamText({
+    model: openai('gpt-4o-mini'),
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages
+    ],
+    tools,
+    maxSteps: 3,
+    temperature: 0.7,
+    onStepFinish: ({ toolCalls, toolResults, finishReason }) => {
+      console.log(`[AI Chat] Step finished. ToolCalls: ${toolCalls?.length || 0}, ToolResults: ${toolResults?.length || 0}, FinishReason: ${finishReason}`);
+      
+      // Check if this step completed function calls that return UI cards
+      if (hasUICardResults(toolResults)) {
+        console.log('[AI Chat] Detected UI card results - stopping stream early for better UX');
+        // Return a special indicator to stop streaming
+        // Note: This is experimental - the AI SDK might not support this directly
+        // If not supported, we'll need to handle this on the frontend
+      } else if (toolResults?.length > 0) {
+        console.log('[AI Chat] Detected raw data results - continuing stream for AI explanation');
       }
-    });
+    },
+    onFinish: async ({ usage, finishReason, text }) => {
+      console.log(`[AI Chat] Complete. Usage: ${JSON.stringify(usage)}, FinishReason: ${finishReason}`);
+      try {
+        // Save the assistant message to get its ID
+        let assistantMessageId: string | null = null;
+        if (text) {
+          const messageResult = await query(
+            `INSERT INTO ai_messages (conversation_id, role, content, tool_calls, tool_results, message_index) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             RETURNING id`,
+            [
+              currentConversationId,
+              'assistant',
+              text || '',
+              JSON.stringify([]),
+              JSON.stringify([]),
+              messages.length
+            ]
+          );
+          assistantMessageId = messageResult.rows[0].id;
+        }
 
-    // Return streaming response using v4 syntax
-    const streamResponse = result.toDataStreamResponse();
-    return new NextResponse(streamResponse.body, {
-      status: streamResponse.status,
-      headers: streamResponse.headers,
-    });
-  } catch (error) {
-    console.error('AI chat error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+        // Calculate estimated cost (approximate OpenAI pricing)
+        const estimatedCost = (usage.promptTokens * 0.00015 + usage.completionTokens * 0.0006) / 1000;
+
+        // Log usage
+        await query(
+          `INSERT INTO ai_usage_logs (conversation_id, message_id, user_id, community_id, api_provider, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd, success) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            currentConversationId,
+            assistantMessageId || null,
+            validatedUserId,
+            validatedCommunityId,
+            'openai',
+            'gpt-4o-mini',
+            usage.promptTokens,
+            usage.completionTokens,
+            usage.totalTokens,
+            estimatedCost,
+            finishReason === 'stop'
+          ]
+        );
+      } catch (error) {
+        console.error('Failed to save AI response:', error);
+      }
+    }
+  });
+
+  // Return streaming response using v4 syntax
+  const streamResponse = result.toDataStreamResponse();
+  return new NextResponse(streamResponse.body, {
+    status: streamResponse.status,
+    headers: streamResponse.headers,
+  });
 });
 
 // GET endpoint for conversation history
@@ -258,10 +293,14 @@ export const GET = withAuthAndErrorHandling(async (req: EnhancedAuthRequest) => 
       created_at: row.created_at
     }));
 
+    // Extract title from metadata
+    const metadata = conversation.metadata || {};
+    const title = metadata.title || 'New Conversation';
+
     return NextResponse.json({
       conversation: {
         id: conversation.id,
-        title: conversation.title,
+        title: title,
         conversation_type: conversation.conversation_type,
         status: conversation.status,
         created_at: conversation.created_at,
@@ -284,16 +323,22 @@ export const GET = withAuthAndErrorHandling(async (req: EnhancedAuthRequest) => 
     `, [userId, communityId]);
 
     return NextResponse.json({
-      conversations: conversations.rows.map(row => ({
-        id: row.id,
-        title: row.title,
-        conversation_type: row.conversation_type,
-        status: row.status,
-        message_count: parseInt(row.message_count),
-        last_message_at: row.last_message_at,
-        created_at: row.created_at,
-        updated_at: row.updated_at
-      }))
+      conversations: conversations.rows.map(row => {
+        // Extract title from metadata
+        const metadata = row.metadata || {};
+        const title = metadata.title || 'New Conversation';
+        
+        return {
+          id: row.id,
+          title: title,
+          conversation_type: row.conversation_type,
+          status: row.status,
+          message_count: parseInt(row.message_count),
+          last_message_at: row.last_message_at,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        };
+      })
     });
   }
 }, { requireCommunity: true });

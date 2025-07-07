@@ -44,6 +44,25 @@ interface ActionButton {
 // Session storage key for persisting chat messages
 const CHAT_STORAGE_KEY = 'clippy_chat_session';
 
+// Helper to detect if a message has UI card function results
+const hasUICardResults = (message: Message): boolean => {
+  const toolInvocations = (message as any).toolInvocations;
+  if (!toolInvocations || !Array.isArray(toolInvocations)) return false;
+  
+  // Check if any tool invocation has a UI card result type and not text_only mode
+  return toolInvocations.some((inv: any) => {
+    const resultType = inv.result?.type;
+    const displayMode = inv.result?.displayMode;
+    
+    // These are the function types that show UI cards
+    const UI_CARD_TYPES = ['search_results', 'lock_search_results', 'post_creation_guidance'];
+    
+    return resultType && 
+           UI_CARD_TYPES.includes(resultType) && 
+           displayMode !== 'text_only';
+  });
+};
+
 export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
@@ -54,6 +73,10 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [welcomeLoaded, setWelcomeLoaded] = useState(false);
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
+  
+  // New state for immediate interaction mode
+  const [immediateInteractionMode, setImmediateInteractionMode] = useState(false);
+  
   const chatInterfaceRef = useRef<AIChatInterfaceRef | null>(null);
   const welcomeLoadingRef = useRef(false); // Ref-based guard against double calls in dev mode
   const { isAuthenticated, user, token } = useAuth();
@@ -136,8 +159,33 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
       setTimeout(() => {
         persistMessages([...messages, message]);
       }, 100);
+      
+      // Reset immediate interaction mode when streaming fully completes
+      setImmediateInteractionMode(false);
     }
   });
+
+  // Monitor messages for function card appearances to enable immediate interaction
+  useEffect(() => {
+    if (!isLoading) {
+      // Reset immediate interaction mode when not loading
+      setImmediateInteractionMode(false);
+      return;
+    }
+
+    // Check if the latest assistant message has function cards
+    const latestAssistantMessage = [...messages]
+      .reverse()
+      .find(msg => msg.role === 'assistant');
+
+    if (latestAssistantMessage && hasUICardResults(latestAssistantMessage)) {
+      console.log('[AIChatBubble] Function cards detected - enabling immediate interaction mode');
+      setImmediateInteractionMode(true);
+    }
+  }, [messages, isLoading]);
+
+  // Calculate effective loading state - not loading if in immediate interaction mode
+  const effectiveIsLoading = isLoading && !immediateInteractionMode;
 
   // Persist messages whenever they change
   useEffect(() => {
@@ -355,7 +403,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
                 input={input}
                 handleInputChange={handleInputChange}
                 handleSubmit={handleSubmit}
-                isLoading={isLoading}
+                isLoading={effectiveIsLoading}
                 setInput={setInput}
                 onClearChat={clearChat}
                 className="h-full"
