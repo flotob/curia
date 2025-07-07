@@ -3,6 +3,7 @@ import { withAuthAndErrorHandling, EnhancedAuthRequest } from '@/lib/middleware/
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { query } from '@/lib/db';
+import { ClippyCharacterSystem } from '@/lib/ai';
 
 const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
   try {
@@ -28,8 +29,9 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
 
     console.log('Welcome API - Request context:', { timeOfDay, boardId, isFirstVisit });
 
-    // Build context for the AI
+    // Build context for the AI and extract user stats
     let contextInfo = '';
+    let userStats: { postCount: number; commentCount: number; memberDays: number } | undefined;
     
     // Get user stats and community info
     try {
@@ -53,6 +55,15 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
       if (userStatsResult.rows.length > 0) {
         const stats = userStatsResult.rows[0];
         contextInfo += `User has ${stats.post_count} posts and ${stats.comment_count} comments. `;
+        
+        // Extract user stats for character system
+        const memberDays = stats.user_since ? 
+          Math.floor((Date.now() - new Date(stats.user_since).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        userStats = {
+          postCount: parseInt(stats.post_count) || 0,
+          commentCount: parseInt(stats.comment_count) || 0,
+          memberDays
+        };
         
         if (stats.user_since) {
           const joinDate = new Date(stats.user_since);
@@ -82,15 +93,20 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
 
     console.log('Welcome API - Built context:', contextInfo);
 
-    // Create system prompt
-    const systemPrompt = `You are a helpful community assistant. Generate a brief, personalized welcome message (2-3 sentences max) for a community member.
-
-Context: ${contextInfo}
-Time: ${timeOfDay || 'unknown'}
-User role: ${isAdmin ? 'Admin' : 'Member'}
-First visit: ${isFirstVisit ? 'Yes' : 'No'}
-
-Make the message warm, contextual, and helpful. For admins, acknowledge their role. For active users, reference their contributions. Keep it concise and engaging. IMPORTANT: Always use the user's actual name (${userName}) in your response.`;
+    // Create character-driven system prompt
+    const systemPrompt = ClippyCharacterSystem.forWelcomeMessage(
+      {
+        userId,
+        communityId,
+        userName,
+        isAdmin
+      },
+      {
+        timeOfDay: timeOfDay as 'morning' | 'afternoon' | 'evening' | undefined,
+        isFirstVisit,
+        userStats
+      }
+    );
 
     const userPrompt = `Generate a personalized welcome message for ${userName}.`;
 

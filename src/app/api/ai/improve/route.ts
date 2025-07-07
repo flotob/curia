@@ -4,6 +4,7 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { query } from '@/lib/db';
 import { z } from 'zod';
+import { ClippyCharacterSystem } from '@/lib/ai';
 
 // Interfaces for the improvement response
 export interface ImprovementChange {
@@ -23,26 +24,6 @@ export interface ImprovementResult {
   confidence: number;
 }
 
-const IMPROVEMENT_SYSTEM_PROMPT = `You are an expert content editor for a community forum. Improve the provided content for:
-
-1. **Grammar & Spelling**: Fix typos, grammar errors, punctuation mistakes
-2. **Clarity & Readability**: Simplify complex sentences, improve flow and structure
-3. **Engagement**: Make content more engaging while preserving original meaning and tone
-4. **Professional Polish**: Ensure appropriate formatting and professional presentation
-
-IMPORTANT RULES:
-- Preserve the original meaning and author's intent
-- Don't add new information, claims, or change the core message
-- Keep roughly the same content length (±20%)
-- Maintain any technical terms or domain-specific language
-- Preserve markdown formatting if present
-- Keep the same tone (formal/casual/technical)
-- Focus on making existing content clearer and more professional
-- NEVER add titles or headlines to content that doesn't already have them
-- If content already starts with a title/headline, do NOT duplicate it
-
-Return your improvements with specific details about what was changed and why.`;
-
 const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
   try {
     const { content, type, title } = await request.json();
@@ -58,6 +39,17 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     // Get user and community context
     const userId = request.userContext.userId;
     const communityId = request.userContext.communityId;
+
+    // Generate character-driven system prompt for content improvement
+    const systemPrompt = ClippyCharacterSystem.forContentImprovement(
+      {
+        userId,
+        communityId,
+        userName: request.user?.name || undefined,
+        isAdmin: request.userContext?.isAdmin
+      },
+      type as 'post' | 'comment'
+    );
 
     // Create conversation for tracking
     const conversationResult = await query(
@@ -87,7 +79,7 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     const result = await streamText({
       model: openai('gpt-4o-mini'),
       messages: [
-        { role: 'system', content: IMPROVEMENT_SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: fullPrompt }
       ],
       tools: {
@@ -107,7 +99,20 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
             summary: z.string().describe('Brief summary of the main improvements made'),
             confidence: z.number().min(0).max(100).describe('Confidence level in improvements (0-100)')
           }),
-          execute: async (params) => {
+          execute: async (params: {
+            improvedContent: string;
+            changes: Array<{
+              type: 'addition' | 'deletion' | 'modification';
+              originalText: string;
+              improvedText: string;
+              startIndex: number;
+              endIndex: number;
+              reason: string;
+              changeId: string;
+            }>;
+            summary: string;
+            confidence: number;
+          }) => {
             try {
               // Save the AI response and get the message ID
               const messageResult = await query(
