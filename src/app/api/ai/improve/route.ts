@@ -4,6 +4,7 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { query } from '@/lib/db';
 import { z } from 'zod';
+import { CommunitySettings, BoardSettings, SettingsUtils } from '@/types/settings';
 
 // Interfaces for the improvement response
 export interface ImprovementChange {
@@ -23,12 +24,15 @@ export interface ImprovementResult {
   confidence: number;
 }
 
+// Removed compliance interfaces - now pure optimizer
+
 const IMPROVEMENT_SYSTEM_PROMPT = `You are an expert content editor for a community forum. Improve the provided content for:
 
 1. **Grammar & Spelling**: Fix typos, grammar errors, punctuation mistakes
-2. **Clarity & Readability**: Simplify complex sentences, improve flow and structure
+2. **Clarity & Readability**: Simplify complex sentences, improve flow and structure  
 3. **Engagement**: Make content more engaging while preserving original meaning and tone
-4. **Professional Polish**: Ensure appropriate formatting and professional presentation
+4. **Community Fit**: Adapt language and style to match the community's culture and norms
+5. **Professional Polish**: Ensure appropriate formatting and professional presentation
 
 IMPORTANT RULES:
 - Preserve the original meaning and author's intent
@@ -40,12 +44,13 @@ IMPORTANT RULES:
 - Focus on making existing content clearer and more professional
 - NEVER add titles or headlines to content that doesn't already have them
 - If content already starts with a title/headline, do NOT duplicate it
+- Use community context to make content more relevant and engaging
 
 Return your improvements with specific details about what was changed and why.`;
 
 const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
   try {
-    const { content, type, title } = await request.json();
+    const { content, type, title, communityId: requestCommunityId, boardId } = await request.json();
     
     if (!content || typeof content !== 'string') {
       return NextResponse.json({ error: 'Content is required and must be a string' }, { status: 400 });
@@ -57,7 +62,45 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
 
     // Get user and community context
     const userId = request.userContext.userId;
-    const communityId = request.userContext.communityId;
+    const communityId = requestCommunityId || request.userContext.communityId;
+
+    // Fetch community and board settings for auto-moderation
+    let communitySettings: CommunitySettings = {};
+    let boardSettings: BoardSettings = {};
+    let autoModerationConfig: ReturnType<typeof SettingsUtils.getAIAutoModerationConfig> | null = null;
+
+    // Always fetch settings for community context
+    try {
+      // Fetch community settings
+      const communityResult = await query(
+        'SELECT settings FROM communities WHERE id = $1',
+        [communityId]
+      );
+      
+      if (communityResult.rows.length > 0 && communityResult.rows[0].settings) {
+        communitySettings = communityResult.rows[0].settings;
+      }
+
+      // Fetch board settings if boardId provided
+      if (boardId) {
+        const boardResult = await query(
+          'SELECT settings FROM boards WHERE id = $1 AND community_id = $2',
+          [boardId, communityId]
+        );
+        
+        if (boardResult.rows.length > 0 && boardResult.rows[0].settings) {
+          boardSettings = boardResult.rows[0].settings;
+        }
+      }
+
+      // Get aggregated auto-moderation config
+      autoModerationConfig = SettingsUtils.getAIAutoModerationConfig(communitySettings, boardSettings);
+      
+      console.log('[AI Improve] Auto-moderation config:', autoModerationConfig);
+    } catch (settingsError) {
+      console.error('[AI Improve] Failed to fetch settings:', settingsError);
+      // Continue without auto-moderation if settings fetch fails
+    }
 
     // Create conversation for tracking
     const conversationResult = await query(
@@ -79,16 +122,29 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
       [conversationId, 'user', content, 0]
     );
 
-    // Prepare the improvement prompt
-    const fullPrompt = type === 'post' && title 
+    // Prepare context-aware improvement prompt
+    let systemPrompt = IMPROVEMENT_SYSTEM_PROMPT;
+    const userPrompt = type === 'post' && title 
       ? `Improve this ${type} content. The title is "${title}" and is handled separately - do NOT include or repeat the title in your improved content. Only improve the body content:\n\n${content}`
       : `Improve this ${type}:\n\n${content}`;
+
+    // Add community context if available
+    if (autoModerationConfig?.enabled && autoModerationConfig.customKnowledge) {
+      systemPrompt += `
+
+---COMMUNITY CONTEXT---
+This content is for a community with specific culture and norms. Use this context to make your improvements more relevant and engaging:
+
+${autoModerationConfig.customKnowledge}
+
+Consider this community context when improving the content to make it more fitting and engaging for this specific audience.`;
+    }
 
     const result = await streamText({
       model: openai('gpt-4o-mini'),
       messages: [
-        { role: 'system', content: IMPROVEMENT_SYSTEM_PROMPT },
-        { role: 'user', content: fullPrompt }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
       ],
       tools: {
         generateImprovedContent: {
@@ -109,6 +165,12 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
           }),
           execute: async (params) => {
             try {
+              console.log('[AI Improve] Generated improvements:', {
+                changesCount: params.changes?.length || 0,
+                confidence: params.confidence,
+                hasCustomKnowledge: !!(autoModerationConfig?.customKnowledge)
+              });
+
               // Save the AI response and get the message ID
               const messageResult = await query(
                 `INSERT INTO ai_messages (conversation_id, role, content, tool_results, message_index) 
@@ -131,7 +193,15 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
                 [conversationId, messageId, userId, communityId, 'gpt-4o-mini', estimatedPromptTokens, estimatedCompletionTokens, totalTokens, estimatedCost, true]
               );
 
-              return { success: true, data: params };
+              // Return clean optimization response
+              return { 
+                success: true, 
+                data: {
+                  ...params,
+                  hasSignificantChanges: params.changes?.length > 0,
+                  communityContextUsed: !!(autoModerationConfig?.customKnowledge)
+                }
+              };
             } catch (dbError) {
               console.error('Database error in AI improvement:', dbError);
               // Still return success to not break the AI response

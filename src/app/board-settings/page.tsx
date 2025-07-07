@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save, Trash2, Settings, Shield, AlertTriangle, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Settings, Shield, AlertTriangle, Lock, Brain } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { BoardAccessForm } from '@/components/BoardAccessForm';
 import { BoardLockGatingForm } from '@/components/BoardLockGatingForm';
+import { BoardAIAutoModerationSettings } from '@/components/settings/BoardAIAutoModerationSettings';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useToast } from '@/hooks/use-toast';
 import { Card } from '@/components/ui/card';
@@ -448,6 +449,25 @@ export default function BoardSettingsPage() {
               autoSave={true}
             />
           </CollapsibleSection>
+
+          {/* AI Auto-Moderation Settings */}
+          {communitySettings?.settings && (
+            <CollapsibleSection
+              title="AI Auto-Moderation"
+              subtitle="Board-specific AI content moderation settings"
+              icon={<Brain size={20} className="text-primary" />}
+              defaultExpanded={false}
+              summary={<span className="text-sm text-muted-foreground">Configure AI settings</span>}
+            >
+              <BoardAIAutoModerationSettings
+                currentSettings={boardSettings}
+                communitySettings={communitySettings.settings}
+                onSettingsChange={setBoardSettings}
+                isLoading={updateBoardMutation.isPending}
+                theme={theme}
+              />
+            </CollapsibleSection>
+          )}
 
           {/* Save/Delete Actions */}
           <div className="flex justify-between items-center pt-8 mt-8 border-t border-border/50">
