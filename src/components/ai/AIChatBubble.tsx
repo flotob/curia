@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChat } from '@ai-sdk/react';
 import { AIChatInterface, AIChatInterfaceRef } from './AIChatInterface';
 import { ClippyButton } from './ClippyButton';
 import ClippySpeechBubble from './ClippySpeechBubble';
@@ -11,6 +12,7 @@ import { useCardStyling } from '@/hooks/useCardStyling';
 import { authFetch } from '@/utils/authFetch';
 import { useRouter } from 'next/navigation';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
+import type { Message } from '@ai-sdk/react';
 
 interface AIChatBubbleProps {
   className?: string;
@@ -39,6 +41,9 @@ interface ActionButton {
   adminOnly?: boolean;
 }
 
+// Session storage key for persisting chat messages
+const CHAT_STORAGE_KEY = 'clippy_chat_session';
+
 export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
@@ -55,6 +60,89 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   
   // Get card styling for background-aware gradients (same as PostCard)
   const { hasActiveBackground } = useCardStyling();
+
+  // Load persisted messages from session storage on mount
+  const loadPersistedMessages = useCallback((): Message[] => {
+    if (typeof window === 'undefined') return [];
+    
+    try {
+      const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Validate the structure
+        if (Array.isArray(parsed) && parsed.every(msg => 
+          msg.id && msg.role && msg.content !== undefined
+        )) {
+          console.log('Restored', parsed.length, 'persisted chat messages');
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load persisted chat messages:', error);
+    }
+    
+    return [];
+  }, []);
+
+  // Persist messages to session storage
+  const persistMessages = useCallback((messages: Message[]) => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    } catch (error) {
+      console.warn('Failed to persist chat messages:', error);
+    }
+  }, []);
+
+  // Move useChat hook to parent for session persistence
+  const { 
+    messages, 
+    input, 
+    handleInputChange, 
+    handleSubmit, 
+    isLoading, 
+    setInput,
+    setMessages
+  } = useChat({
+    api: '/api/ai/chat',
+    initialMessages: loadPersistedMessages(), // Restore previous messages
+    fetch: async (url, options) => {
+      // Use the app's authFetch utility which handles auth headers properly
+      const { authFetch } = await import('@/utils/authFetch');
+      const urlString = url instanceof Request ? url.url : url.toString();
+      return authFetch(urlString, options);
+    },
+    body: {
+      context: context ? {
+        boardId: context.boardId?.toString(),
+        postId: context.postId?.toString(),
+      } : undefined
+    },
+    onFinish: (message) => {
+      // Auto-persist messages after each completion
+      // Use setTimeout to ensure messages state is updated
+      setTimeout(() => {
+        persistMessages([...messages, message]);
+      }, 100);
+    }
+  });
+
+  // Persist messages whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      persistMessages(messages);
+    }
+  }, [messages, persistMessages]);
+
+  // Clear chat function for users who want to start fresh
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(CHAT_STORAGE_KEY);
+    }
+    console.log('Chat history cleared');
+  }, [setMessages]);
 
   const getTimeOfDay = (): 'morning' | 'afternoon' | 'evening' => {
     const hour = new Date().getHours();
@@ -151,6 +239,19 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     }
   };
 
+  // Function to send a message programmatically
+  const sendMessage = useCallback((message: string) => {
+    setInput(message);
+    // Trigger form submission after setting input
+    setTimeout(() => {
+      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+      // We'll handle this in AIChatInterface
+      if (chatInterfaceRef.current) {
+        (chatInterfaceRef.current as any).triggerSubmit?.(submitEvent);
+      }
+    }, 100);
+  }, [setInput]);
+
   // Handle action button clicks from speech bubble
   const handleActionClick = (button: ActionButton) => {
     // Hide speech bubble
@@ -159,8 +260,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     switch (button.action) {
       case 'chat':
         // Send message to chat interface and open modal
-        if (button.message && chatInterfaceRef.current) {
-          chatInterfaceRef.current.sendMessage(button.message);
+        if (button.message) {
+          sendMessage(button.message);
         }
         setIsOpen(true);
         setHasNewMessage(false);
@@ -186,8 +287,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
         
       default:
         // Fallback to chat behavior for backward compatibility
-        if (button.message && chatInterfaceRef.current) {
-          chatInterfaceRef.current.sendMessage(button.message);
+        if (button.message) {
+          sendMessage(button.message);
         }
         setIsOpen(true);
         setHasNewMessage(false);
@@ -225,17 +326,17 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
                   : 'bg-card border border-border shadow-2xl'
               )}
             >
-              {/* Chat Interface - no duplicate header */}
+              {/* Chat Interface - with persistent state */}
               <AIChatInterface
                 ref={chatInterfaceRef}
-                context={
-                  context
-                    ? {
-                        boardId: context.boardId?.toString(),
-                        postId: context.postId?.toString(),
-                      }
-                    : undefined
-                }
+                // Pass chat state and functions as props
+                messages={messages}
+                input={input}
+                handleInputChange={handleInputChange}
+                handleSubmit={handleSubmit}
+                isLoading={isLoading}
+                setInput={setInput}
+                onClearChat={clearChat}
                 className="h-full"
                 onClose={toggleChat}
               />

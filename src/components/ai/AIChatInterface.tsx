@@ -4,22 +4,24 @@ import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } f
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown } from 'lucide-react';
-import { useChat } from '@ai-sdk/react';
+import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import type { Message } from '@ai-sdk/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { FunctionCardRenderer, isValidFunctionCardType } from './utils/FunctionCardRenderer';
 
-interface ChatContext {
-  boardId?: string;
-  postId?: string;
-}
-
 interface AIChatInterfaceProps {
-  context?: ChatContext;
   className?: string;
   onClose?: () => void;
+  // Chat state passed from parent for persistence
+  messages: Message[];
+  input: string;
+  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  isLoading: boolean;
+  setInput: (input: string) => void;
+  onClearChat?: () => void;
 }
 
 // Ref interface to expose methods
@@ -119,11 +121,12 @@ function MarkdownContent({ content }: { content: string }) {
 }
 
 export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfaceProps>(
-  ({ context, className, onClose }, ref) => {
+  ({ className, onClose, messages, input, handleInputChange, handleSubmit, isLoading, setInput, onClearChat }, ref) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const { user } = useAuth();
     const { cgInstance } = useCgLib();
+    const formRef = useRef<HTMLFormElement>(null);
 
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -138,29 +141,21 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
 
     const { openSearch } = useGlobalSearch();
     
-    const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
-      api: '/api/ai/chat',
-      fetch: async (url, options) => {
-        // Use the app's authFetch utility which handles auth headers properly
-        const { authFetch } = await import('@/utils/authFetch');
-        const urlString = url instanceof Request ? url.url : url.toString();
-        return authFetch(urlString, options);
-      },
-      body: {
-        context
+    // Simple submit function that can be called programmatically
+    const submitForm = () => {
+      if (formRef.current) {
+        const event = new Event('submit', { bubbles: true, cancelable: true });
+        formRef.current.dispatchEvent(event);
       }
-    });
-
+    };
+    
     // Expose sendMessage method via ref
     useImperativeHandle(ref, () => ({
       sendMessage: (message: string) => {
         setInput(message);
         // Trigger form submission after setting input
         setTimeout(() => {
-          const form = document.querySelector('form') as HTMLFormElement;
-          if (form) {
-            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-          }
+          submitForm();
         }, 100);
       }
     }), [setInput]);
@@ -190,17 +185,14 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
       setInput(action);
       // Automatically submit the message
       setTimeout(() => {
-        const form = document.querySelector('form') as HTMLFormElement;
-        if (form) {
-          form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        }
+        submitForm();
       }, 100);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        handleSubmit(e);
+        submitForm();
       }
     };
 
@@ -244,14 +236,28 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
             </div>
           </div>
           {onClose ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground p-1 h-auto"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {/* Clear chat button - only show when there are messages */}
+              {messages.length > 0 && onClearChat && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClearChat}
+                  className="text-muted-foreground hover:text-foreground p-1 h-auto"
+                  title="Clear chat history"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="text-muted-foreground hover:text-foreground p-1 h-auto"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           ) : (
             <Sparkles className="w-5 h-5 text-primary" />
           )}
@@ -374,7 +380,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                 {/* Input */}
         <div className="border-t bg-background/50">
           <div className="p-3">
-            <form onSubmit={handleSubmit} className="flex gap-2">
+            <form onSubmit={handleSubmit} ref={formRef} className="flex gap-2">
               <Textarea
                 value={input}
                 onChange={handleInputChange}
