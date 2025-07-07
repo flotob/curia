@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, us
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown, Trash2, Copy, Check } from 'lucide-react';
 import type { Message } from '@ai-sdk/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
@@ -204,6 +204,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     const [userHasScrolled, setUserHasScrolled] = useState(false);
     const [lastAssistantMessageId, setLastAssistantMessageId] = useState<string | null>(null);
     const [hasScrolledToNewResponse, setHasScrolledToNewResponse] = useState(false);
+    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const { user } = useAuth();
     const { cgInstance } = useCgLib();
     const { data: communityData } = useCommunityData();
@@ -212,6 +213,33 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     // Lock preview modal state
     const [selectedLock, setSelectedLock] = useState<LockWithStats | null>(null);
     const [isLockModalOpen, setIsLockModalOpen] = useState(false);
+
+    // Copy to clipboard function
+    const copyMessageToClipboard = async (content: string, messageId: string) => {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(content);
+        } else {
+          // Fallback for older browsers or non-secure contexts
+          const textArea = document.createElement('textarea');
+          textArea.value = content;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          document.execCommand('copy');
+          textArea.remove();
+        }
+        
+        setCopiedMessageId(messageId);
+        // Reset the copied state after 2 seconds
+        setTimeout(() => setCopiedMessageId(null), 2000);
+      } catch (err) {
+        console.error('Failed to copy message:', err);
+      }
+    };
 
     // Simple, robust scroll behavior - only scroll when user is genuinely at bottom
     const scrollToBottom = useCallback((force = false) => {
@@ -513,7 +541,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                   <div
                     key={message.id}
                     data-message-id={message.id}
-                    className={`flex gap-2 ${
+                    className={`flex gap-2 group ${
                       message.role === 'user' ? 'justify-end' : 'justify-start'
                     }`}
                   >
@@ -526,68 +554,100 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                       </Avatar>
                     )}
                     
-                    <div
-                      className={`max-w-[85%] rounded-lg px-3 py-2 ${
-                        message.role === 'user'
-                          ? 'bg-blue-600 text-white ml-auto dark:bg-blue-500 dark:text-white'
-                          : 'bg-muted text-foreground'
-                      }`}
-                    >
-                      <div className={`prose prose-sm max-w-none text-base break-words ${
-                        message.role === 'user' 
-                          ? 'prose-invert text-white' 
-                          : 'dark:prose-invert text-foreground'
-                      }`}>
-                        {/* Hide AI message content when function call UI cards exist, but show it for text_only mode */}
-                        {message.role === 'assistant' && (message as any).toolInvocations ? (
-                          (() => {
-                            // Check if any tool invocation has displayMode: 'text_only'
-                            const hasTextOnlyMode = (message as any).toolInvocations.some(
-                              (inv: any) => inv.result?.displayMode === 'text_only'
-                            );
-                            
-                            if (hasTextOnlyMode) {
-                              // Show AI content when text_only mode is requested
-                              return <MarkdownContent content={message.content} />;
-                            } else {
-                              // Hide AI content when UI cards provide the value
-                              return (
-                                <div className="text-xs text-muted-foreground italic">
-                                  {/* Just show a minimal indicator that AI processed the request */}
-                                </div>
+                    <div className="relative max-w-[85%]">
+                      <div
+                        className={`rounded-lg px-3 py-2 ${
+                          message.role === 'user'
+                            ? 'bg-blue-600 text-white ml-auto dark:bg-blue-500 dark:text-white'
+                            : 'bg-muted text-foreground'
+                        }`}
+                      >
+                        <div className={`prose prose-sm max-w-none text-base break-words ${
+                          message.role === 'user' 
+                            ? 'prose-invert text-white' 
+                            : 'dark:prose-invert text-foreground'
+                        }`}>
+                          {/* Hide AI message content when function call UI cards exist, but show it for text_only mode */}
+                          {message.role === 'assistant' && (message as any).toolInvocations ? (
+                            (() => {
+                              // Check if any tool invocation has displayMode: 'text_only'
+                              const hasTextOnlyMode = (message as any).toolInvocations.some(
+                                (inv: any) => inv.result?.displayMode === 'text_only'
                               );
-                            }
-                          })()
-                        ) : (
-                          <MarkdownContent content={message.content} />
+                              
+                              if (hasTextOnlyMode) {
+                                // Show AI content when text_only mode is requested
+                                return <MarkdownContent content={message.content} />;
+                              } else {
+                                // Hide AI content when UI cards provide the value
+                                return (
+                                  <div className="text-xs text-muted-foreground italic">
+                                    {/* Just show a minimal indicator that AI processed the request */}
+                                  </div>
+                                );
+                              }
+                            })()
+                          ) : (
+                            <MarkdownContent content={message.content} />
+                          )}
+                        </div>
+                        
+                        {/* Render special UI components for tool call results (respecting displayMode) */}
+                        {message.role === 'assistant' && (message as any).toolInvocations && (
+                          <div className="mt-2">
+                            {(message as any).toolInvocations.map((invocation: any, index: number) => {
+                              const resultType = invocation.result?.type;
+                              const displayMode = invocation.result?.displayMode;
+                              
+                              // Skip UI card rendering if displayMode is 'text_only'
+                              if (displayMode === 'text_only') {
+                                return null;
+                              }
+                              
+                              if (resultType && isValidFunctionCardType(resultType)) {
+                                return (
+                                  <FunctionCardRenderer
+                                    key={index}
+                                    data={invocation.result}
+                                    onAction={handleFunctionCardAction}
+                                  />
+                                );
+                              }
+                              return null;
+                            })}
+                          </div>
                         )}
                       </div>
                       
-                      {/* Render special UI components for tool call results (respecting displayMode) */}
-                      {message.role === 'assistant' && (message as any).toolInvocations && (
-                        <div className="mt-2">
-                          {(message as any).toolInvocations.map((invocation: any, index: number) => {
-                            const resultType = invocation.result?.type;
-                            const displayMode = invocation.result?.displayMode;
-                            
-                            // Skip UI card rendering if displayMode is 'text_only'
-                            if (displayMode === 'text_only') {
-                              return null;
+                      {/* Copy to Clipboard Button */}
+                      <div className={`absolute -bottom-6 flex items-center gap-1 text-xs ${
+                        message.role === 'user' ? 'right-0' : 'left-0'
+                      }`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyMessageToClipboard(message.content, message.id)}
+                          className={`
+                            h-6 w-6 p-0 rounded-full transition-all duration-200
+                            opacity-0 group-hover:opacity-100 md:group-hover:opacity-100
+                            hover:bg-background/80 hover:shadow-sm
+                            text-muted-foreground hover:text-foreground
+                            ${message.role === 'user' 
+                              ? 'hover:bg-white/20 hover:text-white' 
+                              : 'hover:bg-muted/80'
                             }
-                            
-                            if (resultType && isValidFunctionCardType(resultType)) {
-                              return (
-                                <FunctionCardRenderer
-                                  key={index}
-                                  data={invocation.result}
-                                  onAction={handleFunctionCardAction}
-                                />
-                              );
-                            }
-                            return null;
-                          })}
-                        </div>
-                      )}
+                            /* Always visible on mobile */
+                            [@media(hover:none)]:opacity-60
+                          `}
+                          title="Copy message"
+                        >
+                          {copiedMessageId === message.id ? (
+                            <Check className="w-3 h-3" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
 
                     {message.role === 'user' && (
