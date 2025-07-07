@@ -52,6 +52,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const [speechTone, setSpeechTone] = useState<'welcoming' | 'helpful' | 'encouraging' | 'admin-focused'>('welcoming');
   const [welcomeLoading, setWelcomeLoading] = useState(false);
   const [welcomeLoaded, setWelcomeLoaded] = useState(false);
+  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
   const chatInterfaceRef = useRef<AIChatInterfaceRef | null>(null);
   const welcomeLoadingRef = useRef(false); // Ref-based guard against double calls in dev mode
   const { isAuthenticated, user, token } = useAuth();
@@ -62,7 +64,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   const { hasActiveBackground } = useCardStyling();
 
   // Load persisted messages from session storage on mount
-  const loadPersistedMessages = useCallback((): Message[] => {
+  const loadMessages = (): Message[] => {
     if (typeof window === 'undefined') return [];
     
     try {
@@ -82,7 +84,16 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     }
     
     return [];
-  }, []);
+  };
+
+  // Load initial messages once on mount with strict mode protection
+  useEffect(() => {
+    if (messagesLoaded) return; // Prevent multiple loads
+    
+    const messages = loadMessages();
+    setInitialMessages(messages);
+    setMessagesLoaded(true);
+  }, [messagesLoaded]);
 
   // Persist messages to session storage
   const persistMessages = useCallback((messages: Message[]) => {
@@ -106,7 +117,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     setMessages
   } = useChat({
     api: '/api/ai/chat',
-    initialMessages: loadPersistedMessages(), // Restore previous messages
+    initialMessages: initialMessages, // Use memoized state instead of calling function
     fetch: async (url, options) => {
       // Use the app's authFetch utility which handles auth headers properly
       const { authFetch } = await import('@/utils/authFetch');

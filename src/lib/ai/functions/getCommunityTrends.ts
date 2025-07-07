@@ -151,7 +151,9 @@ export const getCommunityTrends: AIFunctionCall = {
       return {
         type: 'trending_analysis',
         success: true,
-        messageForAI: `Analyzed ${trendingPosts.length} trending posts from the last ${timeframeDays} days with ${Object.values(commentsData).flat().length} comments. Average engagement: ${averageEngagement.toFixed(1)} interactions per post. Most active boards: ${Object.keys(boardDistribution).slice(0, 3).join(', ')}. Top trending tags: ${Object.keys(tagFrequency).slice(0, 3).join(', ')}.`,
+        messageForAI: `Analyzed ${trendingPosts.length} trending posts from the last ${timeframeDays} days with ${Object.values(commentsData).flat().length} comments. Average engagement: ${averageEngagement.toFixed(1)} interactions per post. Most active boards: ${Object.keys(boardDistribution).slice(0, 3).join(', ')}. Top trending tags: ${Object.keys(tagFrequency).slice(0, 3).join(', ')}. 
+
+IMPORTANT: Do NOT generate any internal links (like /board/123/post/456) in your response. Only mention post titles and content as plain text. Internal navigation should only happen through specialized function call UI cards, not in normal chat text. You may include external links (https://) if relevant.`,
         analysisData,
         displayMode: 'text_only' // Hide structured UI, let AI interpret
       };

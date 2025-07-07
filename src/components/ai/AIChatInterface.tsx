@@ -31,6 +31,8 @@ export interface AIChatInterfaceRef {
 
 // Simple markdown renderer for AI chat messages
 function MarkdownContent({ content }: { content: string }) {
+  const { cgInstance } = useCgLib();
+  
   const renderMarkdown = (text: string) => {
     // Split by lines to handle lists and structure
     const lines = text.split('\n');
@@ -102,7 +104,68 @@ function MarkdownContent({ content }: { content: string }) {
   };
   
   const renderInlineFormatting = (text: string): React.ReactNode => {
-    // Simple approach: handle basic markdown formatting
+    // Parse links manually to implement clean link policy
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = linkRegex.exec(text)) !== null) {
+      const [fullMatch, linkText, url] = match;
+      const matchStart = match.index;
+      
+      // Add text before the link
+      if (matchStart > lastIndex) {
+        const beforeText = text.slice(lastIndex, matchStart);
+        parts.push(processNonLinkText(beforeText));
+      }
+      
+      // Implement clean link policy
+      if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../') || 
+          url.includes('/board/') || url.includes('/c/') || url.includes('/locks') ||
+          url.startsWith('#') || url === '' || url.startsWith('https://yourcommunityurl')) {
+        // Block internal links - show just the text
+        parts.push(<span key={matchStart}>{linkText}</span>);
+      } else if (url.startsWith('http://') || url.startsWith('https://')) {
+        // Allow external links with CG navigation
+        parts.push(
+          <a
+            key={matchStart}
+            href="#"
+            className="text-primary hover:underline cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              if (cgInstance?.navigate) {
+                console.log('[MarkdownContent] Navigating to external URL:', url);
+                cgInstance.navigate(url);
+              } else {
+                console.log('[MarkdownContent] CG navigation not available, using window.open for:', url);
+                window.open(url, '_blank', 'noopener,noreferrer');
+              }
+            }}
+          >
+            {linkText}
+          </a>
+        );
+      } else {
+        // For anything else, just show the text
+        parts.push(<span key={matchStart}>{linkText}</span>);
+      }
+      
+      lastIndex = match.index + fullMatch.length;
+    }
+    
+    // Add remaining text after last link
+    if (lastIndex < text.length) {
+      const remainingText = text.slice(lastIndex);
+      parts.push(processNonLinkText(remainingText));
+    }
+    
+    return <>{parts}</>;
+  };
+  
+  // Helper function to process non-link markdown formatting
+  const processNonLinkText = (text: string): React.ReactNode => {
     let processed = text;
     
     // Bold
@@ -111,8 +174,6 @@ function MarkdownContent({ content }: { content: string }) {
     processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>');
     // Inline code
     processed = processed.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 rounded text-sm">$1</code>');
-    // Links
-    processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline" target="_blank" rel="noopener noreferrer">$1</a>');
     
     return <span dangerouslySetInnerHTML={{ __html: processed }} />;
   };
