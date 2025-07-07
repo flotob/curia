@@ -30,6 +30,18 @@ export interface CommunitySettings {
       confidenceThreshold?: number; // Minimum AI confidence to show suggestions (0-100, default: 60)
       maxRequestsPerDay?: number;    // Rate limiting per user (default: unlimited)
     };
+    
+    autoModeration?: {
+      enabled?: boolean;             // Whether AI auto-moderation is enabled (default: false - opt-in)
+      requiresRole?: string[];       // Optional: restrict to specific roles (defaults to all authenticated users)
+      enforcementLevel?: 'strict' | 'moderate' | 'lenient'; // How strict the enforcement should be (default: moderate)
+      customKnowledge?: string;      // Custom knowledge base text blob for community-specific context
+      maxKnowledgeTokens?: number;   // Token limit for custom knowledge (default: 2000)
+      blockViolations?: boolean;     // Whether to block posts with violations (default: true)
+      lastUpdatedBy?: string;        // User ID who last updated the settings
+      lastUpdatedAt?: string;        // When settings were last updated
+    };
+    
     // Future AI features:
     // autoTagging?: { enabled: boolean; confidence: number };
     // contentModeration?: { enabled: boolean; strictness: 'low' | 'medium' | 'high' };
@@ -60,6 +72,21 @@ export interface BoardSettings {
     locks?: BoardLockGating; // Lock-based gating configuration for write access
     // Future: allowedUsers?: string[]; // Individual user overrides
   };
+  
+  // AI-powered features configuration at board level
+  ai?: {
+    autoModeration?: {
+      enabled?: boolean;             // Whether AI auto-moderation is enabled for this board (default: false - opt-in)
+      inheritCommunitySettings?: boolean; // Whether to inherit community AI settings (default: true)
+      enforcementLevel?: 'strict' | 'moderate' | 'lenient'; // Board-specific enforcement level
+      customKnowledge?: string;      // Board-specific knowledge base text blob
+      maxKnowledgeTokens?: number;   // Token limit for custom knowledge (default: 2000)
+      blockViolations?: boolean;     // Whether to block posts with violations (default: true)
+      lastUpdatedBy?: string;        // User ID who last updated the settings
+      lastUpdatedAt?: string;        // When settings were last updated
+    };
+  };
+  
   // Future board-specific settings:
   // moderation?: { autoModerationLevel: 'strict' | 'moderate' | 'permissive' };
   // notifications?: { emailDigest: boolean; pushNotifications: boolean };
@@ -148,12 +175,48 @@ export const SettingsUtils = {
     
     const settingsObj = settings as Record<string, unknown>;
     const permissions = settingsObj?.permissions as Record<string, unknown> | undefined;
+    const ai = settingsObj?.ai as Record<string, unknown> | undefined;
     
     if (permissions?.allowedRoles) {
       if (!Array.isArray(permissions.allowedRoles)) {
         errors.push('allowedRoles must be an array');
       } else if (!permissions.allowedRoles.every((role: unknown) => typeof role === 'string')) {
         errors.push('All allowedRoles must be strings');
+      }
+    }
+    
+    // Validate AI settings
+    if (ai) {
+      if (ai.postImprovement && typeof ai.postImprovement !== 'object') {
+        errors.push('ai.postImprovement must be an object');
+      }
+      
+      if (ai.autoModeration && typeof ai.autoModeration !== 'object') {
+        errors.push('ai.autoModeration must be an object');
+      } else if (ai.autoModeration) {
+        const autoMod = ai.autoModeration as Record<string, unknown>;
+        
+        if (autoMod.enabled !== undefined && typeof autoMod.enabled !== 'boolean') {
+          errors.push('ai.autoModeration.enabled must be a boolean');
+        }
+        
+        if (autoMod.enforcementLevel !== undefined && 
+            !['strict', 'moderate', 'lenient'].includes(autoMod.enforcementLevel as string)) {
+          errors.push('ai.autoModeration.enforcementLevel must be "strict", "moderate", or "lenient"');
+        }
+        
+        if (autoMod.customKnowledge !== undefined && typeof autoMod.customKnowledge !== 'string') {
+          errors.push('ai.autoModeration.customKnowledge must be a string');
+        }
+        
+        if (autoMod.maxKnowledgeTokens !== undefined && 
+            (typeof autoMod.maxKnowledgeTokens !== 'number' || autoMod.maxKnowledgeTokens <= 0)) {
+          errors.push('ai.autoModeration.maxKnowledgeTokens must be a positive number');
+        }
+        
+        if (autoMod.blockViolations !== undefined && typeof autoMod.blockViolations !== 'boolean') {
+          errors.push('ai.autoModeration.blockViolations must be a boolean');
+        }
       }
     }
     
@@ -563,5 +626,131 @@ export const SettingsUtils = {
    */
   canUserUseAIPostImprovement: (settings: CommunitySettings, userRoles?: string[]): boolean => {
     return SettingsUtils.isAIPostImprovementEnabled(settings, userRoles);
-  }
+  },
+
+  // ===== AI AUTO-MODERATION UTILITIES =====
+
+  /**
+   * Checks if AI auto-moderation is enabled for the community
+   * Default is FALSE (opt-in)
+   */
+  isAIAutoModerationEnabled: (settings: CommunitySettings, userRoles?: string[]): boolean => {
+    const aiConfig = settings?.ai?.autoModeration;
+    
+    // If no AI config exists, default to DISABLED (opt-in)
+    if (!aiConfig) {
+      return false;
+    }
+    
+    // If explicitly disabled, return false
+    if (aiConfig.enabled === false) {
+      return false;
+    }
+    
+    // Must be explicitly enabled
+    if (aiConfig.enabled !== true) {
+      return false;
+    }
+    
+    // Check role restrictions if specified
+    if (aiConfig.requiresRole && aiConfig.requiresRole.length > 0 && userRoles) {
+      const hasRequiredRole = aiConfig.requiresRole.some(role => userRoles.includes(role));
+      if (!hasRequiredRole) {
+        return false;
+      }
+    }
+    
+    return true;
+  },
+
+  /**
+   * Checks if AI auto-moderation is enabled for a specific board
+   * Takes into account both community and board-level settings
+   */
+  isAIAutoModerationEnabledForBoard: (
+    communitySettings: CommunitySettings, 
+    boardSettings: BoardSettings,
+    userRoles?: string[]
+  ): boolean => {
+    const boardAIConfig = boardSettings?.ai?.autoModeration;
+    
+    // If board has explicit settings and doesn't inherit community settings
+    if (boardAIConfig && boardAIConfig.inheritCommunitySettings === false) {
+      // Use board-specific settings only
+      if (boardAIConfig.enabled === false) {
+        return false;
+      }
+      
+      if (boardAIConfig.enabled !== true) {
+        return false;
+      }
+      
+      // Board-level role restrictions would go here if implemented
+      return true;
+    }
+    
+    // Default: inherit from community settings
+    return SettingsUtils.isAIAutoModerationEnabled(communitySettings, userRoles);
+  },
+
+  /**
+   * Gets aggregated AI auto-moderation configuration from community and board settings
+   */
+  getAIAutoModerationConfig: (
+    communitySettings: CommunitySettings, 
+    boardSettings?: BoardSettings
+  ) => {
+    const communityAIConfig = communitySettings?.ai?.autoModeration;
+    const boardAIConfig = boardSettings?.ai?.autoModeration;
+    
+    // If board has explicit settings and doesn't inherit community settings
+    if (boardAIConfig && boardAIConfig.inheritCommunitySettings === false) {
+      return {
+        enabled: boardAIConfig.enabled === true,
+        enforcementLevel: boardAIConfig.enforcementLevel || 'moderate',
+        customKnowledge: boardAIConfig.customKnowledge || '',
+        maxKnowledgeTokens: boardAIConfig.maxKnowledgeTokens || 2000,
+        blockViolations: boardAIConfig.blockViolations !== false, // Default true
+        source: 'board' as const
+      };
+    }
+    
+    // Use community settings (with potential board overrides)
+    const baseConfig = {
+      enabled: communityAIConfig?.enabled === true,
+      enforcementLevel: communityAIConfig?.enforcementLevel || 'moderate',
+      customKnowledge: communityAIConfig?.customKnowledge || '',
+      maxKnowledgeTokens: communityAIConfig?.maxKnowledgeTokens || 2000,
+      blockViolations: communityAIConfig?.blockViolations !== false, // Default true
+      source: 'community' as const
+    };
+    
+    // Apply board-level overrides if they exist and inherit is true
+    if (boardAIConfig && boardAIConfig.inheritCommunitySettings !== false) {
+      return {
+        ...baseConfig,
+        enforcementLevel: boardAIConfig.enforcementLevel || baseConfig.enforcementLevel,
+        customKnowledge: boardAIConfig.customKnowledge !== undefined 
+          ? `${baseConfig.customKnowledge}\n\n--- Board-Specific Context ---\n${boardAIConfig.customKnowledge}`.trim()
+          : baseConfig.customKnowledge,
+        blockViolations: boardAIConfig.blockViolations !== undefined 
+          ? boardAIConfig.blockViolations 
+          : baseConfig.blockViolations,
+        source: 'combined' as const
+      };
+    }
+    
+    return baseConfig;
+  },
+
+  /**
+   * Gets default AI auto-moderation configuration
+   */
+  getDefaultAIAutoModerationConfig: () => ({
+    enabled: false, // Opt-in
+    enforcementLevel: 'moderate' as const,
+    customKnowledge: '',
+    maxKnowledgeTokens: 2000,
+    blockViolations: true
+  })
 }; 

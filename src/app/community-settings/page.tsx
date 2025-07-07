@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CommunityAccessForm } from '@/components/CommunityAccessForm';
 import { TelegramGroupsSection } from '@/components/settings/TelegramGroupsSection';
 import { CommunityBackgroundSettings } from '@/components/settings/CommunityBackgroundSettings';
+import { CommunityAIAutoModerationSettings } from '@/components/settings/CommunityAIAutoModerationSettings';
 import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 // Removed server-side import - now using API endpoint
 
@@ -505,6 +506,16 @@ export default function CommunitySettingsPage() {
           {/* Community Background Customization */}
           <div className="mb-6">
             <CommunityBackgroundSettings 
+              currentSettings={communitySettings?.settings || {}}
+              onSettingsChange={(settings: CommunitySettings) => updateCommunityMutation.mutate(settings)}
+              isLoading={updateCommunityMutation.isPending}
+              theme={theme}
+            />
+          </div>
+
+          {/* AI Auto-Moderation Settings */}
+          <div className="mb-6">
+            <CommunityAIAutoModerationSettings 
               currentSettings={communitySettings?.settings || {}}
               onSettingsChange={(settings: CommunitySettings) => updateCommunityMutation.mutate(settings)}
               isLoading={updateCommunityMutation.isPending}

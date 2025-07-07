@@ -1,0 +1,336 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { CommunitySettings, SettingsUtils } from '@/types/settings';
+import { cn } from '@/lib/utils';
+import { 
+  Brain, 
+  Shield, 
+  AlertTriangle, 
+  Info, 
+  CheckCircle,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle
+} from 'lucide-react';
+
+interface CommunityAIAutoModerationSettingsProps {
+  currentSettings: CommunitySettings;
+  onSettingsChange: (settings: CommunitySettings) => void;
+  isLoading?: boolean;
+  theme?: 'light' | 'dark';
+  className?: string;
+}
+
+export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerationSettingsProps> = ({
+  currentSettings,
+  onSettingsChange,
+  isLoading = false,
+  theme = 'light',
+  className
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [localSettings, setLocalSettings] = useState<CommunitySettings>(currentSettings);
+  
+  // Get current AI auto-moderation config with defaults
+  const currentConfig = SettingsUtils.getAIAutoModerationConfig(localSettings);
+  
+  // Character count for custom knowledge
+  const customKnowledgeLength = currentConfig.customKnowledge.length;
+  const estimatedTokens = Math.ceil(customKnowledgeLength / 4); // Rough token estimation
+  const maxTokens = currentConfig.maxKnowledgeTokens;
+  const isOverTokenLimit = estimatedTokens > maxTokens;
+
+  // Update local settings when prop changes
+  useEffect(() => {
+    setLocalSettings(currentSettings);
+  }, [currentSettings]);
+
+  const handleSettingChange = (key: string, value: any) => {
+    const newSettings: CommunitySettings = {
+      ...localSettings,
+      ai: {
+        ...localSettings.ai,
+        autoModeration: {
+          ...localSettings.ai?.autoModeration,
+          [key]: value,
+          lastUpdatedAt: new Date().toISOString()
+        }
+      }
+    };
+    
+    setLocalSettings(newSettings);
+    onSettingsChange(newSettings);
+  };
+
+  const getEnforcementLevelDescription = (level: string) => {
+    switch (level) {
+      case 'strict':
+        return 'Blocks content with any potential policy violations. May have false positives.';
+      case 'moderate':
+        return 'Balanced approach - blocks clear violations while allowing borderline content.';
+      case 'lenient':
+        return 'Only blocks obvious violations. More permissive but may miss subtle issues.';
+      default:
+        return '';
+    }
+  };
+
+  const getEnforcementLevelColor = (level: string) => {
+    switch (level) {
+      case 'strict':
+        return 'text-red-600 dark:text-red-400';
+      case 'moderate':
+        return 'text-yellow-600 dark:text-yellow-400';
+      case 'lenient':
+        return 'text-green-600 dark:text-green-400';
+      default:
+        return 'text-gray-600 dark:text-gray-400';
+    }
+  };
+
+  const getSummaryDisplay = () => {
+    if (!currentConfig.enabled) {
+      return <span className="text-gray-600 dark:text-gray-400">Disabled</span>;
+    }
+    
+    return (
+      <div className="text-right">
+        <div className={cn("font-medium", getEnforcementLevelColor(currentConfig.enforcementLevel))}>
+          {currentConfig.enforcementLevel.charAt(0).toUpperCase() + currentConfig.enforcementLevel.slice(1)} Mode
+        </div>
+        <div className="text-xs opacity-75">
+          {customKnowledgeLength > 0 ? `${customKnowledgeLength} chars custom context` : 'No custom context'}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card className={cn("w-full", className)}>
+      <CardHeader 
+        className="cursor-pointer hover:bg-muted/50 transition-colors touch-manipulation select-none"
+        onClick={() => setIsExpanded(!isExpanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        aria-expanded={isExpanded}
+        aria-controls="ai-automod-content"
+      >
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Brain size={20} />
+            AI Auto-Moderation
+            {currentConfig.enabled && (
+              <Badge variant="default" className="ml-2">
+                Active
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {getSummaryDisplay()}
+            {isExpanded ? 
+              <ChevronUp size={20} className="text-muted-foreground hover:text-foreground transition-colors min-w-[24px]" /> : 
+              <ChevronDown size={20} className="text-muted-foreground hover:text-foreground transition-colors min-w-[24px]" />
+            }
+          </div>
+        </CardTitle>
+        <p className={cn(
+          "text-sm",
+          theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+        )}>
+          AI-powered content moderation with custom community knowledge
+        </p>
+      </CardHeader>
+
+      {isExpanded && (
+        <CardContent id="ai-automod-content" className="space-y-6">
+          {/* Enable/Disable Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label className="text-base font-medium">Enable AI Auto-Moderation</Label>
+              <p className="text-sm text-muted-foreground">
+                Automatically review posts and comments for policy violations
+              </p>
+            </div>
+            <Checkbox
+              checked={currentConfig.enabled}
+              onCheckedChange={(checked: boolean) => handleSettingChange('enabled', checked)}
+              disabled={isLoading}
+            />
+          </div>
+
+          {currentConfig.enabled && (
+            <>
+              <Separator />
+
+              {/* Enforcement Level */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-base font-medium">Enforcement Level</Label>
+                  <p className="text-sm text-muted-foreground">Controls how strict the AI moderation should be</p>
+                </div>
+                
+                <Select
+                  value={currentConfig.enforcementLevel}
+                  onValueChange={(value) => handleSettingChange('enforcementLevel', value)}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strict">
+                      <div className="flex items-center gap-2">
+                        <Shield size={16} className="text-red-500" />
+                        <span>Strict</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="moderate">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle size={16} className="text-yellow-500" />
+                        <span>Moderate</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="lenient">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={16} className="text-green-500" />
+                        <span>Lenient</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <p className="text-sm text-muted-foreground">
+                  {getEnforcementLevelDescription(currentConfig.enforcementLevel)}
+                </p>
+              </div>
+
+              {/* Block Violations Toggle */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-base font-medium">Block Violating Content</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Prevent posts with violations from being published (vs. just flagging them)
+                  </p>
+                </div>
+                <Checkbox
+                  checked={currentConfig.blockViolations}
+                  onCheckedChange={(checked: boolean) => handleSettingChange('blockViolations', checked)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Custom Knowledge Base */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-base font-medium">Community-Specific Knowledge</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Provide context about your community rules, culture, and guidelines to help the AI make better moderation decisions
+                  </p>
+                </div>
+                
+                <Textarea
+                  placeholder="Describe your community rules, culture, and any specific guidelines the AI should know about when moderating content. For example: 'This is a family-friendly gaming community. We allow competitive discussions but no personal attacks. Technical game exploits are allowed but real-world cheating discussions are not.'"
+                  value={currentConfig.customKnowledge}
+                  onChange={(e) => handleSettingChange('customKnowledge', e.target.value)}
+                  rows={6}
+                  disabled={isLoading}
+                  className={cn(
+                    "resize-none",
+                    isOverTokenLimit && "border-red-500 focus:border-red-500"
+                  )}
+                />
+                
+                <div className="flex items-center justify-between text-sm">
+                  <span className={cn(
+                    "text-muted-foreground",
+                    isOverTokenLimit && "text-red-500"
+                  )}>
+                    {customKnowledgeLength} characters • ~{estimatedTokens} tokens
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    {isOverTokenLimit ? (
+                      <XCircle size={16} className="text-red-500" />
+                    ) : (
+                      <CheckCircle size={16} className="text-green-500" />
+                    )}
+                    <span className={cn(
+                      isOverTokenLimit ? "text-red-500" : "text-green-500"
+                    )}>
+                      {maxTokens} token limit
+                    </span>
+                  </div>
+                </div>
+                
+                {isOverTokenLimit && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <AlertTriangle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-red-700 dark:text-red-300">Content too long</p>
+                      <p className="text-red-600 dark:text-red-400">
+                        Please reduce the content to stay within the {maxTokens} token limit for optimal AI processing.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced Settings */}
+              <div className="space-y-3 pt-4 border-t">
+                <Label className="text-base font-medium">Advanced Settings</Label>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="maxTokens">Maximum Knowledge Tokens</Label>
+                    <Input
+                      id="maxTokens"
+                      type="number"
+                      min="500"
+                      max="8000"
+                      step="100"
+                      value={maxTokens}
+                      onChange={(e) => handleSettingChange('maxKnowledgeTokens', parseInt(e.target.value))}
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Higher limits allow more detailed knowledge but increase AI processing costs
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning Box */}
+              <div className="flex items-start gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                <Info size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-yellow-800 dark:text-yellow-200">Important Note</p>
+                  <p className="text-yellow-700 dark:text-yellow-300">
+                    AI moderation is a powerful tool but not perfect. Consider it as assistance to human moderation, 
+                    not a complete replacement. Review flagged content when possible.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+};
