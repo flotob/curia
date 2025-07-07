@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -11,10 +11,40 @@ interface ClippyButtonProps {
   hasNewMessage?: boolean;
 }
 
+// Animation state interface
+interface AnimationState {
+  mouseRotation: { horizontal: number; vertical: number };
+  scrollRotation: { vertical: number };
+  scrollInfluence: number;
+  isScrolling: boolean;
+  mouseDistance: number;
+  scrollIntensity: number;
+}
+
+// Linear interpolation helper
+const lerp = (a: number, b: number, t: number): number => {
+  return a + (b - a) * t;
+};
+
 export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: ClippyButtonProps) {
   const modelRef = useRef<HTMLDivElement>(null);
   const [isClicked, setIsClicked] = useState(false);
   const [currentModelViewer, setCurrentModelViewer] = useState<HTMLElement | null>(null);
+  
+  // Animation state for blended system
+  const [animationState, setAnimationState] = useState<AnimationState>({
+    mouseRotation: { horizontal: 0, vertical: 0 },
+    scrollRotation: { vertical: 0 },
+    scrollInfluence: 0,
+    isScrolling: false,
+    mouseDistance: 0,
+    scrollIntensity: 0
+  });
+
+  // Refs for scroll handling
+  const lastScrollY = useRef(window.scrollY);
+  const scrollResetTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
+  const scrollInfluenceFadeInterval = useRef<NodeJS.Timeout | undefined>(undefined);
   
   // Responsive size: smaller on mobile, larger on desktop
   const getClippySize = () => {
@@ -98,108 +128,134 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
     };
 
     createModelViewer();
-  }, [isOpen]);
+  }, [isOpen, CLIPPY_SIZE_PX]);
 
-  // Smooth mouse following with realistic head movement
+  // Mouse movement handler for blended system
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!currentModelViewer || isClicked || isOpen) return;
+    
+    const buttonRect = modelRef.current?.getBoundingClientRect();
+    if (!buttonRect) return;
+    
+    const centerX = buttonRect.left + buttonRect.width / 2;
+    const centerY = buttonRect.top + buttonRect.height / 2;
+    
+    const mouseX = e.clientX - centerX;
+    const mouseY = e.clientY - centerY;
+    
+    // Calculate distance from center for more realistic movement
+    const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+    const maxDistance = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight) / 4;
+    
+    // Normalize to get realistic rotation ranges
+    const normalizedX = Math.max(-1, Math.min(1, mouseX / (buttonRect.width * 2)));
+    const normalizedY = Math.max(-1, Math.min(1, mouseY / (buttonRect.height * 2)));
+    
+    // Realistic head rotation: horizontal follows more than vertical
+    const horizontalRotation = -normalizedX * 25; // -25 to +25 degrees (flipped to look toward mouse)
+    const verticalAdjustment = -normalizedY * 10; // -10 to +10 degrees (flipped to look toward mouse)
+    
+    // Distance affects how much Clippy "leans" toward the cursor
+    const distanceEffect = Math.min(distance / maxDistance, 0.5); // Max 50% effect
+    const mouseDistanceValue = distanceEffect * 15; // 0 to 15 for camera distance
+    
+    setAnimationState(prev => ({
+      ...prev,
+      mouseRotation: { horizontal: horizontalRotation, vertical: verticalAdjustment },
+      mouseDistance: mouseDistanceValue
+    }));
+  }, [currentModelViewer, isClicked, isOpen]);
+
+  // Scroll handler for blended system
+  const handleScrollWithBlending = useCallback(() => {
+    if (!currentModelViewer || isClicked || isOpen) return;
+    
+    const currentScrollY = window.scrollY;
+    const deltaY = currentScrollY - lastScrollY.current;
+    
+    // Calculate scroll velocity (positive = scrolling down, negative = scrolling up)
+    const scrollVelocity = Math.max(-1, Math.min(1, deltaY / 50)); // Divide by 50 for sensitivity
+    
+    // Convert to camera angles
+    // When scrolling down (positive velocity), Clippy looks up (negative vertical adjustment)
+    // When scrolling up (negative velocity), Clippy looks down (positive vertical adjustment)
+    const verticalAdjustment = -scrollVelocity * 20; // -20 to +20 degrees (reversed)
+    const scrollIntensityValue = Math.abs(scrollVelocity);
+    
+    setAnimationState(prev => ({
+      ...prev,
+      scrollRotation: { vertical: verticalAdjustment },
+      scrollIntensity: scrollIntensityValue,
+      isScrolling: true,
+      scrollInfluence: Math.min(prev.scrollInfluence + 0.1, 0.8) // Ramp up to 80% influence
+    }));
+    
+    lastScrollY.current = currentScrollY;
+    
+    // Reset scroll influence after scrolling stops
+    if (scrollResetTimeout.current) clearTimeout(scrollResetTimeout.current);
+    scrollResetTimeout.current = setTimeout(() => {
+      setAnimationState(prev => ({
+        ...prev,
+        isScrolling: false
+      }));
+      
+      // Gradual fade out of scroll influence
+      if (scrollInfluenceFadeInterval.current) clearInterval(scrollInfluenceFadeInterval.current);
+      scrollInfluenceFadeInterval.current = setInterval(() => {
+        setAnimationState(prev => {
+          const newInfluence = Math.max(prev.scrollInfluence - 0.05, 0);
+          if (newInfluence === 0) {
+            if (scrollInfluenceFadeInterval.current) clearInterval(scrollInfluenceFadeInterval.current);
+          }
+          return { ...prev, scrollInfluence: newInfluence };
+        });
+      }, 16); // 60fps fade out
+    }, 150); // Wait 150ms after scrolling stops
+  }, [currentModelViewer, isClicked, isOpen]);
+
+  // Apply blended rotation based on animation state
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!currentModelViewer || isClicked || isOpen) return;
-      
-      const buttonRect = modelRef.current?.getBoundingClientRect();
-      if (!buttonRect) return;
-      
-      const centerX = buttonRect.left + buttonRect.width / 2;
-      const centerY = buttonRect.top + buttonRect.height / 2;
-      
-      const mouseX = e.clientX - centerX;
-      const mouseY = e.clientY - centerY;
-      
-      // Calculate distance from center for more realistic movement
-      const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
-      const maxDistance = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight) / 4;
-      
-      // Normalize to get realistic rotation ranges
-      const normalizedX = Math.max(-1, Math.min(1, mouseX / (buttonRect.width * 2)));
-      const normalizedY = Math.max(-1, Math.min(1, mouseY / (buttonRect.height * 2)));
-      
-      // Realistic head rotation: horizontal follows more than vertical
-      const horizontalRotation = -normalizedX * 25; // -25 to +25 degrees (flipped to look toward mouse)
-      const verticalAdjustment = -normalizedY * 10; // -10 to +10 degrees (flipped to look toward mouse)
-      
-      // Distance affects how much Clippy "leans" toward the cursor
-      const distanceEffect = Math.min(distance / maxDistance, 0.5); // Max 50% effect
-      const cameraDistance = 105 - (distanceEffect * 15); // Gets closer when mouse is closer
-      
-      const orbit = `${horizontalRotation}deg ${75 + verticalAdjustment}deg ${cameraDistance}%`;
-      currentModelViewer.setAttribute('camera-orbit', orbit);
-    };
+    if (!currentModelViewer || isClicked || isOpen) return;
+    
+    const { mouseRotation, scrollRotation, scrollInfluence, mouseDistance, scrollIntensity } = animationState;
+    
+    // Blend vertical rotation: mouse baseline + scroll override
+    const finalVertical = lerp(mouseRotation.vertical, scrollRotation.vertical, scrollInfluence);
+    
+    // Horizontal always from mouse (no scroll interference)
+    const finalHorizontal = mouseRotation.horizontal;
+    
+    // Distance effect: combines mouse distance and scroll intensity
+    const baseDistance = 105;
+    const scrollDistance = scrollIntensity * 15; // 0 to 15 based on scroll intensity
+    const combinedDistance = Math.max(mouseDistance, scrollDistance);
+    const finalDistance = baseDistance - combinedDistance;
+    
+    const orbit = `${finalHorizontal}deg ${75 + finalVertical}deg ${finalDistance}%`;
+    currentModelViewer.setAttribute('camera-orbit', orbit);
+  }, [animationState, currentModelViewer, isClicked, isOpen]);
 
-    let lastScrollY = window.scrollY;
-    let scrollVelocity = 0;
-    let scrollTimeout: NodeJS.Timeout;
-
-    const handleScroll = () => {
-      if (!currentModelViewer || isClicked || isOpen) return;
-      
-      // Check if we're on mobile
-      const isMobile = window.innerWidth < 768;
-      if (!isMobile) return;
-      
-      const currentScrollY = window.scrollY;
-      const deltaY = currentScrollY - lastScrollY;
-      
-      // Calculate scroll velocity (positive = scrolling down, negative = scrolling up)
-      scrollVelocity = deltaY;
-      
-      // Normalize scroll velocity for head movement (-1 to 1)
-      const normalizedVelocity = Math.max(-1, Math.min(1, scrollVelocity / 50)); // Divide by 50 for sensitivity
-      
-      // Convert to camera angles
-      // When scrolling down (positive velocity), Clippy looks up (negative vertical adjustment)
-      // When scrolling up (negative velocity), Clippy looks down (positive vertical adjustment)
-      const verticalAdjustment = -normalizedVelocity * 20; // -20 to +20 degrees (reversed)
-      
-      // Slight horizontal movement based on scroll intensity for more natural feel
-      const horizontalVariation = Math.sin(Date.now() / 1000) * Math.abs(normalizedVelocity) * 5; // Subtle side-to-side
-      
-      // Distance effect: gets closer when scrolling faster
-      const scrollIntensity = Math.abs(normalizedVelocity);
-      const cameraDistance = 105 - (scrollIntensity * 15); // Gets closer when scrolling faster
-      
-      const orbit = `${horizontalVariation}deg ${75 + verticalAdjustment}deg ${cameraDistance}%`;
-      currentModelViewer.setAttribute('camera-orbit', orbit);
-      
-      lastScrollY = currentScrollY;
-      
-      // Reset to neutral position after scrolling stops
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        if (!currentModelViewer || isClicked || isOpen) return;
-        
-        // Smoothly return to neutral position
-        const neutralOrbit = `0deg 75deg 105%`;
-        currentModelViewer.setAttribute('camera-orbit', neutralOrbit);
-        scrollVelocity = 0;
-      }, 150); // Wait 150ms after scrolling stops
-    };
-
-    // Check if we're on mobile for scroll-based movement, desktop for mouse
+  // Enhanced animation system: both scroll and mouse on desktop, scroll-only on mobile
+  useEffect(() => {
     const isMobile = window.innerWidth < 768;
     
     if (isMobile) {
-      // Mobile: use scroll-based head movement
-      window.addEventListener('scroll', handleScroll, { passive: true });
+      // Mobile: use scroll-based head movement only (existing behavior)
+      window.addEventListener('scroll', handleScrollWithBlending, { passive: true });
     } else {
-      // Desktop: use mouse movement
+      // Desktop: use BOTH mouse movement AND scroll blending
       document.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('scroll', handleScrollWithBlending, { passive: true });
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('scroll', handleScroll);
-      clearTimeout(scrollTimeout);
+      window.removeEventListener('scroll', handleScrollWithBlending);
+      if (scrollResetTimeout.current) clearTimeout(scrollResetTimeout.current);
+      if (scrollInfluenceFadeInterval.current) clearInterval(scrollInfluenceFadeInterval.current);
     };
-  }, [currentModelViewer, isClicked, isOpen]);
+  }, [handleMouseMove, handleScrollWithBlending]);
 
   // Handle state changes: brightness and camera position
   useEffect(() => {
@@ -210,9 +266,9 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
       currentModelViewer.style.filter = 'brightness(1.1) saturate(1.2)';
       currentModelViewer.setAttribute('camera-orbit', '0deg 70deg 100%');
     } else {
-      // Chat is closed: normal brightness, return to mouse following
+      // Chat is closed: normal brightness, return to blended animation
       currentModelViewer.style.filter = 'brightness(1) saturate(1)';
-      currentModelViewer.setAttribute('camera-orbit', '0deg 75deg 105%');
+      // Don't override here - let the blended animation system handle it
     }
   }, [isOpen, currentModelViewer]);
 
@@ -227,18 +283,13 @@ export function ClippyButton({ isOpen, onClick, className, hasNewMessage }: Clip
       
       setTimeout(() => {
         currentModelViewer.style.transform = 'scale(1)';
-        // Return to mouse following or face user if chat opens
-        if (!isOpen) {
-          currentModelViewer.setAttribute('camera-orbit', '0deg 75deg 105%');
-        }
+        // Return to blended animation system
         setIsClicked(false);
       }, 150);
     }
     
     onClick();
   };
-
-  // Always show Clippy, but with different states when chat is open/closed
 
   return (
     <div className={cn("relative z-50", className)}>
