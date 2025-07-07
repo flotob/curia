@@ -15,11 +15,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, Loader2, Shield, Settings, Lock } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Shield, Settings, Lock, Brain } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { BoardAccessForm } from '@/components/BoardAccessForm';
 import { BoardLockGatingForm } from '@/components/BoardLockGatingForm';
+import { BoardAIAutoModerationSettings } from '@/components/settings/BoardAIAutoModerationSettings';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useToast } from '@/hooks/use-toast';
 
@@ -124,6 +125,37 @@ export default function CreateBoardPage() {
       </span>
     );
   }, [boardSettings]);
+
+  const getAIOptimizationSummary = React.useMemo(() => {
+    const boardAIConfig = boardSettings.ai?.autoModeration;
+    const inheritsFromCommunity = boardAIConfig?.inheritCommunitySettings !== false;
+    
+    if (inheritsFromCommunity) {
+      const communityAIConfig = SettingsUtils.getAIAutoModerationConfig(communitySettings?.settings || {});
+      if (!communityAIConfig.enabled) {
+        return <span className="text-gray-600 dark:text-gray-400">Inherits (Disabled)</span>;
+      }
+      return (
+        <span className="text-blue-600 dark:text-blue-400">
+          Inherits ({communityAIConfig.enforcementLevel})
+        </span>
+      );
+    }
+    
+    if (!boardAIConfig?.enabled) {
+      return <span className="text-gray-600 dark:text-gray-400">Disabled</span>;
+    }
+    
+    const level = boardAIConfig.enforcementLevel || 'moderate';
+    const customContext = (boardAIConfig.customKnowledge?.length || 0) > 0;
+    
+    return (
+      <span className="text-green-600 dark:text-green-400">
+        {level.charAt(0).toUpperCase() + level.slice(1)} 
+        {customContext && ' • Custom context'}
+      </span>
+    );
+  }, [boardSettings, communitySettings]);
 
   const createBoardMutation = useMutation<
     ApiBoard,
@@ -371,6 +403,36 @@ export default function CreateBoardPage() {
               showSaveButton={false}
               autoSave={true}
             />
+          </CollapsibleSection>
+
+          {/* AI Content Optimization */}
+          <CollapsibleSection
+            title="AI Content Optimization"
+            subtitle="Configure AI-based content moderation settings"
+            icon={<Brain size={20} className="text-primary" />}
+            defaultExpanded={false}
+            summary={getAIOptimizationSummary}
+          >
+            {communitySettings ? (
+              <BoardAIAutoModerationSettings
+                currentSettings={boardSettings}
+                communitySettings={communitySettings.settings}
+                onSettingsChange={setBoardSettings}
+                isLoading={createBoardMutation.isPending}
+                theme={theme}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className={cn(
+                  "h-4 w-48 rounded animate-pulse",
+                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                )} />
+                <div className={cn(
+                  "h-20 w-full rounded animate-pulse",
+                  theme === 'dark' ? 'bg-slate-700' : 'bg-slate-200'
+                )} />
+              </div>
+            )}
           </CollapsibleSection>
 
           {/* Error Display */}
