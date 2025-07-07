@@ -3,7 +3,7 @@ export interface TrendingAnalysisData {
   success: boolean;
   messageForAI?: string;
   errorForAI?: string;
-  displayMode: 'text_only'; // Forces text-only response, no UI card
+  displayMode: 'text_only' | 'structured';
   analysisData?: {
     posts: Array<{
       id: number;
@@ -80,4 +80,34 @@ export interface PostCreationGuidance {
   workflow: string;
 }
 
-export type FunctionResult = SearchResults | SearchResultsData | PostCreationGuidance | TrendingAnalysisData; 
+export interface LockSearchResultsData {
+  type: 'lock_search_results';
+  success: boolean;
+  messageForAI?: string;
+  errorForAI?: string;
+  searchResults?: Array<{
+    id: number;
+    name: string;
+    description: string;
+    icon: string;
+    color: string;
+    creatorName: string;
+    creatorAvatar?: string;
+    isTemplate: boolean;
+    tags: string[];
+    usageCount: number;
+    successRate: number; // Percentage (0-100)
+    avgVerificationTime: number; // Minutes
+    postsUsingLock: number;
+    boardsUsingLock: number;
+    totalUsage: number;
+    requirementCount: number;
+    requirementType: 'ALL' | 'ANY';
+    requirementTypes: string[];
+    createdAt: string;
+    // Full gating config for modal preview
+    gatingConfig: any;
+  }>;
+}
+
+export type FunctionResult = SearchResultsData | PostCreationGuidance | TrendingAnalysisData | LockSearchResultsData; 

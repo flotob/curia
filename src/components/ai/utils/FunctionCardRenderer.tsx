@@ -1,6 +1,6 @@
-import React, { Suspense, lazy } from 'react';
+import React, { lazy, Suspense } from 'react';
 
-// Lazy load function card components for better performance
+// Lazy load function card components
 const PostCreationGuidanceCard = lazy(() => 
   import('../function-cards/PostCreationGuidanceCard').then(module => ({
     default: module.PostCreationGuidanceCard
@@ -13,10 +13,17 @@ const SearchResultsCard = lazy(() =>
   }))
 );
 
-// Registry mapping function result types to their components
+const LockSearchResultsCard = lazy(() => 
+  import('../function-cards/LockSearchResultsCard').then(module => ({
+    default: module.LockSearchResultsCard
+  }))
+);
+
+// Registry of function card components
 const FUNCTION_CARD_COMPONENTS = {
   post_creation_guidance: PostCreationGuidanceCard,
   search_results: SearchResultsCard,
+  lock_search_results: LockSearchResultsCard,
   // Add more function card components as we create them
   // board_suggestions: BoardSuggestionCard,
   // user_profile: UserProfileCard,
@@ -25,30 +32,25 @@ const FUNCTION_CARD_COMPONENTS = {
 export type FunctionCardType = keyof typeof FUNCTION_CARD_COMPONENTS;
 
 export interface FunctionCardRendererProps {
-  type: FunctionCardType;
-  data: any;
-  onAction?: (action: string, params?: any) => void;
+  data: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  onAction?: (action: string, params?: any) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-export function FunctionCardRenderer({ type, data, onAction }: FunctionCardRendererProps) {
-  const Component = FUNCTION_CARD_COMPONENTS[type];
+export function FunctionCardRenderer({ data, onAction }: FunctionCardRendererProps) {
+  // Get the component type from the data
+  const componentType = data.type as keyof typeof FUNCTION_CARD_COMPONENTS;
+  const Component = FUNCTION_CARD_COMPONENTS[componentType];
   
   if (!Component) {
-    console.warn(`Unknown function card type: ${type}`);
+    console.warn(`[FunctionCardRenderer] No component found for type: ${componentType}`);
     return null;
   }
   
   // Cast Component to any to bypass TypeScript's strict type checking
-  // since we know the correct data type is passed based on the type discriminator
-  const ComponentToRender = Component as any;
-  
+  const ComponentToRender = Component as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
   return (
-    <Suspense fallback={
-      <div className="mt-2 p-3 bg-muted rounded-md animate-pulse">
-        <div className="h-4 bg-muted-foreground/20 rounded w-3/4 mb-2"></div>
-        <div className="h-3 bg-muted-foreground/20 rounded w-1/2"></div>
-      </div>
-    }>
+    <Suspense fallback={<div className="animate-pulse bg-muted rounded-md h-20" />}>
       <ComponentToRender data={data} onAction={onAction} />
     </Suspense>
   );
