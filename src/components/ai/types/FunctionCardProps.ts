@@ -1,3 +1,5 @@
+import { SearchResultsData } from '@/lib/ai/types/FunctionResult';
+
 export interface FunctionCardProps {
   data: any; // Will be typed per component
   onAction?: (action: string, params?: any) => void;
@@ -12,7 +14,7 @@ export interface PostCreationGuidanceData {
 }
 
 // Add more specific data types as we add more function cards
-export type FunctionCardData = PostCreationGuidanceData;
+export type FunctionCardData = PostCreationGuidanceData | SearchResultsData;
 
 // Generic props with typed data
 export interface TypedFunctionCardProps<T = FunctionCardData> {

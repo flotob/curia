@@ -1,3 +1,26 @@
+export interface SearchResultsData {
+  type: 'search_results';
+  success: boolean;
+  messageForAI?: string;
+  errorForAI?: string;
+  searchResults?: Array<{
+    id: number;
+    title: string;
+    author: string;
+    authorAvatar?: string;
+    upvotes: number;
+    snippet: string;
+    boardName: string;
+    // Navigation metadata
+    boardId: number;
+    postId: number;
+    communityShortId?: string;
+    pluginId?: string;
+    navigationType: 'internal' | 'external';
+  }>;
+}
+
+// Keep the old interface for backward compatibility during transition
 export interface SearchResults {
   success: boolean;
   messageForAI?: string;
@@ -17,4 +40,4 @@ export interface PostCreationGuidance {
   workflow: string;
 }
 
-export type FunctionResult = SearchResults | PostCreationGuidance; 
+export type FunctionResult = SearchResultsData | PostCreationGuidance; 

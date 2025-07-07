@@ -174,6 +174,10 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
             initialTitle: params?.initialTitle
           });
           break;
+        case 'navigateToPost':
+          console.log('Post navigation triggered:', params);
+          // Additional tracking/analytics if needed
+          break;
         // Handle other actions as we add more function cards
       }
     };

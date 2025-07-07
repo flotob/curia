@@ -1,5 +1,4 @@
 import React, { Suspense, lazy } from 'react';
-import { FunctionCardProps } from '../types/FunctionCardProps';
 
 // Lazy load function card components for better performance
 const PostCreationGuidanceCard = lazy(() => 
@@ -8,9 +7,16 @@ const PostCreationGuidanceCard = lazy(() =>
   }))
 );
 
+const SearchResultsCard = lazy(() => 
+  import('../function-cards/SearchResultsCard').then(module => ({
+    default: module.SearchResultsCard
+  }))
+);
+
 // Registry mapping function result types to their components
 const FUNCTION_CARD_COMPONENTS = {
   post_creation_guidance: PostCreationGuidanceCard,
+  search_results: SearchResultsCard,
   // Add more function card components as we create them
   // board_suggestions: BoardSuggestionCard,
   // user_profile: UserProfileCard,
@@ -18,8 +24,10 @@ const FUNCTION_CARD_COMPONENTS = {
 
 export type FunctionCardType = keyof typeof FUNCTION_CARD_COMPONENTS;
 
-export interface FunctionCardRendererProps extends FunctionCardProps {
+export interface FunctionCardRendererProps {
   type: FunctionCardType;
+  data: any;
+  onAction?: (action: string, params?: any) => void;
 }
 
 export function FunctionCardRenderer({ type, data, onAction }: FunctionCardRendererProps) {
@@ -30,6 +38,10 @@ export function FunctionCardRenderer({ type, data, onAction }: FunctionCardRende
     return null;
   }
   
+  // Cast Component to any to bypass TypeScript's strict type checking
+  // since we know the correct data type is passed based on the type discriminator
+  const ComponentToRender = Component as any;
+  
   return (
     <Suspense fallback={
       <div className="mt-2 p-3 bg-muted rounded-md animate-pulse">
@@ -37,7 +49,7 @@ export function FunctionCardRenderer({ type, data, onAction }: FunctionCardRende
         <div className="h-3 bg-muted-foreground/20 rounded w-1/2"></div>
       </div>
     }>
-      <Component data={data} onAction={onAction} />
+      <ComponentToRender data={data} onAction={onAction} />
     </Suspense>
   );
 }
