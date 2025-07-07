@@ -189,6 +189,11 @@ export default function CommunitySettingsPage() {
         queryKey: ['backgroundCommunitySettings', user?.cid],
         refetchType: 'active'
       });
+      // 🚀 CRITICAL FIX: Also invalidate useCommunityData cache used by post creation flow
+      queryClient.invalidateQueries({ 
+        queryKey: ['community', user?.cid],
+        refetchType: 'active'
+      });
       toast({
         title: "Settings updated",
         description: "Community settings updated successfully!",
