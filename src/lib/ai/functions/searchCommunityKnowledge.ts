@@ -37,6 +37,7 @@ export const searchCommunityKnowledge: AIFunctionCall = {
         upvotes: row.upvote_count,
         snippet: row.content.substring(0, 200) + '...',
         boardName: row.board_name,
+        created_at: row.created_at,
         // Navigation metadata
         boardId: row.board_id,
         postId: row.id,

@@ -11,6 +11,7 @@ export interface SearchResultsData {
     upvotes: number;
     snippet: string;
     boardName: string;
+    created_at: string;
     // Navigation metadata
     boardId: number;
     postId: number;

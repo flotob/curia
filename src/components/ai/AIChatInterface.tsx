@@ -325,7 +325,14 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                         ? 'prose-invert text-white' 
                         : 'dark:prose-invert text-foreground'
                     }`}>
-                      <MarkdownContent content={message.content} />
+                      {/* Hide AI message content when function call results exist since UI cards provide the value */}
+                      {message.role === 'assistant' && (message as any).toolInvocations ? (
+                        <div className="text-xs text-muted-foreground italic">
+                          {/* Just show a minimal indicator that AI processed the request */}
+                        </div>
+                      ) : (
+                        <MarkdownContent content={message.content} />
+                      )}
                     </div>
                     
                     {/* Render special UI components for tool call results */}
