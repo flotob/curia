@@ -75,18 +75,7 @@ export default function RootLayout({
           </ThemeProvider>
         </Suspense>
         
-        {/* License Attribution for 3D Clippy Model */}
-        <div className="fixed bottom-1 left-1 text-xs opacity-40 hover:opacity-80 transition-opacity z-30">
-          <a 
-            href="https://skfb.ly/ousxv" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground"
-            title="Clippy 3D Model Attribution"
-          >
-            &quot;Clippy&quot; by ironflower (CC BY-NC-SA)
-          </a>
-        </div>
+
       </body>
     </html>
   );

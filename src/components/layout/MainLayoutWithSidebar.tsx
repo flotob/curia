@@ -548,12 +548,14 @@ export const MainLayoutWithSidebar: React.FC<MainLayoutWithSidebarProps> = ({ ch
                     </Button>
                   </div>
                 )}
-                <div className="h-full overflow-y-auto">
-                  <MultiCommunityPresenceSidebar 
-                    navigationContext={navigationContext}
-                    currentBoard={currentBoard}
-                    currentPost={currentPost}
-                  />
+                <div className="h-full overflow-y-auto flex flex-col">
+                  <div className="flex-1">
+                    <MultiCommunityPresenceSidebar 
+                      navigationContext={navigationContext}
+                      currentBoard={currentBoard}
+                      currentPost={currentPost}
+                    />
+                  </div>
                 </div>
               </aside>
             )}

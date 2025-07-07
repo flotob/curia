@@ -8,6 +8,7 @@ import { Loader2, Send, Sparkles, Bot, User, X, ChevronUp, ChevronDown } from 'l
 import { useChat } from '@ai-sdk/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
+import { useCgLib } from '@/contexts/CgLibContext';
 import { FunctionCardRenderer, isValidFunctionCardType } from './utils/FunctionCardRenderer';
 
 interface ChatContext {
@@ -122,6 +123,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const { user } = useAuth();
+    const { cgInstance } = useCgLib();
 
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -211,8 +213,29 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
             </Avatar>
             <div>
               <h3 className="font-semibold text-sm">Community Assistant</h3>
-              <p className="text-xs text-muted-foreground">
-                Navigation & content discovery
+              <p 
+                onClick={async () => {
+                  const clippyUrl = "https://skfb.ly/ousxv";
+                  
+                  if (!cgInstance) {
+                    // Fallback to regular window.open when not in Common Ground context
+                    window.open(clippyUrl, '_blank', 'noopener,noreferrer');
+                    return;
+                  }
+
+                  try {
+                    console.log('[ClippyAttribution] Navigating to Clippy model via Common Ground:', clippyUrl);
+                    await cgInstance.navigate(clippyUrl);
+                  } catch (error) {
+                    console.error('[ClippyAttribution] Common Ground navigation failed:', error);
+                    // Fallback to regular window.open
+                    window.open(clippyUrl, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+                title="Clippy 3D Model Attribution"
+              >
+                &quot;Clippy&quot; by ironflower (CC BY-NC-SA)
               </p>
             </div>
           </div>
@@ -337,68 +360,71 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="p-3 border-t bg-background/50">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Textarea
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask about community, posts, or navigation..."
-              className="flex-1 min-h-[50px] max-h-[100px] resize-none text-base"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="px-3 self-end"
-              size="sm"
-            >
-              {isLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Send className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          </form>
-          
-          {messages.length > 0 && (
-            <div className="mt-2">
-              {/* Suggestions Toggle */}
-              <div className="flex items-center justify-center mb-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowSuggestions(!showSuggestions)}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
-                  {showSuggestions ? (
-                    <>Hide suggestions <ChevronUp className="w-3 h-3" /></>
-                  ) : (
-                    <>Show suggestions <ChevronDown className="w-3 h-3" /></>
-                  )}
-                </Button>
-              </div>
-              
-              {/* Collapsible Suggestions */}
-              {showSuggestions && (
-                <div className="flex flex-wrap gap-1 justify-center">
-                  {quickActions.map((action, index) => (
-                    <Button
-                      key={index}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleQuickAction(action)}
-                      disabled={isLoading}
-                      className="text-xs px-2 py-1 h-auto rounded-full hover:bg-muted/50"
-                    >
-                      {action}
-                    </Button>
-                  ))}
+                {/* Input */}
+        <div className="border-t bg-background/50">
+          <div className="p-3">
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <Textarea
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about community, posts, or navigation..."
+                className="flex-1 min-h-[50px] max-h-[100px] resize-none text-base"
+                disabled={isLoading}
+              />
+              <Button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="px-3 self-end"
+                size="sm"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+              </Button>
+            </form>
+            
+            {messages.length > 0 && (
+              <div className="mt-2">
+                {/* Suggestions Toggle */}
+                <div className="flex items-center justify-center mb-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSuggestions(!showSuggestions)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    {showSuggestions ? (
+                      <>Hide suggestions <ChevronUp className="w-3 h-3" /></>
+                    ) : (
+                      <>Show suggestions <ChevronDown className="w-3 h-3" /></>
+                    )}
+                  </Button>
                 </div>
-              )}
-            </div>
-          )}
+                
+                {/* Collapsible Suggestions */}
+                {showSuggestions && (
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {quickActions.map((action, index) => (
+                      <Button
+                        key={index}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleQuickAction(action)}
+                        disabled={isLoading}
+                        className="text-xs px-2 py-1 h-auto rounded-full hover:bg-muted/50"
+                      >
+                        {action}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     );
