@@ -9,6 +9,7 @@ import type { Message } from '@ai-sdk/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalSearch } from '@/contexts/GlobalSearchContext';
 import { useCgLib } from '@/contexts/CgLibContext';
+import { useCommunityData } from '@/hooks/useCommunityData';
 import { FunctionCardRenderer, isValidFunctionCardType } from './utils/FunctionCardRenderer';
 
 interface AIChatInterfaceProps {
@@ -187,15 +188,18 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
     const [showSuggestions, setShowSuggestions] = useState(false);
     const { user } = useAuth();
     const { cgInstance } = useCgLib();
+    const { data: communityData } = useCommunityData();
     const formRef = useRef<HTMLFormElement>(null);
 
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
+    // Dynamic suggestions based on community name
+    const communityName = communityData?.name || 'this community';
     const quickActions = [
       'How do I create a new post?',
-      'Find recent discussions about React',
+      `Find recent discussions about ${communityName}`,
       'What is trending in this community?',
       'Help me navigate this board'
     ];
