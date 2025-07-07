@@ -162,6 +162,11 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     setSpeechTone(tone);
     setWelcomeLoaded(true);
     
+    // Clear chat history when speech bubble appears (unless chat is open)
+    if (!isOpen) {
+      clearChat();
+    }
+    
     setTimeout(() => {
       setSpeechBubbleVisible(true);
     }, 1000);
@@ -199,6 +204,11 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
         setSpeechTone(data.tone);
         setWelcomeLoaded(true);
         
+        // Clear chat history when speech bubble appears (unless chat is open)
+        if (!isOpen) {
+          clearChat();
+        }
+        
         // Show speech bubble after a brief delay for smooth UX
         setTimeout(() => {
           setSpeechBubbleVisible(true);
@@ -216,7 +226,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
       setWelcomeLoading(false);
       // Note: We don't reset welcomeLoadingRef.current here to prevent multiple calls
     }
-  }, [token, context?.boardId]);
+  }, [token, context?.boardId, isOpen, clearChat]);
 
   // Auto-load welcome message on component mount
   useEffect(() => {
