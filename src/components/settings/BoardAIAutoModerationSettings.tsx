@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +8,18 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { BoardSettings, CommunitySettings, SettingsUtils } from '@/types/settings';
 import { cn } from '@/lib/utils';
+
+// Helper to get default max knowledge tokens from environment variable
+const getDefaultMaxKnowledgeTokens = (): number => {
+  const envValue = process.env.NEXT_PUBLIC_AI_MAX_KNOWLEDGE_TOKENS;
+  if (envValue) {
+    const parsed = parseInt(envValue, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 2000; // Fallback default
+};
 import { 
   Brain, 
   Shield, 
@@ -53,7 +63,7 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
   // Character count for custom knowledge
   const customKnowledgeLength = boardAIConfig?.customKnowledge?.length || 0;
   const estimatedTokens = Math.ceil(customKnowledgeLength / 4); // Rough token estimation
-  const maxTokens = boardAIConfig?.maxKnowledgeTokens || 2000;
+  const maxTokens = boardAIConfig?.maxKnowledgeTokens || getDefaultMaxKnowledgeTokens();
   const isOverTokenLimit = estimatedTokens > maxTokens;
 
   // Update local settings when prop changes
@@ -118,11 +128,11 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
   const getEnforcementLevelDescription = (level: string) => {
     switch (level) {
       case 'strict':
-        return 'Blocks content with any potential policy violations. May have false positives.';
+        return 'Aggressive optimization - suggests improvements for minor grammar, style, and clarity issues.';
       case 'moderate':
-        return 'Balanced approach - blocks clear violations while allowing borderline content.';
+        return 'Balanced approach - focuses on meaningful improvements while preserving author voice.';
       case 'lenient':
-        return 'Only blocks obvious violations. More permissive but may miss subtle issues.';
+        return 'Conservative optimization - only suggests improvements for significant clarity or engagement issues.';
       default:
         return '';
     }
@@ -131,11 +141,11 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
   const getEnforcementLevelColor = (level: string) => {
     switch (level) {
       case 'strict':
-        return 'text-red-600 dark:text-red-400';
+        return 'text-blue-600 dark:text-blue-400';
       case 'moderate':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'lenient':
         return 'text-green-600 dark:text-green-400';
+      case 'lenient':
+        return 'text-gray-600 dark:text-gray-400';
       default:
         return 'text-gray-600 dark:text-gray-400';
     }
@@ -181,7 +191,7 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Brain size={20} />
-            Board AI Auto-Moderation
+            Board AI Content Optimization
             {boardConfig.enabled && (
               <Badge variant="default" className="ml-2">
                 Active
@@ -206,7 +216,7 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
           "text-sm",
           theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
         )}>
-          Board-specific AI moderation settings (can inherit from community or be customized)
+          Board-specific AI content optimization settings (can inherit from community or be customized)
         </p>
       </CardHeader>
 
@@ -218,9 +228,9 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
             <div className="text-sm">
               <p className="font-medium text-blue-800 dark:text-blue-200">Community Setting</p>
               <p className="text-blue-700 dark:text-blue-300">
-                AI auto-moderation is {communityConfig.enabled ? 'enabled' : 'disabled'} at the community level
+                AI content optimization is {communityConfig.enabled ? 'enabled' : 'disabled'} at the community level
                 {communityConfig.enabled && (
-                  <span> with {communityConfig.enforcementLevel} enforcement</span>
+                  <span> with {communityConfig.enforcementLevel} optimization level</span>
                 )}
               </p>
             </div>
@@ -244,13 +254,13 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
                     Inherit from Community Settings
                   </Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Use the same AI moderation settings as the community. Changes to community settings will automatically apply to this board.
+                    Use the same AI content optimization settings as the community. Changes to community settings will automatically apply to this board.
                   </p>
                   {inheritsFromCommunity && (
                     <div className="mt-2 p-2 bg-muted rounded text-sm">
                       <strong>Current:</strong> {communityConfig.enabled ? 'Enabled' : 'Disabled'}
                       {communityConfig.enabled && (
-                        <span> • {communityConfig.enforcementLevel} enforcement • {communityConfig.blockViolations ? 'Blocks violations' : 'Flags only'}</span>
+                        <span> • {communityConfig.enforcementLevel} optimization • {communityConfig.blockViolations ? 'Auto-apply suggestions' : 'Show suggestions'}</span>
                       )}
                     </div>
                   )}
@@ -270,7 +280,7 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
                     Use Board-Specific Settings
                   </Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Configure custom AI moderation settings for this board only. This board will have independent settings from the community.
+                    Configure custom AI content optimization settings for this board only. This board will have independent settings from the community.
                   </p>
                 </div>
               </div>
@@ -285,9 +295,9 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
               {/* Enable/Disable Toggle */}
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <Label className="text-base font-medium">Enable AI Auto-Moderation for This Board</Label>
+                  <Label className="text-base font-medium">Enable AI Content Optimization for This Board</Label>
                   <p className="text-sm text-muted-foreground">
-                    Automatically review posts and comments in this board for policy violations
+                    Automatically improve posts and comments in this board for clarity, engagement, and community fit
                   </p>
                 </div>
                 <Checkbox
@@ -301,11 +311,11 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
                 <>
                   <Separator />
 
-                  {/* Enforcement Level */}
+                  {/* Optimization Level */}
                   <div className="space-y-3">
                     <div className="space-y-1">
-                      <Label className="text-base font-medium">Enforcement Level</Label>
-                      <p className="text-sm text-muted-foreground">Controls how strict the AI moderation should be for this board</p>
+                      <Label className="text-base font-medium">Optimization Level</Label>
+                      <p className="text-sm text-muted-foreground">Controls how aggressively the AI suggests content improvements for this board</p>
                     </div>
                     
                     <Select
@@ -319,20 +329,20 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
                       <SelectContent>
                         <SelectItem value="strict">
                           <div className="flex items-center gap-2">
-                            <Shield size={16} className="text-red-500" />
-                            <span>Strict</span>
+                            <Shield size={16} className="text-blue-500" />
+                            <span>Aggressive</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="moderate">
                           <div className="flex items-center gap-2">
-                            <AlertTriangle size={16} className="text-yellow-500" />
-                            <span>Moderate</span>
+                            <AlertTriangle size={16} className="text-green-500" />
+                            <span>Balanced</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="lenient">
                           <div className="flex items-center gap-2">
-                            <CheckCircle size={16} className="text-green-500" />
-                            <span>Lenient</span>
+                            <CheckCircle size={16} className="text-gray-500" />
+                            <span>Conservative</span>
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -343,12 +353,12 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
                     </p>
                   </div>
 
-                  {/* Block Violations Toggle */}
+                  {/* Auto-Apply Suggestions Toggle */}
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <Label className="text-base font-medium">Block Violating Content</Label>
+                      <Label className="text-base font-medium">Auto-Apply Suggestions</Label>
                       <p className="text-sm text-muted-foreground">
-                        Prevent posts with violations from being published in this board (vs. just flagging them)
+                        Automatically apply AI improvements to content in this board (vs. showing suggestions for manual review)
                       </p>
                     </div>
                     <Checkbox
@@ -360,17 +370,17 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
 
                   <Separator />
 
-                  {/* Board-Specific Knowledge Base */}
+                  {/* Board-Specific Context */}
                   <div className="space-y-3">
                     <div className="space-y-1">
-                      <Label className="text-base font-medium">Board-Specific Knowledge</Label>
+                      <Label className="text-base font-medium">Board-Specific Context</Label>
                       <p className="text-sm text-muted-foreground">
-                        Additional context specific to this board that will be combined with community knowledge
+                        Additional context specific to this board that will be combined with community context for better suggestions
                       </p>
                     </div>
                     
                     <Textarea
-                      placeholder="Describe any board-specific rules, topics, or context that the AI should know when moderating content in this board. This will be added to the community knowledge. For example: 'This board is for technical discussions about React development. Code snippets and debugging questions are welcome.'"
+                      placeholder="Describe any board-specific topics, tone, or context that the AI should know when optimizing content in this board. This will be combined with community context. For example: &apos;This board is for technical discussions about React development. We prefer detailed explanations with code examples and helpful debugging tips.&apos;"
                       value={boardAIConfig?.customKnowledge || ''}
                       onChange={(e) => handleSettingChange('customKnowledge', e.target.value)}
                       rows={4}
@@ -416,44 +426,22 @@ export const BoardAIAutoModerationSettings: React.FC<BoardAIAutoModerationSettin
                     )}
                   </div>
 
-                  {/* Advanced Settings */}
-                  <div className="space-y-3 pt-4 border-t">
-                    <Label className="text-base font-medium">Advanced Settings</Label>
-                    
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="boardMaxTokens">Maximum Knowledge Tokens</Label>
-                        <Input
-                          id="boardMaxTokens"
-                          type="number"
-                          min="500"
-                          max="8000"
-                          step="100"
-                          value={boardAIConfig?.maxKnowledgeTokens || 2000}
-                          onChange={(e) => handleSettingChange('maxKnowledgeTokens', parseInt(e.target.value))}
-                          disabled={isLoading}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Token limit for this board's custom knowledge
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+
                 </>
               )}
             </>
           )}
 
           {/* Information Box */}
-          <div className="flex items-start gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-            <Info size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+          <div className="flex items-start gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+            <Info size={16} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
             <div className="text-sm">
-              <p className="font-medium text-yellow-800 dark:text-yellow-200">Board-Level AI Moderation</p>
-              <p className="text-yellow-700 dark:text-yellow-300">
+              <p className="font-medium text-blue-800 dark:text-blue-200">Board-Level AI Content Optimization</p>
+              <p className="text-blue-700 dark:text-blue-300">
                 {inheritsFromCommunity ? (
-                  'This board inherits AI moderation settings from the community. Changes to community settings will automatically apply here.'
+                  'This board inherits AI content optimization settings from the community. Changes to community settings will automatically apply here.'
                 ) : (
-                  'This board uses independent AI moderation settings. Board-specific knowledge will be combined with community knowledge for better context.'
+                  'This board uses independent AI content optimization settings. Board-specific context will be combined with community context for better suggestions.'
                 )}
               </p>
             </div>

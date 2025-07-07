@@ -36,7 +36,7 @@ export interface CommunitySettings {
       requiresRole?: string[];       // Optional: restrict to specific roles (defaults to all authenticated users)
       enforcementLevel?: 'strict' | 'moderate' | 'lenient'; // How strict the enforcement should be (default: moderate)
       customKnowledge?: string;      // Custom knowledge base text blob for community-specific context
-      maxKnowledgeTokens?: number;   // Token limit for custom knowledge (default: 2000)
+      maxKnowledgeTokens?: number;   // Token limit for custom knowledge (default: env NEXT_PUBLIC_AI_MAX_KNOWLEDGE_TOKENS or 2000)
       blockViolations?: boolean;     // Whether to block posts with violations (default: true)
       lastUpdatedBy?: string;        // User ID who last updated the settings
       lastUpdatedAt?: string;        // When settings were last updated
@@ -80,7 +80,7 @@ export interface BoardSettings {
       inheritCommunitySettings?: boolean; // Whether to inherit community AI settings (default: true)
       enforcementLevel?: 'strict' | 'moderate' | 'lenient'; // Board-specific enforcement level
       customKnowledge?: string;      // Board-specific knowledge base text blob
-      maxKnowledgeTokens?: number;   // Token limit for custom knowledge (default: 2000)
+      maxKnowledgeTokens?: number;   // Token limit for custom knowledge (default: env NEXT_PUBLIC_AI_MAX_KNOWLEDGE_TOKENS or 2000)
       blockViolations?: boolean;     // Whether to block posts with violations (default: true)
       lastUpdatedBy?: string;        // User ID who last updated the settings
       lastUpdatedAt?: string;        // When settings were last updated
@@ -157,6 +157,20 @@ export interface SettingsValidationResult {
   isValid: boolean;
   errors: string[];
 }
+
+/**
+ * Get the default maximum knowledge tokens from environment variable
+ */
+const getDefaultMaxKnowledgeTokens = (): number => {
+  const envValue = process.env.NEXT_PUBLIC_AI_MAX_KNOWLEDGE_TOKENS;
+  if (envValue) {
+    const parsed = parseInt(envValue, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 2000; // Fallback default
+};
 
 /**
  * Common settings utilities
@@ -709,7 +723,7 @@ export const SettingsUtils = {
         enabled: boardAIConfig.enabled === true,
         enforcementLevel: boardAIConfig.enforcementLevel || 'moderate',
         customKnowledge: boardAIConfig.customKnowledge || '',
-        maxKnowledgeTokens: boardAIConfig.maxKnowledgeTokens || 2000,
+        maxKnowledgeTokens: boardAIConfig.maxKnowledgeTokens || getDefaultMaxKnowledgeTokens(),
         blockViolations: boardAIConfig.blockViolations !== false, // Default true
         source: 'board' as const
       };
@@ -720,7 +734,7 @@ export const SettingsUtils = {
       enabled: communityAIConfig?.enabled === true,
       enforcementLevel: communityAIConfig?.enforcementLevel || 'moderate',
       customKnowledge: communityAIConfig?.customKnowledge || '',
-      maxKnowledgeTokens: communityAIConfig?.maxKnowledgeTokens || 2000,
+      maxKnowledgeTokens: communityAIConfig?.maxKnowledgeTokens || getDefaultMaxKnowledgeTokens(),
       blockViolations: communityAIConfig?.blockViolations !== false, // Default true
       source: 'community' as const
     };
@@ -750,7 +764,7 @@ export const SettingsUtils = {
     enabled: false, // Opt-in
     enforcementLevel: 'moderate' as const,
     customKnowledge: '',
-    maxKnowledgeTokens: 2000,
+    maxKnowledgeTokens: getDefaultMaxKnowledgeTokens(),
     blockViolations: true
   })
 }; 

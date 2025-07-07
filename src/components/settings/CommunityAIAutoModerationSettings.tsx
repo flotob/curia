@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,8 +16,7 @@ import {
   CheckCircle,
   XCircle,
   ChevronDown,
-  ChevronUp,
-  HelpCircle
+  ChevronUp
 } from 'lucide-react';
 
 interface CommunityAIAutoModerationSettingsProps {
@@ -74,11 +71,11 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
   const getEnforcementLevelDescription = (level: string) => {
     switch (level) {
       case 'strict':
-        return 'Blocks content with any potential policy violations. May have false positives.';
+        return 'Aggressive optimization - suggests improvements for minor grammar, style, and clarity issues.';
       case 'moderate':
-        return 'Balanced approach - blocks clear violations while allowing borderline content.';
+        return 'Balanced approach - focuses on meaningful improvements while preserving author voice.';
       case 'lenient':
-        return 'Only blocks obvious violations. More permissive but may miss subtle issues.';
+        return 'Conservative optimization - only suggests improvements for significant clarity or engagement issues.';
       default:
         return '';
     }
@@ -87,11 +84,11 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
   const getEnforcementLevelColor = (level: string) => {
     switch (level) {
       case 'strict':
-        return 'text-red-600 dark:text-red-400';
+        return 'text-blue-600 dark:text-blue-400';
       case 'moderate':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'lenient':
         return 'text-green-600 dark:text-green-400';
+      case 'lenient':
+        return 'text-gray-600 dark:text-gray-400';
       default:
         return 'text-gray-600 dark:text-gray-400';
     }
@@ -133,7 +130,7 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Brain size={20} />
-            AI Auto-Moderation
+            AI Content Optimization
             {currentConfig.enabled && (
               <Badge variant="default" className="ml-2">
                 Active
@@ -152,7 +149,7 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
           "text-sm",
           theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
         )}>
-          AI-powered content moderation with custom community knowledge
+          AI-powered content improvement with custom community context
         </p>
       </CardHeader>
 
@@ -161,9 +158,9 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
           {/* Enable/Disable Toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <Label className="text-base font-medium">Enable AI Auto-Moderation</Label>
+              <Label className="text-base font-medium">Enable AI Content Optimization</Label>
               <p className="text-sm text-muted-foreground">
-                Automatically review posts and comments for policy violations
+                Automatically improve posts and comments for clarity, engagement, and community fit
               </p>
             </div>
             <Checkbox
@@ -177,11 +174,11 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
             <>
               <Separator />
 
-              {/* Enforcement Level */}
+              {/* Optimization Level */}
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-base font-medium">Enforcement Level</Label>
-                  <p className="text-sm text-muted-foreground">Controls how strict the AI moderation should be</p>
+                  <Label className="text-base font-medium">Optimization Level</Label>
+                  <p className="text-sm text-muted-foreground">Controls how aggressively the AI suggests content improvements</p>
                 </div>
                 
                 <Select
@@ -195,20 +192,20 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
                   <SelectContent>
                     <SelectItem value="strict">
                       <div className="flex items-center gap-2">
-                        <Shield size={16} className="text-red-500" />
-                        <span>Strict</span>
+                        <Shield size={16} className="text-blue-500" />
+                        <span>Aggressive</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="moderate">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle size={16} className="text-yellow-500" />
-                        <span>Moderate</span>
+                        <AlertTriangle size={16} className="text-green-500" />
+                        <span>Balanced</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="lenient">
                       <div className="flex items-center gap-2">
-                        <CheckCircle size={16} className="text-green-500" />
-                        <span>Lenient</span>
+                        <CheckCircle size={16} className="text-gray-500" />
+                        <span>Conservative</span>
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -219,12 +216,12 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
                 </p>
               </div>
 
-              {/* Block Violations Toggle */}
+              {/* Auto-Apply Suggestions Toggle */}
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <Label className="text-base font-medium">Block Violating Content</Label>
+                  <Label className="text-base font-medium">Auto-Apply Suggestions</Label>
                   <p className="text-sm text-muted-foreground">
-                    Prevent posts with violations from being published (vs. just flagging them)
+                    Automatically apply AI improvements to content (vs. showing suggestions for manual review)
                   </p>
                 </div>
                 <Checkbox
@@ -239,14 +236,14 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
               {/* Custom Knowledge Base */}
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-base font-medium">Community-Specific Knowledge</Label>
+                  <Label className="text-base font-medium">Community-Specific Context</Label>
                   <p className="text-sm text-muted-foreground">
-                    Provide context about your community rules, culture, and guidelines to help the AI make better moderation decisions
+                    Provide context about your community culture, tone, and preferences to help the AI make better content suggestions
                   </p>
                 </div>
                 
                 <Textarea
-                  placeholder="Describe your community rules, culture, and any specific guidelines the AI should know about when moderating content. For example: 'This is a family-friendly gaming community. We allow competitive discussions but no personal attacks. Technical game exploits are allowed but real-world cheating discussions are not.'"
+                  placeholder="Describe your community culture, tone, and preferences to help the AI provide better content suggestions. For example: &apos;This is a friendly gaming community that values helpful, detailed explanations. We prefer casual but informative language, welcome technical discussions, and appreciate humor when appropriate.&apos;"
                   value={currentConfig.customKnowledge}
                   onChange={(e) => handleSettingChange('customKnowledge', e.target.value)}
                   rows={6}
@@ -292,38 +289,15 @@ export const CommunityAIAutoModerationSettings: React.FC<CommunityAIAutoModerati
                 )}
               </div>
 
-              {/* Advanced Settings */}
-              <div className="space-y-3 pt-4 border-t">
-                <Label className="text-base font-medium">Advanced Settings</Label>
-                
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="maxTokens">Maximum Knowledge Tokens</Label>
-                    <Input
-                      id="maxTokens"
-                      type="number"
-                      min="500"
-                      max="8000"
-                      step="100"
-                      value={maxTokens}
-                      onChange={(e) => handleSettingChange('maxKnowledgeTokens', parseInt(e.target.value))}
-                      disabled={isLoading}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Higher limits allow more detailed knowledge but increase AI processing costs
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Warning Box */}
-              <div className="flex items-start gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                <Info size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+              {/* Info Box */}
+              <div className="flex items-start gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                <Info size={16} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                 <div className="text-sm">
-                  <p className="font-medium text-yellow-800 dark:text-yellow-200">Important Note</p>
-                  <p className="text-yellow-700 dark:text-yellow-300">
-                    AI moderation is a powerful tool but not perfect. Consider it as assistance to human moderation, 
-                    not a complete replacement. Review flagged content when possible.
+                  <p className="font-medium text-blue-800 dark:text-blue-200">AI Content Optimization</p>
+                  <p className="text-blue-700 dark:text-blue-300">
+                    The AI will provide content suggestions based on your community context. Users can choose whether 
+                    to accept, modify, or ignore these suggestions. All improvements preserve the author&apos;s original intent.
                   </p>
                 </div>
               </div>

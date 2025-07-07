@@ -24,26 +24,15 @@ export interface ImprovementResult {
   confidence: number;
 }
 
-export interface ComplianceViolation {
-  type: string;
-  description: string;
-  severity: 'low' | 'medium' | 'high';
-  confidence: number;
-}
-
-export interface ComplianceCheck {
-  compliant: boolean;
-  violations: ComplianceViolation[];
-  confidence: number;
-  enforcementLevel: string;
-}
+// Removed compliance interfaces - now pure optimizer
 
 const IMPROVEMENT_SYSTEM_PROMPT = `You are an expert content editor for a community forum. Improve the provided content for:
 
 1. **Grammar & Spelling**: Fix typos, grammar errors, punctuation mistakes
-2. **Clarity & Readability**: Simplify complex sentences, improve flow and structure
+2. **Clarity & Readability**: Simplify complex sentences, improve flow and structure  
 3. **Engagement**: Make content more engaging while preserving original meaning and tone
-4. **Professional Polish**: Ensure appropriate formatting and professional presentation
+4. **Community Fit**: Adapt language and style to match the community's culture and norms
+5. **Professional Polish**: Ensure appropriate formatting and professional presentation
 
 IMPORTANT RULES:
 - Preserve the original meaning and author's intent
@@ -55,12 +44,13 @@ IMPORTANT RULES:
 - Focus on making existing content clearer and more professional
 - NEVER add titles or headlines to content that doesn't already have them
 - If content already starts with a title/headline, do NOT duplicate it
+- Use community context to make content more relevant and engaging
 
 Return your improvements with specific details about what was changed and why.`;
 
 const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
   try {
-    const { content, type, title, communityId: requestCommunityId, boardId, checkCompliance = false } = await request.json();
+    const { content, type, title, communityId: requestCommunityId, boardId } = await request.json();
     
     if (!content || typeof content !== 'string') {
       return NextResponse.json({ error: 'Content is required and must be a string' }, { status: 400 });
@@ -79,38 +69,37 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     let boardSettings: BoardSettings = {};
     let autoModerationConfig: ReturnType<typeof SettingsUtils.getAIAutoModerationConfig> | null = null;
 
-    if (checkCompliance || true) { // Always fetch settings for potential future use
-      try {
-        // Fetch community settings
-        const communityResult = await query(
-          'SELECT settings FROM communities WHERE id = $1',
-          [communityId]
+    // Always fetch settings for community context
+    try {
+      // Fetch community settings
+      const communityResult = await query(
+        'SELECT settings FROM communities WHERE id = $1',
+        [communityId]
+      );
+      
+      if (communityResult.rows.length > 0 && communityResult.rows[0].settings) {
+        communitySettings = communityResult.rows[0].settings;
+      }
+
+      // Fetch board settings if boardId provided
+      if (boardId) {
+        const boardResult = await query(
+          'SELECT settings FROM boards WHERE id = $1 AND community_id = $2',
+          [boardId, communityId]
         );
         
-        if (communityResult.rows.length > 0 && communityResult.rows[0].settings) {
-          communitySettings = communityResult.rows[0].settings;
+        if (boardResult.rows.length > 0 && boardResult.rows[0].settings) {
+          boardSettings = boardResult.rows[0].settings;
         }
-
-        // Fetch board settings if boardId provided
-        if (boardId) {
-          const boardResult = await query(
-            'SELECT settings FROM boards WHERE id = $1 AND community_id = $2',
-            [boardId, communityId]
-          );
-          
-          if (boardResult.rows.length > 0 && boardResult.rows[0].settings) {
-            boardSettings = boardResult.rows[0].settings;
-          }
-        }
-
-        // Get aggregated auto-moderation config
-        autoModerationConfig = SettingsUtils.getAIAutoModerationConfig(communitySettings, boardSettings);
-        
-        console.log('[AI Improve] Auto-moderation config:', autoModerationConfig);
-      } catch (settingsError) {
-        console.error('[AI Improve] Failed to fetch settings:', settingsError);
-        // Continue without auto-moderation if settings fetch fails
       }
+
+      // Get aggregated auto-moderation config
+      autoModerationConfig = SettingsUtils.getAIAutoModerationConfig(communitySettings, boardSettings);
+      
+      console.log('[AI Improve] Auto-moderation config:', autoModerationConfig);
+    } catch (settingsError) {
+      console.error('[AI Improve] Failed to fetch settings:', settingsError);
+      // Continue without auto-moderation if settings fetch fails
     }
 
     // Create conversation for tracking
@@ -133,44 +122,22 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
       [conversationId, 'user', content, 0]
     );
 
-    // Prepare the dual-purpose prompt (improvement + auto-moderation)
+    // Prepare context-aware improvement prompt
     let systemPrompt = IMPROVEMENT_SYSTEM_PROMPT;
-    let userPrompt = type === 'post' && title 
+    const userPrompt = type === 'post' && title 
       ? `Improve this ${type} content. The title is "${title}" and is handled separately - do NOT include or repeat the title in your improved content. Only improve the body content:\n\n${content}`
       : `Improve this ${type}:\n\n${content}`;
 
-    // Add auto-moderation context if enabled
-    const shouldCheckCompliance = autoModerationConfig?.enabled && (checkCompliance || autoModerationConfig?.blockViolations);
-    if (shouldCheckCompliance && autoModerationConfig) {
-      const hostingRules = process.env.HOSTER_COMPLIANCE_RULES || 'Follow general content policies: no hate speech, harassment, illegal content, spam, or harmful material.';
-      const customKnowledge = autoModerationConfig.customKnowledge || '';
-      const enforcementLevel = autoModerationConfig.enforcementLevel || 'moderate';
-
+    // Add community context if available
+    if (autoModerationConfig?.enabled && autoModerationConfig.customKnowledge) {
       systemPrompt += `
 
----DUAL PURPOSE ANALYSIS---
-In addition to content improvement, you must also check this content for policy compliance.
+---COMMUNITY CONTEXT---
+This content is for a community with specific culture and norms. Use this context to make your improvements more relevant and engaging:
 
-HOSTING PLATFORM RULES:
-${hostingRules}
+${autoModerationConfig.customKnowledge}
 
-${customKnowledge ? `COMMUNITY/BOARD SPECIFIC CONTEXT:
-${customKnowledge}` : ''}
-
-ENFORCEMENT LEVEL: ${enforcementLevel}
-- strict: Flag any potential violations, err on the side of caution
-- moderate: Flag clear violations while allowing borderline content
-- lenient: Only flag obvious violations
-
-You must analyze the content for BOTH:
-1. Content improvement opportunities
-2. Policy compliance violations
-
-If violations are found and enforcement is set to block, the content should be rejected.`;
-
-      userPrompt += `
-
-Please analyze this content for both improvement opportunities AND policy compliance violations according to the rules above.`;
+Consider this community context when improving the content to make it more fitting and engaging for this specific audience.`;
     }
 
     const result = await streamText({
@@ -181,7 +148,7 @@ Please analyze this content for both improvement opportunities AND policy compli
       ],
       tools: {
         generateImprovedContent: {
-          description: 'Generate improved version of content with specific tracked changes and optional compliance check',
+          description: 'Generate improved version of content with specific tracked changes',
           parameters: z.object({
             improvedContent: z.string().describe('The improved version of the content'),
             changes: z.array(z.object({
@@ -194,30 +161,14 @@ Please analyze this content for both improvement opportunities AND policy compli
               changeId: z.string().describe('Unique identifier for this change')
             })).describe('List of all changes made with exact positions'),
             summary: z.string().describe('Brief summary of the main improvements made'),
-            confidence: z.number().min(0).max(100).describe('Confidence level in improvements (0-100)'),
-            complianceCheck: z.object({
-              compliant: z.boolean().describe('Whether the content is compliant with community policies'),
-              violations: z.array(z.object({
-                type: z.string().describe('Type of violation (e.g., hate-speech, spam, harassment)'),
-                description: z.string().describe('Description of the specific violation'),
-                severity: z.enum(['low', 'medium', 'high']).describe('Severity level of the violation'),
-                confidence: z.number().min(0).max(100).describe('Confidence level in this violation detection')
-              })).describe('List of policy violations found'),
-              confidence: z.number().min(0).max(100).describe('Overall confidence in compliance assessment'),
-              enforcementLevel: z.string().describe('The enforcement level used for this assessment')
-            }).optional().describe('Compliance check results (only if auto-moderation is enabled)')
+            confidence: z.number().min(0).max(100).describe('Confidence level in improvements (0-100)')
           }),
           execute: async (params) => {
             try {
-              // Check if content should be blocked based on compliance
-              const hasViolations = params.complianceCheck && !params.complianceCheck.compliant;
-              const shouldBlock = hasViolations && autoModerationConfig?.blockViolations;
-
-              console.log('[AI Improve] Compliance check result:', {
-                hasViolations,
-                shouldBlock,
-                violations: params.complianceCheck?.violations?.length || 0,
-                enforcementLevel: params.complianceCheck?.enforcementLevel
+              console.log('[AI Improve] Generated improvements:', {
+                changesCount: params.changes?.length || 0,
+                confidence: params.confidence,
+                hasCustomKnowledge: !!(autoModerationConfig?.customKnowledge)
               });
 
               // Save the AI response and get the message ID
@@ -242,15 +193,13 @@ Please analyze this content for both improvement opportunities AND policy compli
                 [conversationId, messageId, userId, communityId, 'gpt-4o-mini', estimatedPromptTokens, estimatedCompletionTokens, totalTokens, estimatedCost, true]
               );
 
-              // Return enhanced response with compliance check
+              // Return clean optimization response
               return { 
                 success: true, 
                 data: {
                   ...params,
                   hasSignificantChanges: params.changes?.length > 0,
-                  shouldBlock,
-                  hasViolations,
-                  autoModerationEnabled: autoModerationConfig?.enabled || false
+                  communityContextUsed: !!(autoModerationConfig?.customKnowledge)
                 }
               };
             } catch (dbError) {
