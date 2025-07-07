@@ -318,18 +318,20 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
         return;
       }
 
-      // Step 2: Check if AI improvement is enabled for this community
+      // Step 2: Check if AI auto-moderation is enabled for this community/board
       const communitySettings = communityData?.settings || {};
+      const selectedBoard = accessibleBoardsList?.find(board => board.id.toString() === selectedBoardId);
+      const boardSettings = selectedBoard?.settings || {};
       const userRoles = user?.roles || [];
-      const canUseAI = SettingsUtils.canUserUseAIPostImprovement(communitySettings, userRoles);
+      const canUseAI = SettingsUtils.isAIAutoModerationEnabledForBoard(communitySettings, boardSettings, userRoles);
       
       if (canUseAI) {
-        console.log('[ExpandedNewPostForm] AI improvement enabled - showing AI modal');
+        console.log('[ExpandedNewPostForm] AI auto-moderation enabled - showing AI modal');
         // Store the validated post data and show AI modal
         setPendingPostData(postData);
         setShowAIModal(true);
       } else {
-        console.log('[ExpandedNewPostForm] AI improvement disabled - creating post directly');
+        console.log('[ExpandedNewPostForm] AI auto-moderation disabled - creating post directly');
         // Create post directly without AI improvement
         createPostMutation.mutate(postData);
       }
@@ -340,7 +342,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
 
   // AI Modal Handlers
   const handleAIAccept = (improvedContent: { title: string; content: string }) => {
-    console.log('[ExpandedNewPostForm] AI improvements accepted');
+    console.log('[ExpandedNewPostForm] AI auto-moderation improvements accepted');
     if (pendingPostData) {
       const improvedPostData = {
         ...pendingPostData,
@@ -354,7 +356,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
   };
 
   const handleAIReject = () => {
-    console.log('[ExpandedNewPostForm] AI improvements rejected - using original content');
+    console.log('[ExpandedNewPostForm] AI auto-moderation improvements rejected - using original content');
     if (pendingPostData) {
       createPostMutation.mutate(pendingPostData);
     }
@@ -555,6 +557,7 @@ export const ExpandedNewPostForm: React.FC<ExpandedNewPostFormProps> = ({
           originalContent={pendingPostData.content}
           originalTitle={pendingPostData.title}
           contentType="post"
+          boardId={selectedBoardId}
           onSubmitOriginal={handleAIReject}
           onSubmitImproved={(improvedContent) => {
             handleAIAccept({

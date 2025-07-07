@@ -33,6 +33,16 @@ export interface ApiBoard {
       fulfillment?: 'any' | 'all';
       verificationDuration?: number;
     };
+    ai?: {
+      autoModeration?: {
+        enabled?: boolean;
+        inheritCommunitySettings?: boolean;
+        enforcementLevel?: 'strict' | 'moderate' | 'lenient';
+        customKnowledge?: string;
+        maxKnowledgeTokens?: number;
+        blockViolations?: boolean;
+      };
+    };
   };
   community_id: string;
   created_at: string;

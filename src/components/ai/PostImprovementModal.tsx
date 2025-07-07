@@ -17,6 +17,7 @@ interface PostImprovementModalProps {
   originalContent: string;
   originalTitle?: string;
   contentType: 'post' | 'comment';
+  boardId?: string;
   onSubmitOriginal: () => void;
   onSubmitImproved: (improvedContent: string) => void;
 }
@@ -37,6 +38,7 @@ export function PostImprovementModal({
   originalContent,
   originalTitle,
   contentType,
+  boardId,
   onSubmitOriginal,
   onSubmitImproved
 }: PostImprovementModalProps) {
@@ -98,7 +100,8 @@ export function PostImprovementModal({
         body: JSON.stringify({
           content: originalContent,
           type: contentType,
-          title: originalTitle
+          title: originalTitle,
+          boardId: boardId
         }),
         signal: abortController.signal
       });

@@ -110,6 +110,7 @@ function MarkdownContent({ content }: { content: string }) {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match;
+    let keyCounter = 0;
     
     while ((match = linkRegex.exec(text)) !== null) {
       const [fullMatch, linkText, url] = match;
@@ -118,7 +119,13 @@ function MarkdownContent({ content }: { content: string }) {
       // Add text before the link
       if (matchStart > lastIndex) {
         const beforeText = text.slice(lastIndex, matchStart);
-        parts.push(processNonLinkText(beforeText));
+        parts.push(
+          <span 
+            key={`text-before-${keyCounter}`}
+            dangerouslySetInnerHTML={{ __html: processNonLinkText(beforeText) }}
+          />
+        );
+        keyCounter++;
       }
       
       // Implement clean link policy
@@ -126,12 +133,12 @@ function MarkdownContent({ content }: { content: string }) {
           url.includes('/board/') || url.includes('/c/') || url.includes('/locks') ||
           url.startsWith('#') || url === '' || url.startsWith('https://yourcommunityurl')) {
         // Block internal links - show just the text
-        parts.push(<span key={matchStart}>{linkText}</span>);
+        parts.push(<span key={`internal-link-${matchStart}`}>{linkText}</span>);
       } else if (url.startsWith('http://') || url.startsWith('https://')) {
         // Allow external links with CG navigation
         parts.push(
           <a
-            key={matchStart}
+            key={`external-link-${matchStart}`}
             href="#"
             className="text-primary hover:underline cursor-pointer"
             onClick={(e) => {
@@ -150,7 +157,7 @@ function MarkdownContent({ content }: { content: string }) {
         );
       } else {
         // For anything else, just show the text
-        parts.push(<span key={matchStart}>{linkText}</span>);
+        parts.push(<span key={`other-link-${matchStart}`}>{linkText}</span>);
       }
       
       lastIndex = match.index + fullMatch.length;
@@ -159,14 +166,19 @@ function MarkdownContent({ content }: { content: string }) {
     // Add remaining text after last link
     if (lastIndex < text.length) {
       const remainingText = text.slice(lastIndex);
-      parts.push(processNonLinkText(remainingText));
+      parts.push(
+        <span 
+          key={`text-after-${keyCounter}`}
+          dangerouslySetInnerHTML={{ __html: processNonLinkText(remainingText) }}
+        />
+      );
     }
     
     return <>{parts}</>;
   };
   
   // Helper function to process non-link markdown formatting
-  const processNonLinkText = (text: string): React.ReactNode => {
+  const processNonLinkText = (text: string): string => {
     let processed = text;
     
     // Bold
@@ -176,7 +188,7 @@ function MarkdownContent({ content }: { content: string }) {
     // Inline code
     processed = processed.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 rounded text-sm">$1</code>');
     
-    return <span dangerouslySetInnerHTML={{ __html: processed }} />;
+    return processed;
   };
   
   return <div>{renderMarkdown(content)}</div>;

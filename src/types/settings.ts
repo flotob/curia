@@ -24,13 +24,6 @@ export interface CommunitySettings {
 
   // AI-powered features configuration
   ai?: {
-    postImprovement?: {
-      enabled?: boolean;             // Whether AI post improvement is enabled (default: true for testing)
-      requiresRole?: string[];       // Optional: restrict to specific roles (defaults to all authenticated users)
-      confidenceThreshold?: number; // Minimum AI confidence to show suggestions (0-100, default: 60)
-      maxRequestsPerDay?: number;    // Rate limiting per user (default: unlimited)
-    };
-    
     autoModeration?: {
       enabled?: boolean;             // Whether AI auto-moderation is enabled (default: false - opt-in)
       requiresRole?: string[];       // Optional: restrict to specific roles (defaults to all authenticated users)
@@ -42,10 +35,7 @@ export interface CommunitySettings {
       lastUpdatedAt?: string;        // When settings were last updated
     };
     
-    // Future AI features:
-    // autoTagging?: { enabled: boolean; confidence: number };
-    // contentModeration?: { enabled: boolean; strictness: 'low' | 'medium' | 'high' };
-    // translationSuggestions?: { enabled: boolean; targetLanguages: string[] };
+    // Future AI features can be added here as needed
   };
   
   // Future community-wide settings:
@@ -590,59 +580,7 @@ export const SettingsUtils = {
     return 'none';
   },
 
-  // ===== AI FEATURES UTILITIES =====
-
-  /**
-   * Checks if AI post improvement is enabled for the community
-   * Default is TRUE for testing (will flip to FALSE for production)
-   */
-  isAIPostImprovementEnabled: (settings: CommunitySettings, userRoles?: string[]): boolean => {
-    const aiConfig = settings?.ai?.postImprovement;
-    
-    // If no AI config exists, default to ENABLED for testing
-    if (!aiConfig) {
-      return true;
-    }
-    
-    // If explicitly disabled, return false
-    if (aiConfig.enabled === false) {
-      return false;
-    }
-    
-    // Check role restrictions if specified
-    if (aiConfig.requiresRole && aiConfig.requiresRole.length > 0 && userRoles) {
-      const hasRequiredRole = aiConfig.requiresRole.some(role => userRoles.includes(role));
-      if (!hasRequiredRole) {
-        return false;
-      }
-    }
-    
-    // Default to enabled
-    return true;
-  },
-
-  /**
-   * Gets AI post improvement configuration with defaults
-   */
-  getAIPostImprovementConfig: (settings: CommunitySettings) => {
-    const aiConfig = settings?.ai?.postImprovement;
-    
-    return {
-      enabled: aiConfig?.enabled !== false, // Default true for testing
-      requiresRole: aiConfig?.requiresRole || [],
-      confidenceThreshold: aiConfig?.confidenceThreshold || 60,
-      maxRequestsPerDay: aiConfig?.maxRequestsPerDay || 0 // 0 = unlimited
-    };
-  },
-
-  /**
-   * Checks if user meets AI post improvement requirements
-   */
-  canUserUseAIPostImprovement: (settings: CommunitySettings, userRoles?: string[]): boolean => {
-    return SettingsUtils.isAIPostImprovementEnabled(settings, userRoles);
-  },
-
-  // ===== AI AUTO-MODERATION UTILITIES =====
+    // ===== AI AUTO-MODERATION UTILITIES =====
 
   /**
    * Checks if AI auto-moderation is enabled for the community
