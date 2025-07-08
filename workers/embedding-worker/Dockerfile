@@ -5,23 +5,20 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json yarn.lock ./
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy TypeScript config and source code
+# Copy TypeScript config and source code first (for better layer caching)
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-# Install dev dependencies for build
-RUN npm ci
+# Install all dependencies (including dev for build)
+RUN yarn install --frozen-lockfile
 
 # Build the TypeScript
-RUN npm run build
+RUN yarn build
 
-# Remove dev dependencies
-RUN npm prune --production
+# Remove dev dependencies for production
+RUN yarn install --frozen-lockfile --production
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
@@ -31,11 +28,11 @@ RUN adduser -S embedding-worker -u 1001
 RUN chown -R embedding-worker:nodejs /app
 USER embedding-worker
 
-# Expose health check port (if needed)
+# Expose health check port
 EXPOSE 3001
 
 # Set environment
 ENV NODE_ENV=production
 
 # Start the worker
-CMD ["npm", "start"] 
+CMD ["yarn", "start"] 
