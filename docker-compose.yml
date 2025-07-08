@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   postgres:
-    image: postgres:latest
+    image: pgvector/pgvector:pg17
     restart: always
     environment:
       POSTGRES_USER: plugin_user
