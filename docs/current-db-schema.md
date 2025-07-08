@@ -1,4 +1,4 @@
--- Adminer 5.2.1 PostgreSQL 17.5 dump
+-- Adminer 5.2.1 PostgreSQL 17.4 dump
 
 DROP TABLE IF EXISTS "ai_conversations";
 CREATE TABLE "public"."ai_conversations" (
@@ -268,8 +268,6 @@ COMMENT ON COLUMN "public"."community_partnerships"."source_to_target_permission
 
 COMMENT ON COLUMN "public"."community_partnerships"."target_to_source_permissions" IS 'Permissions that target community grants to source community. Includes: allowPresenceSharing, allowCrossCommunitySearch, allowCrossCommunityNavigation, allowCrossCommunityNotifications, allowBoardSharing';
 
-CREATE INDEX idx_community_partnerships_lookup ON public.community_partnerships USING btree (source_community_id, target_community_id, status);
-
 CREATE UNIQUE INDEX unique_community_partnership ON public.community_partnerships USING btree (source_community_id, target_community_id);
 
 CREATE INDEX idx_community_partnerships_source ON public.community_partnerships USING btree (source_community_id);
@@ -279,6 +277,8 @@ CREATE INDEX idx_community_partnerships_target ON public.community_partnerships 
 CREATE INDEX idx_community_partnerships_status ON public.community_partnerships USING btree (status);
 
 CREATE INDEX idx_community_partnerships_invited_at ON public.community_partnerships USING btree (invited_at);
+
+CREATE INDEX idx_community_partnerships_lookup ON public.community_partnerships USING btree (source_community_id, target_community_id, status);
 
 
 DROP VIEW IF EXISTS "enriched_posts";
@@ -513,10 +513,13 @@ CREATE TABLE "public"."posts" (
     "board_id" integer NOT NULL,
     "settings" jsonb DEFAULT '{}' NOT NULL,
     "lock_id" integer,
+    "embedding" vector(1536),
     CONSTRAINT "posts_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
 
 COMMENT ON COLUMN "public"."posts"."lock_id" IS 'Optional reference to the lock used for this post gating';
+
+COMMENT ON COLUMN "public"."posts"."embedding" IS 'Semantic search vector from OpenAI text-embedding-3-small model. Generated from title + content. NULL indicates needs embedding generation.';
 
 CREATE INDEX posts_author_user_id_index ON public.posts USING btree (author_user_id);
 
@@ -535,6 +538,10 @@ CREATE INDEX posts_settings_index ON public.posts USING gin (settings);
 CREATE INDEX idx_posts_lock_id ON public.posts USING btree (lock_id);
 
 CREATE INDEX idx_posts_author_board_created ON public.posts USING btree (author_user_id, board_id, created_at DESC);
+
+CREATE INDEX posts_embedding_hnsw_idx ON public.posts USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64');
+
+CREATE INDEX posts_embedding_null_idx ON public.posts USING btree (id) WHERE (embedding IS NULL);
 
 
 DELIMITER ;;
@@ -796,10 +803,6 @@ COMMENT ON COLUMN "public"."user_friends"."friendship_status" IS 'Status: active
 
 COMMENT ON COLUMN "public"."user_friends"."synced_at" IS 'When this friendship data was last synced from CG lib';
 
-CREATE INDEX idx_user_friends_name_search ON public.user_friends USING gin (to_tsvector('english'::regconfig, friend_name)) WHERE (friendship_status = 'active'::text);
-
-CREATE INDEX idx_user_friends_name_prefix ON public.user_friends USING btree (friend_name text_pattern_ops) WHERE (friendship_status = 'active'::text);
-
 CREATE UNIQUE INDEX user_friends_unique_friendship ON public.user_friends USING btree (user_id, friend_user_id);
 
 CREATE INDEX idx_user_friends_user_id ON public.user_friends USING btree (user_id);
@@ -811,6 +814,10 @@ CREATE INDEX idx_user_friends_status ON public.user_friends USING btree (friends
 CREATE INDEX idx_user_friends_synced ON public.user_friends USING btree (synced_at);
 
 CREATE INDEX idx_user_friends_user_status ON public.user_friends USING btree (user_id, friendship_status) WHERE (friendship_status = 'active'::text);
+
+CREATE INDEX idx_user_friends_name_search ON public.user_friends USING gin (to_tsvector('english'::regconfig, friend_name)) WHERE (friendship_status = 'active'::text);
+
+CREATE INDEX idx_user_friends_name_prefix ON public.user_friends USING btree (friend_name text_pattern_ops) WHERE (friendship_status = 'active'::text);
 
 
 DELIMITER ;;
@@ -982,4 +989,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-07-08 11:25:45 UTC
+-- 2025-07-08 15:21:46 UTC
