@@ -21,7 +21,8 @@ async function main() {
         rateLimitPerMinute: parseInt(process.env.EMBEDDING_RATE_LIMIT || '100'),
     });
     // Create health check server
-    const healthPort = parseInt(process.env.HEALTH_CHECK_PORT || '3001');
+    // Use Railway's PORT if available, fallback to HEALTH_CHECK_PORT
+    const healthPort = parseInt(process.env.PORT || process.env.HEALTH_CHECK_PORT || '3001');
     const healthServer = (0, http_1.createServer)((req, res) => {
         // Enable CORS
         res.setHeader('Access-Control-Allow-Origin', '*');

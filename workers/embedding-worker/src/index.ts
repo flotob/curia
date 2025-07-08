@@ -25,7 +25,8 @@ async function main() {
   });
   
   // Create health check server
-  const healthPort = parseInt(process.env.HEALTH_CHECK_PORT || '3001');
+  // Use Railway's PORT if available, fallback to HEALTH_CHECK_PORT
+const healthPort = parseInt(process.env.PORT || process.env.HEALTH_CHECK_PORT || '3001');
   const healthServer = createServer((req, res) => {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
