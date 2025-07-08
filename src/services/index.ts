@@ -36,3 +36,13 @@ export {
   type UpdateLockRequest,
   type LockSearchFilters,
 } from './LockService';
+
+// Semantic Search Service
+export {
+  SemanticSearchService,
+  type SemanticSearchOptions,
+  type SemanticSearchResult,
+  type RelatedPost,
+  type CachedEmbedding,
+  type EmbeddingStats,
+} from './SemanticSearchService';
