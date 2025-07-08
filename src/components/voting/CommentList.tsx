@@ -128,7 +128,7 @@ export const CommentList: React.FC<CommentListProps> = ({
 
   if (!comments || comments.length === 0 || commentTree.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-4 pb-24 sm:pb-8 text-muted-foreground">
         <MessagesSquare className="h-8 w-8 mb-2" />
         <p>No comments yet.</p>
         <p className="text-xs">Be the first to share your thoughts!</p>

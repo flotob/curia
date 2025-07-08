@@ -391,7 +391,7 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
               onCommentHighlighted={() => setHighlightedCommentId(null)}
             />
           ) : (
-            <div className="empty-comments">
+            <div className="empty-comments pb-24 sm:pb-8">
               <MessageSquare size={48} className="empty-icon" />
               <p className="empty-text">
                 No comments yet. Be the first to start the discussion!
