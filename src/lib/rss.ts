@@ -1,6 +1,6 @@
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
-import { buildExternalShareUrl } from '@/utils/urlBuilder';
+import { buildLegacyExternalShareUrl } from '@/utils/urlBuilder';
 
 /**
  * Community data interface for RSS eligibility checking
@@ -26,19 +26,40 @@ interface RSSCommunity {
  */
 export function isBoardRSSEligible(board: ApiBoard, community: RSSCommunity): boolean {
   // Check community privacy
-  const communityGated = (community.settings?.permissions?.allowedRoles?.length ?? 0) > 0;
+  const communityRoles = community.settings?.permissions?.allowedRoles;
+  const communityGated = (communityRoles?.length ?? 0) > 0;
+  
+  console.log('[RSS] Community gating check:', {
+    communityId: community.id,
+    communityName: community.name,
+    allowedRoles: communityRoles,
+    isGated: communityGated
+  });
+  
   if (communityGated) {
+    console.log('[RSS] Board rejected: Community is role-gated');
     return false;
   }
 
   // Check board privacy
-  const boardGated = (board.settings?.permissions?.allowedRoles?.length ?? 0) > 0;
+  const boardRoles = board.settings?.permissions?.allowedRoles;
+  const boardGated = (boardRoles?.length ?? 0) > 0;
+  
+  console.log('[RSS] Board gating check:', {
+    boardId: board.id,
+    boardName: board.name,
+    allowedRoles: boardRoles,
+    isGated: boardGated
+  });
+  
   if (boardGated) {
+    console.log('[RSS] Board rejected: Board is role-gated');
     return false;
   }
 
   // Board is RSS-eligible if it's publicly readable
   // Note: Write locks (for posting) are OK, read locks (for viewing) are not
+  console.log('[RSS] Board approved: Publicly accessible');
   return true;
 }
 
@@ -47,9 +68,7 @@ export function isBoardRSSEligible(board: ApiBoard, community: RSSCommunity): bo
  * Handles internal links by converting them to external URLs
  */
 export function convertMarkdownToHTML(
-  content: string,
-  communityShortId: string,
-  pluginId: string
+  content: string
 ): string {
   // Simple but robust markdown to HTML conversion
   let html = content;
@@ -100,40 +119,34 @@ export function convertMarkdownToHTML(
 
 /**
  * Generates RSS XML for a board
+ * Note: This function only handles basic RSS generation with legacy URLs.
+ * Semantic URL generation is handled in the API endpoint for server-side only contexts.
  */
-export async function generateRSSXML(
+export function generateRSSXML(
   board: ApiBoard,
   community: RSSCommunity,
   posts: ApiPost[]
-): Promise<string> {
+): string {
   const pluginBaseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
   const boardUrl = `${pluginBaseUrl}/?boardId=${board.id}`;
   const currentDate = new Date().toUTCString();
 
-  // Generate RSS items for posts
-  const rssItems = await Promise.all(
-    posts.map(async (post) => {
+  // Generate RSS items for posts using legacy URLs
+  const rssItems = posts.map((post) => {
       try {
-        // Generate external URL for the post
-        const postUrl = await buildExternalShareUrl(
+        // Generate external URL for the post using legacy method (no API calls)
+        const postUrl = buildLegacyExternalShareUrl(
           post.id,
           post.board_id,
-          community.community_short_id,
-          community.plugin_id,
-          post.title,
-          board.name
-        );
-
-        // Convert markdown content to HTML
-        const htmlContent = convertMarkdownToHTML(
-          post.content,
           community.community_short_id,
           community.plugin_id
         );
 
+        // Convert markdown content to HTML
+        const htmlContent = convertMarkdownToHTML(post.content);
+
         // Escape HTML for XML
         const escapedTitle = escapeXML(post.title);
-        const escapedContent = escapeXML(htmlContent);
         const pubDate = new Date(post.created_at).toUTCString();
 
         return `
@@ -148,8 +161,7 @@ export async function generateRSSXML(
         console.error(`[RSS] Failed to generate RSS item for post ${post.id}:`, error);
         return ''; // Skip failed posts
       }
-    })
-  );
+    });
 
   // Filter out empty items
   const validRssItems = rssItems.filter(item => item.trim() !== '');
@@ -172,7 +184,7 @@ export async function generateRSSXML(
 /**
  * Escapes XML special characters
  */
-function escapeXML(text: string): string {
+export function escapeXML(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

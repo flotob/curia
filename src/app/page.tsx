@@ -17,6 +17,7 @@ import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
+import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { Button } from '@/components/ui/button';
 import { BoardAccessStatus } from '@/components/boards/BoardAccessStatus';
 import { BoardVerificationModal } from '@/components/boards/BoardVerificationModal';
@@ -188,6 +189,25 @@ export default function HomePage() {
       return response.data;
     },
     enabled: !!cgInstance && !isInitializing,
+  });
+
+  // Fetch community settings from our database (for RSS privacy checking)
+  const { data: communitySettings } = useQuery({
+    queryKey: ['communitySettings', communityInfo?.id],
+    queryFn: async () => {
+      if (!communityInfo?.id || !token) return null;
+      try {
+        const response = await authFetchJson<ApiCommunity>(
+          `/api/communities/${communityInfo.id}`, 
+          { token }
+        );
+        return response;
+      } catch (error) {
+        console.error('[HomePage] Failed to fetch community settings:', error);
+        return null;
+      }
+    },
+    enabled: !!communityInfo?.id && !!token,
   });
 
   // If we have a boardId, fetch board info to display board name (handles both owned and shared boards)
@@ -452,14 +472,14 @@ export default function HomePage() {
           boardName={boardInfo.name}
           isRSSEligible={isBoardRSSEligible(boardInfo, {
             id: communityInfo.id,
-            name: communityInfo.name,
-            community_short_id: communityInfo.communityShortId,
-            plugin_id: communityInfo.pluginId,
-            settings: communityInfo.settings
+            name: communityInfo.title || 'Unknown Community',
+            community_short_id: communityInfo.url || '',
+            plugin_id: communityInfo.id, // Use community ID as plugin ID
+            settings: communitySettings?.settings || {} // Use real community settings from database
           })}
           theme={theme}
           privacyReason={
-            (communityInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
+            (communitySettings?.settings?.permissions?.allowedRoles?.length ?? 0) > 0
               ? 'This community is private'
               : (boardInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
               ? 'This board is private'
