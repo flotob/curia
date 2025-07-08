@@ -230,6 +230,7 @@ export class SemanticUrlBuilder {
 
   /**
    * Build the full semantic URL from components
+   * Uses the same /c/ prefix pattern as the frontend semantic URL system
    */
   private buildFullUrl(
     communityShortId: string,
@@ -246,7 +247,8 @@ export class SemanticUrlBuilder {
     // Remove trailing slash if present
     const cleanBaseUrl = pluginBaseUrl.replace(/\/$/, '');
     
-    return `${cleanBaseUrl}/${communityShortId}/${boardSlug}/${postSlug}`;
+    // Use the same /c/ prefix pattern as the frontend semantic URL system
+    return `${cleanBaseUrl}/c/${communityShortId}/${boardSlug}/${postSlug}`;
   }
 
   /**
