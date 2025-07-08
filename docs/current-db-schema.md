@@ -546,6 +546,8 @@ CREATE INDEX posts_embedding_null_idx ON public.posts USING btree (id) WHERE (em
 
 DELIMITER ;;
 
+CREATE TRIGGER "posts_embedding_trigger" AFTER INSERT OR UPDATE ON "public"."posts" FOR EACH ROW EXECUTE FUNCTION notify_embedding_needed();;
+
 CREATE TRIGGER "set_timestamp_posts" BEFORE UPDATE ON "public"."posts" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
 
 DELIMITER ;
@@ -989,4 +991,4 @@ CREATE VIEW "lock_stats" AS SELECT l.id,
      LEFT JOIN boards b ON ((((((b.settings -> 'permissions'::text) -> 'locks'::text) ->> 'lockIds'::text) IS NOT NULL) AND (jsonb_typeof((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text)) = 'array'::text) AND ((((b.settings -> 'permissions'::text) -> 'locks'::text) -> 'lockIds'::text) @> to_jsonb(l.id)))))
   GROUP BY l.id;
 
--- 2025-07-08 15:21:46 UTC
+-- 2025-07-08 16:42:41 UTC
