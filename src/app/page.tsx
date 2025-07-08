@@ -16,16 +16,22 @@ import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
+import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { Button } from '@/components/ui/button';
 import { BoardAccessStatus } from '@/components/boards/BoardAccessStatus';
 import { BoardVerificationModal } from '@/components/boards/BoardVerificationModal';
 import { BoardVerificationApiResponse } from '@/types/boardVerification';
 import { 
-  Settings, 
+  Settings,
+  Rss,
 } from 'lucide-react';
 import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } from '@/utils/cookieUtils';
 import '@/utils/cookieDebug'; // Load cookie debug utilities
 import { useCardStyling } from '@/hooks/useCardStyling';
+import { RSSModal } from '@/components/modals/RSSModal';
+import { isBoardRSSEligible } from '@/lib/rss';
+import { cn } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 
 export default function HomePage() {
   const { cgInstance, isInitializing } = useCgLib();
@@ -33,10 +39,12 @@ export default function HomePage() {
   const { joinBoard, leaveBoard, isConnected } = useSocket();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { theme } = useTheme();
   
   const [showExpandedForm, setShowExpandedForm] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [initialPostTitle, setInitialPostTitle] = useState('');
+  const [showRSSModal, setShowRSSModal] = useState(false);
 
   // Get card styling for conditional header display
   const { hasActiveBackground } = useCardStyling();
@@ -181,6 +189,25 @@ export default function HomePage() {
       return response.data;
     },
     enabled: !!cgInstance && !isInitializing,
+  });
+
+  // Fetch community settings from our database (for RSS privacy checking)
+  const { data: communitySettings } = useQuery({
+    queryKey: ['communitySettings', communityInfo?.id],
+    queryFn: async () => {
+      if (!communityInfo?.id || !token) return null;
+      try {
+        const response = await authFetchJson<ApiCommunity>(
+          `/api/communities/${communityInfo.id}`, 
+          { token }
+        );
+        return response;
+      } catch (error) {
+        console.error('[HomePage] Failed to fetch community settings:', error);
+        return null;
+      }
+    },
+    enabled: !!communityInfo?.id && !!token,
   });
 
   // If we have a boardId, fetch board info to display board name (handles both owned and shared boards)
@@ -371,6 +398,22 @@ export default function HomePage() {
                   {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
                 </h2>
                 
+                {/* RSS Icon - Show for boards only */}
+                {boardId && boardInfo && communityInfo && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0 rounded-full hover:bg-muted"
+                    title="RSS Feed"
+                    onClick={() => setShowRSSModal(true)}
+                  >
+                    <Rss size={16} className={cn(
+                      'transition-colors',
+                      theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
+                    )} />
+                  </Button>
+                )}
+                
                 {/* Board Settings Gear - Admin Only */}
                 {user?.isAdmin && boardId && boardInfo && (
                   <Link href={buildUrl('/board-settings', { boardId })}>
@@ -409,6 +452,31 @@ export default function HomePage() {
           </main>
         </div>
       </div>
+
+      {/* RSS Modal */}
+      {showRSSModal && boardId && boardInfo && communityInfo && (
+        <RSSModal
+          isOpen={showRSSModal}
+          onClose={() => setShowRSSModal(false)}
+          boardId={parseInt(boardId, 10)}
+          boardName={boardInfo.name}
+          isRSSEligible={isBoardRSSEligible(boardInfo, {
+            id: communityInfo.id,
+            name: communityInfo.title || 'Unknown Community',
+            community_short_id: communityInfo.url || '',
+            plugin_id: communityInfo.id, // Use community ID as plugin ID
+            settings: communitySettings?.settings || {} // Use real community settings from database
+          })}
+          theme={theme as "light" | "dark" | undefined}
+          privacyReason={
+            (communitySettings?.settings?.permissions?.allowedRoles?.length ?? 0) > 0
+              ? 'This community is private'
+              : (boardInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
+              ? 'This board is private'
+              : 'This board has access restrictions'
+          }
+        />
+      )}
     </div>
   );
 }
