@@ -13,6 +13,7 @@ import { useCommunityData } from '@/hooks/useCommunityData';
 import { FunctionCardRenderer, isValidFunctionCardType } from './utils/FunctionCardRenderer';
 import { LockPreviewModal } from '@/components/locks/LockPreviewModal';
 import { LockWithStats } from '@/types/locks';
+import { formatRelativeTime } from '@/utils/timeFormatting';
 
 interface AIChatInterfaceProps {
   className?: string;
@@ -536,7 +537,7 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                 </div>
               </div>
             ) : (
-              <div className="space-y-3 py-2">
+              <div className="space-y-4 py-2">
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -554,7 +555,8 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                       </Avatar>
                     )}
                     
-                    <div className="relative max-w-[85%]">
+                    <div className="max-w-[85%] flex flex-col">
+                      {/* Message Content */}
                       <div
                         className={`rounded-lg px-3 py-2 ${
                           message.role === 'user'
@@ -619,32 +621,38 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
                         )}
                       </div>
                       
-                      {/* Copy to Clipboard Button */}
-                      <div className={`absolute -bottom-6 flex items-center gap-1 text-xs ${
-                        message.role === 'user' ? 'right-0' : 'left-0'
-                      }`}>
+                      {/* Message Footer */}
+                      <div className={`flex items-center gap-3 text-xs text-muted-foreground mt-1 px-1 h-5 ${
+                        message.role === 'user' 
+                          ? 'justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200' 
+                          : 'justify-start opacity-30 group-hover:opacity-100 transition-opacity duration-200'
+                      } ${message.role === 'user' ? '[@media(hover:none)]:opacity-30' : '[@media(hover:none)]:opacity-30'}`}>
+                        
+                        {/* Timestamp */}
+                        <span className="text-xs">
+                          {formatRelativeTime(message.createdAt || new Date(), { style: 'short' })}
+                        </span>
+                        
+                        {/* Copy Button */}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => copyMessageToClipboard(message.content, message.id)}
                           className={`
-                            h-6 w-6 p-0 rounded-full transition-all duration-200
-                            opacity-0 group-hover:opacity-100 md:group-hover:opacity-100
+                            h-4 w-4 p-0 rounded-full transition-all duration-200
                             hover:bg-background/80 hover:shadow-sm
                             text-muted-foreground hover:text-foreground
                             ${message.role === 'user' 
                               ? 'hover:bg-white/20 hover:text-white' 
                               : 'hover:bg-muted/80'
                             }
-                            /* Always visible on mobile */
-                            [@media(hover:none)]:opacity-60
                           `}
                           title="Copy message"
                         >
                           {copiedMessageId === message.id ? (
-                            <Check className="w-3 h-3" />
+                            <Check className="w-2.5 h-2.5" />
                           ) : (
-                            <Copy className="w-3 h-3" />
+                            <Copy className="w-2.5 h-2.5" />
                           )}
                         </Button>
                       </div>
