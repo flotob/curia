@@ -66,10 +66,16 @@ export function isBoardRSSEligible(board: ApiBoard, community: RSSCommunity): bo
 /**
  * Converts markdown content to HTML for RSS feeds
  * Handles internal links by converting them to external URLs
+ * Note: Output is intended for CDATA sections, so doesn't escape ampersands
  */
 export function convertMarkdownToHTML(
   content: string
 ): string {
+  // Handle null/undefined content
+  if (!content || typeof content !== 'string') {
+    return '';
+  }
+  
   // Simple but robust markdown to HTML conversion
   let html = content;
 
@@ -199,4 +205,36 @@ export function escapeXML(text: string): string {
 export function getRSSFeedUrl(boardId: number): string {
   const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
   return `${baseUrl}/api/boards/${boardId}/rss`;
+}
+
+/**
+ * Gets RSS feed URL for a community (home feed)
+ */
+export function getCommunityRSSFeedUrl(communityId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_PLUGIN_BASE_URL || '';
+  return `${baseUrl}/api/communities/${communityId}/rss`;
+}
+
+/**
+ * Checks if a community is eligible for RSS feeds (home feed)
+ * A community is RSS-eligible if it's not role-gated (public community)
+ */
+export function isCommunityRSSEligible(community: RSSCommunity): boolean {
+  const communityRoles = community.settings?.permissions?.allowedRoles;
+  const communityGated = (communityRoles?.length ?? 0) > 0;
+  
+  console.log('[Community RSS] Community gating check:', {
+    communityId: community.id,
+    communityName: community.name,
+    allowedRoles: communityRoles,
+    isGated: communityGated
+  });
+  
+  if (communityGated) {
+    console.log('[Community RSS] Community rejected: Community is role-gated');
+    return false;
+  }
+
+  console.log('[Community RSS] Community approved: Publicly accessible');
+  return true;
 }

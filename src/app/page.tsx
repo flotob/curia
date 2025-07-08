@@ -29,7 +29,7 @@ import { getSharedContentInfo, clearSharedContentCookies, logCookieDebugInfo } f
 import '@/utils/cookieDebug'; // Load cookie debug utilities
 import { useCardStyling } from '@/hooks/useCardStyling';
 import { RSSModal } from '@/components/modals/RSSModal';
-import { isBoardRSSEligible } from '@/lib/rss';
+import { isBoardRSSEligible, isCommunityRSSEligible } from '@/lib/rss';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 
@@ -398,8 +398,8 @@ export default function HomePage() {
                   {boardId && boardInfo ? `${boardInfo.name}` : 'Recent Discussions'}
                 </h2>
                 
-                {/* RSS Icon - Show for boards only */}
-                {boardId && boardInfo && communityInfo && (
+                {/* RSS Icon - Show for both boards and home feed */}
+                {communityInfo && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -454,26 +454,40 @@ export default function HomePage() {
       </div>
 
       {/* RSS Modal */}
-      {showRSSModal && boardId && boardInfo && communityInfo && (
+      {showRSSModal && communityInfo && (
         <RSSModal
           isOpen={showRSSModal}
           onClose={() => setShowRSSModal(false)}
-          boardId={parseInt(boardId, 10)}
-          boardName={boardInfo.name}
-          isRSSEligible={isBoardRSSEligible(boardInfo, {
-            id: communityInfo.id,
-            name: communityInfo.title || 'Unknown Community',
-            community_short_id: communityInfo.url || '',
-            plugin_id: communityInfo.id, // Use community ID as plugin ID
-            settings: communitySettings?.settings || {} // Use real community settings from database
-          })}
+          // Board RSS props (when viewing a specific board)
+          boardId={boardId ? parseInt(boardId, 10) : undefined}
+          boardName={boardInfo?.name}
+          // Community RSS props (when viewing home feed)
+          communityId={!boardId ? communityInfo.id : undefined}
+          communityName={!boardId ? (communityInfo.title || 'Unknown Community') : undefined}
+          isRSSEligible={
+            boardId && boardInfo 
+              ? isBoardRSSEligible(boardInfo, {
+                  id: communityInfo.id,
+                  name: communityInfo.title || 'Unknown Community',
+                  community_short_id: communityInfo.url || '',
+                  plugin_id: communityInfo.id,
+                  settings: communitySettings?.settings || {}
+                })
+              : isCommunityRSSEligible({
+                  id: communityInfo.id,
+                  name: communityInfo.title || 'Unknown Community',
+                  community_short_id: communityInfo.url || '',
+                  plugin_id: communityInfo.id,
+                  settings: communitySettings?.settings || {}
+                })
+          }
           theme={theme as "light" | "dark" | undefined}
           privacyReason={
             (communitySettings?.settings?.permissions?.allowedRoles?.length ?? 0) > 0
               ? 'This community is private'
-              : (boardInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
+              : boardInfo && (boardInfo.settings?.permissions?.allowedRoles?.length ?? 0) > 0
               ? 'This board is private'
-              : 'This board has access restrictions'
+              : 'This content has access restrictions'
           }
         />
       )}

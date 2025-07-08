@@ -6,14 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Check, Rss, Lock, Eye } from 'lucide-react';
-import { getRSSFeedUrl } from '@/lib/rss';
+import { getRSSFeedUrl, getCommunityRSSFeedUrl } from '@/lib/rss';
 import { cn } from '@/lib/utils';
 
 interface RSSModalProps {
   isOpen: boolean;
   onClose: () => void;
-  boardId: number;
-  boardName: string;
+  // Board RSS props (optional for community RSS)
+  boardId?: number;
+  boardName?: string;
+  // Community RSS props (optional for board RSS)
+  communityId?: string;
+  communityName?: string;
   isRSSEligible: boolean;
   theme?: 'light' | 'dark';
   privacyReason?: string;
@@ -24,12 +28,23 @@ export const RSSModal: React.FC<RSSModalProps> = ({
   onClose,
   boardId,
   boardName,
+  communityId,
+  communityName,
   isRSSEligible,
   theme = 'light',
-  privacyReason = 'This board is private'
+  privacyReason = 'This content is private'
 }) => {
   const [isCopied, setIsCopied] = useState(false);
-  const rssUrl = getRSSFeedUrl(boardId);
+  
+  // Determine RSS mode and generate appropriate URL
+  const isBoard = !!boardId && !!boardName;
+  const isCommunity = !!communityId && !!communityName;
+  
+  const rssUrl = isBoard ? getRSSFeedUrl(boardId) : 
+                 isCommunity ? getCommunityRSSFeedUrl(communityId) : '';
+  
+  const feedName = isBoard ? boardName : communityName || 'Unknown';
+  const feedType = isBoard ? 'board' : 'community home feed';
 
   const handleCopyUrl = async () => {
     try {
@@ -60,8 +75,8 @@ export const RSSModal: React.FC<RSSModalProps> = ({
             theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
           )}>
             {isRSSEligible 
-              ? `Subscribe to updates from "${boardName}" board`
-              : `RSS feed availability for "${boardName}" board`
+              ? `Subscribe to updates from ${feedName} ${feedType}`
+              : `RSS feed availability for ${feedName} ${feedType}`
             }
           </DialogDescription>
         </DialogHeader>
@@ -81,7 +96,7 @@ export const RSSModal: React.FC<RSSModalProps> = ({
                   <AlertDescription className={cn(
                     theme === 'dark' ? 'text-green-300' : 'text-green-800'
                   )}>
-                    This board is publicly accessible and provides an RSS feed.
+                    This {feedType} is publicly accessible and provides an RSS feed.
                   </AlertDescription>
                 </Alert>
 
@@ -140,7 +155,7 @@ export const RSSModal: React.FC<RSSModalProps> = ({
                   <ul className="ml-4 space-y-1 list-disc">
                     <li>Copy the URL above and add it to your RSS reader</li>
                     <li>Your RSS reader will automatically fetch new posts</li>
-                    <li>The feed includes the 50 most recent posts from this board</li>
+                    <li>The feed includes the 50 most recent posts from this {feedType}</li>
                   </ul>
                 </div>
               </div>
@@ -167,16 +182,17 @@ export const RSSModal: React.FC<RSSModalProps> = ({
                 theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
               )}>
                 <p>
-                  RSS feeds are only available for boards that are publicly accessible. 
-                  This board has privacy restrictions that prevent RSS feed generation.
+                  RSS feeds are only available for content that is publicly accessible. 
+                  This {feedType} has privacy restrictions that prevent RSS feed generation.
                 </p>
                 <p>
                   <strong>Common reasons:</strong>
                 </p>
                 <ul className="ml-4 space-y-1 list-disc">
                   <li>The community is private (role-gated)</li>
-                  <li>The board is private (role-gated)</li>
-                  <li>The board has read access restrictions</li>
+                  {isBoard && <li>The board is private (role-gated)</li>}
+                  {isBoard && <li>The board has read access restrictions</li>}
+                  {isCommunity && <li>The community has access restrictions</li>}
                 </ul>
               </div>
             </>

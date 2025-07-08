@@ -1,0 +1,1 @@
+https://8f0b914c8e28353f.ngrok.app/api/communities/1e5fb703-1805-42e7-927e-be3f7855856c/rss ist ein ungültiges XML, wahrscheinlich aufgrund ungültiger Zeichen. XML Fehler: EntityRef: expecting ';' in Zeile 279, Spalte 129
