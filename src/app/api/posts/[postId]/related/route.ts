@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withAuthAndErrorHandling, EnhancedAuthRequest } from '@/lib/middleware/authEnhanced';
 import { SemanticSearchService } from '@/services/SemanticSearchService';
 import { getAccessibleBoards, getAccessibleBoardIds } from '@/lib/boardPermissions';
