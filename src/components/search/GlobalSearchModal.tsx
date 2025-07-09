@@ -27,6 +27,7 @@ interface SearchResult extends ApiPost {
 
 interface SemanticSearchResult extends SearchResult {
   similarity_score: number;
+  similarity_label: string;
 }
 
 type SearchMode = 'quick' | 'smart';
@@ -816,7 +817,8 @@ interface SearchResultItemProps {
 const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick, isSelected, searchMode }) => {
   const timeSinceText = useTimeSince(post.created_at);
   const semanticPost = post as SemanticSearchResult;
-  const relevanceScore = searchMode === 'smart' && 'similarity_score' in post ? semanticPost.similarity_score : null;
+  const isSemanticResult = searchMode === 'smart' && 'similarity_label' in post;
+  const similarityLabel = isSemanticResult ? semanticPost.similarity_label : null;
   
   return (
     <Card 
@@ -852,14 +854,14 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick, isSe
               )}
               
               {/* Semantic Search Relevance Score */}
-              {relevanceScore && (
+              {similarityLabel && (
                 <span className={cn(
                   "px-2 py-1 text-xs font-medium rounded-full",
                   "bg-gradient-to-r from-emerald-500/10 to-green-500/10 text-emerald-600 border border-emerald-500/20",
                   "flex items-center gap-1"
                 )}>
                   <Sparkles size={10} />
-                  {Math.round(relevanceScore * 100)}% match
+                  {similarityLabel}
                 </span>
               )}
             </div>

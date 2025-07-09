@@ -12,10 +12,11 @@ import { getAccessibleBoards, getAccessibleBoardIds } from '@/lib/boardPermissio
 
 const GET = withAuthAndErrorHandling(async (request: EnhancedAuthRequest, context: any) => {
   try {
-    const { postId } = context.params;
+    const params = await context.params;
+    const { postId } = params;
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '5');
-    const threshold = parseFloat(searchParams.get('threshold') || '0.4');
+    const threshold = parseFloat(searchParams.get('threshold') || '0.25');
     
     // Input validation
     if (!postId || isNaN(parseInt(postId))) {
@@ -77,6 +78,7 @@ const GET = withAuthAndErrorHandling(async (request: EnhancedAuthRequest, contex
           post.content,
         author_name: post.author_name,
         board_name: post.board_name,
+        board_id: post.board_id,
         upvote_count: post.upvote_count,
         comment_count: post.comment_count,
         created_at: post.created_at,

@@ -30,6 +30,7 @@ export interface RelatedPost {
   content: string;
   author_name: string;
   board_name: string;
+  board_id: number;
   upvote_count: number;
   comment_count: number;
   created_at: string;
@@ -140,7 +141,7 @@ export class SemanticSearchService {
     try {
       const {
         limit = 10,
-        threshold = 0.3,
+        threshold = 0.2,
         includeUserVoting = false,
         userId
       } = options;
@@ -228,7 +229,7 @@ export class SemanticSearchService {
         SELECT *, 
                (similarity_score * 0.7 + boost_score * 0.3) as rank_score
         FROM semantic_results
-        ORDER BY rank_score DESC
+        ORDER BY similarity_score DESC
         LIMIT $${params.length}
       `;
 
@@ -267,7 +268,7 @@ export class SemanticSearchService {
     options: { limit?: number; threshold?: number } = {}
   ): Promise<RelatedPost[]> {
     try {
-      const { limit = 5, threshold = 0.4 } = options;
+      const { limit = 5, threshold = 0.25 } = options;
 
       if (!accessibleBoardIds?.length) {
         return [];
@@ -284,6 +285,19 @@ export class SemanticSearchService {
       }
 
       const postEmbedding = postResult.rows[0].embedding;
+      
+      // Parse the embedding from PostgreSQL vector format to JavaScript array
+      let embeddingArray: number[];
+      if (Array.isArray(postEmbedding)) {
+        embeddingArray = postEmbedding;
+      } else if (typeof postEmbedding === 'string') {
+        // PostgreSQL vector type returns as string like "[1.0,2.0,3.0,...]"
+        const cleanString = postEmbedding.replace(/^\[|\]$/g, '');
+        embeddingArray = cleanString.split(',').map(n => parseFloat(n.trim()));
+      } else {
+        throw new Error(`Unexpected embedding format: ${typeof postEmbedding}`);
+      }
+
       const boardIdsPlaceholders = accessibleBoardIds.map((_, i) => `$${i + 2}`).join(', ');
 
       const sql = `
@@ -296,6 +310,7 @@ export class SemanticSearchService {
           p.created_at,
           u.name as author_name,
           b.name as board_name,
+          b.id as board_id,
           (1 - (p.embedding <=> $1::vector)) as similarity_score
         FROM posts p
         JOIN users u ON p.author_user_id = u.user_id
@@ -309,7 +324,7 @@ export class SemanticSearchService {
         LIMIT $${accessibleBoardIds.length + 4}
       `;
 
-      const params = [`[${postEmbedding.join(',')}]`, ...accessibleBoardIds, postId, threshold, limit];
+      const params = [`[${embeddingArray.join(',')}]`, ...accessibleBoardIds, postId, threshold, limit];
       const result = await query(sql, params);
 
       return result.rows.map((row: Record<string, unknown>) => ({
@@ -318,6 +333,7 @@ export class SemanticSearchService {
         content: String(row.content),
         author_name: String(row.author_name),
         board_name: String(row.board_name),
+        board_id: Number(row.board_id),
         upvote_count: Number(row.upvote_count),
         comment_count: Number(row.comment_count),
         created_at: String(row.created_at),

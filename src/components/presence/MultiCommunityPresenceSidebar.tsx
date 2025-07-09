@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ContextualNavigationCard } from './ContextualNavigationCard';
+import { RelatedPostsWidget } from './RelatedPostsWidget';
 import { PartnerCommunitiesWidget } from '@/components/partnerships/PartnerCommunitiesWidget';
 import { TypingIndicator } from './TypingIndicator';
 import { useTypingContext } from '@/hooks/useTypingContext';
@@ -529,6 +530,13 @@ export function MultiCommunityPresenceSidebar({
             currentPost,
             commentCount: currentPost?.comment_count
           }}
+        />
+      )}
+      
+      {/* Related Posts Widget - Show only on post detail pages */}
+      {navigationContext?.type === 'post' && currentPost && (
+        <RelatedPostsWidget 
+          postId={currentPost.id}
         />
       )}
       

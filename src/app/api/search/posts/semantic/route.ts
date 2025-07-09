@@ -4,6 +4,15 @@ import { SemanticSearchService } from '@/services/SemanticSearchService';
 import { getAccessibleBoards, getAccessibleBoardIds } from '@/lib/boardPermissions';
 
 /**
+ * Convert similarity score to human-friendly label
+ */
+function getSimilarityLabel(score: number): string {
+  if (score >= 0.3) return 'Strong match';
+  if (score >= 0.2) return 'Good match';
+  return 'Relevant';
+}
+
+/**
  * Semantic Search API Endpoint
  * 
  * Provides AI-powered semantic search using OpenAI embeddings and pgvector similarity.
@@ -15,7 +24,7 @@ const GET = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '10');
-    const threshold = parseFloat(searchParams.get('threshold') || '0.01'); // Very low threshold to see actual scores
+    const threshold = parseFloat(searchParams.get('threshold') || '0.2'); // 20% similarity threshold
     
     // Input validation
     if (!query?.trim()) {
@@ -122,6 +131,7 @@ const GET = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
         
         // Semantic search specific fields
         similarity_score: Math.round(post.similarity_score * 100) / 100,
+        similarity_label: getSimilarityLabel(post.similarity_score),
         rank_score: Math.round(post.rank_score * 100) / 100,
         
         // Additional computed fields
