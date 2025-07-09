@@ -8,7 +8,17 @@ export interface EmbeddingWorkerConfig {
   rateLimitPerMinute: number;
 }
 
+// Updated interface to support both posts and comments
 export interface EmbeddingEvent {
+  type: 'post' | 'comment';
+  id: number;
+  operation: 'INSERT' | 'UPDATE';
+  priority: 'high' | 'normal';
+  timestamp?: number;
+}
+
+// Legacy interface for backward compatibility during transition
+export interface LegacyEmbeddingEvent {
   postId: number;
   operation: 'INSERT' | 'UPDATE';
   priority: 'high' | 'normal';
@@ -19,6 +29,8 @@ interface WorkerMetrics {
   eventsProcessed: number;
   eventsSuccessful: number;
   eventsFailed: number;
+  postsProcessed: number;
+  commentsProcessed: number;
   startTime: Date;
   lastEventTime: Date | null;
   reconnectCount: number;
@@ -28,7 +40,7 @@ interface WorkerMetrics {
 export class EmbeddingWorker {
   private client: Client;
   private isRunning = false;
-  private processingQueue = new Set<number>(); // Prevent duplicate processing
+  private processingQueue = new Set<string>(); // Prevent duplicate processing (using "type:id" format)
   private config: EmbeddingWorkerConfig;
   private requestCount = 0;
   private lastResetTime = Date.now();
@@ -43,11 +55,13 @@ export class EmbeddingWorker {
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     });
     
-    // Initialize metrics
+    // Initialize metrics with new fields
     this.metrics = {
       eventsProcessed: 0,
       eventsSuccessful: 0,
       eventsFailed: 0,
+      postsProcessed: 0,
+      commentsProcessed: 0,
       startTime: new Date(),
       lastEventTime: null,
       reconnectCount: 0,
@@ -72,11 +86,28 @@ export class EmbeddingWorker {
       this.client.on('notification', async (msg) => {
         if (msg.channel === 'embedding_needed' && msg.payload) {
           try {
-            const eventData: EmbeddingEvent = JSON.parse(msg.payload);
-            await this.processEmbeddingEvent(eventData);
+            const eventData = JSON.parse(msg.payload);
+            
+            // Handle both new and legacy event formats
+            if (this.isLegacyEvent(eventData)) {
+              // Convert legacy format to new format
+              const legacyEvent = eventData as LegacyEmbeddingEvent;
+              const modernEvent: EmbeddingEvent = {
+                type: 'post',
+                id: legacyEvent.postId,
+                operation: legacyEvent.operation,
+                priority: legacyEvent.priority,
+                timestamp: legacyEvent.timestamp,
+              };
+              await this.processEmbeddingEvent(modernEvent);
+            } else {
+              // Process modern event format
+              const modernEvent = eventData as EmbeddingEvent;
+              await this.processEmbeddingEvent(modernEvent);
+            }
           } catch (error) {
             console.error('[EmbeddingWorker] Failed to parse notification:', error);
-            this.updateMetrics(false);
+            this.updateMetrics(false, 'unknown');
           }
         }
       });
@@ -122,51 +153,50 @@ export class EmbeddingWorker {
     }
   }
 
-  private async processEmbeddingEvent(event: EmbeddingEvent): Promise<void> {
-    const { postId, operation, priority } = event;
-    const startTime = Date.now();
+  private isLegacyEvent(event: any): event is LegacyEmbeddingEvent {
+    return event.postId !== undefined && event.type === undefined;
+  }
 
-    // Skip if already processing this post
-    if (this.processingQueue.has(postId)) {
-      console.log(`[EmbeddingWorker] Skipping post ${postId} - already processing`);
+  private async processEmbeddingEvent(event: EmbeddingEvent): Promise<void> {
+    const { type, id, operation, priority } = event;
+    const startTime = Date.now();
+    const queueKey = `${type}:${id}`;
+
+    // Skip if already processing this item
+    if (this.processingQueue.has(queueKey)) {
+      console.log(`[EmbeddingWorker] Skipping ${type} ${id} - already processing`);
       return;
     }
 
     // Check rate limits
     if (!this.checkRateLimit()) {
-      console.log(`[EmbeddingWorker] Rate limit exceeded, queuing post ${postId} for later`);
+      console.log(`[EmbeddingWorker] Rate limit exceeded, queuing ${type} ${id} for later`);
       // TODO: Implement a retry queue for rate-limited requests
       return;
     }
 
-    this.processingQueue.add(postId);
+    this.processingQueue.add(queueKey);
 
     try {
-      console.log(`[EmbeddingWorker] Processing ${operation} for post ${postId} (${priority} priority)`);
+      console.log(`[EmbeddingWorker] Processing ${operation} for ${type} ${id} (${priority} priority)`);
 
-      // Fetch post data and generate embedding
-      const post = await this.fetchPostData(postId);
-      if (post && (post.title || post.content)) {
-        await EmbeddingService.generateAndStoreEmbedding(
-          postId,
-          post.title || '',
-          post.content || '',
-          this.config.openaiApiKey
-        );
-        
-        this.requestCount++;
-        const processingTime = Date.now() - startTime;
-        this.updateMetrics(true, processingTime);
-        console.log(`[EmbeddingWorker] ✅ Generated embedding for post ${postId} in ${processingTime}ms`);
+      if (type === 'post') {
+        await this.processPostEmbedding(id);
+      } else if (type === 'comment') {
+        await this.processCommentEmbedding(id);
       } else {
-        console.log(`[EmbeddingWorker] ⚠️ Post ${postId} not found or has no content`);
-        this.updateMetrics(true); // Still successful, just nothing to process
+        throw new Error(`Unknown content type: ${type}`);
       }
+      
+      this.requestCount++;
+      const processingTime = Date.now() - startTime;
+      this.updateMetrics(true, type, processingTime);
+      console.log(`[EmbeddingWorker] ✅ Generated embedding for ${type} ${id} in ${processingTime}ms`);
 
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      this.updateMetrics(false, processingTime);
-      console.error(`[EmbeddingWorker] ❌ Failed to process post ${postId} after ${processingTime}ms:`, error);
+      this.updateMetrics(false, type, processingTime);
+      console.error(`[EmbeddingWorker] ❌ Failed to process ${type} ${id} after ${processingTime}ms:`, error);
       
       // Log additional context for debugging
       if (error instanceof Error) {
@@ -174,13 +204,41 @@ export class EmbeddingWorker {
           name: error.name,
           message: error.message,
           stack: error.stack?.split('\n').slice(0, 3).join('\n'), // First 3 lines of stack
-          postId,
+          type,
+          id,
           operation,
           priority
         });
       }
     } finally {
-      this.processingQueue.delete(postId);
+      this.processingQueue.delete(queueKey);
+    }
+  }
+
+  private async processPostEmbedding(postId: number): Promise<void> {
+    const post = await this.fetchPostData(postId);
+    if (post && (post.title || post.content)) {
+      await EmbeddingService.generateAndStorePostEmbedding(
+        postId,
+        post.title || '',
+        post.content || '',
+        this.config.openaiApiKey
+      );
+    } else {
+      console.log(`[EmbeddingWorker] ⚠️ Post ${postId} not found or has no content`);
+    }
+  }
+
+  private async processCommentEmbedding(commentId: number): Promise<void> {
+    const comment = await this.fetchCommentData(commentId);
+    if (comment && comment.content) {
+      await EmbeddingService.generateAndStoreCommentEmbedding(
+        commentId,
+        comment.content,
+        this.config.openaiApiKey
+      );
+    } else {
+      console.log(`[EmbeddingWorker] ⚠️ Comment ${commentId} not found or has no content`);
     }
   }
 
@@ -198,24 +256,40 @@ export class EmbeddingWorker {
     }
   }
 
+  private async fetchCommentData(commentId: number): Promise<{ content: string; post_id: number } | null> {
+    try {
+      const result = await this.client.query(
+        'SELECT content, post_id FROM comments WHERE id = $1',
+        [commentId]
+      );
+      
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error(`[EmbeddingWorker] Failed to fetch comment ${commentId}:`, error);
+      return null;
+    }
+  }
+
   private async processBacklog(): Promise<void> {
     try {
-      console.log('[EmbeddingWorker] Checking for posts needing embeddings...');
+      console.log('[EmbeddingWorker] Checking for content needing embeddings...');
       
-      const result = await this.client.query(`
+      // Process posts backlog
+      const postsResult = await this.client.query(`
         SELECT id, title, content 
         FROM posts 
         WHERE embedding IS NULL 
         ORDER BY created_at DESC 
         LIMIT $1
-      `, [this.config.batchSize]);
+      `, [Math.floor(this.config.batchSize / 2)]); // Split batch size between posts and comments
 
-      if (result.rows.length > 0) {
-        console.log(`[EmbeddingWorker] Found ${result.rows.length} posts needing embeddings`);
+      if (postsResult.rows.length > 0) {
+        console.log(`[EmbeddingWorker] Found ${postsResult.rows.length} posts needing embeddings`);
         
-        for (const post of result.rows) {
+        for (const post of postsResult.rows) {
           await this.processEmbeddingEvent({
-            postId: post.id,
+            type: 'post',
+            id: post.id,
             operation: 'INSERT',
             priority: 'normal'
           });
@@ -223,6 +297,36 @@ export class EmbeddingWorker {
           // Small delay between requests to respect rate limits
           await new Promise(resolve => setTimeout(resolve, 100));
         }
+      }
+
+      // Process comments backlog
+      const commentsResult = await this.client.query(`
+        SELECT id, content, post_id 
+        FROM comments 
+        WHERE embedding IS NULL 
+        ORDER BY created_at DESC 
+        LIMIT $1
+      `, [Math.floor(this.config.batchSize / 2)]);
+
+      if (commentsResult.rows.length > 0) {
+        console.log(`[EmbeddingWorker] Found ${commentsResult.rows.length} comments needing embeddings`);
+        
+        for (const comment of commentsResult.rows) {
+          await this.processEmbeddingEvent({
+            type: 'comment',
+            id: comment.id,
+            operation: 'INSERT',
+            priority: 'normal'
+          });
+          
+          // Small delay between requests to respect rate limits
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      const totalBacklog = postsResult.rows.length + commentsResult.rows.length;
+      if (totalBacklog === 0) {
+        console.log('[EmbeddingWorker] No backlog found - all content has embeddings');
       }
     } catch (error) {
       console.error('[EmbeddingWorker] Failed to process backlog:', error);
@@ -300,12 +404,18 @@ export class EmbeddingWorker {
   /**
    * Update worker metrics
    */
-  private updateMetrics(success: boolean, processingTime?: number): void {
+  private updateMetrics(success: boolean, contentType: 'post' | 'comment' | 'unknown', processingTime?: number): void {
     this.metrics.eventsProcessed++;
     this.metrics.lastEventTime = new Date();
     
     if (success) {
       this.metrics.eventsSuccessful++;
+      if (contentType === 'post') {
+        this.metrics.postsProcessed++;
+      } else if (contentType === 'comment') {
+        this.metrics.commentsProcessed++;
+      }
+      
       if (processingTime) {
         const total = this.metrics.averageProcessingTime * (this.metrics.eventsSuccessful - 1) + processingTime;
         this.metrics.averageProcessingTime = total / this.metrics.eventsSuccessful;

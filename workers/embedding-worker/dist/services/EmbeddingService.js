@@ -17,6 +17,8 @@ class EmbeddingService {
         errors: 0,
         totalCost: 0,
         averageLatency: 0,
+        postsProcessed: 0,
+        commentsProcessed: 0,
     };
     /**
      * Initialize database connection for the service
@@ -92,9 +94,9 @@ class EmbeddingService {
         throw new Error(`Embedding generation failed after ${this.config.retryAttempts} attempts: ${lastError?.message}`);
     }
     /**
-     * Generate embedding and store it in the database
+     * Generate embedding for a post and store it in the database
      */
-    static async generateAndStoreEmbedding(postId, title, content, apiKey) {
+    static async generateAndStorePostEmbedding(postId, title, content, apiKey) {
         try {
             // Combine title and content for embedding
             const textToEmbed = this.combineTextFields(title, content);
@@ -105,7 +107,8 @@ class EmbeddingService {
             // Generate embedding
             const { embedding, cost, tokens } = await this.generateEmbedding(textToEmbed, apiKey);
             // Store in database
-            await this.storeEmbedding(postId, embedding);
+            await this.storePostEmbedding(postId, embedding);
+            this.metrics.postsProcessed++;
             console.log(`[EmbeddingService] Successfully stored embedding for post ${postId} (${tokens} tokens, $${cost.toFixed(6)})`);
         }
         catch (error) {
@@ -114,9 +117,40 @@ class EmbeddingService {
         }
     }
     /**
-     * Store embedding vector in the database
+     * Generate embedding for a comment and store it in the database
      */
-    static async storeEmbedding(postId, embedding) {
+    static async generateAndStoreCommentEmbedding(commentId, content, apiKey) {
+        try {
+            // Prepare comment content for embedding
+            const textToEmbed = content.trim();
+            if (!textToEmbed) {
+                console.log(`[EmbeddingService] Skipping comment ${commentId} - no content to embed`);
+                return;
+            }
+            // Generate embedding
+            const { embedding, cost, tokens } = await this.generateEmbedding(textToEmbed, apiKey);
+            // Store in database
+            await this.storeCommentEmbedding(commentId, embedding);
+            this.metrics.commentsProcessed++;
+            console.log(`[EmbeddingService] Successfully stored embedding for comment ${commentId} (${tokens} tokens, $${cost.toFixed(6)})`);
+        }
+        catch (error) {
+            console.error(`[EmbeddingService] Failed to generate and store embedding for comment ${commentId}:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Legacy method - Generate embedding and store it in the database (for backward compatibility)
+     * @deprecated Use generateAndStorePostEmbedding instead
+     */
+    static async generateAndStoreEmbedding(postId, title, content, apiKey) {
+        console.warn('[EmbeddingService] generateAndStoreEmbedding is deprecated, use generateAndStorePostEmbedding instead');
+        return this.generateAndStorePostEmbedding(postId, title, content, apiKey);
+    }
+    /**
+     * Store post embedding vector in the database
+     */
+    static async storePostEmbedding(postId, embedding) {
         if (!this.client) {
             throw new Error('Database not initialized. Call initializeDatabase() first.');
         }
@@ -129,6 +163,30 @@ class EmbeddingService {
             console.error(`[EmbeddingService] Failed to store embedding for post ${postId}:`, error);
             throw error;
         }
+    }
+    /**
+     * Store comment embedding vector in the database
+     */
+    static async storeCommentEmbedding(commentId, embedding) {
+        if (!this.client) {
+            throw new Error('Database not initialized. Call initializeDatabase() first.');
+        }
+        try {
+            // Convert embedding array to PostgreSQL vector format
+            const vectorString = `[${embedding.join(',')}]`;
+            await this.client.query('UPDATE comments SET embedding = $1::vector, updated_at = NOW() WHERE id = $2', [vectorString, commentId]);
+        }
+        catch (error) {
+            console.error(`[EmbeddingService] Failed to store embedding for comment ${commentId}:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Legacy method - Store embedding vector in the database (for backward compatibility)
+     * @deprecated Use storePostEmbedding instead
+     */
+    static async storeEmbedding(postId, embedding) {
+        return this.storePostEmbedding(postId, embedding);
     }
     /**
      * Combine title and content for embedding
@@ -202,6 +260,8 @@ class EmbeddingService {
             errors: 0,
             totalCost: 0,
             averageLatency: 0,
+            postsProcessed: 0,
+            commentsProcessed: 0,
         };
     }
     /**
