@@ -232,33 +232,7 @@ export class SemanticSearchService {
         LIMIT $${params.length}
       `;
 
-      console.log('[SemanticSearchService] Executing semantic search:', {
-        searchQuery: searchQuery.substring(0, 50),
-        accessibleBoardIds,
-        threshold,
-        limit,
-        embeddingLength: queryEmbedding.length,
-        includeUserVoting,
-        userId,
-        paramsLength: params.length,
-        paramsStructure: params.map((p, i) => `$${i+1}: ${typeof p} ${typeof p === 'string' ? p.substring(0, 20) : p}`),
-        boardIdsPlaceholders
-      });
-      
-      console.log('[SemanticSearchService] Generated SQL:', sql);
-      console.log('[SemanticSearchService] Parameters:', params.map((p, i) => `$${i+1}: ${typeof p} - ${typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p}`));
-      
       const result = await query(sql, params);
-      
-      console.log('[SemanticSearchService] Search results:', {
-        resultCount: result.rows.length,
-        topResults: result.rows.slice(0, 5).map(row => ({
-          postId: row.id,
-          title: row.title?.substring(0, 50),
-          similarityScore: row.similarity_score,
-          rankScore: row.rank_score
-        }))
-      });
 
       return result.rows.map((row: Record<string, unknown>) => ({
         ...row,
@@ -336,9 +310,6 @@ export class SemanticSearchService {
       `;
 
       const params = [`[${postEmbedding.join(',')}]`, ...accessibleBoardIds, postId, threshold, limit];
-      
-      console.log('[SemanticSearchService] Related posts SQL:', sql);
-      console.log('[SemanticSearchService] Related posts params:', params.map((p, i) => `$${i+1}: ${typeof p} - ${typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p}`));
       const result = await query(sql, params);
 
       return result.rows.map((row: Record<string, unknown>) => ({

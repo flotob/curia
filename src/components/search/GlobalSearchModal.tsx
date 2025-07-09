@@ -171,7 +171,8 @@ export function GlobalSearchModal() {
         ...(currentSearchScope && { boardId: currentSearchScope })
       });
       
-      return authFetchJson<SemanticSearchResult[]>(`/api/search/posts/semantic?${queryParams.toString()}`, { token });
+      const response = await authFetchJson<{results: SemanticSearchResult[]}>(`/api/search/posts/semantic?${queryParams.toString()}`, { token });
+      return response.results; // Extract the results array from the response object
     },
     enabled: !!token && semanticQuery.trim().length >= 3 && isSearchOpen && searchMode === 'smart',
     staleTime: 30000,
