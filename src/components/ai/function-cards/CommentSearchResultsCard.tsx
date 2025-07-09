@@ -1,7 +1,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, ArrowUpRight, ExternalLink, MessageSquare, Clock, Sparkles } from 'lucide-react';
+import { Search, ArrowUpRight, ExternalLink, MessageSquare, Sparkles } from 'lucide-react';
 import { TypedFunctionCardProps } from '../types/FunctionCardProps';
 import { CommentSearchResultsData } from '@/lib/ai/types/FunctionResult';
 import { useCgLib } from '@/contexts/CgLibContext';
@@ -124,14 +124,14 @@ export function CommentSearchResultsCard({
           {/* Comment content - main focus */}
           <div className="mb-3">
             <p className="text-sm text-foreground leading-relaxed group-hover:text-primary/90 transition-colors">
-              "{truncateComment(result.content)}"
+              &ldquo;{truncateComment(result.content)}&rdquo;
             </p>
           </div>
 
           {/* Simple post context - one clean line */}
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <MessageSquare className="w-3 h-3" />
-            <span className="truncate">in "{result.postContext.title}"</span>
+            <span className="truncate">in &ldquo;{result.postContext.title}&rdquo;</span>
             <span className="text-muted-foreground/60">•</span>
             <span>{result.postContext.boardName}</span>
           </div>
