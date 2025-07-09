@@ -30,7 +30,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <Card className={className}>
+    <Card className={className} data-collapsible-section>
       <CardHeader 
         className={cn(
           'cursor-pointer hover:bg-muted/50 transition-colors',
@@ -38,6 +38,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           headerClassName
         )}
         onClick={() => setIsExpanded(!isExpanded)}
+        data-collapsible-trigger
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">

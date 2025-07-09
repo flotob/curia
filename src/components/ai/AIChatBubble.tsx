@@ -196,15 +196,48 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   // Get card styling for background-aware gradients (same as PostCard)
   const { hasActiveBackground } = useCardStyling();
 
-  // Check if device is mobile
+  // Check if device is mobile and if we're on an admin page
+  const [isOnAdminPage, setIsOnAdminPage] = useState(false);
+  
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
     
+    const checkAdminPage = () => {
+      const isAdmin = typeof window !== 'undefined' && 
+                     (window.location.pathname.includes('/board-settings') ||
+                      window.location.pathname.includes('/create-board') ||
+                      window.location.pathname.includes('/admin') ||
+                      window.location.pathname.includes('/settings'));
+      setIsOnAdminPage(isAdmin);
+    };
+    
     checkMobile();
+    checkAdminPage();
+    
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    
+    // Listen for route changes to update admin page status
+    const handleRouteChange = () => {
+      checkAdminPage();
+    };
+    
+    // Listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', handleRouteChange);
+    
+    // For programmatic navigation, we'll use a mutation observer to detect changes
+    const observer = new MutationObserver(() => {
+      checkAdminPage();
+    });
+    
+    observer.observe(document, { subtree: true, childList: true });
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('popstate', handleRouteChange);
+      observer.disconnect();
+    };
   }, []);
 
   // Add interaction detection for mobile minimal mode
@@ -220,9 +253,29 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
                              target.closest('.clippy-speech-bubble') ||
                              target.closest('.clippy-chat-interface');
       
-      // If interaction is not with clippy elements, switch to minimal mode
-      if (!isClippyElement && !isMinimalMode) {
-        console.log('Non-clippy interaction detected on mobile, switching to minimal mode');
+      // Check if interaction is within admin/settings interfaces that should not trigger minimal mode
+      const isAdminInterface = target.closest('form') ||
+                               target.closest('[role="dialog"]') ||
+                               target.closest('[data-collapsible-section]') ||
+                               target.closest('[data-collapsible-trigger]') ||
+                               target.closest('[data-collapsible]') ||
+                               target.closest('.board-settings-page') ||
+                               target.closest('.create-board-page') ||
+                               target.closest('.board-settings') ||
+                               target.closest('.settings-page') ||
+                               // Check for common admin UI patterns
+                               target.closest('[aria-expanded]') ||
+                               target.closest('[data-state]') ||
+                               // Check if we're on admin pages by URL
+                               (typeof window !== 'undefined' && 
+                                (window.location.pathname.includes('/board-settings') ||
+                                 window.location.pathname.includes('/create-board') ||
+                                 window.location.pathname.includes('/admin') ||
+                                 window.location.pathname.includes('/settings')));
+      
+      // Only switch to minimal mode for non-admin, non-clippy interactions
+      if (!isClippyElement && !isAdminInterface && !isMinimalMode) {
+        console.log('Non-clippy content interaction detected on mobile, switching to minimal mode');
         setIsMinimalMode(true);
       }
     };
@@ -495,6 +548,11 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     return null;
   }
 
+  // Hide Clippy completely on mobile admin pages unless chat is open or speech bubble is visible
+  if (isMobile && isOnAdminPage && !isOpen && !speechBubbleVisible) {
+    return null;
+  }
+
   const toggleChat = () => {
     setIsOpen(!isOpen);
     if (!isOpen) {
@@ -555,8 +613,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     setIsMinimalMode(false);
   };
 
-  // Show minimal clippy on mobile when in minimal mode
-  if (isMobile && isMinimalMode && !isOpen && !speechBubbleVisible) {
+  // Show minimal clippy on mobile when in minimal mode (but not on admin pages)
+  if (isMobile && isMinimalMode && !isOpen && !speechBubbleVisible && !isOnAdminPage) {
     return (
       <MinimalClippy
         onClick={handleMinimalClippyClick}
@@ -566,8 +624,13 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     );
   }
 
+  // On mobile admin pages, use lower z-index and different positioning to avoid interference
+  const adminPageMobileClasses = isMobile && isOnAdminPage 
+    ? "fixed bottom-2 right-2 z-20 -mr-4 -mb-4" 
+    : "fixed bottom-0 right-2 md:right-6 z-40 -mr-8 -mb-8";
+
   return (
-    <div className={cn("fixed bottom-0 right-2 md:right-6 z-40 -mr-8 -mb-8", className)} data-clippy>
+    <div className={cn(adminPageMobileClasses, className)} data-clippy>
       <div className="relative">
         {/* Speech Bubble */}
         <ClippySpeechBubble

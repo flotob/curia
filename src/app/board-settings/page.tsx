@@ -335,7 +335,7 @@ export default function BoardSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen p-4 md:p-6 lg:p-8 board-settings-page">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <Card variant="header" className="p-6">
