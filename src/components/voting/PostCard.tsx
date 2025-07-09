@@ -72,9 +72,10 @@ interface PostCardProps {
     source_community_name?: string;
   } | null;
   isPreviewMode?: boolean;    // Whether to disable interactions (for preview popovers)
+  enableLimitedInteractions?: boolean; // Enable basic navigation (voting, links) but not complex actions
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo, isPreviewMode = false }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo, isPreviewMode = false, enableLimitedInteractions = false }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
@@ -100,8 +101,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(post.created_at);
 
-  // Calculate if interactions should be enabled
+  // Calculate interaction levels
   const isInteractive = !isPreviewMode;
+  const hasLimitedInteractions = enableLimitedInteractions && isPreviewMode;
+  const hasBasicNavigation = isInteractive || hasLimitedInteractions;
 
   // Get card styling for background-aware gradients
   const { hasActiveBackground } = useCardStyling();
@@ -585,7 +588,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       <div className="flex">
         {/* Vote Section */}
         <div className="vote-sidebar">
-          {isInteractive ? (
+          {hasBasicNavigation ? (
             <VoteButton 
               postId={post.id} 
               initialUpvoteCount={post.upvote_count} 
@@ -605,7 +608,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           {/* Post Header */}
           <header className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3">
             <div className="flex items-center text-sm text-muted-foreground mb-3 flex-wrap gap-3">
-              {isInteractive ? (
+              {hasBasicNavigation ? (
                 <UserProfilePopover
                   userId={post.author_user_id}
                   username={authorDisplayName}
@@ -639,7 +642,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   <span className="text-muted-foreground/60">•</span>
                   <div className="flex items-center space-x-1">
                     <span className="text-muted-foreground/80">in</span>
-                    {!isCurrentlyInThisBoard && isInteractive ? (
+                    {!isCurrentlyInThisBoard && hasBasicNavigation ? (
                       <button 
                         onClick={handleBoardClick}
                         className="hover:text-primary transition-colors font-medium"
@@ -674,9 +677,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
               <h2 
                 className={cn(
                   "content-title pr-8 break-words",
-                  isInteractive && "cursor-pointer hover:text-primary transition-colors"
+                  hasBasicNavigation && "cursor-pointer hover:text-primary transition-colors"
                 )}
-                onClick={isInteractive ? handleTitleClick : undefined}
+                onClick={hasBasicNavigation ? handleTitleClick : undefined}
               >
                 {post.title}
               </h2>
@@ -767,7 +770,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             <div className="px-3 sm:px-4 pb-2">
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {post.tags.map((tag, index) => (
-                  isInteractive ? (
+                  hasBasicNavigation ? (
                     <Button
                       key={index}
                       variant="ghost"

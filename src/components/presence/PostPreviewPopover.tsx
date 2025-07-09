@@ -72,7 +72,7 @@ export const PostPreviewPopover: React.FC<PostPreviewPopoverProps> = ({
     const rect = triggerRef.current.getBoundingClientRect();
     setPosition({
       top: rect.top + window.scrollY,
-      left: rect.left - 520 // 500px width + 20px margin
+      left: rect.left - 650 // 600px width + 50px margin
     });
     setIsVisible(true);
   };
@@ -131,7 +131,7 @@ export const PostPreviewPopover: React.FC<PostPreviewPopoverProps> = ({
       {isVisible && createPortal(
         <div
           ref={popoverRef}
-          className="fixed z-50 w-[500px] bg-background border border-border rounded-lg shadow-xl"
+          className="fixed z-50 w-[600px] bg-background border border-border rounded-lg shadow-xl"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -151,7 +151,8 @@ export const PostPreviewPopover: React.FC<PostPreviewPopoverProps> = ({
                 post={post} 
                 showFullContent={false}
                 showBoardContext={true}
-                isPreviewMode={true}
+                isPreviewMode={false}
+                enableLimitedInteractions={true}
               />
             </div>
           ) : null}
