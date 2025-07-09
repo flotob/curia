@@ -44,6 +44,47 @@ interface ActionButton {
 // Session storage key for persisting chat messages
 const CHAT_STORAGE_KEY = 'clippy_chat_session';
 
+// LocalStorage key for tracking speech bubble frequency
+const SPEECH_BUBBLE_FREQUENCY_KEY = 'clippy_speech_bubble_frequency';
+
+// Helper to check speech bubble frequency (24 hours per user per community)
+const canShowSpeechBubble = (userId: string, communityId: string): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  try {
+    const stored = localStorage.getItem(SPEECH_BUBBLE_FREQUENCY_KEY);
+    const frequencyData = stored ? JSON.parse(stored) : {};
+    
+    const key = `${userId}_${communityId}`;
+    const lastShown = frequencyData[key];
+    const now = Date.now();
+    const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    
+    // If never shown or more than 24 hours have passed, allow showing
+    return !lastShown || (now - lastShown) >= twentyFourHours;
+  } catch (error) {
+    console.warn('Failed to check speech bubble frequency:', error);
+    // In case of localStorage issues, allow showing (fail gracefully)
+    return true;
+  }
+};
+
+// Helper to mark speech bubble as shown
+const markSpeechBubbleShown = (userId: string, communityId: string): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const stored = localStorage.getItem(SPEECH_BUBBLE_FREQUENCY_KEY);
+    const frequencyData = stored ? JSON.parse(stored) : {};
+    
+    const key = `${userId}_${communityId}`;
+    frequencyData[key] = Date.now();
+    localStorage.setItem(SPEECH_BUBBLE_FREQUENCY_KEY, JSON.stringify(frequencyData));
+  } catch (error) {
+    console.warn('Failed to mark speech bubble as shown:', error);
+  }
+};
+
 // Helper to detect if a message has UI card function results
 const hasUICardResults = (message: Message): boolean => {
   const toolInvocations = (message as any).toolInvocations;
@@ -211,6 +252,13 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   const showFallbackWelcome = () => {
+    // Check frequency limit for fallback welcome too
+    if (!user?.userId || !user?.cid || !canShowSpeechBubble(user.userId, user.cid)) {
+      console.log('Speech bubble frequency limit reached - not showing fallback welcome message');
+      setWelcomeLoaded(true); // Mark as loaded to prevent future attempts
+      return;
+    }
+    
     const isAdmin = user?.isAdmin || false;
     const welcomeMessage = isAdmin 
       ? "Welcome back! Ready to check your community analytics or manage settings?"
@@ -228,6 +276,10 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     
     setTimeout(() => {
       setSpeechBubbleVisible(true);
+      // Mark as shown in localStorage
+      if (user?.userId && user?.cid) {
+        markSpeechBubbleShown(user.userId, user.cid);
+      }
     }, 1000);
   };
 
@@ -235,6 +287,13 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     // Prevent duplicate calls in development mode (React Strict Mode)
     if (welcomeLoadingRef.current) {
       console.log('Welcome API - Skipping duplicate call (React Strict Mode)');
+      return;
+    }
+    
+    // Check frequency limit before proceeding
+    if (!user?.userId || !user?.cid || !canShowSpeechBubble(user.userId, user.cid)) {
+      console.log('Speech bubble frequency limit reached - not showing welcome message');
+      setWelcomeLoaded(true); // Mark as loaded to prevent future attempts
       return;
     }
     
@@ -271,6 +330,10 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
         // Show speech bubble after a brief delay for smooth UX
         setTimeout(() => {
           setSpeechBubbleVisible(true);
+          // Mark as shown in localStorage
+          if (user?.userId && user?.cid) {
+            markSpeechBubbleShown(user.userId, user.cid);
+          }
         }, 1000);
       } else {
         console.error('Failed to load welcome message:', response.status);
@@ -285,7 +348,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
       setWelcomeLoading(false);
       // Note: We don't reset welcomeLoadingRef.current here to prevent multiple calls
     }
-  }, [token, context?.boardId, isOpen, clearChat]);
+  }, [token, context?.boardId, isOpen, clearChat, user?.userId, user?.cid]);
 
   // Auto-load welcome message on component mount
   useEffect(() => {
