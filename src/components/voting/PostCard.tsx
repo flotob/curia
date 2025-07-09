@@ -71,9 +71,10 @@ interface PostCardProps {
     source_community_id?: string;
     source_community_name?: string;
   } | null;
+  isPreviewMode?: boolean;    // Whether to disable interactions (for preview popovers)
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = false, showFullContent = false, boardInfo, isPreviewMode = false }) => {
   const authorDisplayName = post.author_name || 'Unknown Author';
   // Create a fallback for avatar from the first letter of the author's name
   const avatarFallback = authorDisplayName.substring(0, 2).toUpperCase();
@@ -98,6 +99,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
   const router = useRouter();
   const searchParams = useSearchParams();
   const timeSinceText = useTimeSince(post.created_at);
+
+  // Calculate if interactions should be enabled
+  const isInteractive = !isPreviewMode;
 
   // Get card styling for background-aware gradients
   const { hasActiveBackground } = useCardStyling();
@@ -581,12 +585,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       <div className="flex">
         {/* Vote Section */}
         <div className="vote-sidebar">
-          <VoteButton 
-            postId={post.id} 
-            initialUpvoteCount={post.upvote_count} 
-            initialUserHasUpvoted={post.user_has_upvoted}
-            size="default"
-          />
+          {isInteractive ? (
+            <VoteButton 
+              postId={post.id} 
+              initialUpvoteCount={post.upvote_count} 
+              initialUserHasUpvoted={post.user_has_upvoted}
+              size="default"
+            />
+          ) : (
+            <div className="flex flex-col items-center py-2 px-3 text-muted-foreground">
+              <ChevronUp size={20} className="mb-1" />
+              <span className="text-sm font-medium">{post.upvote_count}</span>
+            </div>
+          )}
         </div>
 
         {/* Main Content Section */}
@@ -594,13 +605,25 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           {/* Post Header */}
           <header className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3">
             <div className="flex items-center text-sm text-muted-foreground mb-3 flex-wrap gap-3">
-              <UserProfilePopover
-                userId={post.author_user_id}
-                username={authorDisplayName}
-                open={isAuthorPopoverOpen}
-                onOpenChange={setIsAuthorPopoverOpen}
-              >
-                <div className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer">
+              {isInteractive ? (
+                <UserProfilePopover
+                  userId={post.author_user_id}
+                  username={authorDisplayName}
+                  open={isAuthorPopoverOpen}
+                  onOpenChange={setIsAuthorPopoverOpen}
+                >
+                  <div className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                      <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium">
+                      {authorDisplayName}
+                    </span>
+                  </div>
+                </UserProfilePopover>
+              ) : (
+                <div className="flex items-center space-x-2">
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
                     <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
@@ -609,14 +632,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                     {authorDisplayName}
                   </span>
                 </div>
-              </UserProfilePopover>
+              )}
               
               {showBoardContext && (
                 <>
                   <span className="text-muted-foreground/60">•</span>
                   <div className="flex items-center space-x-1">
                     <span className="text-muted-foreground/80">in</span>
-                    {!isCurrentlyInThisBoard ? (
+                    {!isCurrentlyInThisBoard && isInteractive ? (
                       <button 
                         onClick={handleBoardClick}
                         className="hover:text-primary transition-colors font-medium"
@@ -649,8 +672,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             </div>
             {!isDetailView ? (
               <h2 
-                className="content-title pr-8 cursor-pointer hover:text-primary transition-colors break-words"
-                onClick={handleTitleClick}
+                className={cn(
+                  "content-title pr-8 break-words",
+                  isInteractive && "cursor-pointer hover:text-primary transition-colors"
+                )}
+                onClick={isInteractive ? handleTitleClick : undefined}
               >
                 {post.title}
               </h2>
@@ -683,19 +709,25 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
 
                 {!isPostContentExpanded && !showFullContent && (
                   <div className="mt-1 text-left">
-                     <Button 
-                        variant="link"
-                        size="sm"
-                        onClick={() => setIsPostContentExpanded(true)} 
-                        className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
-                        aria-label="Show more content"
-                     >
-                        <ChevronDown size={18} className="mr-1.5" /> Show more
-                     </Button>
+                     {isInteractive ? (
+                       <Button 
+                          variant="link"
+                          size="sm"
+                          onClick={() => setIsPostContentExpanded(true)} 
+                          className="text-primary hover:text-primary/80 px-2 py-1 h-auto font-medium"
+                          aria-label="Show more content"
+                       >
+                          <ChevronDown size={18} className="mr-1.5" /> Show more
+                       </Button>
+                     ) : (
+                       <span className="text-xs text-muted-foreground px-2 py-1">
+                         Content truncated in preview
+                       </span>
+                     )}
                   </div>
                 )}
 
-                {isPostContentExpanded && !showFullContent && (
+                {isPostContentExpanded && !showFullContent && isInteractive && (
                   <div className="mt-1 text-left">
                      <Button 
                         variant="link"
@@ -735,156 +767,171 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
             <div className="px-3 sm:px-4 pb-2">
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {post.tags.map((tag, index) => (
-                  <Button
-                    key={index}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleTagClick(tag)}
-                    className="h-auto px-2 py-1 text-xs font-normal bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:text-foreground transition-colors rounded-full border border-transparent hover:border-primary/20"
-                    title={`Filter by "${tag}" tag`}
-                  >
-                    #{tag}
-                  </Button>
+                  isInteractive ? (
+                    <Button
+                      key={index}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleTagClick(tag)}
+                      className="h-auto px-2 py-1 text-xs font-normal bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:text-foreground transition-colors rounded-full border border-transparent hover:border-primary/20"
+                      title={`Filter by "${tag}" tag`}
+                    >
+                      #{tag}
+                    </Button>
+                  ) : (
+                    <span
+                      key={index}
+                      className="h-auto px-2 py-1 text-xs font-normal bg-secondary text-secondary-foreground rounded-full border border-transparent"
+                    >
+                      #{tag}
+                    </span>
+                  )
                 ))}
               </div>
             </div>
           )}
 
           {/* Post Actions Footer */}
-          <footer className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 px-3 sm:px-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-1 h-auto text-xs sm:text-sm" 
-                onClick={handleCommentClick} 
-                aria-expanded={hasGating ? undefined : showComments}
-                title={hasGating ? "View comments (gated post)" : "Toggle comments"}
-              >
-                <MessageSquare size={14} className="mr-1 sm:mr-1.5" /> 
-                <span className="hidden xs:inline">{post.comment_count}</span>
-                <span className="xs:hidden">{post.comment_count}</span>
-                {hasGating && <span className="ml-1 text-blue-500">→</span>}
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-1 h-auto text-xs sm:text-sm" 
-                onClick={handleShare}
-                disabled={isGeneratingShareUrl}
-                title={getShareButtonTitle()}
-              >
-                {isGeneratingShareUrl ? (
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
-                ) : (
-                  <>
-                    <Share2 size={14} className="mr-1 sm:mr-1.5" />
-                    <span>
-                      Share{post.share_access_count > 0 && ` (${formatAccessCount(post.share_access_count)})`}
-                    </span>
-                  </>
+          {isInteractive && (
+            <footer className="flex justify-between items-center text-sm text-muted-foreground pt-2 pb-3 px-3 sm:px-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="p-1 h-auto text-xs sm:text-sm" 
+                  onClick={handleCommentClick} 
+                  aria-expanded={hasGating ? undefined : showComments}
+                  title={hasGating ? "View comments (gated post)" : "Toggle comments"}
+                >
+                  <MessageSquare size={14} className="mr-1 sm:mr-1.5" /> 
+                  <span className="hidden xs:inline">{post.comment_count}</span>
+                  <span className="xs:hidden">{post.comment_count}</span>
+                  {hasGating && <span className="ml-1 text-blue-500">→</span>}
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="p-1 h-auto text-xs sm:text-sm" 
+                  onClick={handleShare}
+                  disabled={isGeneratingShareUrl}
+                  title={getShareButtonTitle()}
+                >
+                  {isGeneratingShareUrl ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current" />
+                  ) : (
+                    <>
+                      <Share2 size={14} className="mr-1 sm:mr-1.5" />
+                      <span>
+                        Share{post.share_access_count > 0 && ` (${formatAccessCount(post.share_access_count)})`}
+                      </span>
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="flex items-center gap-1">
+                <BookmarkButton 
+                  postId={post.id}
+                  variant="ghost"
+                  size="sm" 
+                  showLabel={false}
+                  className="p-1 h-auto"
+                />
+                {user?.isAdmin && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="p-1 h-7 w-7 sm:h-8 sm:w-8">
+                        <MoreVertical size={14} />
+                        <span className="sr-only">Post Options</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem 
+                        onClick={() => setShowMoveDialog(true)}
+                        disabled={movePostMutation.isPending}
+                      >
+                        <Move size={14} className="mr-2" /> Move to Board
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => deleteMutation.mutate()}
+                        disabled={deleteMutation.isPending}
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <Trash size={14} className="mr-2" /> Delete Post
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-              </Button>
-            </div>
-            <div className="flex items-center gap-1">
-              <BookmarkButton 
-                postId={post.id}
-                variant="ghost"
-                size="sm" 
-                showLabel={false}
-                className="p-1 h-auto"
-              />
-              {user?.isAdmin && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="p-1 h-7 w-7 sm:h-8 sm:w-8">
-                      <MoreVertical size={14} />
-                      <span className="sr-only">Post Options</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem 
-                      onClick={() => setShowMoveDialog(true)}
-                      disabled={movePostMutation.isPending}
-                    >
-                      <Move size={14} className="mr-2" /> Move to Board
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => deleteMutation.mutate()}
-                      disabled={deleteMutation.isPending}
-                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                    >
-                      <Trash size={14} className="mr-2" /> Delete Post
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </footer>
+              </div>
+            </footer>
+          )}
           
           {/* ReactionBar */}
-          <div className="px-3 sm:px-4 pb-2 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
-            <ReactionBar 
-              postId={post.id}
-            />
-          </div>
+          {isInteractive && (
+            <div className="px-3 sm:px-4 pb-2 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
+              <ReactionBar 
+                postId={post.id}
+              />
+            </div>
+          )}
         </div>
       </div>
       
       {/* Move Post Dialog */}
-      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
-        <DialogContent className="move-dialog">
-          <DialogHeader>
-            <DialogTitle className="move-title">Move Post to Another Board</DialogTitle>
-            <DialogDescription className="move-description">
-              Select which board you want to move &quot;{post.title}&quot; to.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="move-content">
-            <div className="board-selection">
-              <Label htmlFor="board-select">Select Board</Label>
-              {accessibleBoardsList && accessibleBoardsList.length > 0 ? (
-                <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
-                  <SelectTrigger id="board-select">
-                    <SelectValue placeholder="Choose a board" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accessibleBoardsList.map((board) => (
-                      <SelectItem key={board.id} value={board.id.toString()}>
-                        <div>
-                          <div className="board-option-name">{board.name}</div>
-                          {board.description && (
-                            <div className="board-option-desc">{board.description}</div>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="loading-boards">
-                  <p className="loading-text">Loading boards...</p>
-                </div>
-              )}
+      {isInteractive && (
+        <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+          <DialogContent className="move-dialog">
+            <DialogHeader>
+              <DialogTitle className="move-title">Move Post to Another Board</DialogTitle>
+              <DialogDescription className="move-description">
+                Select which board you want to move &quot;{post.title}&quot; to.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="move-content">
+              <div className="board-selection">
+                <Label htmlFor="board-select">Select Board</Label>
+                {accessibleBoardsList && accessibleBoardsList.length > 0 ? (
+                  <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
+                    <SelectTrigger id="board-select">
+                      <SelectValue placeholder="Choose a board" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accessibleBoardsList.map((board) => (
+                        <SelectItem key={board.id} value={board.id.toString()}>
+                          <div>
+                            <div className="board-option-name">{board.name}</div>
+                            {board.description && (
+                              <div className="board-option-desc">{board.description}</div>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="loading-boards">
+                    <p className="loading-text">Loading boards...</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <DialogFooter className="move-footer">
-            <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="cancel-button">
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleMovePost}
-              disabled={!selectedBoardId || movePostMutation.isPending}
-              className="move-button"
-            >
-              {movePostMutation.isPending ? 'Moving...' : 'Move Post'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="move-footer">
+              <Button variant="outline" onClick={() => setShowMoveDialog(false)} className="cancel-button">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleMovePost}
+                disabled={!selectedBoardId || movePostMutation.isPending}
+                className="move-button"
+              >
+                {movePostMutation.isPending ? 'Moving...' : 'Move Post'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Comments Section - Conditionally Rendered (only for non-gated posts) */}
-      {showComments && !hasGating && (
+      {isInteractive && showComments && !hasGating && (
         <section className="mt-4 border-t border-border/40 bg-muted/5 rounded-b-lg">
           <div className="p-3 sm:p-4 space-y-4">
             <h3 className="text-lg font-semibold flex items-center">
@@ -928,17 +975,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
       )}
 
       {/* Share Modal */}
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => {
-          setShowShareModal(false);
-          setIsWebShareFallback(false);
-        }}
-        shareUrl={shareUrl}
-        postTitle={post.title}
-        isGenerating={isGeneratingShareUrl}
-        isWebShareFallback={isWebShareFallback}
-      />
+      {isInteractive && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => {
+            setShowShareModal(false);
+            setIsWebShareFallback(false);
+          }}
+          shareUrl={shareUrl}
+          postTitle={post.title}
+          isGenerating={isGeneratingShareUrl}
+          isWebShareFallback={isWebShareFallback}
+        />
+      )}
     </Card>
   );
 }; 

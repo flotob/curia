@@ -18,6 +18,24 @@ import { authFetchJson } from '@/utils/authFetch';
 import { useRouter } from 'next/navigation';
 import { useTimeSince } from '@/utils/timeUtils';
 import { buildPostUrl } from '@/utils/urlBuilder';
+import { PostPreviewPopover } from './PostPreviewPopover';
+
+// Hook to detect desktop for hover features
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024); // lg breakpoint
+    };
+
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop);
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
+
+  return isDesktop;
+};
 
 interface RelatedPost {
   id: number;
@@ -55,6 +73,7 @@ export function RelatedPostsWidget({
 }: RelatedPostsWidgetProps) {
   const { token } = useAuth();
   const router = useRouter();
+  const isDesktop = useIsDesktop();
 
   // Fetch related posts
   const { data: apiResponse, isLoading, error } = useQuery<RelatedPostsApiResponse>({
@@ -64,13 +83,11 @@ export function RelatedPostsWidget({
       return authFetchJson<RelatedPostsApiResponse>(`/api/posts/${postId}/related?threshold=0.18`, { token });
     },
     enabled: !!token && !!postId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes,
   });
 
   // Extract the actual posts array from the API response
   const relatedPosts = apiResponse?.relatedPosts || [];
-
-
 
   const handlePostClick = (relatedPost: RelatedPost) => {
     const url = buildPostUrl(relatedPost.id, relatedPost.board_id, true);
@@ -122,11 +139,16 @@ export function RelatedPostsWidget({
       </CardHeader>
       <CardContent className="space-y-3">
         {relatedPosts.map((post) => (
-          <RelatedPostItem
+          <PostPreviewPopover
             key={post.id}
-            post={post}
-            onClick={() => handlePostClick(post)}
-          />
+            postId={post.id}
+            enabled={isDesktop}
+          >
+            <RelatedPostItem
+              post={post}
+              onClick={() => handlePostClick(post)}
+            />
+          </PostPreviewPopover>
         ))}
       </CardContent>
     </Card>
@@ -164,11 +186,11 @@ function RelatedPostItem({
             <h4 className="text-sm font-medium line-clamp-2 leading-tight group-hover:text-primary transition-colors">
               {post.title}
             </h4>
-                          {/* Click indicator */}
-              <ChevronRight 
-                size={12} 
-                className="text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-200 flex-shrink-0" 
-              />
+                        {/* Click indicator */}
+            <ChevronRight 
+              size={12} 
+              className="text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-200 flex-shrink-0" 
+            />
           </div>
 
           {/* Board context */}
