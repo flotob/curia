@@ -487,11 +487,16 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     }
   };
 
+  // Handle minimal clippy click - just exit minimal mode first
+  const handleMinimalClippyClick = () => {
+    setIsMinimalMode(false);
+  };
+
   // Show minimal clippy on mobile when in minimal mode
   if (isMobile && isMinimalMode && !isOpen && !speechBubbleVisible) {
     return (
       <MinimalClippy
-        onClick={toggleChat}
+        onClick={handleMinimalClippyClick}
         hasNewMessage={hasNewMessage}
         className={className}
       />
@@ -548,7 +553,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
         </AnimatePresence>
 
         {/* 3D Clippy Button - Positioned absolutely */}
-        <div className="absolute bottom-0 right-0" data-clippy>
+        <div className={cn("absolute bottom-0 right-0", isOpen ? "z-60" : "z-50")} data-clippy>
           <ClippyButton
             isOpen={isOpen}
             onClick={toggleChat} // Always toggle chat, no special speech bubble logic
