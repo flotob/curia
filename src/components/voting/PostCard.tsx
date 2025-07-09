@@ -38,7 +38,7 @@ import { useTimeSince } from '@/utils/timeUtils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SettingsUtils } from '@/types/settings';
 import { getUPDisplayName } from '@/lib/upProfile';
-import { buildExternalShareUrl } from '@/utils/urlBuilder';
+import { buildExternalShareUrl, preserveCgParams } from '@/utils/urlBuilder';
 import { ShareModal } from '@/components/ui/ShareModal';
 import { ReactionBar } from '../reactions/ReactionBar';
 import { UserProfilePopover } from '../mentions/UserProfilePopover';
@@ -609,13 +609,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
           <header className="px-3 sm:px-4 pt-3 sm:pt-4 pb-3">
             <div className="flex items-center text-sm text-muted-foreground mb-3 flex-wrap gap-3">
               {hasBasicNavigation ? (
-                <UserProfilePopover
-                  userId={post.author_user_id}
-                  username={authorDisplayName}
-                  open={isAuthorPopoverOpen}
-                  onOpenChange={setIsAuthorPopoverOpen}
-                >
-                  <div className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer">
+                hasLimitedInteractions ? (
+                  // In preview mode, navigate to profile page
+                  <button 
+                    onClick={() => {
+                      const profileUrl = preserveCgParams(`/profile/${post.author_user_id}`);
+                      router.push(profileUrl);
+                    }}
+                    className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer"
+                  >
                     <Avatar className="h-6 w-6">
                       <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
                       <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
@@ -623,8 +625,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                     <span className="font-medium">
                       {authorDisplayName}
                     </span>
-                  </div>
-                </UserProfilePopover>
+                  </button>
+                ) : (
+                  // In full mode, show popover
+                  <UserProfilePopover
+                    userId={post.author_user_id}
+                    username={authorDisplayName}
+                    open={isAuthorPopoverOpen}
+                    onOpenChange={setIsAuthorPopoverOpen}
+                  >
+                    <div className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={post.author_profile_picture_url || undefined} alt={`${authorDisplayName}'s avatar`} />
+                        <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">
+                        {authorDisplayName}
+                      </span>
+                    </div>
+                  </UserProfilePopover>
+                )
               ) : (
                 <div className="flex items-center space-x-2">
                   <Avatar className="h-6 w-6">
