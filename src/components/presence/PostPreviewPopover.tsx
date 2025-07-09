@@ -131,7 +131,7 @@ export const PostPreviewPopover: React.FC<PostPreviewPopoverProps> = ({
       {isVisible && createPortal(
         <div
           ref={popoverRef}
-          className="fixed z-50 w-[600px] bg-background border border-border rounded-lg shadow-xl"
+          className="fixed z-50 w-[600px] max-h-[80vh] bg-background border border-border rounded-lg shadow-xl overflow-hidden"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -151,7 +151,7 @@ export const PostPreviewPopover: React.FC<PostPreviewPopoverProps> = ({
                 post={post} 
                 showFullContent={false}
                 showBoardContext={true}
-                isPreviewMode={false}
+                isPreviewMode={true}
                 enableLimitedInteractions={true}
               />
             </div>

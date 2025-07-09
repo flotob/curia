@@ -138,14 +138,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
     staleTime: 5 * 60 * 1000, // cache 5 min
   });
   
-  // For gated posts, redirect to detail view instead of inline comments
+  // For gated posts or limited interactions mode, redirect to detail view instead of inline comments
   const handleCommentClick = () => {
-    if (hasGating) {
-      // Navigate to post detail page for gated posts
+    if (hasGating || hasLimitedInteractions) {
+      // Navigate to post detail page for gated posts or preview mode
       const detailUrl = buildInternalUrl(`/board/${post.board_id}/post/${post.id}`);
       router.push(detailUrl);
     } else {
-      // Toggle inline comments for non-gated posts
+      // Toggle inline comments for non-gated posts in full interactive mode
       setShowComments(!showComments);
     }
   };
@@ -691,7 +691,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                 <div 
                   className={cn(
                     "relative", 
-                    !isPostContentExpanded && "max-h-32 overflow-hidden"
+                    !isPostContentExpanded && (hasLimitedInteractions ? "max-h-64 overflow-hidden" : "max-h-32 overflow-hidden")
                   )}
                 >
                   <div 
@@ -803,13 +803,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showBoardContext = fal
                   size="sm" 
                   className="p-1 h-auto text-xs sm:text-sm" 
                   onClick={handleCommentClick} 
-                  aria-expanded={hasGating ? undefined : showComments}
-                  title={hasGating ? "View comments (gated post)" : "Toggle comments"}
+                  aria-expanded={hasGating || hasLimitedInteractions ? undefined : showComments}
+                  title={hasGating || hasLimitedInteractions ? "View comments" : "Toggle comments"}
                 >
                   <MessageSquare size={14} className="mr-1 sm:mr-1.5" /> 
                   <span className="hidden xs:inline">{post.comment_count}</span>
                   <span className="xs:hidden">{post.comment_count}</span>
-                  {hasGating && <span className="ml-1 text-blue-500">→</span>}
+                  {(hasGating || hasLimitedInteractions) && <span className="ml-1 text-blue-500">→</span>}
                 </Button>
                 <Button 
                   variant="ghost" 
