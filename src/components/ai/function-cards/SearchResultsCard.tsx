@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Search, ArrowUpRight, ExternalLink, FileText, Clock, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
@@ -8,6 +8,24 @@ import { useCgLib } from '@/contexts/CgLibContext';
 import { useRouter } from 'next/navigation';
 import { buildPostUrl } from '@/utils/urlBuilder';
 import { cn } from '@/lib/utils';
+import { PostPreviewPopover } from '@/components/presence/PostPreviewPopover';
+
+// Hook to detect desktop for hover features
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsDesktop(window.innerWidth >= 768 && !('ontouchstart' in window));
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  return isDesktop;
+};
 
 // Simple time formatting utility function (not a hook)
 function formatTimeAgo(date: Date): string {
@@ -46,6 +64,7 @@ export function SearchResultsCard({
 }: TypedFunctionCardProps<SearchResultsData>) {
   const { cgInstance } = useCgLib();
   const router = useRouter();
+  const isDesktop = useIsDesktop();
 
   const handlePostClick = async (result: NonNullable<SearchResultsData['searchResults']>[0]) => {
     if (result.navigationType === 'external' && result.communityShortId && result.pluginId) {
@@ -86,81 +105,100 @@ export function SearchResultsCard({
 
       return (
     <div className="space-y-3 mt-3">
-      {data.searchResults.map((result, index) => (
-        <button
-          key={index}
-          onClick={() => handlePostClick(result)}
-          className="w-full p-3 bg-card border border-border hover:border-border/60 rounded-lg hover:bg-accent/50 transition-all text-left group"
-        >
-          <div className="flex items-start gap-3">
-            <Avatar className="w-8 h-8 flex-shrink-0">
-              <AvatarImage src={result.authorAvatar} alt={result.author} />
-              <AvatarFallback className="text-xs">
-                {result.author.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            
-            <div className="flex-1 min-w-0">
-              {/* Title with similarity badge */}
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <h3 className="font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-                  {result.title}
-                </h3>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* Similarity badge - only show if available */}
-                  {result.similarity_score && (
-                    <Badge 
-                      variant="secondary" 
-                      className={cn(
-                        "text-xs px-1.5 py-0.5 flex items-center gap-1",
-                        getSimilarityColor(result.similarity_score)
-                      )}
-                    >
-                      <Sparkles size={10} />
-                      {getSimilarityLabel(result.similarity_score)}
-                    </Badge>
-                  )}
-                  {/* Navigation icon */}
-                  {result.navigationType === 'external' ? (
-                    <ExternalLink className="w-4 h-4 text-muted-foreground mt-0.5" />
-                  ) : (
-                    <ArrowUpRight className="w-4 h-4 text-muted-foreground mt-0.5" />
-                  )}
-                </div>
-              </div>
-
-              {/* Board context */}
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                <FileText className="w-3 h-3" />
-                <span>{result.boardName}</span>
-              </div>
+      {data.searchResults.map((result, index) => {
+        const canPreview = result.navigationType === 'internal' && isDesktop;
+        
+        const resultButton = (
+          <button
+            key={index}
+            onClick={() => handlePostClick(result)}
+            className="w-full p-3 bg-card border border-border hover:border-border/60 rounded-lg hover:bg-accent/50 transition-all text-left group"
+          >
+            <div className="flex items-start gap-3">
+              <Avatar className="w-8 h-8 flex-shrink-0">
+                <AvatarImage src={result.authorAvatar} alt={result.author} />
+                <AvatarFallback className="text-xs">
+                  {result.author.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               
-              {/* Engagement metrics and time */}
-              <div className="flex items-center space-x-3 text-xs text-muted-foreground mb-1">
-                <div className="flex items-center space-x-1">
-                  <ArrowUp className="w-3 h-3" />
-                  <span>{result.upvotes}</span>
-                </div>
-                {result.comment_count !== undefined && (
-                  <div className="flex items-center space-x-1">
-                    <MessageSquare className="w-3 h-3" />
-                    <span>{result.comment_count}</span>
+              <div className="flex-1 min-w-0">
+                {/* Title with similarity badge */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+                    {result.title}
+                  </h3>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Similarity badge - only show if available */}
+                    {result.similarity_score && (
+                      <Badge 
+                        variant="secondary" 
+                        className={cn(
+                          "text-xs px-1.5 py-0.5 flex items-center gap-1",
+                          getSimilarityColor(result.similarity_score)
+                        )}
+                      >
+                        <Sparkles size={10} />
+                        {getSimilarityLabel(result.similarity_score)}
+                      </Badge>
+                    )}
+                    {/* Navigation icon */}
+                    {result.navigationType === 'external' ? (
+                      <ExternalLink className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    ) : (
+                      <ArrowUpRight className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    )}
                   </div>
-                )}
-                <div className="flex items-center space-x-1">
-                  <Clock className="w-3 h-3" />
-                  <span>{formatTimeAgo(new Date(result.created_at)).replace(' ago', '')}</span>
                 </div>
-              </div>
-              
-              {/* Author info - separate line */}
-              <div className="text-xs text-muted-foreground">
-                by {result.author}
+
+                {/* Board context */}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <FileText className="w-3 h-3" />
+                  <span>{result.boardName}</span>
+                </div>
+                
+                {/* Engagement metrics and time */}
+                <div className="flex items-center space-x-3 text-xs text-muted-foreground mb-1">
+                  <div className="flex items-center space-x-1">
+                    <ArrowUp className="w-3 h-3" />
+                    <span>{result.upvotes}</span>
+                  </div>
+                  {result.comment_count !== undefined && (
+                    <div className="flex items-center space-x-1">
+                      <MessageSquare className="w-3 h-3" />
+                      <span>{result.comment_count}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-1">
+                    <Clock className="w-3 h-3" />
+                    <span>{formatTimeAgo(new Date(result.created_at)).replace(' ago', '')}</span>
+                  </div>
+                </div>
+                
+                {/* Author info - separate line */}
+                <div className="text-xs text-muted-foreground">
+                  by {result.author}
+                </div>
               </div>
             </div>
-          </div>
-        </button>
-      ))}
+          </button>
+        );
+
+        // Wrap with PostPreviewPopover only for internal posts on desktop
+        if (canPreview) {
+          return (
+            <PostPreviewPopover
+              key={index}
+              postId={result.postId}
+              enabled={true}
+            >
+              {resultButton}
+            </PostPreviewPopover>
+          );
+        }
+
+        return resultButton;
+      })}
     </div>
   );
 } 

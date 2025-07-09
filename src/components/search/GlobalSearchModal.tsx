@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,7 +18,24 @@ import { VoteButton } from '@/components/voting/VoteButton';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTimeSince } from '@/utils/timeUtils';
 import { ModalContainer } from '@/components/modals/ModalContainer';
+import { PostPreviewPopover } from '@/components/presence/PostPreviewPopover';
 
+// Hook to detect desktop for hover features
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsDesktop(window.innerWidth >= 768 && !('ontouchstart' in window));
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  return isDesktop;
+};
 
 
 interface SearchResult extends ApiPost {
@@ -45,6 +62,7 @@ export function GlobalSearchModal() {
   const { token, isAuthenticated, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDesktop = useIsDesktop();
   
   const [currentInput, setCurrentInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -584,21 +602,38 @@ export function GlobalSearchModal() {
                     </div>
                     
                     {/* Actual Search Results */}
-                    {searchResults.map((post, index) => (
-                      <div 
-                        key={post.id}
-                        className="animate-in slide-in-from-bottom-2 duration-300"
-                        style={{ animationDelay: `${(index + 1) * 50}ms` }}
-                        ref={selectedIndex === index + 1 ? selectedItemRef : null}
-                      >
-                        <SearchResultItem 
-                          post={post} 
-                          onClick={() => handlePostClick(post)}
-                          isSelected={selectedIndex === index + 1}
-                          searchMode={searchMode}
-                        />
-                      </div>
-                    ))}
+                    {searchResults.map((post, index) => {
+                      const resultItem = (
+                        <div 
+                          key={post.id}
+                          className="animate-in slide-in-from-bottom-2 duration-300"
+                          style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                          ref={selectedIndex === index + 1 ? selectedItemRef : null}
+                        >
+                          <SearchResultItem 
+                            post={post} 
+                            onClick={() => handlePostClick(post)}
+                            isSelected={selectedIndex === index + 1}
+                            searchMode={searchMode}
+                          />
+                        </div>
+                      );
+
+                      // Wrap with PostPreviewPopover on desktop
+                      if (isDesktop) {
+                        return (
+                          <PostPreviewPopover
+                            key={post.id}
+                            postId={post.id}
+                            enabled={true}
+                          >
+                            {resultItem}
+                          </PostPreviewPopover>
+                        );
+                      }
+
+                      return resultItem;
+                    })}
                   </div>
                 </div>
               )}
