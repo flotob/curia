@@ -96,7 +96,7 @@ const hasUICardResults = (message: Message): boolean => {
     const displayMode = inv.result?.displayMode;
     
     // These are the function types that show UI cards
-    const UI_CARD_TYPES = ['search_results', 'lock_search_results', 'post_creation_guidance'];
+    const UI_CARD_TYPES = ['search_results', 'lock_search_results', 'comment_search_results', 'post_creation_guidance'];
     
     return resultType && 
            UI_CARD_TYPES.includes(resultType) && 

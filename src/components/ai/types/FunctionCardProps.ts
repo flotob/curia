@@ -1,4 +1,4 @@
-import { PostCreationGuidance, SearchResultsData, LockSearchResultsData } from '@/lib/ai/types/FunctionResult';
+import { PostCreationGuidance, SearchResultsData, LockSearchResultsData, CommentSearchResultsData } from '@/lib/ai/types/FunctionResult';
 
 export interface FunctionCardProps {
   data: any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -14,7 +14,7 @@ export interface PostCreationGuidanceData {
 }
 
 // Add more specific data types as we add more function cards
-export type FunctionCardData = PostCreationGuidance | SearchResultsData | LockSearchResultsData;
+export type FunctionCardData = PostCreationGuidance | SearchResultsData | LockSearchResultsData | CommentSearchResultsData;
 
 // Generic props with typed data
 export interface TypedFunctionCardProps<T> {
@@ -26,6 +26,7 @@ export interface TypedFunctionCardProps<T> {
 export type PostCreationGuidanceCardProps = TypedFunctionCardProps<PostCreationGuidance>;
 export type SearchResultsCardProps = TypedFunctionCardProps<SearchResultsData>;
 export type LockSearchResultsCardProps = TypedFunctionCardProps<LockSearchResultsData>;
+export type CommentSearchResultsCardProps = TypedFunctionCardProps<CommentSearchResultsData>;
 
 // Re-export the data interfaces for convenience
-export type { PostCreationGuidance, SearchResultsData, LockSearchResultsData }; 
+export type { PostCreationGuidance, SearchResultsData, LockSearchResultsData, CommentSearchResultsData }; 

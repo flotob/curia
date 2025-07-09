@@ -24,6 +24,35 @@ export interface SemanticSearchResult extends EnrichedPost {
   rank_score: number; // Combined semantic + traditional ranking
 }
 
+export interface CommentSearchResult {
+  id: number;
+  content: string;
+  author_user_id: string;
+  author_name: string;
+  author_profile_picture_url?: string;
+  created_at: string;
+  similarity_score: number;
+  
+  // Post context for navigation and relevance
+  post_context: {
+    id: number;
+    title: string;
+    board_id: number;
+    board_name: string;
+    upvote_count: number;
+    comment_count: number;
+    community_short_id?: string;
+    plugin_id?: string;
+  };
+  
+  // Thread context (for nested replies)
+  thread_context?: {
+    parent_comment_id: number;
+    depth: number;
+    is_reply: boolean;
+  };
+}
+
 export interface RelatedPost {
   id: number;
   title: string;
@@ -255,6 +284,137 @@ export class SemanticSearchService {
       }
       throw new ValidationError(
         'Semantic search failed',
+        { originalError: error, searchQuery: searchQuery.substring(0, 100) }
+      );
+    }
+  }
+
+  /**
+   * Perform semantic search on comments with post context
+   */
+  static async semanticSearchComments(
+    searchQuery: string,
+    accessibleBoardIds: number[],
+    options: SemanticSearchOptions = {}
+  ): Promise<CommentSearchResult[]> {
+    try {
+      const {
+        limit = 10,
+        threshold = 0.3, // Higher threshold for comments (more selective)
+      } = options;
+
+      // Validate inputs
+      if (!searchQuery?.trim()) {
+        throw new ValidationError('Search query is required');
+      }
+
+      if (!accessibleBoardIds?.length) {
+        return []; // No accessible boards = no results
+      }
+
+      // Generate query embedding
+      const queryEmbedding = await SemanticSearchService.embedQuery(searchQuery);
+
+      // Build comment search SQL with post context and security filtering
+      const boardIdsPlaceholders = accessibleBoardIds.map((_, i) => `$${i + 1}`).join(', ');
+      
+      const sql = `
+        WITH comment_search AS (
+          SELECT 
+            c.id,
+            c.content,
+            c.author_user_id,
+            c.created_at,
+            c.parent_comment_id,
+            c.post_id,
+            -- Semantic similarity score
+            (1 - (c.embedding <=> $${accessibleBoardIds.length + 1}::vector)) as similarity_score,
+            -- User info
+            u.name as author_name,
+            u.profile_picture_url as author_profile_picture_url,
+            -- Post context for navigation and relevance
+            p.id as post_id,
+            p.title as post_title,
+            p.board_id as post_board_id,
+            p.upvote_count as post_upvote_count,
+            p.comment_count as post_comment_count,
+            -- Board and community info
+            b.name as board_name,
+            b.id as board_id,
+            cm.community_short_id,
+            cm.plugin_id,
+            -- Calculate thread depth for nested comments
+            CASE 
+              WHEN c.parent_comment_id IS NOT NULL THEN 1
+              ELSE 0
+            END as thread_depth
+          FROM comments c
+          -- SECURITY: Join through posts to inherit post visibility
+          JOIN posts p ON c.post_id = p.id
+          JOIN users u ON c.author_user_id = u.user_id
+          JOIN boards b ON p.board_id = b.id
+          JOIN communities cm ON b.community_id = cm.id
+          WHERE 
+            -- SECURITY: Only comments from accessible boards
+            p.board_id IN (${boardIdsPlaceholders})
+            -- Only comments with embeddings
+            AND c.embedding IS NOT NULL
+            -- Similarity threshold filter
+            AND (1 - (c.embedding <=> $${accessibleBoardIds.length + 1}::vector)) > $${accessibleBoardIds.length + 2}
+        )
+        SELECT *
+        FROM comment_search
+        ORDER BY similarity_score DESC
+        LIMIT $${accessibleBoardIds.length + 3}
+      `;
+
+      const params = [
+        ...accessibleBoardIds, 
+        `[${queryEmbedding.join(',')}]`, 
+        threshold, 
+        limit
+      ];
+
+      const result = await query(sql, params);
+
+      // Transform results to CommentSearchResult format
+      return result.rows.map((row: any) => ({
+        id: row.id,
+        content: row.content,
+        author_user_id: row.author_user_id,
+        author_name: row.author_name,
+        author_profile_picture_url: row.author_profile_picture_url,
+        created_at: row.created_at,
+        similarity_score: Number(row.similarity_score),
+        
+        post_context: {
+          id: row.post_id,
+          title: row.post_title,
+          board_id: row.post_board_id,
+          board_name: row.board_name,
+          upvote_count: row.post_upvote_count,
+          comment_count: row.post_comment_count,
+          community_short_id: row.community_short_id,
+          plugin_id: row.plugin_id,
+        },
+        
+        // Include thread context if it's a reply
+        ...(row.parent_comment_id && {
+          thread_context: {
+            parent_comment_id: row.parent_comment_id,
+            depth: row.thread_depth,
+            is_reply: true,
+          }
+        }),
+      })) as CommentSearchResult[];
+
+    } catch (error) {
+      console.error('[SemanticSearchService] Comment search failed:', error);
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      throw new ValidationError(
+        'Comment semantic search failed',
         { originalError: error, searchQuery: searchQuery.substring(0, 100) }
       );
     }

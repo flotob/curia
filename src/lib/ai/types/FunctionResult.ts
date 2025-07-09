@@ -64,6 +64,44 @@ export interface SearchResultsData {
   }>;
 }
 
+export interface CommentSearchResultsData {
+  type: 'comment_search_results';
+  success: boolean;
+  messageForAI?: string;
+  errorForAI?: string;
+  searchResults?: Array<{
+    id: number;
+    content: string;
+    author: string;
+    authorAvatar?: string;
+    created_at: string;
+    similarity_score: number; // Percentage 0-100
+    
+    // Post context for navigation and relevance
+    postContext: {
+      id: number;
+      title: string;
+      boardName: string;
+      upvotes: number;
+      totalComments: number;
+    };
+    
+    // Thread context for replies
+    threadContext?: {
+      parentCommentId: number;
+      depth: number;
+      isReply: boolean;
+    };
+    
+    // Navigation metadata
+    postId: number;
+    boardId: number;
+    communityShortId?: string;
+    pluginId?: string;
+    navigationType: 'internal' | 'external';
+  }>;
+}
+
 // Keep the old interface for backward compatibility during transition
 export interface SearchResults {
   success: boolean;
@@ -114,4 +152,4 @@ export interface LockSearchResultsData {
   }>;
 }
 
-export type FunctionResult = SearchResultsData | PostCreationGuidance | TrendingAnalysisData | LockSearchResultsData; 
+export type FunctionResult = SearchResultsData | CommentSearchResultsData | PostCreationGuidance | TrendingAnalysisData | LockSearchResultsData; 

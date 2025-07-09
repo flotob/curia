@@ -1,5 +1,6 @@
 import { AIFunctionCall, FunctionContext } from '../types/FunctionCall';
 import { searchCommunityKnowledge } from '../functions/searchCommunityKnowledge';
+import { searchCommunityComments } from '../functions/searchCommunityComments';
 import { showPostCreationGuidance } from '../functions/showPostCreationGuidance';
 import { getCommunityTrends } from '../functions/getCommunityTrends';
 import { searchLocks } from '../functions/searchLocks';
@@ -10,6 +11,7 @@ export class FunctionRegistry {
   constructor() {
     // Register all available functions
     this.register(searchCommunityKnowledge);
+    this.register(searchCommunityComments);
     this.register(showPostCreationGuidance);
     this.register(getCommunityTrends);
     this.register(searchLocks);

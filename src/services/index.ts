@@ -42,6 +42,7 @@ export {
   SemanticSearchService,
   type SemanticSearchOptions,
   type SemanticSearchResult,
+  type CommentSearchResult,
   type RelatedPost,
   type CachedEmbedding,
   type EmbeddingStats,

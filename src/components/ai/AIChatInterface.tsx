@@ -375,6 +375,11 @@ export const AIChatInterface = forwardRef<AIChatInterfaceRef, AIChatInterfacePro
           console.log('[AIChatInterface] Post navigation:', params);
           // Additional tracking/analytics if needed
           break;
+        case 'navigateToComment':
+          console.log('[AIChatInterface] Comment navigation:', params);
+          // Additional tracking/analytics if needed for comment navigation
+          // Future enhancement: Could implement comment highlighting or scrolling
+          break;
         // Handle other actions as we add more function cards
       }
     };

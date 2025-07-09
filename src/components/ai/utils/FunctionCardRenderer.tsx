@@ -19,11 +19,18 @@ const LockSearchResultsCard = lazy(() =>
   }))
 );
 
+const CommentSearchResultsCard = lazy(() => 
+  import('../function-cards/CommentSearchResultsCard').then(module => ({
+    default: module.CommentSearchResultsCard
+  }))
+);
+
 // Registry of function card components
 const FUNCTION_CARD_COMPONENTS = {
   post_creation_guidance: PostCreationGuidanceCard,
   search_results: SearchResultsCard,
   lock_search_results: LockSearchResultsCard,
+  comment_search_results: CommentSearchResultsCard,
   // Add more function card components as we create them
   // board_suggestions: BoardSuggestionCard,
   // user_profile: UserProfileCard,
@@ -56,7 +63,6 @@ export function FunctionCardRenderer({ data, onAction }: FunctionCardRendererPro
   );
 }
 
-// Helper function to check if a type is a valid function card type
-export function isValidFunctionCardType(type: string): type is FunctionCardType {
+export function isValidFunctionCardType(type: string): boolean {
   return type in FUNCTION_CARD_COMPONENTS;
 } 
