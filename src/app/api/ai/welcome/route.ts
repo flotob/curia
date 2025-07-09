@@ -46,7 +46,7 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
       );
 
       const communityResult = await query(
-        `SELECT name, description FROM communities WHERE id = $1`,
+        `SELECT name FROM communities WHERE id = $1`,
         [communityId]
       );
 
