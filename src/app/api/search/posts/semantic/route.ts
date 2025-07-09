@@ -15,7 +15,7 @@ const GET = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '10');
-    const threshold = parseFloat(searchParams.get('threshold') || '0.3');
+    const threshold = parseFloat(searchParams.get('threshold') || '0.01'); // Very low threshold to see actual scores
     
     // Input validation
     if (!query?.trim()) {

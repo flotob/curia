@@ -188,7 +188,7 @@ export class SemanticSearchService {
             c.name as community_name,
             c.logo_url as community_logo_url,
             -- Semantic similarity score (0-1, higher is better)
-            (1 - (p.embedding <-> $${params.length - 2})) as similarity_score,
+            (1 - (p.embedding <=> $${params.length - 2}::vector)) as similarity_score,
             -- Traditional ranking signals
             (
               -- Upvote boost (logarithmic to prevent dominance)
@@ -223,7 +223,7 @@ export class SemanticSearchService {
           WHERE 
             p.board_id IN (${boardIdsPlaceholders})
             AND p.embedding IS NOT NULL
-            AND (1 - (p.embedding <-> $${params.length - 2})) > $${params.length - 1}
+            AND (1 - (p.embedding <=> $${params.length - 2}::vector)) > $${params.length - 1}
         )
         SELECT *, 
                (similarity_score * 0.7 + boost_score * 0.3) as rank_score
@@ -232,7 +232,33 @@ export class SemanticSearchService {
         LIMIT $${params.length}
       `;
 
+      console.log('[SemanticSearchService] Executing semantic search:', {
+        searchQuery: searchQuery.substring(0, 50),
+        accessibleBoardIds,
+        threshold,
+        limit,
+        embeddingLength: queryEmbedding.length,
+        includeUserVoting,
+        userId,
+        paramsLength: params.length,
+        paramsStructure: params.map((p, i) => `$${i+1}: ${typeof p} ${typeof p === 'string' ? p.substring(0, 20) : p}`),
+        boardIdsPlaceholders
+      });
+      
+      console.log('[SemanticSearchService] Generated SQL:', sql);
+      console.log('[SemanticSearchService] Parameters:', params.map((p, i) => `$${i+1}: ${typeof p} - ${typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p}`));
+      
       const result = await query(sql, params);
+      
+      console.log('[SemanticSearchService] Search results:', {
+        resultCount: result.rows.length,
+        topResults: result.rows.slice(0, 5).map(row => ({
+          postId: row.id,
+          title: row.title?.substring(0, 50),
+          similarityScore: row.similarity_score,
+          rankScore: row.rank_score
+        }))
+      });
 
       return result.rows.map((row: Record<string, unknown>) => ({
         ...row,
@@ -296,7 +322,7 @@ export class SemanticSearchService {
           p.created_at,
           u.name as author_name,
           b.name as board_name,
-          (1 - (p.embedding <-> $1)) as similarity_score
+          (1 - (p.embedding <=> $1::vector)) as similarity_score
         FROM posts p
         JOIN users u ON p.author_user_id = u.user_id
         JOIN boards b ON p.board_id = b.id
@@ -304,12 +330,15 @@ export class SemanticSearchService {
           p.id != $${accessibleBoardIds.length + 2}
           AND p.board_id IN (${boardIdsPlaceholders})
           AND p.embedding IS NOT NULL
-          AND (1 - (p.embedding <-> $1)) > $${accessibleBoardIds.length + 3}
+          AND (1 - (p.embedding <=> $1::vector)) > $${accessibleBoardIds.length + 3}
         ORDER BY similarity_score DESC
         LIMIT $${accessibleBoardIds.length + 4}
       `;
 
-             const params = [`[${postEmbedding.join(',')}]`, ...accessibleBoardIds, postId, threshold, limit];
+      const params = [`[${postEmbedding.join(',')}]`, ...accessibleBoardIds, postId, threshold, limit];
+      
+      console.log('[SemanticSearchService] Related posts SQL:', sql);
+      console.log('[SemanticSearchService] Related posts params:', params.map((p, i) => `$${i+1}: ${typeof p} - ${typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p}`));
       const result = await query(sql, params);
 
       return result.rows.map((row: Record<string, unknown>) => ({

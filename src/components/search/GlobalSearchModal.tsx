@@ -11,7 +11,8 @@ import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Search, ArrowUp, MessageSquare, Plus, TrendingUp, X, Edit3, Globe } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Search, ArrowUp, MessageSquare, Plus, TrendingUp, X, Edit3, Globe, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VoteButton } from '@/components/voting/VoteButton';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -23,6 +24,12 @@ import { ModalContainer } from '@/components/modals/ModalContainer';
 interface SearchResult extends ApiPost {
   [key: string]: unknown;
 }
+
+interface SemanticSearchResult extends SearchResult {
+  similarity_score: number;
+}
+
+type SearchMode = 'quick' | 'smart';
 
 export function GlobalSearchModal() {
   const { 
@@ -40,6 +47,8 @@ export function GlobalSearchModal() {
   
   const [currentInput, setCurrentInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [semanticQuery, setSemanticQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<SearchMode>('quick');
   const [showInlineForm, setShowInlineForm] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0); // For keyboard navigation
@@ -108,20 +117,29 @@ export function GlobalSearchModal() {
     }
   }, [isSearchOpen, shouldAutoExpand, clearAutoExpand]);
 
-  // Debounced search query update
+  // Debounced search query update - different delays for different modes
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setSearchQuery(currentInput);
-    }, 300);
-    
-    return () => clearTimeout(timeoutId);
-  }, [currentInput]);
+    if (searchMode === 'quick') {
+      const timeoutId = setTimeout(() => {
+        setSearchQuery(currentInput);
+      }, 300); // Fast for keyword search
+      
+      return () => clearTimeout(timeoutId);
+    } else {
+      // For smart search, update with longer delay
+      const timeoutId = setTimeout(() => {
+        setSemanticQuery(currentInput);
+      }, 500); // Slower for semantic search
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentInput, searchMode]);
 
-  // Search for similar posts
+  // Search for similar posts - Quick Search (keyword)
   const { 
-    data: searchResults, 
-    isLoading: isSearching,
-    error: searchError
+    data: quickSearchResults, 
+    isLoading: isQuickSearching,
+    error: quickSearchError
   } = useQuery<SearchResult[]>({
     queryKey: ['globalSearchPosts', searchQuery, currentSearchScope],
     queryFn: async () => {
@@ -134,9 +152,36 @@ export function GlobalSearchModal() {
       
       return authFetchJson<SearchResult[]>(`/api/search/posts?${queryParams.toString()}`, { token });
     },
-    enabled: !!token && searchQuery.trim().length >= 3 && isSearchOpen,
+    enabled: !!token && searchQuery.trim().length >= 3 && isSearchOpen && searchMode === 'quick',
     staleTime: 30000,
   });
+
+  // Semantic search - Smart Search (AI-powered)
+  const { 
+    data: semanticSearchResults, 
+    isLoading: isSemanticSearching,
+    error: semanticSearchError
+  } = useQuery<SemanticSearchResult[]>({
+    queryKey: ['globalSemanticSearchPosts', semanticQuery, currentSearchScope],
+    queryFn: async () => {
+      if (semanticQuery.trim().length < 3) return [];
+      
+      const queryParams = new URLSearchParams({
+        q: semanticQuery.trim(),
+        ...(currentSearchScope && { boardId: currentSearchScope })
+      });
+      
+      return authFetchJson<SemanticSearchResult[]>(`/api/search/posts/semantic?${queryParams.toString()}`, { token });
+    },
+    enabled: !!token && semanticQuery.trim().length >= 3 && isSearchOpen && searchMode === 'smart',
+    staleTime: 30000,
+  });
+
+  // Determine which results to use based on current search mode
+  const searchResults = searchMode === 'quick' ? quickSearchResults : semanticSearchResults;
+  const isSearching = searchMode === 'quick' ? isQuickSearching : isSemanticSearching;
+  const searchError = searchMode === 'quick' ? quickSearchError : semanticSearchError;
+  const activeQuery = searchMode === 'quick' ? searchQuery : semanticQuery;
 
   // Handler for modal search input
   const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,7 +218,7 @@ export function GlobalSearchModal() {
   }, [buildInternalUrl, router, closeSearch]);
 
   const hasResults = searchResults && searchResults.length > 0;
-  const showCreateButton = (currentInput.length >= 3 || searchQuery.length >= 3) && !isSearching && (!hasResults || searchResults?.length === 0);
+  const showCreateButton = (currentInput.length >= 3 || activeQuery.length >= 3) && !isSearching && (!hasResults || searchResults?.length === 0);
   
   // Calculate total navigable items (Create post + actual results)
   const totalNavigableItems = hasResults ? 1 + searchResults.length : (showCreateButton ? 1 : 0);
@@ -194,11 +239,24 @@ export function GlobalSearchModal() {
     }
   }, [selectedIndex]);
 
+  // Handle search mode change
+  const handleSearchModeChange = useCallback((newMode: SearchMode) => {
+    setSearchMode(newMode);
+    // Clear the inactive search state when switching modes
+    if (newMode === 'quick') {
+      setSemanticQuery('');
+    } else {
+      setSearchQuery('');
+    }
+  }, []);
+
   // Enhanced close function
   const handleClose = useCallback(() => {
     setShowInlineForm(false);
     setCurrentInput('');
     setSearchQuery('');
+    setSemanticQuery('');
+    setSearchMode('quick'); // Reset to default
     setGlobalSearchQuery('');
     closeSearch();
   }, [closeSearch, setGlobalSearchQuery]);
@@ -319,6 +377,22 @@ export function GlobalSearchModal() {
                   )}
                 </div>
                 
+                {/* Search Mode Tabs */}
+                <div className="mt-3">
+                  <Tabs value={searchMode} onValueChange={(value) => handleSearchModeChange(value as SearchMode)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="quick" className="flex items-center space-x-2">
+                        <Search size={14} />
+                        <span>Quick Search</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="smart" className="flex items-center space-x-2">
+                        <Sparkles size={14} />
+                        <span>Smart Search</span>
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                
                 {/* Search Scope Indicator */}
                 {(currentSearchScope || searchQuery.length >= 1) && (
                   <div className="flex items-center gap-2 mt-3">
@@ -392,8 +466,12 @@ export function GlobalSearchModal() {
                       <Loader2 size={32} className="text-primary/20" />
                     </div>
                   </div>
-                  <p className="mt-4 text-lg font-medium">Searching for similar posts...</p>
-                  <p className="text-sm text-muted-foreground/70">Finding the best matches for your query</p>
+                  <p className="mt-4 text-lg font-medium">
+                    {searchMode === 'smart' ? 'Analyzing content for meaning...' : 'Searching for similar posts...'}
+                  </p>
+                  <p className="text-sm text-muted-foreground/70">
+                    {searchMode === 'smart' ? 'Using AI to find conceptually related discussions' : 'Finding the best matches for your query'}
+                  </p>
                 </div>
               )}
 
@@ -416,7 +494,7 @@ export function GlobalSearchModal() {
               )}
 
               {/* Empty Input State */}
-              {!isSearching && !searchError && !currentInput && !searchQuery && (
+              {!isSearching && !searchError && !currentInput && !activeQuery && (
                 <div className="p-8 text-center min-h-[200px] flex flex-col justify-center">
                   <div className="text-primary/40 mb-4">
                     <Search size={48} className="mx-auto" />
@@ -462,11 +540,16 @@ export function GlobalSearchModal() {
                           <TrendingUp size={20} className="text-primary" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-semibold">Similar discussions found</h3>
+                          <h3 className="text-lg font-semibold">
+                            {searchMode === 'smart' ? 'Conceptually related discussions' : 'Similar discussions found'}
+                          </h3>
                           <p className="text-sm text-muted-foreground">
-                            {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &quot;{currentInput || searchQuery}&quot;
+                            {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &quot;{currentInput || activeQuery}&quot;
                             {currentSearchScope && currentBoard && (
                               <span className="ml-1 text-primary/70">in {currentBoard.name}</span>
+                            )}
+                            {searchMode === 'smart' && (
+                              <span className="ml-2 text-primary/70">• AI-powered</span>
                             )}
                           </p>
                         </div>
@@ -492,7 +575,7 @@ export function GlobalSearchModal() {
                       ref={selectedIndex === 0 ? selectedItemRef : null}
                     >
                       <CreateNewPostItem 
-                        searchQuery={(currentInput || searchQuery).trim()} 
+                        searchQuery={(currentInput || activeQuery).trim()} 
                         onClick={() => handleCreatePostClick()}
                         isSelected={selectedIndex === 0}
                       />
@@ -510,6 +593,7 @@ export function GlobalSearchModal() {
                           post={post} 
                           onClick={() => handlePostClick(post)}
                           isSelected={selectedIndex === index + 1}
+                          searchMode={searchMode}
                         />
                       </div>
                     ))}
@@ -541,7 +625,7 @@ export function GlobalSearchModal() {
                     <div className="p-6">
                       <div className="mb-4 text-center">
                         <h3 className="text-lg font-semibold text-muted-foreground">
-                          Creating new post for: &quot;{currentInput || searchQuery}&quot;
+                          Creating new post for: &quot;{currentInput || activeQuery}&quot;
                           {currentSearchScope && currentBoard && (
                             <span className="block text-sm font-normal text-muted-foreground/70 mt-1">
                               in {currentBoard.name}
@@ -558,7 +642,7 @@ export function GlobalSearchModal() {
                           handleClose();
                         }}
                         boardId={currentSearchScope}
-                        initialTitle={autoExpandTitle || (currentInput || searchQuery).trim()}
+                        initialTitle={autoExpandTitle || (currentInput || activeQuery).trim()}
                         inline={true}
                       />
                     </div>
@@ -592,7 +676,7 @@ export function GlobalSearchModal() {
                       <div className="p-6">
                         <div className="mb-4 text-center">
                           <h3 className="text-lg font-semibold text-muted-foreground">
-                            Creating new post for: &quot;{currentInput || searchQuery}&quot;
+                            Creating new post for: &quot;{currentInput || activeQuery}&quot;
                             {currentSearchScope && currentBoard && (
                               <span className="block text-sm font-normal text-muted-foreground/70 mt-1">
                                 in {currentBoard.name}
@@ -609,7 +693,7 @@ export function GlobalSearchModal() {
                             handleClose();
                           }}
                           boardId={currentSearchScope}
-                          initialTitle={autoExpandTitle || (currentInput || searchQuery).trim()}
+                          initialTitle={autoExpandTitle || (currentInput || activeQuery).trim()}
                           inline={true}
                         />
                       </div>
@@ -627,7 +711,7 @@ export function GlobalSearchModal() {
                             <h3 className="text-xl font-semibold mb-2">No similar posts found</h3>
                             <p className="text-muted-foreground">
                               We couldn&apos;t find any existing discussions about <br />
-                              <span className="font-medium text-foreground">&quot;{currentInput || searchQuery}&quot;</span>
+                              <span className="font-medium text-foreground">&quot;{currentInput || activeQuery}&quot;</span>
                             </p>
                           </div>
                           
@@ -720,15 +804,18 @@ const CreateNewPostItem: React.FC<CreateNewPostItemProps> = ({ searchQuery, onCl
   );
 };
 
-// Search Result Item Component
+// Search Result Item Component  
 interface SearchResultItemProps {
   post: SearchResult;
   onClick: () => void;
   isSelected?: boolean;
+  searchMode?: SearchMode;
 }
 
-const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick, isSelected }) => {
+const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick, isSelected, searchMode }) => {
   const timeSinceText = useTimeSince(post.created_at);
+  const semanticPost = post as SemanticSearchResult;
+  const relevanceScore = searchMode === 'smart' && 'similarity_score' in post ? semanticPost.similarity_score : null;
   
   return (
     <Card 
@@ -752,17 +839,29 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ post, onClick, isSe
               {post.title}
             </h3>
             
-            {/* Board Context Badge */}
-            {post.board_name && (
-              <div className="inline-flex items-center">
+            {/* Board Context Badge & Relevance Score */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {post.board_name && (
                 <span className={cn(
                   "px-2 py-1 text-xs font-medium rounded-full",
                   "bg-primary/10 text-primary border border-primary/20"
                 )}>
                   📋 {post.board_name}
                 </span>
-              </div>
-            )}
+              )}
+              
+              {/* Semantic Search Relevance Score */}
+              {relevanceScore && (
+                <span className={cn(
+                  "px-2 py-1 text-xs font-medium rounded-full",
+                  "bg-gradient-to-r from-emerald-500/10 to-green-500/10 text-emerald-600 border border-emerald-500/20",
+                  "flex items-center gap-1"
+                )}>
+                  <Sparkles size={10} />
+                  {Math.round(relevanceScore * 100)}% match
+                </span>
+              )}
+            </div>
           </div>
           
           {/* Engagement Metrics */}
