@@ -40,9 +40,9 @@ const POST = withAuthAndErrorHandling(async (request: EnhancedAuthRequest) => {
         `SELECT 
           (SELECT COUNT(*) FROM posts WHERE author_user_id = $1) as post_count,
           (SELECT COUNT(*) FROM comments WHERE author_user_id = $1) as comment_count,
-          (SELECT created_at FROM users WHERE user_id = $1) as user_since
+          (SELECT first_visited_at FROM user_communities WHERE user_id = $1 AND community_id = $2) as user_since
          FROM users WHERE user_id = $1 LIMIT 1`,
-        [userId]
+        [userId, communityId]
       );
 
       const communityResult = await query(
