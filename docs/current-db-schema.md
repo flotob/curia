@@ -185,8 +185,11 @@ CREATE TABLE "public"."comments" (
     "content" text NOT NULL,
     "created_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "embedding" vector(1536),
     CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
 ) WITH (oids = false);
+
+COMMENT ON COLUMN "public"."comments"."embedding" IS 'Semantic search vector from OpenAI text-embedding-3-small model. Generated from comment content. NULL indicates needs embedding generation.';
 
 CREATE INDEX comments_post_id_index ON public.comments USING btree (post_id);
 
@@ -194,8 +197,16 @@ CREATE INDEX comments_author_user_id_index ON public.comments USING btree (autho
 
 CREATE INDEX comments_parent_comment_id_index ON public.comments USING btree (parent_comment_id);
 
+CREATE INDEX comments_embedding_hnsw_idx ON public.comments USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64');
+
+CREATE INDEX comments_embedding_null_idx ON public.comments USING btree (id) WHERE (embedding IS NULL);
+
+CREATE INDEX comments_post_embedding_idx ON public.comments USING btree (post_id, id) WHERE (embedding IS NOT NULL);
+
 
 DELIMITER ;;
+
+CREATE TRIGGER "comments_embedding_trigger" AFTER INSERT OR UPDATE ON "public"."comments" FOR EACH ROW EXECUTE FUNCTION notify_embedding_needed();;
 
 CREATE TRIGGER "set_timestamp_comments" BEFORE UPDATE ON "public"."comments" FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();;
 
