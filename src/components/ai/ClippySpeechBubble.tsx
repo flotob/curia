@@ -184,8 +184,9 @@ export default function ClippySpeechBubble({
           exit={{ opacity: 0, scale: 0.8, y: 20 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
           className="fixed bottom-[200px] right-2 md:bottom-[220px] md:right-[200px] z-30 w-[90vw] sm:w-[85vw] md:w-80 lg:w-96 xl:w-[420px]"
+          data-clippy
         >
-          <Card className={`${styles.bg} ${styles.border} border ${styles.shadow} overflow-hidden`}>
+          <Card className={`${styles.bg} ${styles.border} border ${styles.shadow} overflow-hidden clippy-speech-bubble`}>
             {/* Gradient overlay */}
             <div className={`absolute inset-0 bg-gradient-to-br ${styles.gradient} pointer-events-none`} />
             
