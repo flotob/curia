@@ -5,14 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  FileText, 
   ArrowUp, 
   MessageSquare, 
   Sparkles,
   ChevronRight,
-  Clock
+  Clock,
+  FileText
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetchJson } from '@/utils/authFetch';
 import { useRouter } from 'next/navigation';
@@ -24,6 +24,7 @@ interface RelatedPost {
   title: string;
   content: string;
   author_name: string;
+  author_profile_picture_url?: string;
   board_name: string;
   board_id: number;
   upvote_count: number;
@@ -60,7 +61,7 @@ export function RelatedPostsWidget({
     queryKey: ['relatedPosts', postId],
     queryFn: async () => {
       if (!token || !postId) return { relatedPosts: [], message: '', postId: 0, totalResults: 0, semanticStats: { similarity_threshold: 0, processing_time_ms: 0 } };
-      return authFetchJson<RelatedPostsApiResponse>(`/api/posts/${postId}/related`, { token });
+      return authFetchJson<RelatedPostsApiResponse>(`/api/posts/${postId}/related?threshold=0.18`, { token });
     },
     enabled: !!token && !!postId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -69,19 +70,7 @@ export function RelatedPostsWidget({
   // Extract the actual posts array from the API response
   const relatedPosts = apiResponse?.relatedPosts || [];
 
-  // Helper function to get similarity label
-  const getSimilarityLabel = (score: number): string => {
-    if (score >= 0.3) return 'Strong match';
-    if (score >= 0.25) return 'Good match';
-    return 'Relevant';
-  };
 
-  // Helper function to get similarity color
-  const getSimilarityColor = (score: number): string => {
-    if (score >= 0.3) return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
-    if (score >= 0.25) return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
-    return 'bg-slate-500/10 text-slate-600 border-slate-500/20';
-  };
 
   const handlePostClick = (relatedPost: RelatedPost) => {
     const url = buildPostUrl(relatedPost.id, relatedPost.board_id, true);
@@ -91,7 +80,7 @@ export function RelatedPostsWidget({
   // Don't render if no posts or loading
   if (isLoading) {
     return (
-      <Card className={cn("transition-all duration-200", className)}>
+      <Card className={`transition-all duration-200 ${className || ''}`}>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center space-x-2">
             <Sparkles size={16} className="text-primary" />
@@ -119,7 +108,7 @@ export function RelatedPostsWidget({
   }
 
   return (
-    <Card className={cn("transition-all duration-200 hover:shadow-sm", className)}>
+    <Card className={`transition-all duration-200 hover:shadow-sm ${className || ''}`}>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -137,8 +126,6 @@ export function RelatedPostsWidget({
             key={post.id}
             post={post}
             onClick={() => handlePostClick(post)}
-            similarityLabel={getSimilarityLabel(post.similarity_score)}
-            similarityColor={getSimilarityColor(post.similarity_score)}
           />
         ))}
       </CardContent>
@@ -150,15 +137,11 @@ export function RelatedPostsWidget({
 interface RelatedPostItemProps {
   post: RelatedPost;
   onClick: () => void;
-  similarityLabel: string;
-  similarityColor: string;
 }
 
 function RelatedPostItem({ 
   post, 
-  onClick, 
-  similarityLabel, 
-  similarityColor 
+  onClick
 }: RelatedPostItemProps) {
   const timeSinceText = useTimeSince(post.created_at);
 
@@ -167,61 +150,55 @@ function RelatedPostItem({
       className="group cursor-pointer transition-all duration-200 hover:bg-accent/50 rounded-lg p-2 -m-2"
       onClick={onClick}
     >
-      <div className="space-y-2">
-        {/* Post title with similarity badge */}
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-medium line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-            {post.title}
-          </h4>
-          <Badge 
-            variant="secondary" 
-            className={cn(
-              "text-xs px-1.5 py-0.5 flex-shrink-0 flex items-center gap-1",
-              similarityColor
-            )}
-          >
-            <Sparkles size={10} />
-            {similarityLabel}
-          </Badge>
-        </div>
-
-        {/* Board context */}
-        {post.board_name && (
-          <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-            <FileText size={10} />
-            <span className="truncate">📋 {post.board_name}</span>
+      <div className="flex items-start gap-3">
+        <Avatar className="w-8 h-8 flex-shrink-0">
+          <AvatarImage src={post.author_profile_picture_url} alt={post.author_name} />
+          <AvatarFallback className="text-xs">
+            {post.author_name.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        
+        <div className="flex-1 min-w-0">
+          {/* Post title with optional similarity badge */}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h4 className="text-sm font-medium line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+              {post.title}
+            </h4>
+                          {/* Click indicator */}
+              <ChevronRight 
+                size={12} 
+                className="text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-200 flex-shrink-0" 
+              />
           </div>
-        )}
 
-        {/* Engagement metrics */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+          {/* Board context */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+            <FileText className="w-3 h-3" />
+            <span>{post.board_name}</span>
+          </div>
+          
+          {/* Engagement metrics and time */}
+          <div className="flex items-center space-x-3 text-xs text-muted-foreground mb-1">
             <div className="flex items-center space-x-1">
-              <ArrowUp size={10} />
+              <ArrowUp className="w-3 h-3" />
               <span>{post.upvote_count}</span>
             </div>
             <div className="flex items-center space-x-1">
-              <MessageSquare size={10} />
+              <MessageSquare className="w-3 h-3" />
               <span>{post.comment_count}</span>
             </div>
             <div className="flex items-center space-x-1">
-              <Clock size={10} />
-              <span>{timeSinceText}</span>
+              <Clock className="w-3 h-3" />
+              <span>{timeSinceText.replace(' ago', '')}</span>
             </div>
           </div>
           
-          {/* Click indicator */}
-          <ChevronRight 
-            size={12} 
-            className="text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-200" 
-          />
-        </div>
-
-        {/* Author info */}
-        <div className="text-xs text-muted-foreground truncate">
-          by {post.author_name}
+          {/* Author info - separate line */}
+          <div className="text-xs text-muted-foreground">
+            by {post.author_name}
+          </div>
         </div>
       </div>
     </div>
   );
-} 
+}

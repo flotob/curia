@@ -54,6 +54,10 @@ export const searchCommunityKnowledge: AIFunctionCall = {
         snippet: row.content.substring(0, 200) + '...',
         boardName: row.board_name,
         created_at: row.created_at,
+        // Engagement metrics
+        comment_count: row.comment_count,
+        // Semantic search metadata
+        similarity_score: Math.round(row.similarity_score * 100), // Convert to percentage
         // Navigation metadata
         boardId: row.board_id,
         postId: row.id,
@@ -85,7 +89,7 @@ export const searchCommunityKnowledge: AIFunctionCall = {
         console.log('[AI searchCommunityKnowledge] Falling back to keyword search...');
         
         const fallbackResults = await query(
-          `SELECT p.id, p.title, p.content, p.board_id, p.upvote_count, p.created_at,
+          `SELECT p.id, p.title, p.content, p.board_id, p.upvote_count, p.comment_count, p.created_at,
                   u.name as author_name, u.profile_picture_url,
                   b.name as board_name,
                   c.community_short_id, c.plugin_id, c.name as community_name
@@ -109,6 +113,9 @@ export const searchCommunityKnowledge: AIFunctionCall = {
           snippet: row.content.substring(0, 200) + '...',
           boardName: row.board_name,
           created_at: row.created_at,
+          // Engagement metrics
+          comment_count: row.comment_count,
+          // No similarity score for keyword search
           boardId: row.board_id,
           postId: row.id,
           communityShortId: row.community_short_id || '',

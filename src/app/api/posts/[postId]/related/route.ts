@@ -77,6 +77,7 @@ const GET = withAuthAndErrorHandling(async (request: EnhancedAuthRequest, contex
           post.content.substring(0, 200) + '...' : 
           post.content,
         author_name: post.author_name,
+        author_profile_picture_url: post.author_profile_picture_url,
         board_name: post.board_name,
         board_id: post.board_id,
         upvote_count: post.upvote_count,

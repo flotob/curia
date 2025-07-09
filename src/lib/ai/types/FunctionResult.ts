@@ -51,6 +51,10 @@ export interface SearchResultsData {
     snippet: string;
     boardName: string;
     created_at: string;
+    // Engagement metrics
+    comment_count?: number;
+    // Semantic search metadata
+    similarity_score?: number; // Percentage 0-100
     // Navigation metadata
     boardId: number;
     postId: number;

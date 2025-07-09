@@ -29,6 +29,7 @@ export interface RelatedPost {
   title: string;
   content: string;
   author_name: string;
+  author_profile_picture_url?: string;
   board_name: string;
   board_id: number;
   upvote_count: number;
@@ -309,6 +310,7 @@ export class SemanticSearchService {
           p.comment_count,
           p.created_at,
           u.name as author_name,
+          u.profile_picture_url as author_profile_picture_url,
           b.name as board_name,
           b.id as board_id,
           (1 - (p.embedding <=> $1::vector)) as similarity_score
@@ -332,6 +334,7 @@ export class SemanticSearchService {
         title: String(row.title),
         content: String(row.content),
         author_name: String(row.author_name),
+        author_profile_picture_url: row.author_profile_picture_url ? String(row.author_profile_picture_url) : undefined,
         board_name: String(row.board_name),
         board_id: Number(row.board_id),
         upvote_count: Number(row.upvote_count),
