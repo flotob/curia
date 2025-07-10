@@ -274,7 +274,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           freshCgData = {
             userId: userInfoResponse.data.id,
             name: userInfoResponse.data.name,
-            profilePictureUrl: (userInfoResponse.data as any).imageUrl,
+            profilePictureUrl: userInfoResponse.data.imageUrl,
             roles: userInfoResponse.data.roles,
             communityRoles: communityInfoResponse.data.roles, 
             communityName: communityInfoResponse.data.title,
@@ -283,19 +283,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             communityShortId: communityInfoResponse.data.url,  // 🆕 Short ID for URLs
             pluginId: pluginId,                                // 🆕 Plugin ID from context
             communityLogoUrl: communityInfoResponse.data.smallLogoUrl, // 🆕 Community logo from CG
-            // 🆕 Extract Common Ground profile data for refresh
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            lukso: (userInfoResponse.data as any).lukso,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ethereum: (userInfoResponse.data as any).ethereum,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            twitter: (userInfoResponse.data as any).twitter,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            farcaster: (userInfoResponse.data as any).farcaster,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            premium: (userInfoResponse.data as any).premium,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            email: (userInfoResponse.data as any).email,
+            // ✅ Extract Common Ground profile data with full type safety
+            lukso: userInfoResponse.data.lukso,
+            ethereum: userInfoResponse.data.ethereum,
+            twitter: userInfoResponse.data.twitter,
+            farcaster: userInfoResponse.data.farcaster,
+            premium: userInfoResponse.data.premium,
+            email: userInfoResponse.data.email,
           };
           
           console.log('[AuthContext] Extracted data for refresh:', {

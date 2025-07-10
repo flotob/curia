@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { PluginHost } from '@/lib/PluginHost';
-import { DatabaseDataProvider } from '@/lib/DataProvider';
+import { PluginHost } from '../../../lib/PluginHost';
+import { DatabaseDataProvider } from '../../../lib/DataProvider';
 
 // Initialize the plugin host with data provider
 const dataProvider = new DatabaseDataProvider();

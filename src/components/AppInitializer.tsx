@@ -68,19 +68,13 @@ export function AppInitializer() {
             communityShortId: communityInfo.url,  // 🆕 Short ID for URL construction
             pluginId: pluginId,                  // 🆕 Plugin ID from context
             communityLogoUrl: communityInfo.smallLogoUrl, // 🆕 Community logo from CG
-            // 🆕 Extract Common Ground profile data (will be undefined if plugin lacks permissions)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            lukso: (userInfo as any).lukso,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ethereum: (userInfo as any).ethereum,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            twitter: (userInfo as any).twitter,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            farcaster: (userInfo as any).farcaster,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            premium: (userInfo as any).premium,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            email: (userInfo as any).email,
+            // ✅ Now with proper type safety - no more `as any` casts needed!
+            lukso: userInfo.lukso,
+            ethereum: userInfo.ethereum,
+            twitter: userInfo.twitter,
+            farcaster: userInfo.farcaster,
+            premium: userInfo.premium,
+            email: userInfo.email,
           };
 
           console.log('[AppInitializer] Extracted context data:', {

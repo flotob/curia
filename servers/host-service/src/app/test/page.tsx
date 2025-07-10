@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { ClientPluginHost } from '@/lib/ClientPluginHost';
+import { ClientPluginHost } from '../../lib/ClientPluginHost';
 
 interface LogEntry {
   timestamp: string;
