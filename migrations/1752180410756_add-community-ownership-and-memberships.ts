@@ -33,13 +33,13 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     role: {
       type: 'varchar(20)',
       notNull: true,
-      default: "'member'",
+      default: 'member',
       comment: 'User role in the community (member, moderator, admin, owner)'
     },
     status: {
       type: 'varchar(20)',
       notNull: true,
-      default: "'active'",
+      default: 'active',
       comment: 'Membership status (active, pending, banned, left)'
     },
     invited_by_user_id: {

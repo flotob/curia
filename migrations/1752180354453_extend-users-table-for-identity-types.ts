@@ -10,7 +10,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     identity_type: {
       type: 'varchar(20)',
       notNull: true,
-      default: "'legacy'",
+      default: 'legacy',
       comment: 'Type of identity: legacy (CG), ens, universal_profile, anonymous'
     },
     wallet_address: {
