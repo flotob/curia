@@ -290,7 +290,7 @@ export default function CreateBoardPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen p-4 md:p-6 lg:p-8 create-board-page">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -324,7 +324,7 @@ export default function CreateBoardPage() {
             title="Board Details"
             subtitle="Name, description, and basic information"
             icon={<Settings size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getBoardDetailsSummary}
           >
             <div className="space-y-6">
@@ -359,7 +359,7 @@ export default function CreateBoardPage() {
             title="Who Can See This Board"
             subtitle="Control board visibility using role-based permissions"
             icon={<Shield size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getVisibilityAccessSummary}
           >
             {communityInfo?.roles && communitySettings ? (
@@ -392,7 +392,7 @@ export default function CreateBoardPage() {
             title="Write Access Requirements"
             subtitle="Control who can post and comment using blockchain verification"
             icon={<Lock size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getWriteAccessSummary}
           >
             <BoardLockGatingForm
@@ -410,7 +410,7 @@ export default function CreateBoardPage() {
             title="AI Content Optimization"
             subtitle="Configure AI-based content moderation settings"
             icon={<Brain size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getAIOptimizationSummary}
           >
             {communitySettings ? (
