@@ -55,6 +55,15 @@ export interface FriendInfo {
 }
 
 /**
+ * Context data for plugin initialization
+ */
+export interface ContextData {
+  pluginId: string;
+  userId: string;
+  assignableRoleIds: string[];
+}
+
+/**
  * API response wrapper that matches Common Ground's format
  */
 export interface ApiResponse<T> {
@@ -96,6 +105,14 @@ export abstract class DataProvider {
     roleId: string, 
     communityId: string
   ): Promise<ApiResponse<void>>;
+
+  /**
+   * Get context data for plugin initialization
+   */
+  abstract getContextData(
+    userId: string, 
+    communityId: string
+  ): Promise<ApiResponse<ContextData>>;
 }
 
 /**
@@ -308,6 +325,68 @@ export class DatabaseDataProvider extends DataProvider {
 
     return {
       data: undefined as any,
+      success: true
+    };
+  }
+
+  async getContextData(userId: string, communityId: string): Promise<ApiResponse<ContextData>> {
+    // TODO: Replace with actual database query and real plugin ID generation
+    // const userRoles = await this.db.query('SELECT role_id FROM user_roles WHERE user_id = $1 AND community_id = $2', [userId, communityId]);
+    // const assignableRoles = await this.db.query('SELECT id FROM roles WHERE assignable_by_role IN (...userRoles) AND community_id = $1', [communityId]);
+    
+    await this.delay(100);
+    
+    // Get community to determine assignable roles
+    const communityResult = await this.getCommunityInfo(communityId);
+    if (!communityResult.success) {
+      return {
+        data: {} as ContextData,
+        success: false,
+        error: communityResult.error
+      };
+    }
+
+    // Get user info to determine their current roles
+    const userResult = await this.getUserInfo(userId, communityId);
+    if (!userResult.success) {
+      return {
+        data: {} as ContextData,
+        success: false,
+        error: userResult.error
+      };
+    }
+
+    const userRoles = userResult.data.roles || [];
+    const allRoles = communityResult.data.roles;
+    
+    // Determine which roles this user can assign
+    // In a real implementation, this would be based on permission hierarchy
+    let assignableRoleIds: string[] = [];
+    
+    if (userRoles.includes('admin')) {
+      // Admins can assign all non-admin roles
+      assignableRoleIds = allRoles
+        .filter(role => role.id !== 'admin' && role.assignmentRules?.type !== null)
+        .map(role => role.id);
+    } else if (userRoles.includes('moderator')) {
+      // Moderators can assign basic roles
+      assignableRoleIds = allRoles
+        .filter(role => ['member', 'contributor'].includes(role.id))
+        .map(role => role.id);
+    } else {
+      // Regular users can't assign roles
+      assignableRoleIds = [];
+    }
+
+    // Generate a mock plugin ID (in real implementation, this would be from session/config)
+    const pluginId = `plugin_${communityId}_${Date.now()}`;
+
+    return {
+      data: {
+        pluginId,
+        userId,
+        assignableRoleIds
+      },
       success: true
     };
   }

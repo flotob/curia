@@ -221,10 +221,10 @@
   resolved "https://registry.yarnpkg.com/@curia_/cg-plugin-lib-host/-/cg-plugin-lib-host-1.0.1.tgz#41cdefe16d8cce6b999fcd490d986b7b9bd91cce"
   integrity sha512-bcztV8TdIqwDE+UanP60OCCn2D8XUzMzba3F11/qPD13kLIdsbD2IK0q7OQo5jc3Y8xzIOCvs9X7i5QYdQYLAg==
 
-"@curia_/cg-plugin-lib@1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@curia_/cg-plugin-lib/-/cg-plugin-lib-1.0.2.tgz#4d72e76a63a9e8f369050af13d12d8951d41c04c"
-  integrity sha512-jUcaZaD/r6tTdz0MP4FR51ajI64HyI/s+ARMHdRG7R622S9k+xBVlmX0J4V7NW7WSU8dBUFmXOisHSh63ZSzRg==
+"@curia_/cg-plugin-lib@1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@curia_/cg-plugin-lib/-/cg-plugin-lib-1.0.3.tgz#1d456ddb4d42d1d0a56f8519ce0f2697b8bb0988"
+  integrity sha512-bkFFe+NCIejO+kXPCa6fkNz+hYg/IMiN7B9joIaUwdnQBp3bRecHkxaZTQzebf+LgslVdbI6nsssrmub5A6Z8w==
 
 "@ecies/ciphers@^0.2.3":
   version "0.2.4"

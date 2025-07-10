@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only handle user-related methods
-    if (!['getUserInfo', 'getUserFriends'].includes(body.method)) {
+    if (!['getUserInfo', 'getUserFriends', 'getContextData'].includes(body.method)) {
       return NextResponse.json({
         data: null,
         success: false,

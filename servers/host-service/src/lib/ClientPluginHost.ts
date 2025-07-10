@@ -332,6 +332,7 @@ export class ClientPluginHost {
       switch (message.method) {
         case 'getUserInfo':
         case 'getUserFriends':
+        case 'getContextData':
           apiEndpoint = `${this.hostServiceUrl}/api/user`;
           break;
           

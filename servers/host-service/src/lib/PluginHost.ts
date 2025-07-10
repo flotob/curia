@@ -86,6 +86,13 @@ export class PluginHost {
           );
           break;
           
+        case 'getContextData':
+          responseData = await this.dataProvider.getContextData(
+            request.userId || 'default_user',
+            request.communityId
+          );
+          break;
+          
         case 'getCommunityInfo':
           responseData = await this.dataProvider.getCommunityInfo(request.communityId);
           break;

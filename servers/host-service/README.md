@@ -108,6 +108,7 @@ Handles user-related operations.
 **Supported Methods:**
 - `getUserInfo` - Get user profile information
 - `getUserFriends` - Get user's friend list with pagination
+- `getContextData` - Get plugin context and assignable roles
 
 #### `POST /api/community`
 Handles community-related operations.

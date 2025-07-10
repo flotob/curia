@@ -31,6 +31,7 @@ export default function HomePage() {
         <ul>
           <li><code>getUserInfo</code> - Get user profile information</li>
           <li><code>getUserFriends</code> - Get user's friend list with pagination</li>
+          <li><code>getContextData</code> - Get plugin context and assignable roles</li>
           <li><code>getCommunityInfo</code> - Get community details and roles</li>
           <li><code>giveRole</code> - Assign roles to users</li>
         </ul>
