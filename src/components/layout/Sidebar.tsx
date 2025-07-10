@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 import { Home, LayoutDashboard, Settings, ChevronRight, ChevronDown, Plus, X, Lock, Shield, Bell, Handshake, Share2, BarChart3, Trophy } from 'lucide-react';
-import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { CommunityInfoResponsePayload } from '@curia_/cg-plugin-lib';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';

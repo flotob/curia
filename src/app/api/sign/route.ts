@@ -1,4 +1,4 @@
-import { CgPluginLibHost } from "@common-ground-dao/cg-plugin-lib-host";
+import { CgPluginLibHost } from "@curia_/cg-plugin-lib-host";
 
 const privateKey = process.env.NEXT_PRIVATE_PRIVKEY as string;
 const publicKey = process.env.NEXT_PUBLIC_PUBKEY as string;

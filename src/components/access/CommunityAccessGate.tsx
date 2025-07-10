@@ -5,7 +5,7 @@ import { useCommunityData } from '@/hooks/useCommunityData';
 import { checkCommunityAccess, getUserRoles, AccessControlUtils } from '@/lib/roleService';
 import { CommunityAccessDenied } from './CommunityAccessDenied';
 import { useCgLib } from '@/contexts/CgLibContext';
-import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { CommunityInfoResponsePayload } from '@curia_/cg-plugin-lib';
 import { cn } from '@/lib/utils';
 
 interface CommunityAccessGateProps {

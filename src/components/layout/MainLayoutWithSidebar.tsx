@@ -12,7 +12,7 @@ import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 import { authFetchJson } from '@/utils/authFetch';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { ApiPost } from '@/app/api/posts/route';
-import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { CommunityInfoResponsePayload } from '@curia_/cg-plugin-lib';
 import { Sidebar } from './Sidebar';
 import { Button } from '@/components/ui/button';
 import { CommunityAccessGate } from '@/components/access/CommunityAccessGate';

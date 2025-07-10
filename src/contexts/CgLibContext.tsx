@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CgPluginLib } from '@common-ground-dao/cg-plugin-lib';
+import { CgPluginLib } from '@curia_/cg-plugin-lib';
 import { lsp26Registry } from '@/lib/lsp26';
 
 // Define the shape of the context data

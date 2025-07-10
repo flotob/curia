@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { CommunityInfoResponsePayload } from '@curia_/cg-plugin-lib';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { CommunitySettings } from '@/types/settings';

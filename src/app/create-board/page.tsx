@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCgLib } from '@/contexts/CgLibContext';
 import { useEffectiveTheme } from '@/hooks/useEffectiveTheme';
 import { authFetchJson } from '@/utils/authFetch';
-import { CommunityInfoResponsePayload } from '@common-ground-dao/cg-plugin-lib';
+import { CommunityInfoResponsePayload } from '@curia_/cg-plugin-lib';
 import { ApiCommunity } from '@/app/api/communities/[communityId]/route';
 import { ApiBoard } from '@/app/api/communities/[communityId]/boards/route';
 import { BoardSettings, SettingsUtils } from '@/types/settings';
