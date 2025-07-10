@@ -13,6 +13,7 @@ export interface UserInfo {
   id: string;
   name: string;
   email: string;
+  imageUrl?: string;        // Profile picture URL
   roles: string[];
   twitter?: { username: string };
   lukso?: { username: string };
@@ -28,6 +29,8 @@ export interface CommunityInfo {
   id: string;
   title: string;
   description: string;
+  url: string;              // Community short ID for URL construction
+  smallLogoUrl?: string;    // Community logo URL
   roles: Role[];
   settings?: Record<string, any>;
 }
@@ -139,6 +142,7 @@ export class DatabaseDataProvider extends DataProvider {
       id: 'default_user',
       name: 'Alice Johnson',
       email: 'alice@example.com',
+      imageUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',  // Mock profile picture
       roles: ['member', 'contributor'],
       twitter: { username: 'alice_codes' },
       lukso: { username: 'alice.lukso' },
@@ -150,6 +154,8 @@ export class DatabaseDataProvider extends DataProvider {
       id: 'default_community',
       title: 'Default Community',
       description: 'A test community for development',
+      url: 'default-community',     // Community short ID for URLs
+      smallLogoUrl: 'https://api.dicebear.com/7.x/identicon/svg?seed=DefaultCommunity',  // Mock logo
       roles: [
         {
           id: 'member',

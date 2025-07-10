@@ -274,7 +274,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           freshCgData = {
             userId: userInfoResponse.data.id,
             name: userInfoResponse.data.name,
-            profilePictureUrl: userInfoResponse.data.imageUrl,
+            profilePictureUrl: (userInfoResponse.data as any).imageUrl,
             roles: userInfoResponse.data.roles,
             communityRoles: communityInfoResponse.data.roles, 
             communityName: communityInfoResponse.data.title,
