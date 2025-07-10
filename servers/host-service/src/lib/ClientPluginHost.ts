@@ -72,8 +72,8 @@ export class ClientPluginHost {
   /** Host service URL for API requests */
   private hostServiceUrl: string;
 
-  constructor(hostServiceUrl: string = 'http://localhost:3001') {
-    this.hostServiceUrl = hostServiceUrl;
+  constructor(hostServiceUrl?: string) {
+    this.hostServiceUrl = hostServiceUrl || process.env.NEXT_PUBLIC_HOST_SERVICE_URL || 'http://localhost:3001';
     this.setupMessageListener();
   }
 

@@ -32,7 +32,7 @@ export default function PluginTestPage() {
 
   // Initialize plugin host
   useEffect(() => {
-    pluginHostRef.current = new ClientPluginHost('http://localhost:3001');
+    pluginHostRef.current = new ClientPluginHost(process.env.NEXT_PUBLIC_HOST_SERVICE_URL);
     
     // Set up event listeners
     const pluginHost = pluginHostRef.current;
