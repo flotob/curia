@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
@@ -28,6 +28,21 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   contentClassName = ''
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  
+  // Use ref to prevent state interference from parent re-renders
+  const expandedRef = useRef(isExpanded);
+  
+  // Stable toggle function that prevents issues with rapid state changes
+  const toggleExpanded = useCallback(() => {
+    const newExpanded = !expandedRef.current;
+    expandedRef.current = newExpanded;
+    setIsExpanded(newExpanded);
+  }, []);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    expandedRef.current = isExpanded;
+  }, [isExpanded]);
 
   return (
     <Card className={className} data-collapsible-section>
@@ -37,7 +52,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           !isExpanded && 'pb-6', // More padding when collapsed
           headerClassName
         )}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={toggleExpanded}
         data-collapsible-trigger
       >
         <div className="flex items-center justify-between">
@@ -74,7 +89,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
               className="p-1 h-auto"
               onClick={(e) => {
                 e.stopPropagation();
-                setIsExpanded(!isExpanded);
+                toggleExpanded();
               }}
             >
               {isExpanded ? (

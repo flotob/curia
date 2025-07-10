@@ -60,12 +60,22 @@ const canShowSpeechBubble = (userId: string, communityId: string): boolean => {
     const now = Date.now();
     const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
     
+    // Debug logging
+    if (lastShown) {
+      const hoursAgo = (now - lastShown) / (60 * 60 * 1000);
+      console.log(`[Speech Bubble] Last shown ${hoursAgo.toFixed(1)} hours ago for ${key}`);
+    } else {
+      console.log(`[Speech Bubble] Never shown before for ${key}`);
+    }
+    
     // If never shown or more than 24 hours have passed, allow showing
-    return !lastShown || (now - lastShown) >= twentyFourHours;
+    const canShow = !lastShown || (now - lastShown) >= twentyFourHours;
+    console.log(`[Speech Bubble] Can show: ${canShow}`);
+    return canShow;
   } catch (error) {
     console.warn('Failed to check speech bubble frequency:', error);
-    // In case of localStorage issues, allow showing (fail gracefully)
-    return true;
+    // Conservative: if localStorage fails, don't show (avoids spam when frequency can't be tracked)
+    return false;
   }
 };
 
@@ -196,100 +206,61 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   // Get card styling for background-aware gradients (same as PostCard)
   const { hasActiveBackground } = useCardStyling();
 
-  // Check if device is mobile and if we're on an admin page
-  const [isOnAdminPage, setIsOnAdminPage] = useState(false);
-  
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
     
-    const checkAdminPage = () => {
-      const isAdmin = typeof window !== 'undefined' && 
-                     (window.location.pathname.includes('/board-settings') ||
-                      window.location.pathname.includes('/create-board') ||
-                      window.location.pathname.includes('/admin') ||
-                      window.location.pathname.includes('/settings'));
-      setIsOnAdminPage(isAdmin);
-    };
-    
     checkMobile();
-    checkAdminPage();
-    
     window.addEventListener('resize', checkMobile);
     
-    // Listen for route changes to update admin page status
-    const handleRouteChange = () => {
-      checkAdminPage();
-    };
-    
-    // Listen for popstate events (back/forward navigation)
-    window.addEventListener('popstate', handleRouteChange);
-    
-    // For programmatic navigation, we'll use a mutation observer to detect changes
-    const observer = new MutationObserver(() => {
-      checkAdminPage();
-    });
-    
-    observer.observe(document, { subtree: true, childList: true });
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-      window.removeEventListener('popstate', handleRouteChange);
-      observer.disconnect();
-    };
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Add interaction detection for mobile minimal mode
+  // Add scroll detection for mobile minimal mode
   useEffect(() => {
     if (!isMobile || isOpen || speechBubbleVisible) return;
 
-    const handleInteraction = (event: Event) => {
-      const target = event.target as Element;
+    let lastScrollY = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
       
-      // Check if interaction is with clippy-related elements
-      const isClippyElement = target.closest('[data-clippy]') || 
-                             target.closest('.clippy-button') ||
-                             target.closest('.clippy-speech-bubble') ||
-                             target.closest('.clippy-chat-interface');
+      // Only trigger minimal mode on downward scroll (user scrolling content)
+      if (currentScrollY > lastScrollY && currentScrollY > 100 && !isMinimalMode) {
+        console.log('Downward scroll detected on mobile, switching to minimal mode');
+        setIsMinimalMode(true);
+      }
       
-      // Check if interaction is within admin/settings interfaces that should not trigger minimal mode
-      const isAdminInterface = target.closest('form') ||
-                               target.closest('[role="dialog"]') ||
-                               target.closest('[data-collapsible-section]') ||
-                               target.closest('[data-collapsible-trigger]') ||
-                               target.closest('[data-collapsible]') ||
-                               target.closest('.board-settings-page') ||
-                               target.closest('.create-board-page') ||
-                               target.closest('.board-settings') ||
-                               target.closest('.settings-page') ||
-                               // Check for common admin UI patterns
-                               target.closest('[aria-expanded]') ||
-                               target.closest('[data-state]') ||
-                               // Check if we're on admin pages by URL
-                               (typeof window !== 'undefined' && 
-                                (window.location.pathname.includes('/board-settings') ||
-                                 window.location.pathname.includes('/create-board') ||
-                                 window.location.pathname.includes('/admin') ||
-                                 window.location.pathname.includes('/settings')));
+      lastScrollY = currentScrollY;
+    };
+
+    // Handle modal scroll events (for search modal, etc.)
+    const handleModalScroll = (e: Event) => {
+      const target = e.target;
       
-      // Only switch to minimal mode for non-admin, non-clippy interactions
-      if (!isClippyElement && !isAdminInterface && !isMinimalMode) {
-        console.log('Non-clippy content interaction detected on mobile, switching to minimal mode');
+      // Type guard: ensure target is an HTMLElement that has closest/matches methods
+      if (!target || !(target instanceof HTMLElement)) return;
+      
+      // Check if scrolling inside a modal or scrollable container
+      const isModalScroll = target.closest('[role="dialog"]') || 
+                           target.closest('.modal-content') || 
+                           target.closest('[data-radix-portal]') ||
+                           target.matches('.overflow-y-auto');
+      
+      if (isModalScroll && target.scrollTop > 50 && !isMinimalMode) {
+        console.log('Modal scroll detected on mobile, switching to minimal mode');
         setIsMinimalMode(true);
       }
     };
 
-    // Listen for various interaction events
-    const events = ['click', 'touchstart', 'focus', 'input'];
-    events.forEach(eventType => {
-      document.addEventListener(eventType, handleInteraction, { passive: true });
-    });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Listen for scroll events on all elements that might be modals
+    document.addEventListener('scroll', handleModalScroll, { passive: true, capture: true });
 
     return () => {
-      events.forEach(eventType => {
-        document.removeEventListener(eventType, handleInteraction);
-      });
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('scroll', handleModalScroll, { capture: true });
     };
   }, [isMobile, isOpen, speechBubbleVisible, isMinimalMode]);
 
@@ -425,6 +396,23 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
   };
 
   const showFallbackWelcome = () => {
+    // Don't show speech bubble if Clippy is in minimal mode
+    if (isMinimalMode) {
+      console.log('Clippy is in minimal mode - not showing welcome message');
+      setWelcomeLoaded(true);
+      return;
+    }
+
+    // Additional check: Don't show welcome if search modal is open
+    const searchModalOpen = document.querySelector('[role="dialog"]') || 
+                           document.querySelector('.fixed.inset-0') ||
+                           document.querySelector('[data-radix-portal]');
+    if (searchModalOpen) {
+      console.log('[Fallback Welcome] Search modal is open - not showing welcome message');
+      setWelcomeLoaded(true);
+      return;
+    }
+
     // Check frequency limit for fallback welcome too
     if (!user?.userId || !user?.cid || !canShowSpeechBubble(user.userId, user.cid)) {
       console.log('Speech bubble frequency limit reached - not showing fallback welcome message');
@@ -458,18 +446,36 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
 
   const loadWelcomeMessage = useCallback(async () => {
     // Prevent duplicate calls in development mode (React Strict Mode)
-    if (welcomeLoadingRef.current) {
-      console.log('Welcome API - Skipping duplicate call (React Strict Mode)');
+    if (welcomeLoadingRef.current || welcomeLoaded) {
+      console.log('[Welcome] Skipping duplicate call - already loading or loaded');
+      return;
+    }
+    
+    // Don't show speech bubble if Clippy is in minimal mode
+    if (isMinimalMode) {
+      console.log('[Welcome] Clippy is in minimal mode - not showing welcome message');
+      setWelcomeLoaded(true);
+      return;
+    }
+
+    // Additional check: Don't show welcome if search modal is open
+    const searchModalOpen = document.querySelector('[role="dialog"]') || 
+                           document.querySelector('.fixed.inset-0') ||
+                           document.querySelector('[data-radix-portal]');
+    if (searchModalOpen) {
+      console.log('[Welcome] Search modal is open - not showing welcome message');
+      setWelcomeLoaded(true);
       return;
     }
     
     // Check frequency limit before proceeding
     if (!user?.userId || !user?.cid || !canShowSpeechBubble(user.userId, user.cid)) {
-      console.log('Speech bubble frequency limit reached - not showing welcome message');
+      console.log('[Welcome] Speech bubble frequency limit reached - not showing welcome message');
       setWelcomeLoaded(true); // Mark as loaded to prevent future attempts
       return;
     }
     
+    console.log('[Welcome] Starting welcome message load');
     welcomeLoadingRef.current = true;
     setWelcomeLoading(true);
     
@@ -509,26 +515,32 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
           }
         }, 1000);
       } else {
-        console.error('Failed to load welcome message:', response.status);
+        console.error('[Welcome] Failed to load welcome message:', response.status);
         // Show fallback message
         showFallbackWelcome();
       }
     } catch (error) {
-      console.error('Error loading welcome message:', error);
+      console.error('[Welcome] Error loading welcome message:', error);
       // Show fallback message
       showFallbackWelcome();
     } finally {
       setWelcomeLoading(false);
-      // Note: We don't reset welcomeLoadingRef.current here to prevent multiple calls
+      welcomeLoadingRef.current = false; // Reset to allow retry if needed
     }
-  }, [token, context?.boardId, isOpen, clearChat, user?.userId, user?.cid]);
+  }, [token, isOpen, clearChat, user?.userId, user?.cid, isMinimalMode, welcomeLoaded]); // REMOVED: context?.boardId - this was causing recreation during search
 
-  // Auto-load welcome message on component mount
+  // Auto-load welcome message on component mount - FIXED DEPENDENCY CHAIN
   useEffect(() => {
-    if (isAuthenticated && user && token && !welcomeLoaded && !welcomeLoading) {
-      loadWelcomeMessage();
+    // Only run on initial mount, not on dependency changes
+    if (isAuthenticated && user && token && !welcomeLoaded && !welcomeLoading && !welcomeLoadingRef.current) {
+      // Add a small delay to ensure component is fully mounted and stable
+      const timeoutId = setTimeout(() => {
+        loadWelcomeMessage();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [isAuthenticated, user, token, welcomeLoaded, welcomeLoading, loadWelcomeMessage]);
+  }, [isAuthenticated, user?.userId, user?.cid, token]); // REMOVED: loadWelcomeMessage dependency to prevent recreation chain
 
   // Function to send a message programmatically
   const sendMessage = useCallback((message: string) => {
@@ -548,10 +560,7 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     return null;
   }
 
-  // Hide Clippy completely on mobile admin pages unless chat is open or speech bubble is visible
-  if (isMobile && isOnAdminPage && !isOpen && !speechBubbleVisible) {
-    return null;
-  }
+
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
@@ -613,8 +622,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     setIsMinimalMode(false);
   };
 
-  // Show minimal clippy on mobile when in minimal mode (but not on admin pages)
-  if (isMobile && isMinimalMode && !isOpen && !speechBubbleVisible && !isOnAdminPage) {
+  // Show minimal clippy on mobile when in minimal mode
+  if (isMobile && isMinimalMode && !isOpen && !speechBubbleVisible) {
     return (
       <MinimalClippy
         onClick={handleMinimalClippyClick}
@@ -624,13 +633,8 @@ export function AIChatBubble({ className, context }: AIChatBubbleProps) {
     );
   }
 
-  // On mobile admin pages, use lower z-index and different positioning to avoid interference
-  const adminPageMobileClasses = isMobile && isOnAdminPage 
-    ? "fixed bottom-2 right-2 z-20 -mr-4 -mb-4" 
-    : "fixed bottom-0 right-2 md:right-6 z-40 -mr-8 -mb-8";
-
   return (
-    <div className={cn(adminPageMobileClasses, className)} data-clippy>
+    <div className={cn("fixed bottom-0 right-2 md:right-6 z-40 -mr-8 -mb-8", className)} data-clippy>
       <div className="relative">
         {/* Speech Bubble */}
         <ClippySpeechBubble

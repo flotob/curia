@@ -57,6 +57,8 @@ export default function BoardSettingsPage() {
   const [forceDelete, setForceDelete] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
+
+
   // Use the effective theme from our theme orchestrator
   const theme = useEffectiveTheme();
 
@@ -369,7 +371,7 @@ export default function BoardSettingsPage() {
             title="Board Details"
             subtitle="Name, description, and basic information"
             icon={<Settings size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getBoardDetailsSummary}
           >
             <div className="space-y-6">
@@ -404,7 +406,7 @@ export default function BoardSettingsPage() {
             title="Who Can See This Board"
             subtitle="Control board visibility using role-based permissions"
             icon={<Shield size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getVisibilityAccessSummary}
           >
             {communityInfo?.roles && communitySettings?.settings ? (
@@ -416,7 +418,7 @@ export default function BoardSettingsPage() {
                 isLoading={updateBoardMutation.isPending}
                 theme={theme}
                 showSaveButton={false}
-                autoSave={true}
+                autoSave={false}
               />
             ) : (
               <div className="space-y-4">
@@ -437,7 +439,7 @@ export default function BoardSettingsPage() {
             title="Write Access Requirements"
             subtitle="Control who can post and comment using blockchain verification"
             icon={<Lock size={20} className="text-primary" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
             summary={getWriteAccessSummary}
           >
             <BoardLockGatingForm
@@ -446,7 +448,7 @@ export default function BoardSettingsPage() {
               isLoading={updateBoardMutation.isPending}
               theme={theme}
               showSaveButton={false}
-              autoSave={true}
+              autoSave={false}
             />
           </CollapsibleSection>
 
@@ -456,7 +458,7 @@ export default function BoardSettingsPage() {
               title="AI Auto-Moderation"
               subtitle="Board-specific AI content moderation settings"
               icon={<Brain size={20} className="text-primary" />}
-              defaultExpanded={false}
+              defaultExpanded={true}
               summary={<span className="text-sm text-muted-foreground">Configure AI settings</span>}
             >
               <BoardAIAutoModerationSettings
