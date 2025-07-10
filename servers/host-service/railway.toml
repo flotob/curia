@@ -1,0 +1,21 @@
+[build]
+builder = "nixpacks"
+buildCommand = "yarn build"
+
+[deploy]
+startCommand = "yarn start"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[env]
+NODE_ENV = "production"
+SERVICE_NAME = "curia-host-service"
+
+# These will need to be set in Railway dashboard
+# DATABASE_URL = ""
+# JWT_SECRET = ""
+# CURIA_PRIVATE_KEY = ""
+# CURIA_PUBLIC_KEY = ""
+# CURIA_KEY_ID = "" 
