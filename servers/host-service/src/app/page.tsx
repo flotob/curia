@@ -38,12 +38,26 @@ export default function HomePage() {
 
       <h2>🧪 Testing</h2>
       <div style={{ background: '#fefce8', padding: '20px', borderRadius: '8px' }}>
-        <p>To test the host service with the main Curia app:</p>
-        <ol>
-          <li>Update the main Curia app to use <code>?mod=standalone</code> parameter</li>
-          <li>Point it to this host service URL: <code>http://localhost:3001</code></li>
-          <li>Verify API calls are working in the browser console</li>
-        </ol>
+        <p>Ready to test the host service with your Curia app?</p>
+        <div style={{ margin: '15px 0' }}>
+          <a 
+            href="/test" 
+            style={{ 
+              display: 'inline-block',
+              padding: '12px 24px', 
+              backgroundColor: '#3b82f6', 
+              color: 'white', 
+              textDecoration: 'none', 
+              borderRadius: '6px',
+              fontWeight: 'bold'
+            }}
+          >
+            🚀 Open Plugin Tester
+          </a>
+        </div>
+        <p style={{ fontSize: '14px', color: '#6b7280' }}>
+          The plugin tester provides a UI to load your Curia app in an iframe and test the API communication in real-time.
+        </p>
       </div>
 
       <h2>📚 Next Steps</h2>
