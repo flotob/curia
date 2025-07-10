@@ -109,9 +109,11 @@ export class ClientPluginHost {
       
       // Set iframe source with UID parameter
       const pluginUrl = this.buildPluginUrl(config.url, iframeUid);
+      console.log(`[ClientPluginHost] Generated iframeUid: ${iframeUid}`);
+      console.log(`[ClientPluginHost] Loading plugin URL: ${pluginUrl}`);
       iframe.src = pluginUrl;
       
-      this.emit('plugin-loaded', { iframeUid, url: config.url });
+      this.emit('plugin-loaded', { iframeUid, url: pluginUrl });
       
       return iframeUid;
       
@@ -241,10 +243,13 @@ export class ClientPluginHost {
   /**
    * Generate unique iframe UID
    * 
-   * @returns Unique identifier string
+   * @returns Unique identifier string (similar to Common Ground format)
    */
   private generateIframeUid(): string {
-    return `iframe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a unique UID similar to Common Ground's format (e.g., "6QXDPWY34J")
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `${timestamp}${random}`.substring(0, 10);
   }
 
   /**

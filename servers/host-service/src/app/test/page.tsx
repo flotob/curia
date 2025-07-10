@@ -39,6 +39,7 @@ export default function PluginTestPage() {
     
     pluginHost.on('plugin-loaded', (data) => {
       addLog(`Plugin loaded successfully with UID: ${data.iframeUid}`, 'success');
+      addLog(`Plugin URL: ${data.url}`, 'info');
       setPluginStatus('connected');
       setIsPluginLoaded(true);
     });
