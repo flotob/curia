@@ -28,9 +28,10 @@ export const SessionCheckStep: React.FC<SessionCheckStepProps> = ({
 
         if (response.ok) {
           const data = await response.json();
-          if (data.isValid) {
+          if (data.isValid && data.user) {
             localStorage.setItem('curia_session_token', data.token);
-            onSessionResult(true);
+            // Pass both session validity AND user data
+            onSessionResult(true, data.user);
             return;
           }
         }

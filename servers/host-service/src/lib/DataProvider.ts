@@ -65,7 +65,6 @@ export interface ContextData {
   pluginId: string;
   userId: string;
   assignableRoleIds: string[];
-  iframeUid: string;
 }
 
 /**
@@ -418,16 +417,14 @@ export class DatabaseDataProvider extends DataProvider {
         assignableRoleIds = ['member'];
       }
 
-      // Generate plugin ID and iframeUid (throwaway unique IDs)
+      // Generate plugin ID
       const pluginId = `plugin_${communityId}_${Date.now()}`;
-      const iframeUid = this.generateIframeUid();
 
       return {
         data: {
           pluginId,
           userId,
-          assignableRoleIds,
-          iframeUid
+          assignableRoleIds
         },
         success: true
       };
@@ -440,15 +437,5 @@ export class DatabaseDataProvider extends DataProvider {
         error: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
-  }
-
-  /**
-   * Generate unique iframe UID (similar to Common Ground format)
-   */
-  private generateIframeUid(): string {
-    // Generate a unique UID similar to Common Ground's format (e.g., "6QXDPWY34J")
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `${timestamp}${random}`.substring(0, 10);
   }
 } 

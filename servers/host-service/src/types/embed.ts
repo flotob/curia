@@ -50,6 +50,7 @@ export interface ProfileData {
   followerCount?: number;
   verificationLevel?: 'verified' | 'partial' | 'unverified';
   sessionToken?: string;
+  userId?: string; // Database user_id (e.g., "ens:florianglatz.eth")
 }
 
 export interface StepProps {
@@ -57,7 +58,7 @@ export interface StepProps {
 }
 
 export interface SessionCheckStepProps extends StepProps {
-  onSessionResult: (hasSession: boolean) => void;
+  onSessionResult: (hasSession: boolean, userData?: any) => void;
 }
 
 export interface AuthenticationStepProps extends StepProps {

@@ -125,10 +125,8 @@ export class PluginHost {
           };
       }
 
-      return {
-        data: responseData,
-        success: true
-      };
+      // DataProvider already returns { data, success, error? }, so return it directly
+      return responseData;
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

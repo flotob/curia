@@ -84,14 +84,30 @@ const EmbedContent: React.FC = () => {
     setCurrentStep('session-check');
   }, []);
 
-  const handleSessionResult = useCallback((hasSession: boolean) => {
-    if (hasSession) {
+  const handleSessionResult = useCallback((hasSession: boolean, userData?: any) => {
+    if (hasSession && userData) {
+      console.log('[Embed] Session valid with user data:', userData);
+      
+      // Create ProfileData from session user data
+      const sessionProfileData: ProfileData = {
+        type: userData.identity_type === 'ens' ? 'ens' : 
+              userData.identity_type === 'universal_profile' ? 'universal_profile' : 'anonymous',
+        address: userData.wallet_address || userData.up_address,
+        name: userData.name,
+        domain: userData.ens_domain,
+        avatar: userData.profile_picture_url,
+        verificationLevel: userData.identity_type === 'anonymous' ? 'unverified' : 'verified',
+        sessionToken: localStorage.getItem('curia_session_token') || undefined,
+        // Store the actual database user_id for later use
+        userId: userData.user_id
+      };
+      
+      // Set profile data from existing session
+      setProfileData(sessionProfileData);
+      console.log('[Embed] Profile data populated from session:', sessionProfileData);
+      
       // Check if embed has a specific community target
       if (config.community) {
-        // Has session + specific community → send auth complete immediately
-        // We'll need to extract user ID from session data
-        console.log('[Embed] Has session and specific community, sending auth complete');
-        // For now, we'll proceed to community selection to get the user context
         setSelectedCommunityId(config.community);
         setCurrentStep('community-selection');
       } else {
@@ -149,7 +165,11 @@ const EmbedContent: React.FC = () => {
         console.log('[Embed] DEBUG - Using profileData for auth complete');
         if (profileData.type === 'anonymous') {
           userId = `anonymous_${Date.now()}`;
+        } else if (profileData.userId) {
+          // Use the actual database user_id (e.g., "ens:florianglatz.eth")
+          userId = profileData.userId;
         } else {
+          // Fallback for cases without stored userId
           userId = profileData.address || `wallet_${Date.now()}`;
         }
         sessionToken = profileData.sessionToken;
