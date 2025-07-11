@@ -1,0 +1,1064 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mobile-First Container Query Support */
+@supports (container-type: inline-size) {
+  .responsive-container {
+    container-type: inline-size;
+  }
+}
+
+/* Mobile-First Typography Scale */
+@layer base {
+  html {
+    font-size: 14px; /* Base font size for mobile (320px+) */
+    line-height: 1.5;
+  }
+  
+  @media (min-width: 480px) {
+    html {
+      font-size: 15px; /* Slightly larger for small tablets */
+      line-height: 1.6;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    html {
+      font-size: 16px; /* Standard desktop size */
+      line-height: 1.6;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    html {
+      font-size: 16px; /* Keep consistent for larger screens */
+      line-height: 1.7;
+    }
+  }
+}
+
+/* Mobile-First Responsive Utilities */
+@layer utilities {
+  /* Container constraints to prevent horizontal scroll */
+  .container-safe {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  
+  /* Word wrapping utilities for mobile */
+  .wrap-anywhere {
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+  
+  /* Mobile-optimized spacing */
+  .space-mobile {
+    padding: 0.75rem;
+  }
+  
+  .space-tablet {
+    padding: 1rem;
+  }
+  
+  .space-desktop {
+    padding: 1.5rem;
+  }
+  
+  /* Responsive gap utilities */
+  .gap-mobile {
+    gap: 0.75rem;
+  }
+  
+  .gap-tablet {
+    gap: 1rem;
+  }
+  
+  .gap-desktop {
+    gap: 1.5rem;
+  }
+  
+  /* Mobile-first grid systems */
+  .grid-mobile {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .grid-tablet {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+  
+  .grid-desktop {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    overflow-x: hidden;
+    min-width: 320px;
+  }
+  
+  /* Custom Background Support */
+  body.has-custom-background {
+    position: relative;
+  }
+  
+  /* Ensure content appears above background */
+  body.has-custom-background > * {
+    position: relative;
+    z-index: 1;
+  }
+  
+  img {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+  
+  /* Better mobile tap targets - ONLY for primary action buttons */
+  .btn-primary,
+  .btn-lg,
+  button[data-size="lg"],
+  input[type="submit"].btn-primary {
+    min-height: 44px; /* Apple's recommended minimum tap target */
+    min-width: 44px;
+  }
+  
+  /* Mobile-friendly focus states */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+/* Enhanced frosted glass notification animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* RainbowKit Modal Z-Index Fixes */
+/* Override RainbowKit's default z-index values to prevent overlay issues */
+[data-rk] {
+  /* Main modal container */
+  --rk-z-index: 10006 !important;
+}
+
+/* RainbowKit modal backdrop */
+div[data-rk] > div[style*="position: fixed"] {
+  z-index: 10004 !important;
+}
+
+/* RainbowKit modal content */
+div[data-rk] div[role="dialog"] {
+  z-index: 10006 !important;
+}
+
+/* Ensure RainbowKit modals are always clickable */
+div[data-rk] * {
+  pointer-events: auto !important;
+}
+
+/* Fix for WalletConnect modal z-index within RainbowKit */
+div[data-rk] div[style*="z-index"] {
+  z-index: 10007 !important;
+}
+
+/* RainbowKit Connect Button Styling Improvements */
+/* Ensure connect buttons have proper styling and are visible */
+button[data-rk] {
+  font-family: inherit !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+/* Style the unstyled connect button */
+button[data-rk]:not([class*="bg-"]):not([style*="background"]) {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  padding: 0.5rem 1rem !important;
+  font-weight: 500 !important;
+}
+
+button[data-rk]:not([class*="bg-"]):not([style*="background"]):hover {
+  background: hsl(var(--primary) / 0.9) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Enhanced Mobile-First URL Wrapping */
+.force-wrap {
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Apply aggressive wrapping to content links (not layout elements) */
+.prose a,
+.ProseMirror a,
+.content-link {
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+  /* Better mobile touch targets for content links */
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Extra protection for TipTap content with mobile enhancements */
+.ProseMirror a {
+  white-space: normal !important;
+}
+
+/* Mobile-Enhanced Content Styling */
+.ProseMirror {
+  /* Better mobile reading experience */
+  line-height: 1.6;
+  word-spacing: 0.1em;
+}
+
+.ProseMirror p {
+  margin-bottom: 1em;
+}
+
+.ProseMirror h1, 
+.ProseMirror h2, 
+.ProseMirror h3, 
+.ProseMirror h4 {
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+/* Mobile-Optimized Code Blocks */
+.ProseMirror pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--muted));
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.ProseMirror code {
+  font-size: 0.875em;
+  background: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  word-break: break-all; /* Force code to break on mobile */
+}
+
+/* Mini Mode Utilities */
+.mini-mode-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mini-mode-container * {
+  font-size: inherit !important;
+}
+
+/* Mini mode scrollbar styling */
+.mini-mode-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.mini-mode-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mini-mode-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.dark .mini-mode-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Hide scrollbars utility */
+.scrollbar-hide {
+  /* Hide scrollbar for Webkit browsers */
+  -webkit-scrollbar: none;
+  /* Hide scrollbar for Firefox */
+  scrollbar-width: none;
+  /* Hide scrollbar for IE and Edge */
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mini Mode Test Helper (for development) */
+.test-mini-mode {
+  width: 200px !important;
+  height: 200px !important;
+  border: 2px solid red;
+  resize: both;
+  overflow: hidden;
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  background: white;
+}
+
+.dark .test-mini-mode {
+  background: #0f172a;
+}
+
+/* Mobile-Enhanced Comment Threading Styles */
+.comment-thread {
+  margin-bottom: 0.75rem;
+}
+
+.comment-children {
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  position: relative;
+}
+
+.comment-children.with-thread-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: hsl(var(--border));
+  opacity: 0.3;
+}
+
+/* Comment depth-based indentation (fallback for complex scenarios) */
+.comment-depth-0 { padding-left: 0; }
+.comment-depth-1 { padding-left: 0; }
+.comment-depth-2 { padding-left: 0; }
+.comment-depth-3 { padding-left: 0; }
+.comment-depth-4 { padding-left: 0; }
+.comment-depth-5 { padding-left: 0; }
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
+  .comment-children {
+    margin-left: 0.5rem;
+    padding-left: 0.5rem;
+  }
+  
+  .comment-children.with-thread-line::before {
+    width: 1px;
+  }
+}
+
+/* Dark mode thread line */
+@media (prefers-color-scheme: dark) {
+  .comment-children.with-thread-line::before {
+    background-color: hsl(var(--border));
+    opacity: 0.4;
+  }
+}
+
+/* Fix emoji-mart internal scrolling in dropdown containers */
+/* Target the emoji grid container that needs to scroll */
+[data-id="scroll"] {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important; /* iOS momentum scrolling */
+  touch-action: pan-y !important; /* Allow vertical touch scrolling */
+  scroll-behavior: smooth !important; /* Smooth scrolling */
+}
+
+/* Ensure emoji categories are scrollable */
+.emoji-mart-scroll {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important; /* iOS momentum scrolling */
+  touch-action: pan-y !important; /* Allow vertical touch scrolling */
+  scroll-behavior: smooth !important; /* Smooth scrolling */
+}
+
+/* Fix for emoji-mart picker container itself */
+[class*="emoji-mart"] {
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+/* Ensure emoji picker allows touch events */
+[data-testid="picker"] {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Tippy.js mention suggestion styling */
+.tippy-box[data-theme~='light-border'] {
+  background-color: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--popover-foreground));
+  border-radius: var(--radius);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.tippy-box[data-theme~='light-border'] .tippy-arrow {
+  color: hsl(var(--popover));
+}
+
+.tippy-box[data-theme~='light-border'] .tippy-arrow:before {
+  border-color: hsl(var(--border));
+}
+
+/* =============================================================================
+ * UNIFIED VISUAL DESIGN SYSTEM - 2-Level Hierarchy
+ * =============================================================================
+ * 
+ * Establishes clean visual hierarchy with:
+ * - Level 1: Primary content containers (posts, forms, modals)
+ * - Level 2: Secondary content areas (comments, nested sections)
+ * - Consistent spacing scale
+ * - Subtle elevation instead of heavy borders
+ * - Unified background system
+ */
+
+@layer components {
+  /* Page-Level Container System */
+  .mobile-container {
+    @apply min-h-screen;
+  }
+
+  .content-wrapper {
+    @apply container mx-auto py-8 px-4;
+  }
+
+  .content-wrapper > * {
+    @apply max-w-4xl mx-auto;
+  }
+
+  /* Level 1: Primary Content Containers */
+  .content-level-1 {
+    @apply bg-card rounded-xl border border-border/60 shadow-sm;
+    @apply hover:shadow-md transition-all duration-200;
+  }
+
+  /* Level 2: Secondary Content Areas */
+  .content-level-2 {
+    @apply bg-muted/10 rounded-lg border border-border/40;
+    @apply shadow-sm;
+  }
+
+  /* Unified Spacing Scale */
+  .content-padding-1 {
+    @apply p-2 sm:p-3;
+  }
+
+  .content-padding-2 {
+    @apply p-2 sm:p-3;
+  }
+
+  .content-padding-compact {
+    @apply p-1 sm:p-2;
+  }
+
+  /* Header Sections */
+  .content-header {
+    @apply px-3 sm:px-4 pt-3 sm:pt-4 pb-3;
+    @apply border-b border-border/30 bg-muted/5;
+  }
+
+  /* Clean Separation Lines */
+  .content-divider {
+    @apply border-t border-border/40 mt-2;
+  }
+
+  /* Interactive States */
+  .content-interactive {
+    @apply transition-all duration-200;
+    @apply hover:shadow-lg hover:scale-[1.01];
+  }
+
+  /* Semantic Element Styling */
+  .post-container {
+    @apply content-level-1 relative;
+    @apply w-full max-w-full overflow-x-hidden;
+  }
+
+  .post-container.gated {
+    @apply border-l-4 border-l-blue-500;
+  }
+
+  .comments-section {
+    @apply content-level-2 content-divider;
+  }
+
+  .comment-form {
+    @apply bg-background rounded-lg border border-border/50 shadow-sm;
+  }
+
+  .vote-sidebar {
+    @apply bg-muted/30 border-r border-border/40;
+    @apply flex flex-col items-center justify-start;
+    @apply p-1 sm:p-2;
+  }
+
+  /* Consistent Text Hierarchy */
+  .content-title {
+    @apply text-base sm:text-lg md:text-xl font-semibold leading-tight;
+  }
+
+  .content-subtitle {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .content-meta {
+    @apply text-xs text-muted-foreground;
+  }
+
+  /* Loading and Error States */
+  .skeleton-container {
+    @apply content-level-1;
+  }
+
+  .skeleton-header {
+    @apply px-4 sm:px-6 pt-4 sm:pt-6 pb-3;
+  }
+
+  .skeleton-content {
+    @apply px-4 sm:px-6 pb-4 sm:pb-6;
+  }
+
+  /* Spacing Utilities */
+  .content-gap-1 {
+    @apply space-y-2;
+  }
+
+  .content-gap-2 {
+    @apply space-y-3;
+  }
+
+  .content-gap-compact {
+    @apply space-y-1;
+  }
+}
+
+@layer components {
+  /* Embed Page Components */
+  .embed-container {
+    min-height: 100vh;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  .embed-step {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .embed-card {
+    width: 100%;
+    border: none;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(16px);
+    background: linear-gradient(135deg, 
+      hsl(210 40% 98% / 0.95), 
+      hsl(0 0% 100% / 0.9), 
+      hsl(210 40% 96% / 0.95)
+    );
+  }
+
+  .dark .embed-card {
+    background: linear-gradient(135deg, 
+      hsl(240 10% 3.9% / 0.95), 
+      hsl(240 3.7% 15.9% / 0.9), 
+      hsl(240 10% 3.9% / 0.95)
+    );
+  }
+
+  .embed-card--sm {
+    max-width: 28rem;
+  }
+
+  .embed-card--md {
+    max-width: 32rem;
+  }
+
+  .embed-card--lg {
+    max-width: 42rem;
+  }
+
+  .embed-header-icon {
+    padding: 0.75rem;
+    border-radius: 9999px;
+    color: white;
+  }
+
+  .embed-gradient-text {
+    font-weight: 700;
+    background: linear-gradient(to right, 
+      hsl(240 10% 3.9%), 
+      hsl(240 3.8% 46.1%)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  .dark .embed-gradient-text {
+    background: linear-gradient(to right, 
+      hsl(0 0% 98%), 
+      hsl(210 40% 80%)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+  }
+
+  .auth-option-card {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .auth-option-card:hover {
+    border-color: hsl(217 91% 60% / 0.3);
+  }
+
+  .dark .auth-option-card:hover {
+    border-color: hsl(217 91% 60% / 0.5);
+  }
+
+  .auth-option-icon {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background: linear-gradient(135deg, var(--tw-gradient-from), var(--tw-gradient-to));
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .auth-option-button {
+    flex-shrink: 0;
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+  }
+
+  .auth-option-button:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+
+  .community-card {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .community-card:hover {
+    border-color: hsl(217 91% 60% / 0.3);
+  }
+
+  .dark .community-card:hover {
+    border-color: hsl(217 91% 60% / 0.5);
+  }
+
+  .community-icon {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, var(--tw-gradient-from), var(--tw-gradient-to));
+    color: white;
+    flex-shrink: 0;
+    font-size: 1.5rem;
+  }
+
+  .create-community-card {
+    position: relative;
+    overflow: hidden;
+    border: 2px dashed hsl(217 91% 60% / 0.4);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .create-community-card:hover {
+    border-color: hsl(217 91% 60%);
+  }
+
+  /* Theme Toggle Component */
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background-color: hsl(var(--secondary) / 0.8);
+    color: hsl(var(--secondary-foreground));
+    border: 1px solid hsl(var(--border));
+    transition: all 0.2s ease;
+  }
+
+  .theme-toggle:hover {
+    background-color: hsl(var(--secondary));
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .theme-toggle__icon {
+    font-size: 1.125rem;
+  }
+
+  .theme-toggle__label {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  /* Plugin Container */
+  .plugin-container {
+    background-color: hsl(var(--card));
+    border: 2px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .plugin-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid hsl(var(--border));
+    background-color: hsl(var(--muted) / 0.5);
+  }
+
+  .plugin-content {
+    position: relative;
+  }
+
+  .plugin-iframe {
+    width: 100%;
+    border: none;
+  }
+
+  /* Status Components */
+  .status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .status-indicator--idle {
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .status-indicator--loading {
+    background-color: hsl(45 93% 85%);
+    color: hsl(25 95% 25%);
+  }
+
+  .dark .status-indicator--loading {
+    background-color: hsl(45 93% 25% / 0.5);
+    color: hsl(45 93% 75%);
+  }
+
+  .status-indicator--connected {
+    background-color: hsl(142 76% 85%);
+    color: hsl(142 86% 25%);
+  }
+
+  .dark .status-indicator--connected {
+    background-color: hsl(142 76% 25% / 0.5);
+    color: hsl(142 76% 75%);
+  }
+
+  .status-indicator--error {
+    background-color: hsl(0 84% 85%);
+    color: hsl(0 86% 25%);
+  }
+
+  .dark .status-indicator--error {
+    background-color: hsl(0 84% 25% / 0.5);
+    color: hsl(0 84% 75%);
+  }
+
+  /* Progress Components */
+  .progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Animation Classes */
+  .loading-spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 9999px;
+    animation: spin 1s linear infinite;
+  }
+
+  .pulse-ring {
+    position: absolute;
+    inset: 0;
+    border: 2px solid currentColor;
+    border-radius: 9999px;
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+    opacity: 0.2;
+  }
+
+  .success-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, hsl(142 76% 55%), hsl(217 91% 60%));
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+    opacity: 0.2;
+    width: 5rem;
+    height: 5rem;
+    margin: auto;
+  }
+}
+
+@layer utilities {
+  .container-safe {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  
+  .wrap-anywhere {
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+
+  /* Gradient Utilities */
+  .gradient-blue-cyan {
+    --tw-gradient-from: #3b82f6;
+    --tw-gradient-to: #06b6d4;
+  }
+
+  .gradient-emerald-teal {
+    --tw-gradient-from: #10b981;
+    --tw-gradient-to: #14b8a6;
+  }
+
+  .gradient-gray-slate {
+    --tw-gradient-from: #6b7280;
+    --tw-gradient-to: #64748b;
+  }
+
+  .gradient-blue-indigo {
+    --tw-gradient-from: #3b82f6;
+    --tw-gradient-to: #6366f1;
+  }
+
+  .gradient-green-emerald {
+    --tw-gradient-from: #22c55e;
+    --tw-gradient-to: #10b981;
+  }
+
+  .gradient-purple-pink {
+    --tw-gradient-from: #a855f7;
+    --tw-gradient-to: #ec4899;
+  }
+
+  .gradient-green-blue {
+    --tw-gradient-from: #22c55e;
+    --tw-gradient-to: #2563eb;
+  }
+
+  .gradient-blue-purple {
+    --tw-gradient-from: #3b82f6;
+    --tw-gradient-to: #9333ea;
+  }
+
+  /* Button Gradient Utilities */
+  .btn-gradient-blue-cyan {
+    background: linear-gradient(to right, #2563eb, #0891b2);
+  }
+
+  .btn-gradient-blue-cyan:hover {
+    background: linear-gradient(to right, #1d4ed8, #0e7490);
+  }
+
+  .btn-gradient-emerald-teal {
+    background: linear-gradient(to right, #059669, #0d9488);
+  }
+
+  .btn-gradient-emerald-teal:hover {
+    background: linear-gradient(to right, #047857, #0f766e);
+  }
+
+  .btn-gradient-gray-slate {
+    background: linear-gradient(to right, #4b5563, #475569);
+  }
+
+  .btn-gradient-gray-slate:hover {
+    background: linear-gradient(to right, #374151, #334155);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Mobile-First Responsive Breakpoints */
+/* These override Tailwind's defaults to be more mobile-focused */
+@media (max-width: 374px) {
+  /* Very small phones */
+  body {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 375px) and (max-width: 479px) {
+  /* Most mobile phones */
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 767px) {
+  /* Large phones / small tablets */
+  body {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 768px) {
+  /* Tablets and above */
+  body {
+    font-size: 16px;
+  }
+}
+
+/* Accessibility Improvements for Mobile */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: 240 5.9% 70%;
+  }
+  
+  .dark {
+    --border: 240 3.7% 30%;
+  }
+}
+
+/* Mobile-optimized selection styling */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
+/* Prevent zoom on input focus (iOS Safari) */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+    transform: scale(1);
+  }
+}

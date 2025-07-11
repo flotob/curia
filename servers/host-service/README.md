@@ -290,6 +290,130 @@ yarn build
 pm2 start "yarn start" --name curia-host-service
 ```
 
+## 🐛 Embed System Debugging
+
+### Critical Iframe Embedding Lessons Learned
+
+The embed system (`/embed.js` → `/embed` iframe) has several gotchas that can cause silent failures. Here are the key lessons from debugging:
+
+#### 1. **Iframe DOM Insertion Order** 🚨 **CRITICAL**
+**Problem:** Iframe must be inserted into DOM **before** setting `src` attribute.
+
+```javascript
+// ❌ WRONG: iframe.src set before DOM insertion
+iframe.src = 'http://localhost:3001/embed';
+container.appendChild(iframe); // Too late! Loading never starts
+
+// ✅ CORRECT: Insert into DOM first, then set src
+container.appendChild(iframe);  // Insert first
+iframe.src = 'http://localhost:3001/embed'; // Now loading starts
+```
+
+**Symptoms:** 
+- Iframe shows loading forever
+- No network requests in dev tools
+- `iframe.onload` never fires
+- 10-second timeout errors
+
+#### 2. **Sandbox Permissions Required** 🛡️
+Modern browsers heavily sandbox iframes by default. Must explicitly allow:
+
+```javascript
+iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+```
+
+**Without sandbox permissions:**
+- No JavaScript execution
+- No network requests
+- Complete iframe failure
+- No error messages
+
+#### 3. **Template Literal Syntax** 📝
+**Problem:** Using single quotes instead of backticks in server-side generation.
+
+```javascript
+// ❌ WRONG: Single quotes don't interpolate
+const script = 'const url = ${hostUrl}/embed';
+
+// ✅ CORRECT: Backticks for template literals  
+const script = `const url = ${hostUrl}/embed`;
+```
+
+#### 4. **Browser vs Server Environment** 🌍
+**Problem:** `process.env` doesn't exist in browser JavaScript.
+
+```javascript
+// ❌ WRONG: Browser can't access process.env
+const url = `${process.env.NEXT_PUBLIC_HOST_URL}/embed`;
+
+// ✅ CORRECT: Resolve server-side, inject into client script
+const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3001';
+const script = `const url = '${hostUrl}/embed';`;
+```
+
+#### 5. **X-Frame-Options Configuration** 🔒
+**Problem:** `X-Frame-Options: SAMEORIGIN` blocks iframe embedding.
+
+```javascript
+// next.config.js - Allow embedding for /embed route
+headers: async () => [
+  {
+    // Exclude /embed from X-Frame-Options restrictions
+    source: '/((?!embed).*)', 
+    headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }]
+  }
+]
+```
+
+#### 6. **CSS Compilation Errors** 💄
+**Problem:** Invalid Tailwind classes prevent page compilation.
+
+```css
+/* ❌ WRONG: border-border is not a valid Tailwind class */
+@apply border-border;
+
+/* ✅ CORRECT: Use actual CSS or valid Tailwind classes */
+border-color: hsl(var(--border));
+```
+
+### Debugging Checklist
+
+When iframe embedding fails:
+
+1. **Check browser dev tools Network tab**
+   - Is the iframe making ANY network requests?
+   - If NO requests: DOM insertion order issue
+
+2. **Inspect iframe element**
+   - Does it have `sandbox` attributes?
+   - Is `src` attribute set correctly?
+
+3. **Check console for JavaScript errors**
+   - Template literal syntax errors
+   - `process is not defined` errors
+
+4. **Test direct URL access**
+   - Does `/embed?theme=light` work directly?
+   - If YES: iframe issue. If NO: route/compilation issue
+
+5. **Verify Next.js config**
+   - Check `X-Frame-Options` headers
+   - Ensure `/embed` route is excluded from restrictions
+
+### Working Test Comparison
+
+**✅ Working:** `/test` page loads `localhost:3000` via `ClientPluginHost`
+- Uses proper DOM insertion order
+- Includes sandbox permissions
+- Sophisticated iframe management
+
+**❌ Initially Broken:** `/demo` page loads `localhost:3001/embed` via embed script
+- Wrong DOM insertion order
+- Missing sandbox permissions  
+- Basic iframe creation
+
+The fix was making the embed script follow the same patterns as `ClientPluginHost`.
+
 ## 🔒 Security Considerations
 
 ### Request Validation

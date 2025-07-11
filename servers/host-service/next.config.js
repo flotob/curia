@@ -14,8 +14,8 @@ const nextConfig = {
   headers: async () => {
     return [
       {
-        // Allow iframe embedding for all routes
-        source: '/(.*)',
+        // Keep SAMEORIGIN for all routes except /embed (which gets no headers = allows embedding)
+        source: '/((?!embed).*)',
         headers: [
           {
             key: 'X-Frame-Options',
