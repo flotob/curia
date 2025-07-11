@@ -1,5 +1,5 @@
 /**
- * Embed Components - Barrel exports for all embed step components
+ * Embed Components - All step components for the embed flow
  */
 
 export { LoadingStep } from './LoadingStep';
@@ -8,4 +8,4 @@ export { AuthenticationStep } from './AuthenticationStep';
 export { ProfilePreviewStep } from './ProfilePreviewStep';
 export { SignatureVerificationStep } from './SignatureVerificationStep';
 export { CommunitySelectionStep } from './CommunitySelectionStep';
-export { ForumStep } from './ForumStep'; 
+export { AuthCompleteStep } from './AuthCompleteStep'; 

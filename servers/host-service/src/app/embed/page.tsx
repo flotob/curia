@@ -2,8 +2,8 @@
  * Embed Page - Progressive Authentication Experience
  * 
  * This is what loads inside the iframe on customer sites.
- * Progressive stages: Session Check → Authentication → Community → Forum
- * Uses proper theme system and loads real Curia forum via ClientPluginHost.
+ * Progressive stages: Session Check → Authentication → Community → Auth Complete Message
+ * After completion, sends curia-auth-complete message to parent for iframe switching.
  * 
  * Updated to use proven AuthenticationFlow component which handles:
  * - Wallet connection
@@ -25,7 +25,7 @@ import {
   ProfilePreviewStep,
   SignatureVerificationStep,
   CommunitySelectionStep,
-  ForumStep
+  AuthCompleteStep
 } from '@/components/embed';
 import { useIframeResize } from '@/lib/embed/hooks';
 import { EmbedConfig, EmbedStep, ProfileData } from '@/types/embed';
@@ -34,6 +34,7 @@ const EmbedContent: React.FC = () => {
   const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState<EmbedStep>('loading');
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
   const [useModernFlow, setUseModernFlow] = useState(true); // Use proven AuthenticationFlow by default
   
   // Setup iframe communication
@@ -53,6 +54,24 @@ const EmbedContent: React.FC = () => {
     }
   }, [searchParams]);
 
+  // Send auth completion message to parent
+  const sendAuthCompleteMessage = useCallback((userId: string, communityId: string, sessionToken?: string) => {
+    const message = {
+      type: 'curia-auth-complete',
+      userId,
+      communityId,
+      sessionToken,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('[Embed] Sending auth complete message to parent:', message);
+    
+    // Send to parent window
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(message, '*');
+    }
+  }, []);
+
   // Step transition handlers
   const handleLoadingComplete = useCallback(() => {
     setCurrentStep('session-check');
@@ -60,11 +79,23 @@ const EmbedContent: React.FC = () => {
 
   const handleSessionResult = useCallback((hasSession: boolean) => {
     if (hasSession) {
-      setCurrentStep('forum');
+      // Check if embed has a specific community target
+      if (config.community) {
+        // Has session + specific community → send auth complete immediately
+        // We'll need to extract user ID from session data
+        console.log('[Embed] Has session and specific community, sending auth complete');
+        // For now, we'll proceed to community selection to get the user context
+        setSelectedCommunityId(config.community);
+        setCurrentStep('community-selection');
+      } else {
+        // Has session + no specific community → show community selection
+        setCurrentStep('community-selection');
+      }
     } else {
+      // No session → show authentication
       setCurrentStep('authentication');
     }
-  }, []);
+  }, [config.community]);
 
   const handleAuthenticated = useCallback((data: ProfileData) => {
     setProfileData(data);
@@ -95,9 +126,29 @@ const EmbedContent: React.FC = () => {
     setCurrentStep('community-selection');
   }, []);
 
-  const handleCommunitySelected = useCallback(() => {
-    setCurrentStep('forum');
-  }, []);
+  const handleCommunitySelected = useCallback((communityId?: string) => {
+    if (communityId) {
+      setSelectedCommunityId(communityId);
+      console.log('[Embed] Community selected:', communityId);
+      
+      // Instead of going to forum, send auth complete message and show completion
+      if (profileData) {
+        // Create user ID from profile data
+        let userId: string;
+        if (profileData.type === 'anonymous') {
+          userId = `anonymous_${Date.now()}`;
+        } else {
+          userId = profileData.address || `wallet_${Date.now()}`;
+        }
+        
+        // Send auth complete message to parent
+        sendAuthCompleteMessage(userId, communityId, profileData.sessionToken);
+        
+        // Show completion step
+        setCurrentStep('auth-complete');
+      }
+    }
+  }, [profileData, sendAuthCompleteMessage]);
 
   // Initialize loading sequence
   React.useEffect(() => {
@@ -166,8 +217,14 @@ const EmbedContent: React.FC = () => {
           />
         );
         
-      case 'forum':
-        return <ForumStep config={config} />;
+      case 'auth-complete':
+        return (
+          <AuthCompleteStep 
+            config={config}
+            profileData={profileData}
+            communityId={selectedCommunityId}
+          />
+        );
         
       default:
         return <LoadingStep />;

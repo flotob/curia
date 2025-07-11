@@ -28,6 +28,18 @@ export interface PluginConfig {
 }
 
 /**
+ * Authentication context for API requests
+ */
+export interface AuthContext {
+  /** Authenticated user ID */
+  userId: string;
+  /** Selected community ID */
+  communityId: string;
+  /** Optional session token */
+  sessionToken?: string;
+}
+
+/**
  * Message types for host-plugin communication
  */
 enum MessageType {
@@ -72,9 +84,34 @@ export class ClientPluginHost {
   /** Host service URL for API requests */
   private hostServiceUrl: string;
 
+  /** Authentication context for API requests */
+  private authContext: AuthContext | null = null;
+
   constructor(hostServiceUrl?: string) {
     this.hostServiceUrl = hostServiceUrl || process.env.NEXT_PUBLIC_HOST_SERVICE_URL || 'http://localhost:3001';
     this.setupMessageListener();
+  }
+
+  /**
+   * Set authentication context for API requests
+   * 
+   * @param authContext - User and community context from embed authentication
+   */
+  public setAuthContext(authContext: AuthContext): void {
+    this.authContext = authContext;
+    console.log('[ClientPluginHost] Auth context set:', {
+      userId: authContext.userId,
+      communityId: authContext.communityId,
+      hasSessionToken: !!authContext.sessionToken
+    });
+  }
+
+  /**
+   * Clear authentication context
+   */
+  public clearAuthContext(): void {
+    this.authContext = null;
+    console.log('[ClientPluginHost] Auth context cleared');
   }
 
   /**
@@ -322,11 +359,18 @@ export class ClientPluginHost {
    */
   private async handleApiRequest(message: PluginMessage, source: Window): Promise<void> {
     try {
+      // Check if we have authentication context
+      if (!this.authContext) {
+        throw new Error('No authentication context available. User must authenticate first.');
+      }
+
       // Emit event for logging/monitoring
       this.emit('api-request', {
         method: message.method,
         params: message.params,
-        iframeUid: message.iframeUid
+        iframeUid: message.iframeUid,
+        userId: this.authContext.userId,
+        communityId: this.authContext.communityId
       });
 
       // Route API request to appropriate backend endpoint
@@ -350,7 +394,7 @@ export class ClientPluginHost {
           throw new Error(`Unknown API method: ${message.method}`);
       }
 
-      // Make request to host service backend
+      // Make request to host service backend with authenticated context
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
@@ -359,8 +403,8 @@ export class ClientPluginHost {
         body: JSON.stringify({
           method: message.method,
           params: message.params,
-          communityId: 'default_community', // TODO: Get from plugin context
-          userId: 'default_user' // TODO: Get from authenticated user
+          communityId: this.authContext.communityId,
+          userId: this.authContext.userId
         })
       });
 

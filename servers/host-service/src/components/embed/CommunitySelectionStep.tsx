@@ -88,7 +88,8 @@ export const CommunitySelectionStep: React.FC<CommunitySelectionStepProps> = ({
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      onCommunitySelected();
+      // Pass the selected community ID to the parent
+      onCommunitySelected(selectedCommunity);
     } catch (error) {
       console.error('[Embed] Error joining community:', error);
       setIsJoining(false);

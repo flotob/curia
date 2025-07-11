@@ -14,7 +14,7 @@ export type EmbedStep =
   | 'profile-preview' 
   | 'signature-verification' 
   | 'community-selection' 
-  | 'forum';
+  | 'auth-complete';
 
 export interface AuthOption {
   id: string;
@@ -76,8 +76,11 @@ export interface SignatureVerificationStepProps extends StepProps {
 }
 
 export interface CommunitySelectionStepProps extends StepProps {
-  onCommunitySelected: () => void;
+  onCommunitySelected: (communityId?: string) => void;
   sessionToken?: string;
 }
 
-export interface ForumStepProps extends StepProps {} 
+export interface AuthCompleteStepProps extends StepProps {
+  profileData: ProfileData | null;
+  communityId: string | null;
+} 
