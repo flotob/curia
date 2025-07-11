@@ -2,8 +2,14 @@
  * Embed Page - Progressive Authentication Experience
  * 
  * This is what loads inside the iframe on customer sites.
- * Progressive stages: Session Check → Authentication → Profile Preview → Signature → Community → Forum
+ * Progressive stages: Session Check → Authentication → Community → Forum
  * Uses proper theme system and loads real Curia forum via ClientPluginHost.
+ * 
+ * Updated to use proven AuthenticationFlow component which handles:
+ * - Wallet connection
+ * - Profile preview ("moment of delight")
+ * - Signature verification
+ * - Session creation
  */
 
 'use client';
@@ -11,6 +17,7 @@
 import React, { useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ThemeProvider, ThemeToggle } from '@/contexts/ThemeContext';
+import { QueryClientProvider } from '@/components/providers/QueryClientProvider';
 import { 
   LoadingStep,
   SessionCheckStep,
@@ -27,6 +34,7 @@ const EmbedContent: React.FC = () => {
   const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState<EmbedStep>('loading');
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [useModernFlow, setUseModernFlow] = useState(true); // Use proven AuthenticationFlow by default
   
   // Setup iframe communication
   useIframeResize();
@@ -36,6 +44,14 @@ const EmbedContent: React.FC = () => {
     community: searchParams.get('community') || undefined,
     theme: (searchParams.get('theme') as 'light' | 'dark') || 'light',
   };
+
+  // Check for legacy flow parameter (for backwards compatibility)
+  React.useEffect(() => {
+    const legacy = searchParams.get('legacy');
+    if (legacy === 'true') {
+      setUseModernFlow(false);
+    }
+  }, [searchParams]);
 
   // Step transition handlers
   const handleLoadingComplete = useCallback(() => {
@@ -53,11 +69,14 @@ const EmbedContent: React.FC = () => {
   const handleAuthenticated = useCallback((data: ProfileData) => {
     setProfileData(data);
     
+    // Always show proper flow progression
     if (data.type === 'anonymous') {
       // Skip profile preview and signature for anonymous users
+      console.log('[Embed] Anonymous user: proceeding to community selection');
       setCurrentStep('community-selection');
     } else {
-      // Show profile preview for wallet users
+      // Show "moment of delight" profile preview for wallet users (both fresh and already connected)
+      console.log('[Embed] Wallet connected: showing profile preview');
       setCurrentStep('profile-preview');
     }
   }, []);
@@ -152,18 +171,34 @@ const EmbedContent: React.FC = () => {
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
+
+      {/* Flow Indicator (for development) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <div className="bg-background border border-border rounded-lg px-3 py-2 text-xs">
+            <div className="font-mono text-muted-foreground">
+              {useModernFlow ? '🚀 Modern Flow' : '📜 Legacy Flow'}
+            </div>
+            <div className="font-mono text-muted-foreground">
+              Step: {currentStep}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default function EmbedPage() {
   return (
-    <ThemeProvider>
-      <div className="min-h-screen bg-background text-foreground">
-        <Suspense fallback={<LoadingStep />}>
-          <EmbedContent />
-        </Suspense>
-      </div>
-    </ThemeProvider>
+    <QueryClientProvider>
+      <ThemeProvider>
+        <div className="min-h-screen bg-background text-foreground">
+          <Suspense fallback={<LoadingStep />}>
+            <EmbedContent />
+          </Suspense>
+        </div>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 } 

@@ -8,16 +8,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   CheckCircle, 
   RefreshCw,
   Star,
   User,
   Users,
-  UserPlus
+  UserPlus,
+  ArrowLeft,
+  Wallet
 } from 'lucide-react';
 import { getUPSocialProfile, UPSocialProfile } from '../../lib/upProfile';
 import { lsp26Registry, LSP26Stats } from '../../lib/lsp26';
@@ -26,7 +28,8 @@ import { lsp26Registry, LSP26Stats } from '../../lib/lsp26';
 
 export interface UPProfileDisplayProps {
   address: string;
-  onSwitchWallet?: () => void;
+  onSwitchWallet?: () => void; // Switch to different UP account
+  onBack?: () => void; // Go back to main authentication selection
   onContinue?: () => void;
   className?: string;
 }
@@ -36,6 +39,7 @@ export interface UPProfileDisplayProps {
 export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
   address,
   onSwitchWallet,
+  onBack,
   onContinue,
   className = ''
 }) => {
@@ -44,6 +48,7 @@ export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isValidUP, setIsValidUP] = useState<boolean | null>(null); // null = checking, true = valid UP, false = not a UP
 
   // ===== PROFILE FETCHING =====
   
@@ -53,23 +58,58 @@ export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
       
       setIsLoading(true);
       setError(null);
+      setIsValidUP(null); // Start validation check
       
       try {
         console.log(`[UPProfileDisplay] Fetching UP profile for: ${address}`);
         const profileData = await getUPSocialProfile(address);
         setProfile(profileData);
 
+        // ===== VALIDATION: Check if this is actually a Universal Profile =====
+        // Use proven validation patterns from main forum app
+        
+        // 1. Address format validation (from main app pattern)
+        const upAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+        if (!upAddressRegex.test(address)) {
+          console.log(`[UPProfileDisplay] ❌ Invalid UP address format: ${address}`);
+          setIsValidUP(false);
+          setError('Invalid Universal Profile address format. Please ensure you connected the correct wallet.');
+        } else {
+          // 2. LSP3 profile data validation (from main app pattern)
+          const hasValidLSP3Profile = !!(
+            profileData && 
+            !profileData.error && 
+            profileData.displayName && 
+            profileData.displayName.trim() && 
+            // Not just formatted address fallback
+            profileData.displayName !== `${address.slice(0, 6)}...${address.slice(-4)}` &&
+            // Has actual profile metadata (proven pattern from main app)
+            (profileData.profileImage || profileData.bio || profileData.username !== `user_${address.slice(-6)}`)
+          );
+
+          if (hasValidLSP3Profile) {
+            console.log(`[UPProfileDisplay] ✅ Valid Universal Profile detected with LSP3 metadata`);
+            setIsValidUP(true);
+          } else {
+            console.log(`[UPProfileDisplay] ❌ Not a valid Universal Profile - missing or invalid LSP3 metadata`);
+            setIsValidUP(false);
+            setError('This address does not contain valid Universal Profile metadata (LSP3). Please connect a wallet with a properly configured Universal Profile.');
+          }
+        }
+
         if (profileData.error) {
           setError(profileData.error);
+          setIsValidUP(false);
         }
 
         console.log(`[UPProfileDisplay] ✅ UP profile fetched:`, profileData);
 
       } catch (err) {
         console.error('[UPProfileDisplay] Error fetching UP profile:', err);
-        setError('Failed to load profile data');
+        setError('Failed to load Universal Profile data. This may not be a valid Universal Profile address.');
+        setIsValidUP(false);
         
-        // Create basic fallback profile
+        // Create basic fallback profile for display purposes only
         setProfile({
           address,
           displayName: `${address.slice(0, 6)}...${address.slice(-4)}`,
@@ -250,33 +290,107 @@ export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
 
           {/* Error Display */}
           {(error || (socialStats && socialStats.error)) && (
-            <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+            <div className={`text-xs rounded-lg p-3 ${
+              isValidUP === false 
+                ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' 
+                : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20'
+            }`}>
               <div className="flex items-center space-x-2">
-                <RefreshCw className="h-3 w-3" />
+                {isValidUP === false ? (
+                  <User className="h-4 w-4" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
                 <span>{error || socialStats?.error}</span>
+              </div>
+              {isValidUP === false && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  <p>• Ensure you have a Universal Profile set up on LUKSO</p>
+                  <p>• Try connecting a different wallet</p>
+                  <p>• Visit <a href="https://universalprofile.cloud" target="_blank" rel="noopener noreferrer" className="underline">universalprofile.cloud</a> to create one</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Validation Success */}
+          {isValidUP === true && !error && (
+            <div className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4" />
+                <span>✅ Valid Universal Profile detected - ready to continue!</span>
               </div>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex space-x-3">
-            {onSwitchWallet && (
-              <Button
-                variant="outline"
-                onClick={onSwitchWallet}
-                className="flex-1"
-              >
-                Switch Wallet
-              </Button>
-            )}
+          <div className="space-y-3">
+            {/* Primary Action Button */}
             {onContinue && (
               <Button
                 onClick={onContinue}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                disabled={isValidUP !== true} // Only enable when valid UP is confirmed
+                className={`w-full ${
+                  isValidUP === true
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-gray-300 cursor-not-allowed'
+                }`}
               >
-                Continue
+                {isValidUP === null ? 'Validating...' : isValidUP ? 'Continue' : 'Invalid Universal Profile'}
               </Button>
             )}
+
+            {/* Secondary Actions */}
+            <div className="flex space-x-3">
+              {/* Back Button */}
+              {onBack && (
+                <Button
+                  variant="outline"
+                  onClick={onBack}
+                  className="flex-1"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+              )}
+
+              {/* Switch Wallet Button - Triggers UP extension again */}
+              {onSwitchWallet && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // For UP, we trigger a new connection which opens the UP extension
+                    if (typeof window !== 'undefined' && window.lukso) {
+                      window.lukso.request({ method: 'eth_requestAccounts' })
+                        .then(() => {
+                          // Reload the page or trigger a refresh to get new account
+                          window.location.reload();
+                        })
+                        .catch(console.error);
+                    } else {
+                      // Fallback to callback if UP extension not available
+                      onSwitchWallet();
+                    }
+                  }}
+                  className="flex-1"
+                >
+                  <Wallet className="w-4 h-4 mr-2" />
+                  Switch Wallet
+                </Button>
+              )}
+
+              {/* Fallback: Legacy single button for backwards compatibility */}
+              {!onBack && onSwitchWallet && (
+                <Button
+                  variant="outline"
+                  onClick={onSwitchWallet}
+                  className="flex-1"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Switch Wallet
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

@@ -1,26 +1,127 @@
 /**
  * AuthenticationStep - Wallet and authentication selection
+ * 
+ * Beautiful custom UI cards that trigger the CORRECT wallet ecosystem:
+ * - ENS: EthereumProfileProvider + RainbowKit + window.ethereum
+ * - UP: UniversalProfileProvider + window.lukso + ethers.js
+ * - Anonymous: Direct backend integration
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Wallet, Globe, Zap, User, ArrowRight, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AuthenticationStepProps, AuthOption } from '@/types/embed';
-import { createMockProfileData, createAnonymousProfileData } from '@/lib/embed/mockData';
+import { UniversalProfileProvider, useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { EthereumProfileProvider, useEthereumProfile } from '@/contexts/EthereumProfileContext';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+
+// Separate component for Universal Profile connection
+const UniversalProfileConnection: React.FC<{ onSuccess: (data: any) => void }> = ({ onSuccess }) => {
+  const { upAddress, isConnecting, connect } = useUniversalProfile();
+  
+  React.useEffect(() => {
+    if (upAddress) {
+      // UP connection successful - map to embed format with basic info
+      // Profile details will be fetched in the ProfilePreviewStep
+      onSuccess({
+        type: 'universal_profile',
+        address: upAddress,
+        name: 'Universal Profile User', // Will be enhanced in preview step
+        avatar: null, // Will be enhanced in preview step
+        balance: undefined, // Will be fetched by context
+        followerCount: undefined, // Will be fetched by context
+        verificationLevel: 'verified' as const
+      });
+    }
+  }, [upAddress, onSuccess]);
+
+  React.useEffect(() => {
+    // Auto-trigger UP connection when component mounts
+    if (!upAddress && !isConnecting) {
+      connect().catch(console.error);
+    }
+  }, [upAddress, isConnecting, connect]);
+
+  return (
+    <div className="text-center py-8">
+      <div className="w-16 h-16 mx-auto border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+      <p className="text-muted-foreground">
+        {isConnecting ? 'Connecting to Universal Profile...' : 'Opening Universal Profile extension...'}
+      </p>
+    </div>
+  );
+};
+
+// Separate component for Ethereum/ENS connection
+const EthereumConnection: React.FC<{ onSuccess: (data: any) => void }> = ({ onSuccess }) => {
+  const { isConnected, ethAddress, getENSProfile } = useEthereumProfile();
+  const [ensData, setEnsData] = React.useState<{ name?: string; avatar?: string }>({});
+  
+  // Fetch ENS data when connected
+  React.useEffect(() => {
+    if (isConnected && ethAddress) {
+      getENSProfile().then(setEnsData).catch(console.error);
+    }
+  }, [isConnected, ethAddress, getENSProfile]);
+  
+  React.useEffect(() => {
+    if (isConnected && ethAddress) {
+      // Ethereum connection successful - map to embed format
+      onSuccess({
+        type: 'ens',
+        address: ethAddress,
+        name: ensData.name || 'Ethereum User',
+        avatar: ensData.avatar || null,
+        domain: ensData.name,
+        balance: undefined, // Will be fetched by context
+        verificationLevel: ensData.name ? 'verified' as const : 'partial' as const
+      });
+    }
+  }, [isConnected, ethAddress, ensData, onSuccess]);
+
+  if (!isConnected) {
+    return (
+      <div className="text-center py-8">
+        <div className="mb-6">
+          <p className="text-muted-foreground mb-4">
+            Connect your Ethereum wallet to continue
+          </p>
+          <ConnectButton />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-center py-8">
+      <div className="w-16 h-16 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+      <p className="text-muted-foreground">Processing Ethereum connection...</p>
+    </div>
+  );
+};
 
 export const AuthenticationStep: React.FC<AuthenticationStepProps> = ({ 
   onAuthenticated, 
   config 
 }) => {
   const [isAuthenticating, setIsAuthenticating] = useState<string | null>(null);
+  const [connectionType, setConnectionType] = useState<'ens' | 'universal_profile' | null>(null);
+
+  const handleConnectionSuccess = useCallback((profileData: any) => {
+    console.log('[AuthenticationStep] Connection successful:', profileData);
+    setIsAuthenticating(null);
+    setConnectionType(null);
+    onAuthenticated(profileData);
+  }, [onAuthenticated]);
 
   const handleAuth = useCallback(async (type: string) => {
     setIsAuthenticating(type);
     
-    try {
-      if (type === 'anonymous') {
+    if (type === 'anonymous') {
+      // Handle anonymous auth directly with our backend
+      try {
         const response = await fetch('/api/auth/create-anonymous', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -31,28 +132,30 @@ export const AuthenticationStep: React.FC<AuthenticationStepProps> = ({
           const data = await response.json();
           localStorage.setItem('curia_session_token', data.token);
           
-          // For anonymous, skip profile preview and go to community
           setTimeout(() => {
-            onAuthenticated(createAnonymousProfileData(data.user.name));
+            handleConnectionSuccess({
+              type: 'anonymous',
+              name: data.user.name,
+              verificationLevel: 'unverified' as const
+            });
           }, 1000);
         } else {
           throw new Error('Anonymous authentication failed');
         }
-      } else {
-        // TODO: For ENS/UP, we'll show profile preview after connection
-        console.log(`[Embed] ${type} authentication - will show profile preview`);
-        
-        // Simulate wallet connection and profile data
-        setTimeout(() => {
-          const mockProfileData = createMockProfileData(type as 'ens' | 'universal_profile');
-          onAuthenticated(mockProfileData);
-        }, 2000);
+      } catch (error) {
+        console.error(`[Embed] Anonymous authentication error:`, error);
+        setIsAuthenticating(null);
       }
-    } catch (error) {
-      console.error(`[Embed] ${type} authentication error:`, error);
-      setIsAuthenticating(null);
+    } else {
+      // For wallet connections, set the connection type to show the right provider
+      setConnectionType(type as 'ens' | 'universal_profile');
     }
-  }, [onAuthenticated]);
+  }, [handleConnectionSuccess]);
+
+  const handleBack = useCallback(() => {
+    setIsAuthenticating(null);
+    setConnectionType(null);
+  }, []);
 
   const authOptions: AuthOption[] = [
     {
@@ -84,9 +187,51 @@ export const AuthenticationStep: React.FC<AuthenticationStepProps> = ({
     }
   ];
 
+  // Show connection flow for specific wallet type
+  if (connectionType === 'universal_profile') {
+    return (
+      <div className="embed-step">
+        <Card className="embed-card embed-card--md">
+          <CardHeader className="text-center pb-6">
+            <CardTitle className="text-xl">Universal Profile Connection</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleBack} className="mt-2">
+              ← Back to Options
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <UniversalProfileProvider>
+              <UniversalProfileConnection onSuccess={handleConnectionSuccess} />
+            </UniversalProfileProvider>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (connectionType === 'ens') {
+    return (
+      <div className="embed-step">
+        <Card className="embed-card embed-card--md">
+          <CardHeader className="text-center pb-6">
+            <CardTitle className="text-xl">Ethereum Wallet Connection</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleBack} className="mt-2">
+              ← Back to Options
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <EthereumProfileProvider storageKey="embed_ethereum">
+              <EthereumConnection onSuccess={handleConnectionSuccess} />
+            </EthereumProfileProvider>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show beautiful wallet selection cards
   return (
     <div className="embed-step">
-      <Card className="embed-card embed-card--md">
+      <Card className="embed-card embed-card--lg">
         <CardHeader className="text-center pb-6">
           <div className="flex justify-center mb-4">
             <div className="embed-header-icon gradient-blue-purple">
@@ -102,6 +247,7 @@ export const AuthenticationStep: React.FC<AuthenticationStepProps> = ({
         </CardHeader>
 
         <CardContent className="space-y-4 px-6 pb-8">
+          {/* Beautiful Custom Cards */}
           {authOptions.map((option) => (
             <Card key={option.id} className="auth-option-card">
               <CardContent className="p-5">

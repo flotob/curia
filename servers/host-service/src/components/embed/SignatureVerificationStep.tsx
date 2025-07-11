@@ -1,5 +1,7 @@
 /**
  * SignatureVerificationStep - Wallet signature verification
+ * 
+ * Now uses real wallet signature integration with proven context hooks
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9,8 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Shield, CheckCircle2, Edit3, ArrowRight, AlertCircle } from 'lucide-react';
 import { SignatureVerificationStepProps } from '@/types/embed';
+import { UniversalProfileProvider, useUniversalProfile } from '@/contexts/UniversalProfileContext';
+import { EthereumProfileProvider, useEthereumProfile } from '@/contexts/EthereumProfileContext';
 
-export const SignatureVerificationStep: React.FC<SignatureVerificationStepProps> = ({ 
+// Internal component with access to proven wallet contexts
+const SignatureVerificationContent: React.FC<SignatureVerificationStepProps> = ({ 
   profileData, 
   onSignatureComplete 
 }) => {
@@ -18,19 +23,61 @@ export const SignatureVerificationStep: React.FC<SignatureVerificationStepProps>
   const [progress, setProgress] = useState(0);
   const [signature, setSignature] = useState<string>('');
   const [message, setMessage] = useState<string>('');
+  const [challenge, setChallenge] = useState<string>('');
 
-  // Generate challenge message
+  // Get proven wallet context hooks
+  const { signMessage: signUPMessage } = useUniversalProfile();
+  const { signMessage: signEthMessage } = useEthereumProfile();
+
+  // Generate challenge message and get backend challenge
   useEffect(() => {
-    const timestamp = new Date().toISOString();
-    const nonce = Math.random().toString(36).substring(2, 15);
-    const challengeMessage = `Welcome to Curia!\n\nSign this message to prove you own this wallet.\n\nTimestamp: ${timestamp}\nNonce: ${nonce}`;
-    setMessage(challengeMessage);
-  }, []);
+    const initializeSignature = async () => {
+      if (profileData.type === 'anonymous') {
+        // Skip signature for anonymous users
+        onSignatureComplete();
+        return;
+      }
+
+      try {
+        // Generate challenge from backend
+        const challengeResponse = await fetch('/api/auth/generate-challenge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            identityType: profileData.type === 'ens' ? 'ens' : 'universal_profile',
+            ...(profileData.type === 'ens' ? {
+              walletAddress: profileData.address,
+              ensName: profileData.domain
+            } : {
+              upAddress: profileData.address
+            })
+          })
+        });
+
+        if (challengeResponse.ok) {
+          const { challenge: backendChallenge, message: challengeMessage } = await challengeResponse.json();
+          setChallenge(backendChallenge);
+          setMessage(challengeMessage);
+        } else {
+          throw new Error('Failed to generate challenge');
+        }
+      } catch (error) {
+        console.error('[SignatureVerification] Error generating challenge:', error);
+        setVerificationStatus('error');
+      }
+    };
+
+    initializeSignature();
+  }, [profileData, onSignatureComplete]);
 
   const handleSignMessage = async () => {
     if (profileData.type === 'anonymous') {
-      // Skip signature for anonymous users
       onSignatureComplete();
+      return;
+    }
+
+    if (!message || !challenge) {
+      setVerificationStatus('error');
       return;
     }
 
@@ -38,31 +85,66 @@ export const SignatureVerificationStep: React.FC<SignatureVerificationStepProps>
     setProgress(25);
 
     try {
-      // TODO: Real wallet signing
-      console.log('[Signature] Requesting signature for message:', message);
+      console.log('[SignatureVerification] Requesting signature for message:', message);
       
-      // Simulate signing process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      let signedMessage: string;
+
+      // Use real wallet signing based on profile type
+      if (profileData.type === 'universal_profile') {
+        signedMessage = await signUPMessage(message);
+      } else if (profileData.type === 'ens') {
+        signedMessage = await signEthMessage(message);
+      } else {
+        throw new Error('Unsupported profile type for signing');
+      }
+
+      console.log('[SignatureVerification] ✅ Message signed successfully');
+      setSignature(signedMessage);
       setProgress(50);
-      
-      // Mock signature response
-      const mockSignature = '0x' + Array(128).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-      setSignature(mockSignature);
       setVerificationStatus('verifying');
+      
+      // Verify signature with backend
+      const verifyResponse = await fetch('/api/auth/verify-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identityType: profileData.type === 'ens' ? 'ens' : 'universal_profile',
+          challenge,
+          signature: signedMessage,
+          message,
+          ...(profileData.type === 'ens' ? {
+            walletAddress: profileData.address,
+            ensName: profileData.domain
+          } : {
+            upAddress: profileData.address
+          })
+        })
+      });
+
       setProgress(75);
-      
-      // Simulate backend verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setProgress(100);
-      setVerificationStatus('complete');
-      
-      // Wait a moment to show success, then continue
-      setTimeout(() => {
-        onSignatureComplete();
-      }, 1000);
+
+      if (verifyResponse.ok) {
+        const { user, session } = await verifyResponse.json();
+        console.log('[SignatureVerification] ✅ Signature verified successfully:', user);
+        
+        // Store session token
+        if (session?.session_token) {
+          localStorage.setItem('curia_session_token', session.session_token);
+        }
+
+        setProgress(100);
+        setVerificationStatus('complete');
+        
+        // Wait a moment to show success, then continue
+        setTimeout(() => {
+          onSignatureComplete();
+        }, 1000);
+      } else {
+        throw new Error(`Signature verification failed: ${verifyResponse.statusText}`);
+      }
       
     } catch (error) {
-      console.error('[Signature] Error:', error);
+      console.error('[SignatureVerification] Error:', error);
       setVerificationStatus('error');
       setProgress(0);
     }
@@ -178,6 +260,7 @@ export const SignatureVerificationStep: React.FC<SignatureVerificationStepProps>
             {verificationStatus === 'ready' && (
               <Button
                 onClick={handleSignMessage}
+                disabled={!message || !challenge}
                 className="btn-gradient-orange-red min-w-[200px]"
               >
                 <Edit3 className="w-4 h-4 mr-2" />
@@ -219,5 +302,17 @@ export const SignatureVerificationStep: React.FC<SignatureVerificationStepProps>
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+// Main component with proven provider wrapper pattern
+export const SignatureVerificationStep: React.FC<SignatureVerificationStepProps> = (props) => {
+  // Wrap with proven providers using TippingModal pattern
+  return (
+    <UniversalProfileProvider>
+      <EthereumProfileProvider storageKey="embed_signature_ethereum">
+        <SignatureVerificationContent {...props} />
+      </EthereumProfileProvider>
+    </UniversalProfileProvider>
   );
 }; 
