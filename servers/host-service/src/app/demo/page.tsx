@@ -87,12 +87,16 @@ export default function DemoPage() {
   // Listen for postMessage events to log communication and handle auth completion
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      console.log('[Demo] DEBUG - Received PostMessage:', event.data);
+      console.log('[Demo] DEBUG - Event origin:', event.origin);
+      
       // Filter for Curia-related messages
       if (event.data && typeof event.data === 'object') {
         // Handle auth completion from embed
         if (event.data.type === 'curia-auth-complete') {
           addLog('Auth completion received from embed', 'auth');
           addLog(`User: ${event.data.userId}, Community: ${event.data.communityId}`, 'auth');
+          console.log('[Demo] DEBUG - Processing auth completion:', event.data);
           
           // Store auth context
           const newAuthContext: AuthContext = {
@@ -101,13 +105,18 @@ export default function DemoPage() {
             sessionToken: event.data.sessionToken
           };
           setAuthContext(newAuthContext);
+          console.log('[Demo] DEBUG - Set auth context:', newAuthContext);
           
           // Set auth context in plugin host
           if (pluginHostRef.current) {
             pluginHostRef.current.setAuthContext(newAuthContext);
+            console.log('[Demo] DEBUG - Updated plugin host auth context');
+          } else {
+            console.log('[Demo] DEBUG - WARNING: pluginHostRef.current is null');
           }
           
           // Switch iframe to forum URL
+          console.log('[Demo] DEBUG - Calling switchToForum()');
           switchToForum();
           return;
         }
@@ -139,8 +148,13 @@ export default function DemoPage() {
 
   // Switch iframe from embed to forum
   const switchToForum = () => {
+    console.log('[Demo] DEBUG - switchToForum called');
+    console.log('[Demo] DEBUG - embedIframeRef.current:', embedIframeRef.current);
+    console.log('[Demo] DEBUG - pluginHostRef.current:', pluginHostRef.current);
+    
     if (!embedIframeRef.current || !pluginHostRef.current) {
       addLog('Cannot switch to forum - iframe or plugin host not ready', 'error');
+      console.log('[Demo] DEBUG - Missing refs, aborting switchToForum');
       return;
     }
 
@@ -149,14 +163,20 @@ export default function DemoPage() {
     
     // Build forum URL
     const forumUrl = 'http://localhost:3000?mod=standalone&cg_theme=light';
+    console.log('[Demo] DEBUG - Forum URL:', forumUrl);
     
     // Get the iframe container
     const container = embedIframeRef.current.parentElement;
+    console.log('[Demo] DEBUG - Container element:', container);
+    
     if (!container) {
       addLog('Cannot find iframe container', 'error');
+      console.log('[Demo] DEBUG - No container found, aborting');
       return;
     }
 
+    console.log('[Demo] DEBUG - Starting plugin host loadPlugin');
+    
     // Load forum via ClientPluginHost
     pluginHostRef.current.loadPlugin({
       url: forumUrl,
@@ -164,14 +184,18 @@ export default function DemoPage() {
       width: '100%',
       allowedOrigins: ['*']
     }, container).then(() => {
+      console.log('[Demo] DEBUG - Plugin loaded successfully');
+      
       // Remove the old embed iframe
       if (embedIframeRef.current && embedIframeRef.current.parentElement) {
         embedIframeRef.current.parentElement.removeChild(embedIframeRef.current);
+        console.log('[Demo] DEBUG - Removed old embed iframe');
       }
       embedIframeRef.current = null;
       
       addLog('Successfully switched to forum', 'success');
     }).catch(error => {
+      console.log('[Demo] DEBUG - Plugin load failed:', error);
       addLog(`Failed to switch to forum: ${error.message}`, 'error');
     });
   };

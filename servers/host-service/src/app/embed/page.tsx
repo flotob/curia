@@ -64,11 +64,18 @@ const EmbedContent: React.FC = () => {
       timestamp: new Date().toISOString()
     };
     
-    console.log('[Embed] Sending auth complete message to parent:', message);
+    console.log('[Embed] DEBUG - sendAuthCompleteMessage called with:', { userId, communityId, sessionToken });
+    console.log('[Embed] DEBUG - Message to send:', message);
+    console.log('[Embed] DEBUG - window.parent:', window.parent);
+    console.log('[Embed] DEBUG - window.parent !== window:', window.parent !== window);
     
     // Send to parent window
     if (window.parent && window.parent !== window) {
+      console.log('[Embed] DEBUG - Sending PostMessage to parent...');
       window.parent.postMessage(message, '*');
+      console.log('[Embed] DEBUG - PostMessage sent successfully');
+    } else {
+      console.log('[Embed] DEBUG - WARNING: No parent window or same window, cannot send message');
     }
   }, []);
 
@@ -130,25 +137,40 @@ const EmbedContent: React.FC = () => {
     if (communityId) {
       setSelectedCommunityId(communityId);
       console.log('[Embed] Community selected:', communityId);
+      console.log('[Embed] DEBUG - profileData state:', profileData);
+      console.log('[Embed] DEBUG - currentStep:', currentStep);
       
-      // Instead of going to forum, send auth complete message and show completion
+      // FIXED: Handle both authenticated and session-only users
+      let userId: string;
+      let sessionToken: string | undefined;
+      
       if (profileData) {
-        // Create user ID from profile data
-        let userId: string;
+        // User went through full authentication flow
+        console.log('[Embed] DEBUG - Using profileData for auth complete');
         if (profileData.type === 'anonymous') {
           userId = `anonymous_${Date.now()}`;
         } else {
           userId = profileData.address || `wallet_${Date.now()}`;
         }
-        
-        // Send auth complete message to parent
-        sendAuthCompleteMessage(userId, communityId, profileData.sessionToken);
-        
-        // Show completion step
-        setCurrentStep('auth-complete');
+        sessionToken = profileData.sessionToken;
+      } else {
+        // User has existing session but no profileData 
+        console.log('[Embed] DEBUG - No profileData, creating fallback userId');
+        userId = `session_user_${Date.now()}`;
+        sessionToken = undefined; // No session token available
       }
+      
+      console.log('[Embed] DEBUG - Sending auth complete with userId:', userId);
+      
+      // Send auth complete message to parent
+      sendAuthCompleteMessage(userId, communityId, sessionToken);
+      
+      // Show completion step
+      setCurrentStep('auth-complete');
+    } else {
+      console.log('[Embed] DEBUG - No communityId provided to handleCommunitySelected');
     }
-  }, [profileData, sendAuthCompleteMessage]);
+  }, [profileData, sendAuthCompleteMessage, currentStep]);
 
   // Initialize loading sequence
   React.useEffect(() => {
