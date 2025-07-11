@@ -278,15 +278,15 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
         throw new Error('Signature verification failed');
       }
 
-      const { user, session } = await verifyResponse.json();
-      console.log('[EthereumProfileDisplay] ✅ Authentication complete!');
+      const { user, token, expiresAt } = await verifyResponse.json();
+      console.log('[EthereumProfileDisplay] ✅ Authentication complete!', { user, token });
       
       // Store session token
-      if (session?.session_token) {
-        localStorage.setItem('curia_session_token', session.session_token);
+      if (token) {
+        localStorage.setItem('curia_session_token', token);
       }
 
-      // Continue to next step
+      // Continue to next step with updated profile data that includes the session token
       if (onContinue) {
         onContinue();
       }

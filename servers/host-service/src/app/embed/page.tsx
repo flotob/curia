@@ -162,6 +162,7 @@ const EmbedContent: React.FC = () => {
           <CommunitySelectionStep 
             config={config}
             onCommunitySelected={handleCommunitySelected}
+            sessionToken={profileData?.sessionToken}
           />
         );
         

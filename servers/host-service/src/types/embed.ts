@@ -34,6 +34,10 @@ export interface Community {
   isPublic: boolean;
   gradientClass: string;
   icon: string;
+  logoUrl?: string | null;
+  requiresApproval?: boolean;
+  isMember?: boolean;
+  userRole?: string;
 }
 
 export interface ProfileData {
@@ -45,6 +49,7 @@ export interface ProfileData {
   balance?: string;
   followerCount?: number;
   verificationLevel?: 'verified' | 'partial' | 'unverified';
+  sessionToken?: string;
 }
 
 export interface StepProps {
@@ -72,6 +77,7 @@ export interface SignatureVerificationStepProps extends StepProps {
 
 export interface CommunitySelectionStepProps extends StepProps {
   onCommunitySelected: () => void;
+  sessionToken?: string;
 }
 
 export interface ForumStepProps extends StepProps {} 
