@@ -22,7 +22,8 @@ import {
   Wallet
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useDisconnect, useAccount } from 'wagmi';
+import { useDisconnect, useAccount, useSignMessage } from 'wagmi';
+import { useTheme } from '@/contexts/ThemeContext';
 
 // ===== TYPES =====
 
@@ -67,10 +68,17 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
   // 🔥 CRITICAL: Use real-time wallet state to ensure updates after switching
   const { address: connectedAddress, isConnected } = useAccount();
   
+  // 🎨 Theme system integration
+  const { resolvedTheme } = useTheme();
+  
+  // 🎨 Wallet signing integration
+  const { signMessageAsync } = useSignMessage();
+  
   const [efpProfile, setEfpProfile] = useState<EFPProfile | null>(null);
   const [isLoadingEfp, setIsLoadingEfp] = useState(false);
   const [efpError, setEfpError] = useState<string | null>(null);
   const [isValidENS, setIsValidENS] = useState<boolean | null>(null); // null = checking, true = has ENS, false = no ENS
+  const [isSigningChallenge, setIsSigningChallenge] = useState(false);
 
   // ===== HYDRATION FIX =====
   
@@ -219,16 +227,88 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
+  // Handle immediate signing when Continue is clicked
+  const handleContinueWithSigning = async () => {
+    if (!efpProfile?.ensName || !connectedAddress) {
+      console.error('[EthereumProfileDisplay] Missing required data for signing');
+      return;
+    }
+
+    setIsSigningChallenge(true);
+
+    try {
+      // Generate challenge
+      const challengeResponse = await fetch('/api/auth/generate-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identityType: 'ens',
+          walletAddress: connectedAddress,
+          ensName: efpProfile.ensName
+        })
+      });
+
+      if (!challengeResponse.ok) {
+        throw new Error('Failed to generate challenge');
+      }
+
+      const { challenge, message } = await challengeResponse.json();
+
+      // Sign the message using wagmi
+      console.log('[EthereumProfileDisplay] Requesting signature...');
+      const signature = await signMessageAsync({ message });
+      
+      console.log('[EthereumProfileDisplay] ✅ Message signed, verifying...');
+
+      // Verify signature with backend
+      const verifyResponse = await fetch('/api/auth/verify-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identityType: 'ens',
+          challenge,
+          signature,
+          message,
+          walletAddress: connectedAddress,
+          ensName: efpProfile.ensName
+        })
+      });
+
+      if (!verifyResponse.ok) {
+        throw new Error('Signature verification failed');
+      }
+
+      const { user, session } = await verifyResponse.json();
+      console.log('[EthereumProfileDisplay] ✅ Authentication complete!');
+      
+      // Store session token
+      if (session?.session_token) {
+        localStorage.setItem('curia_session_token', session.session_token);
+      }
+
+      // Continue to next step
+      if (onContinue) {
+        onContinue();
+      }
+
+    } catch (error) {
+      console.error('[EthereumProfileDisplay] Signing error:', error);
+      alert('Failed to authenticate. Please try again.');
+    } finally {
+      setIsSigningChallenge(false);
+    }
+  };
+
   // ===== RENDER =====
 
   // Prevent hydration mismatch: Don't render wallet-specific content until mounted
   if (!hasMounted) {
     return (
-      <Card className={`border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 ${className}`}>
+      <Card className={`border-2 border-border bg-gradient-to-br from-card to-muted/20 ${className}`}>
         <CardContent className="p-6">
           <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading wallet information...</p>
+            <div className="w-16 h-16 mx-auto border-4 border-border border-t-primary rounded-full animate-spin mb-4"></div>
+            <p className="text-muted-foreground">Loading wallet information...</p>
           </div>
         </CardContent>
       </Card>
@@ -237,14 +317,14 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
 
   if (!efpProfile && isLoadingEfp) {
     return (
-      <Card className={`border-2 border-blue-200 ${className}`}>
+      <Card className={`border-2 border-border ${className}`}>
         <CardContent className="p-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse" />
+            <div className="w-16 h-16 rounded-full bg-muted animate-pulse" />
             <div className="flex-1">
-              <div className="h-5 bg-gray-200 rounded animate-pulse mb-2" />
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4 mb-2" />
-              <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2" />
+              <div className="h-5 bg-muted rounded animate-pulse mb-2" />
+              <div className="h-4 bg-muted rounded animate-pulse w-3/4 mb-2" />
+              <div className="h-3 bg-muted rounded animate-pulse w-1/2" />
             </div>
           </div>
         </CardContent>
@@ -254,9 +334,9 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
 
   if (!efpProfile) {
     return (
-      <Card className={`border-2 border-red-200 ${className}`}>
+      <Card className={`border-2 border-destructive/20 ${className}`}>
         <CardContent className="p-6">
-          <div className="text-center text-red-600">
+          <div className="text-center text-destructive">
             Failed to load profile information
           </div>
         </CardContent>
@@ -265,21 +345,21 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
   }
 
   return (
-    <Card className={`border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 ${className}`}>
+    <Card className={`border-2 border-border bg-gradient-to-br from-card to-muted/20 ${className}`}>
       <CardContent className="p-6">
         <div className="space-y-6">
           {/* Header */}
           <div className="text-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className="text-lg font-semibold text-foreground">
               Connected Successfully! 
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Your Ethereum profile is ready
             </p>
           </div>
 
           {/* Profile Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-200 dark:border-blue-800 p-4">
+          <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-start space-x-4">
               {/* Avatar */}
               <div className="relative">
@@ -287,22 +367,28 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
                   <img
                     src={efpProfile.avatar}
                     alt={efpProfile.displayName}
-                    className="w-16 h-16 rounded-full object-cover border-2 border-blue-200"
+                    className="w-16 h-16 rounded-full object-cover border-2 border-border"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold">
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold ${
+                    resolvedTheme === 'dark' 
+                      ? 'bg-gradient-to-br from-blue-500 to-purple-600' 
+                      : 'bg-gradient-to-br from-blue-400 to-purple-500'
+                  }`}>
                     ⟠
                   </div>
                 )}
                 {efpProfile.isVerified && (
-                  <CheckCircle className="absolute -bottom-1 -right-1 h-5 w-5 text-green-500 bg-white rounded-full" />
+                  <CheckCircle className={`absolute -bottom-1 -right-1 h-5 w-5 text-green-500 rounded-full ${
+                    resolvedTheme === 'dark' ? 'bg-background' : 'bg-card'
+                  }`} />
                 )}
               </div>
 
               {/* Profile Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2 mb-1">
-                  <h4 className="font-semibold text-lg text-gray-900 dark:text-gray-100 truncate">
+                  <h4 className="font-semibold text-lg text-foreground truncate">
                     {efpProfile.displayName}
                   </h4>
                   {efpProfile.ensName && (
@@ -312,17 +398,17 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
                   )}
                 </div>
                 
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mb-3">
+                <p className="text-sm text-muted-foreground font-mono mb-3">
                   {formatAddress(efpProfile.address)}
                 </p>
 
                 {/* EFP Social Stats */}
                 <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                     <Users className="h-4 w-4" />
                     <span>{formatFollowerCount(efpProfile.followers)} followers</span>
                   </div>
-                  <div className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                     <UserPlus className="h-4 w-4" />
                     <span>{formatFollowerCount(efpProfile.following)} following</span>
                   </div>
@@ -343,10 +429,10 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
 
           {/* Error Display */}
           {efpError && (
-            <div className={`text-xs rounded-lg p-3 ${
+            <div className={`text-xs rounded-lg p-3 border ${
               isValidENS === false 
-                ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' 
-                : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                ? 'text-destructive bg-destructive/10 border-destructive/20' 
+                : 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
             }`}>
               <div className="flex items-center space-x-2">
                 {isValidENS === false ? (
@@ -357,7 +443,7 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
                 <span>{efpError}</span>
               </div>
               {isValidENS === false && (
-                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                <div className="mt-2 text-xs text-destructive">
                   <p>• Register an ENS domain at <a href="https://ens.domains" target="_blank" rel="noopener noreferrer" className="underline">ens.domains</a></p>
                   <p>• Try connecting a different wallet with an ENS name</p>
                   <p>• Or go back and select "Continue as Guest" instead</p>
@@ -368,7 +454,7 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
 
           {/* Validation Success */}
           {isValidENS === true && !efpError && (
-            <div className="text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+            <div className="text-xs bg-green-200 dark:bg-green-900/20 rounded-lg p-3 border border-green-400 dark:border-green-800" style={{ color: resolvedTheme === 'dark' ? '#86efac' : '#1f2937' }}>
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-4 w-4" />
                 <span>✅ Valid ENS domain detected - ready to continue!</span>
@@ -381,15 +467,19 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
             {/* Primary Action Button */}
             {onContinue && (
               <Button
-                onClick={onContinue}
-                disabled={isValidENS !== true} // Only enable when valid ENS is confirmed
-                className={`w-full ${
-                  isValidENS === true
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-gray-300 cursor-not-allowed'
-                }`}
+                onClick={handleContinueWithSigning}
+                disabled={isValidENS !== true || isSigningChallenge} // Only enable when valid ENS is confirmed
+                className="w-full"
+                variant={isValidENS === true ? 'default' : 'secondary'}
               >
-                {isValidENS === null ? 'Validating...' : isValidENS ? 'Continue' : 'ENS Domain Required'}
+                {isSigningChallenge 
+                  ? 'Signing...' 
+                  : isValidENS === null 
+                    ? 'Validating...' 
+                    : isValidENS 
+                      ? 'Continue & Sign' 
+                      : 'ENS Domain Required'
+                }
               </Button>
             )}
 

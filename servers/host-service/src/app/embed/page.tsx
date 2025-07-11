@@ -82,7 +82,8 @@ const EmbedContent: React.FC = () => {
   }, []);
 
   const handleProfileContinue = useCallback(() => {
-    setCurrentStep('signature-verification');
+    // Skip signature verification since we handle signing directly in the profile step
+    setCurrentStep('community-selection');
   }, []);
 
   const handleSwitchAccount = useCallback(() => {
@@ -103,6 +104,13 @@ const EmbedContent: React.FC = () => {
     const timer = setTimeout(handleLoadingComplete, 1500);
     return () => clearTimeout(timer);
   }, [handleLoadingComplete]);
+
+  // Handle signature verification bypass
+  React.useEffect(() => {
+    if (currentStep === 'signature-verification') {
+      setCurrentStep('community-selection');
+    }
+  }, [currentStep]);
 
   // Render current step
   const renderStep = () => {
@@ -137,13 +145,17 @@ const EmbedContent: React.FC = () => {
         ) : null;
         
       case 'signature-verification':
-        return profileData ? (
-          <SignatureVerificationStep 
-            config={config}
-            profileData={profileData}
-            onSignatureComplete={handleSignatureComplete}
-          />
-        ) : null;
+        // Skip signature verification - now handled directly in profile step
+        // This should never be reached in normal flow
+        return (
+          <div className="embed-step">
+            <div className="embed-card embed-card--sm">
+              <div className="p-8 text-center">
+                <p className="text-muted-foreground">Redirecting...</p>
+              </div>
+            </div>
+          </div>
+        );
         
       case 'community-selection':
         return (
