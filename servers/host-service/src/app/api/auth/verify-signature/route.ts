@@ -313,6 +313,8 @@ interface VerifySignatureRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: VerifySignatureRequest = await request.json();
+    console.log('[verify-signature] 🐛 Received request body:', JSON.stringify(body, null, 2));
+    
     const { 
       identityType, 
       walletAddress, 
@@ -323,8 +325,19 @@ export async function POST(request: NextRequest) {
       message 
     } = body;
 
+    console.log('[verify-signature] 🐛 Extracted fields:', {
+      identityType,
+      walletAddress,
+      ensName,
+      upAddress,
+      challenge: challenge ? 'present' : 'missing',
+      signature: signature ? 'present' : 'missing',
+      message: message ? 'present' : 'missing'
+    });
+
     // Validate required fields
     if (!challenge || !signature || !message) {
+      console.log('[verify-signature] ❌ Missing required fields');
       return NextResponse.json(
         { error: 'challenge, signature, and message are required' },
         { status: 400 }
@@ -332,62 +345,86 @@ export async function POST(request: NextRequest) {
     }
 
     // 🚀 CHALLENGE VALIDATION: Timestamp-based replay protection
+    console.log('[verify-signature] 🐛 Validating challenge and timestamp...');
     const challengeValidation = validateChallengeTimestamp(message, challenge);
     if (!challengeValidation.valid) {
+      console.log('[verify-signature] ❌ Challenge validation failed:', challengeValidation.error);
       return NextResponse.json(
         { error: `Challenge validation failed: ${challengeValidation.error}` },
         { status: 400 }
       );
     }
+    console.log('[verify-signature] ✅ Challenge validation passed');
 
     // Verify the signature
+    console.log('[verify-signature] 🐛 Verifying signature...');
     const signerAddress = await verifySignature(message, signature);
     
     if (!signerAddress) {
+      console.log('[verify-signature] ❌ Signature verification failed');
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
       );
     }
+    console.log('[verify-signature] ✅ Signature verified, signer:', signerAddress);
 
     // Validate that the signer matches the claimed identity
+    console.log('[verify-signature] 🐛 Validating identity type:', identityType);
+    
     if (identityType === 'ens' && walletAddress) {
+      console.log('[verify-signature] 🐛 Checking ENS identity - wallet address:', walletAddress);
+      
       if (signerAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+        console.log('[verify-signature] ❌ Address mismatch - signer:', signerAddress, 'claimed:', walletAddress);
         return NextResponse.json(
           { error: 'Signature does not match wallet address' },
           { status: 401 }
         );
       }
+      console.log('[verify-signature] ✅ Address match confirmed');
 
       // 🚀 BACKEND BLOCKCHAIN VERIFICATION: Verify ENS domain actually exists and matches claim
-      console.log(`[verify-signature] Verifying ENS domain exists for ${signerAddress}`);
+      console.log(`[verify-signature] 🐛 Starting ENS blockchain verification for ${signerAddress}, claimed ENS: ${ensName}`);
       const ensVerification = await verifyENSBlockchainState(signerAddress, ensName);
       if (!ensVerification.valid) {
+        console.log('[verify-signature] ❌ ENS blockchain verification failed:', ensVerification.error);
         return NextResponse.json(
           { error: `ENS verification failed: ${ensVerification.error}` },
           { status: 400 }
         );
       }
-      console.log(`[verify-signature] ✅ ENS verification passed: ${ensVerification.verifiedEnsName}`);
+      console.log(`[verify-signature] ✅ ENS blockchain verification passed: ${ensVerification.verifiedEnsName}`);
 
     } else if (identityType === 'universal_profile' && upAddress) {
+      console.log('[verify-signature] 🐛 Checking UP identity - UP address:', upAddress);
+      
       if (signerAddress.toLowerCase() !== upAddress.toLowerCase()) {
+        console.log('[verify-signature] ❌ Address mismatch - signer:', signerAddress, 'claimed:', upAddress);
         return NextResponse.json(
           { error: 'Signature does not match Universal Profile address' },
           { status: 401 }
         );
       }
+      console.log('[verify-signature] ✅ Address match confirmed');
 
       // 🚀 BACKEND BLOCKCHAIN VERIFICATION: Verify UP metadata actually exists
-      console.log(`[verify-signature] Verifying UP metadata exists for ${signerAddress}`);
+      console.log(`[verify-signature] 🐛 Starting UP blockchain verification for ${signerAddress}`);
       const upVerification = await verifyUPBlockchainState(signerAddress);
       if (!upVerification.valid) {
+        console.log('[verify-signature] ❌ UP blockchain verification failed:', upVerification.error);
         return NextResponse.json(
           { error: `Universal Profile verification failed: ${upVerification.error}` },
           { status: 400 }
         );
       }
-      console.log(`[verify-signature] ✅ UP verification passed for ${signerAddress}`);
+      console.log(`[verify-signature] ✅ UP blockchain verification passed for ${signerAddress}`);
+    } else {
+      console.log('[verify-signature] ❌ Invalid identity type or missing required fields');
+      return NextResponse.json(
+        { error: 'Invalid identity type or missing required address fields' },
+        { status: 400 }
+      );
     }
 
     // 🚀 CRITICAL: Use verified data instead of claimed data
@@ -442,11 +479,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Verify signature and return signer address
+// Verify signature and return signer address (using proven pattern from main forum app)
 async function verifySignature(message: string, signature: string): Promise<string | null> {
   try {
-    const signerAddress = ethers.utils.verifyMessage(message, signature);
-    return signerAddress;
+    // Use exact same pattern as main forum app's validate-signature endpoint
+    const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+    return recoveredAddress;
   } catch (error) {
     console.error('[verifySignature] Error:', error);
     return null;
