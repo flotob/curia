@@ -257,7 +257,7 @@ export class DatabaseDataProvider extends DataProvider {
         data: {
           id: community.id,
           title: community.title,
-          description: settings.description || '',
+          description: settings.description || 'A test community for development',
           url: community.url,
           smallLogoUrl: community.smallLogoUrl,
           roles: defaultRoles
