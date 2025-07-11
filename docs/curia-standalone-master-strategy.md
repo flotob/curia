@@ -4,7 +4,7 @@
 
 **Last Updated:** January 2025  
 **Status:** Phase 1 - Infrastructure Complete, Moving to Identity System  
-**Next Milestone:** Standalone Identity Manager (3 weeks)
+**Next Milestone:** Progressive Iframe Authentication (3 weeks)
 
 ---
 
@@ -26,24 +26,24 @@
 - **Infrastructure Untethering** (Dec 2024 - Jan 2025) - COMPLETE
   - Migrated to `@curia_/cg-plugin-lib@1.0.6` with full type safety
   - Built production-ready host service with health checks on Railway
-  - Extended database schema for multi-identity support
+  - Extended database schema for multi-identity support ✅ **ALREADY DEPLOYED**
   - Fixed production deployment and build issues
 
-### 🚧 **Current Phase: Identity System Foundation**
+### 🚧 **Current Phase: Progressive Iframe Authentication**
 - **Start Date:** January 2025
-- **Target:** Working standalone authentication in 3 weeks
-- **Key Deliverable:** Iframe-based identity manager with ENS/UP support
+- **Target:** Seamless iframe experience with authentication flow in 3 weeks
+- **Key Deliverable:** Multi-stage iframe that handles auth → community → forum progression
 
 ### 📋 **Strategic Phase Analysis**
 
 **Current Planned Order:**
-1. Phase 1: Standalone Identity System (3 weeks) - IN PROGRESS
+1. Phase 1: Progressive Iframe Authentication (3 weeks) - IN PROGRESS
 2. Phase 2: Community Management (3 weeks) 
 3. Phase 3: Embedding System (4 weeks) ⭐ **CORE VALUE PROPOSITION**
 4. Phase 4: Production Optimization (4 weeks)
 
 **⚡ Alternative High-Impact Ordering:**
-1. Phase 1: Standalone Identity System (current)
+1. Phase 1: Progressive Iframe Authentication (current)
 2. **Phase 2: Embedding System** (move from Phase 3) ⭐ 
 3. Phase 3: Community Management (defer)
 4. Phase 4: Production Optimization
@@ -79,26 +79,33 @@
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-### **Target Embedding Architecture** 🎯
+### **Target Progressive Iframe Architecture** 🎯
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Any Website   │    │   Curia Service │    │   Embedded      │
-│                 │    │   (Railway)     │    │   Forum         │
-│ 1. <script>     │    │                 │    │   (iframe)      │
-│ 2. data-attrs   │───▶│ 3. embed.js     │───▶│                 │
-│ 3. Container    │    │ 4. Identity API │◀───│ 4. Auth context │
-│                 │    │ 5. Embed config │    │ 5. Full Next.js │
-│ 6. postMessage  │◀───│ 6. Event bridge │    │ 6. All features │
-│ 7. Auto-resize  │    │ 7. Security     │    │ 7. Isolated     │
+│   Any Website   │    │ Standalone App  │    │   Database      │
+│                 │    │   (Railway)     │    │   (PostgreSQL)  │
+│ 1. <script>     │    │                 │    │                 │
+│ 2. <iframe>     │───▶│ PROGRESSIVE     │◀──▶│ • Users + auth  │
+│ 3. Responsive   │    │ EXPERIENCE:     │    │ • Communities   │
+│    container    │    │                 │    │ • Sessions      │
+│                 │    │ Stage 1: Check  │    │ • Forum data    │
+│                 │◀───│ Stage 2: Auth   │    │                 │
+│ 4. Auto-resize  │    │ Stage 3: Select │    │                 │
+│                 │    │ Stage 4: Forum  │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-**Communication Flow:**
-1. **Snippet Injection**: `<script src="https://curia.com/embed.js" data-community="abc123">`
-2. **Iframe Creation**: Script creates responsive iframe with community context
-3. **Identity Handshake**: PostMessage passes authentication tokens securely
-4. **Height Adjustment**: Dynamic resizing based on content via iframe-resizer
-5. **Event Bridge**: Optional analytics/interactions between parent and iframe
+**Progressive Iframe Experience:**
+1. **Stage 1 - Session Check**: Instant check for existing authentication (cookie/localStorage)
+2. **Stage 2 - Authentication**: If needed, show wallet connection UI (ENS, UP, or Anonymous)
+3. **Stage 3 - Community Selection**: If needed, show community picker or creation
+4. **Stage 4 - Forum Application**: Full forum loads with established user + community context
+
+**Deployment Architecture:**
+- **Standalone Instance**: Separate deployment of Curia service (new auth system)
+- **CG Instance**: Existing CG-embedded version (legacy auth system)
+- **Shared Database**: Both instances use same PostgreSQL database
+- **Account Merging**: Future feature to unify standalone + CG accounts
 
 **Detailed Architecture References:**
 - 📄 [Identity System Architecture](./standalone-identity-system-architecture.md)
@@ -109,45 +116,46 @@
 
 ## 🛤️ Active Roadmap
 
-### **Phase 1: Standalone Identity System** 🚧 *IN PROGRESS*
+### **Phase 1: Progressive Iframe Authentication** 🚧 *IN PROGRESS*
 **Timeline:** 3 weeks (Jan 2025)  
-**Goal:** Users can authenticate without Common Ground
+**Goal:** Seamless iframe experience that handles authentication → community → forum progression
 
-#### **Week 1: Identity Manager Foundation**
-- [ ] **1.1** Create identity selection iframe interface
-  - ENS, Universal Profile, Anonymous options
-  - Clean UI with wallet connection flows
-  - Integration with host service APIs
-- [ ] **1.2** Implement session management system
-  - 30-day persistent authentication
-  - Secure token generation and validation
-  - Cross-frame communication protocols
+#### **Week 1: Progressive Iframe Foundation**
+- [ ] **1.1** Create iframe router system
+  - Route-based stage management (`/embed?stage=auth`, `/embed?stage=community`, `/embed?stage=forum`)
+  - Session detection and automatic stage advancement
+  - Smooth transitions between stages
+- [ ] **1.2** Authentication session management
+  - Cookie-based session persistence (30-day expiration)
+  - Session validation and refresh logic
+  - Anonymous session creation for immediate access
 
-#### **Week 2: ENS Authentication**
-- [ ] **2.1** ENS domain verification system
-  - Wallet connection (MetaMask, etc.)
-  - ENS domain ownership validation
-  - Signature-based authentication
-- [ ] **2.2** User account management
-  - ENS user registration/login flows
+#### **Week 2: Wallet Authentication Flows**
+- [ ] **2.1** ENS authentication interface
+  - Wallet connection UI (MetaMask, WalletConnect, etc.)
+  - ENS domain verification and signature flow
+  - User creation and session establishment
+- [ ] **2.2** Universal Profile authentication
+  - UP extension detection and connection
+  - UP metadata fetching and signature verification
   - Profile data extraction and storage
-  - Session persistence and security
 
-#### **Week 3: Universal Profile Support**
-- [ ] **3.1** UP extension integration
-  - LUKSO UP wallet connection
-  - UP metadata fetching and validation
-  - Profile data synchronization
-- [ ] **3.2** Anonymous user mode
-  - Temporary user generation
-  - Limited functionality (read-only)
-  - Upgrade-to-authenticated flows
+#### **Week 3: Community Integration & Polish**
+- [ ] **3.1** Community selection stage
+  - Community picker interface for authenticated users
+  - Default community assignment for specific embeds
+  - Community creation flow (if enabled)
+- [ ] **3.2** Stage transition system
+  - Smooth loading states between stages
+  - Error handling and retry mechanisms
+  - Iframe height adjustment for different stages
 
 **Success Criteria:**
-- [ ] Any user can authenticate via ENS or UP
-- [ ] Sessions persist for 30 days
-- [ ] Anonymous users can browse and upgrade
-- [ ] Context passed seamlessly to main forum app
+- [ ] User visits third-party site → iframe loads instantly
+- [ ] If no session: authentication UI appears seamlessly in iframe
+- [ ] After auth: community selection (if needed) appears in same iframe
+- [ ] Finally: full forum loads in same iframe with proper context
+- [ ] Entire flow feels like single, progressive application load
 
 ### **Phase 2: Community Management** 📅 *PLANNED*
 **Timeline:** 3 weeks (Feb 2025)  
@@ -164,7 +172,7 @@
 - [ ] **5.3** Community search and filtering
 
 #### **Week 6: Integration & Testing**
-- [ ] **6.1** Iframe ↔ main app communication
+- [ ] **6.1** Community stage integration with iframe flow
 - [ ] **6.2** Context validation and error handling
 - [ ] **6.3** End-to-end user journey testing
 
@@ -278,22 +286,23 @@
 ## 🎯 Implementation Strategy
 
 ### **Core Principles**
-1. **Incremental Migration** - Build alongside CG compatibility, don't break existing
+1. **Progressive Enhancement** - Iframe starts simple, progressively reveals complexity
 2. **User-Centric Design** - 5-minute setup from any website to working forum
 3. **Security First** - Proper wallet authentication, secure cross-origin communication
 4. **Performance Focus** - Fast loading, responsive embeds, scalable infrastructure
 
 ### **Technical Approach**
-- **Extend Host Service** - Build identity management into existing `servers/host-service/`
-- **Dual Compatibility** - Support both CG and standalone modes during transition
-- **Progressive Enhancement** - Core forum works, identity adds authentication
-- **Environment Detection** - Automatic mode switching based on context
+- **Separate Instance Deployment** - Standalone version deployed independently from CG version
+- **Shared Database** - Both instances use same PostgreSQL database for data consistency
+- **Progressive Iframe Experience** - Single iframe handles auth → community → forum stages
+- **Future Account Merging** - Allow users to unify standalone + CG accounts later
 
 ### **Key Architectural Decisions**
 - ✅ **PostgreSQL** for primary data storage (complex relationships, ACID compliance)
 - ✅ **Next.js API Routes** for host service (familiar stack, good performance)
-- ✅ **Iframe Communication** via PostMessage (secure, browser-standard)
-- ✅ **JWT Sessions** with wallet signature verification (crypto-native auth)
+- ✅ **Progressive Iframe** stages via routing (seamless user experience)
+- ✅ **Cookie + JWT Sessions** with wallet signature verification (crypto-native auth)
+- ✅ **Separate Deployments** with shared database (deployment independence)
 - 🆕 **iframe-resizer Library** for automatic height adjustment (industry standard)
 - 🆕 **Penpal or Postmate** for structured postMessage communication (promise-based)
 - 🆕 **CDN Distribution** for embed.js script (global performance)
@@ -305,21 +314,22 @@
 ### **Recent Decisions (Jan 2025)**
 - **✅ Library Migration Strategy**: Use `@curia_/cg-plugin-lib` v1.0.6 for drop-in compatibility
 - **✅ Host Service Deployment**: Railway for production hosting with health checks
-- **✅ Database Schema**: Extend existing tables rather than parallel systems
+- **✅ Database Schema**: Extended existing tables (ALREADY DEPLOYED) ✅
 - **✅ Environment Variables**: Use `NEXT_PUBLIC_HOST_SERVICE_URL` for environment-aware URLs
-- **🆕 Embedding Strategy**: JavaScript snippet + iframe approach (industry standard)
-- **🆕 Communication Pattern**: PostMessage with origin verification + iframe-resizer library
+- **🆕 Progressive Iframe Architecture**: Single iframe with stage-based routing for seamless UX
+- **🆕 Deployment Strategy**: Separate standalone instance with shared database
+- **🆕 Account Strategy**: Build standalone-first, add CG account merging later
 
 ### **Pending Decisions**
 - **⏳ Phase Ordering**: Embedding System as Phase 2 vs Phase 3 (strategic importance)
-- **⏳ Identity Storage**: How to handle ENS/UP profile data and metadata
-- **⏳ Community Ownership**: Transfer mechanisms and multi-owner support
+- **⏳ Community Context**: Default community vs community selection requirement
 - **⏳ Anonymous User Limits**: What functionality to allow before sign-up required
-- **⏳ CG Migration Path**: How to help existing CG users transition to standalone
+- **⏳ Session Management**: Cookie vs localStorage for session persistence
 - **⏳ Embedding Security**: Domain whitelist vs open embedding policy
 - **⏳ Communication Library**: iframe-resizer + custom vs Penpal/Postmate
 
 ### **Future Decisions**
+- **🔮 Account Merging**: How to unify standalone + CG accounts
 - **🔮 Billing Model**: Free tier limits, premium features, pricing strategy
 - **🔮 Custom Domains**: SSL handling, DNS management, subdomain vs full domain
 - **🔮 Federation**: Inter-community communication and cross-community features
@@ -358,32 +368,32 @@
 
 ## 🚧 Current Sprint (Week 1)
 
-### **This Week's Focus: Identity Manager Foundation**
-**Sprint Goal:** Working iframe with identity selection and session management
+### **This Week's Focus: Progressive Iframe Foundation**
+**Sprint Goal:** Working iframe with stage-based routing and session detection
 
 ### **Active Tasks**
-- [ ] **Design identity selection UI** (ENS, UP, Anonymous buttons)
-- [ ] **Implement wallet connection flows** (MetaMask detection and connection)
-- [ ] **Build session management APIs** (JWT generation, validation, persistence)
-- [ ] **Create iframe communication protocol** (PostMessage security and context passing)
+- [ ] **Design iframe routing system** (`/embed?stage=auth|community|forum`)
+- [ ] **Implement session detection logic** (cookie-based authentication check)
+- [ ] **Build stage transition framework** (smooth progression between stages)
+- [ ] **Create basic authentication UI** (wallet connection interface)
 
 ### **Technical Priorities**
-1. **Security**: Proper origin validation, secure token handling
-2. **UX**: Clean, intuitive identity selection interface
-3. **Integration**: Seamless context passing to main forum app
-4. **Testing**: Works across different wallet types and browsers
+1. **Progressive Experience**: Iframe feels like single app with multiple stages
+2. **Session Management**: Reliable cookie-based session detection and persistence
+3. **Stage Routing**: Clean URL-based stage management within iframe
+4. **Performance**: Fast stage transitions and loading states
 
 ### **Blockers & Risks**
 - None currently identified
 
 ### **Next Week Preview**
-- ENS domain verification and user registration flows
-- Wallet signature authentication and validation
-- User profile creation and data management
+- ENS wallet connection and signature verification
+- Universal Profile extension integration
+- User account creation and session establishment
 
 ### **Post-Phase 1 Strategic Decision**
 - **Evaluate Phase Reordering**: Assess whether to move Embedding System to Phase 2
-- **Criteria**: Technical complexity of identity integration vs business value of early embedding
+- **Criteria**: Technical complexity of iframe stages vs business value of early embedding
 - **Timeline Impact**: Potential acceleration of market entry vs feature completeness
 
 ---
@@ -397,9 +407,9 @@
 - 📄 [Untethering Migration Tracking](./untethering-migration-tracking.md) *(archived)*
 
 ### **Technical Implementation**
-- 🗂️ Database Schema: `migrations/175218*` files
+- 🗂️ Database Schema: `docs/current-db-schema.md` (includes standalone identity tables) ✅
 - 🗂️ Host Service Code: `servers/host-service/`
-- 🗂️ Main Application: `src/` (with dual compatibility)
+- 🗂️ Main Application: `src/` (with standalone architecture)
 
 ### **Embedding Resources**
 - 🔧 iframe-resizer: Automatic height adjustment library
@@ -410,7 +420,7 @@
 
 ### **Deployment & Operations**
 - 🚀 Host Service: Railway deployment with health checks
-- 🗄️ Database: PostgreSQL with identity-aware schema
+- 🗄️ Database: PostgreSQL with identity-aware schema (shared between instances)
 - 🔧 Environment: Development + production configurations
 
 ---
@@ -438,16 +448,16 @@
 ## 🎯 Next Actions
 
 ### **Immediate (This Week)**
-1. **Start identity manager development** in `servers/host-service/src/app/identity/`
-2. **Design wallet connection flow** with proper security
-3. **Implement session management** with JWT and persistence
-4. **Create iframe communication** protocol and testing
+1. **Start progressive iframe development** in new `/embed` routes
+2. **Design stage-based routing system** with smooth transitions
+3. **Implement session detection** with cookie-based persistence
+4. **Create authentication UI foundation** for wallet connections
 
 ### **Short-term (2-4 weeks)**
-1. **Complete ENS authentication** end-to-end
-2. **Add Universal Profile support** with UP extension
-3. **Build anonymous user mode** with upgrade flows
-4. **Test integration** with main forum application
+1. **Complete ENS authentication** end-to-end in iframe
+2. **Add Universal Profile support** with UP extension integration
+3. **Build community selection stage** for authenticated users
+4. **Test complete progressive experience** from auth to forum
 
 ### **Strategic Decision Point (End of Phase 1)**
 1. **Evaluate embedding system priority** (Phase 2 vs Phase 3)
@@ -467,5 +477,5 @@
 
 **🔄 Last Updated**: January 2025 by AI Assistant  
 **📅 Next Review**: Weekly Sprint Updates + Strategic Phase Ordering Decision  
-**📍 Current Phase**: Identity System Foundation (Week 1/3)  
-**🎯 Strategic Focus**: Embedding System as Core Value Proposition 
+**📍 Current Phase**: Progressive Iframe Authentication (Week 1/3)  
+**🎯 Strategic Focus**: Progressive iframe experience as seamless authentication flow 
