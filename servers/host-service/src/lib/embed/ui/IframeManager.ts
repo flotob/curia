@@ -1,42 +1,16 @@
+/**
+ * Iframe Management Module
+ * 
+ * Handles iframe creation, loading states, phase switching, and error handling
+ */
 
-(function() {
-  'use strict';
-  
+import { EmbedConfig, EmbedUrls } from '../types/EmbedTypes';
 
-  // Get the script element that loaded this code
-  const script = document.currentScript;
-  if (!script) {
-    console.error('[Curia] Could not find script element');
-    return;
-  }
-
-  // Read configuration from data attributes
-  const config = {
-    community: script.getAttribute('data-community') || null,
-    theme: script.getAttribute('data-theme') || 'light',
-    container: script.getAttribute('data-container') || null,
-    height: script.getAttribute('data-height') || '600px'
-  };
-
-  console.log('[Curia] Initializing embed with config:', config);
-  
-
-  // Find or create container
-  let container;
-  if (config.container) {
-    container = document.getElementById(config.container);
-    if (!container) {
-      console.error('[Curia] Container element not found:', config.container);
-      return;
-    }
-  } else {
-    // Create container at script location
-    container = document.createElement('div');
-    container.id = 'curia-embed-' + Math.random().toString(36).substr(2, 9);
-    script.parentNode.insertBefore(container, script);
-  }
-  
-
+/**
+ * Generate iframe management JavaScript code
+ */
+export function generateIframeCode(urls: EmbedUrls): string {
+  return `
   // Embed state tracking
   let currentPhase = 'auth'; // 'auth' or 'forum'
   let authContext = null;
@@ -45,7 +19,7 @@
 
   // Build initial embed iframe URL with parameters  
   const buildEmbedUrl = () => {
-    const baseUrl = 'http://localhost:3001/embed';
+    const baseUrl = '${urls.hostUrl}/embed';
     const params = new URLSearchParams();
     
     if (config.community) params.append('community', config.community);
@@ -56,7 +30,7 @@
 
   // Build forum URL for iframe switching
   const buildForumUrl = () => {
-    const baseUrl = 'http://localhost:3000';
+    const baseUrl = '${urls.forumUrl}';
     const params = new URLSearchParams();
     
     params.append('mod', 'standalone');
@@ -90,12 +64,12 @@
   // Create loading state
   const createLoadingDiv = () => {
     const loading = document.createElement('div');
-    loading.innerHTML = `
+    loading.innerHTML = \`
       <div style="
         display: flex;
         align-items: center;
         justify-content: center;
-        height: ${config.height};
+        height: \${config.height};
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         border-radius: 8px;
@@ -112,7 +86,7 @@
             margin: 0 auto 12px;
             animation: spin 1s linear infinite;
           "></div>
-          <div>${currentPhase === 'auth' ? 'Loading Curia...' : 'Loading forum...'}</div>
+          <div>\${currentPhase === 'auth' ? 'Loading Curia...' : 'Loading forum...'}</div>
         </div>
       </div>
       <style>
@@ -121,7 +95,7 @@
           100% { transform: rotate(360deg); }
         }
       </style>
-    `;
+    \`;
     return loading;
   };
 
@@ -185,12 +159,12 @@
       console.error('[Curia] Failed to load iframe');
       
       const errorDiv = document.createElement('div');
-      errorDiv.innerHTML = `
+      errorDiv.innerHTML = \`
         <div style="
           display: flex;
           align-items: center;
           justify-content: center;
-          height: ${config.height};
+          height: \${config.height};
           background: #fef2f2;
           border: 1px solid #fecaca;
           border-radius: 8px;
@@ -201,11 +175,11 @@
             <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
             <div><strong>Failed to load Curia</strong></div>
             <div style="font-size: 12px; margin-top: 4px; opacity: 0.7;">
-              Check if the service is running at: ${targetIframe.src}
+              Check if the service is running at: \${targetIframe.src}
             </div>
           </div>
         </div>
-      `;
+      \`;
       
       // Replace content with error state
       try {
@@ -257,64 +231,5 @@
     iframe.src = buildEmbedUrl();
     console.log('[Curia] Embed iframe src set to:', iframe.src);
   };
-  
-
-  // Listen for messages from iframes
-  function handleMessage(event) {
-    // Verify origin for security
-    const allowedOrigins = ['http://localhost:3001', 'http://localhost:3000'];
-    if (!allowedOrigins.includes(event.origin)) {
-      return;
-    }
-
-    const data = event.data;
-    
-    // Handle auth completion from embed iframe
-    if (data && data.type === 'curia-auth-complete') {
-      console.log('[Curia] Auth completion received:', data);
-      switchToForum(data);
-      return;
-    }
-
-    // Handle iframe resize requests
-    if (data && data.type === 'curia-resize' && data.height) {
-      if (iframe) {
-        iframe.style.height = data.height + 'px';
-        console.log('[Curia] Resized to height:', data.height);
-      }
-      return;
-    }
-
-    // Handle PostMessage API requests from forum (future implementation)
-    if (data && data.type === 'api_request' && currentPhase === 'forum') {
-      console.log('[Curia] API request from forum:', data.method);
-      // TODO: Route to actual API endpoints with auth context
-      return;
-    }
-  }
-
-  // Add message listener for iframe communication
-  if (window.addEventListener) {
-    window.addEventListener('message', handleMessage, false);
-  } else {
-    // IE8 fallback
-    window.attachEvent('onmessage', handleMessage);
-  }
-  
-
-  // Initialize the embed
-  initializeEmbed();
-  
-
-  // Store reference for potential cleanup
-  window.curiaEmbed = window.curiaEmbed || {};
-  window.curiaEmbed[config.container || 'default'] = {
-    iframe: iframe,
-    container: container,
-    config: config,
-    authContext: authContext,
-    phase: currentPhase
-  };
-  
-
-})();
+  `;
+} 
