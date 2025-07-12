@@ -37,6 +37,24 @@
   }
   
 
+    // Get iframe permissions for forum functionality
+    function getIframePermissions() {
+      return [
+        'clipboard-write *',
+        'clipboard-read *', 
+        'fullscreen *',
+        'web-share *',
+        'autoplay *',
+        'picture-in-picture *',
+        'payment *',
+        'encrypted-media *',
+        'storage-access *',
+        'camera *',
+        'microphone *',
+        'geolocation *'
+      ].join('; ');
+    }
+
     // Internal Plugin Host - Self-contained plugin hosting
     class InternalPluginHost {
       constructor(container, config, hostServiceUrl, forumUrl) {
@@ -62,6 +80,7 @@
         iframe.style.border = 'none';
         iframe.style.borderRadius = '8px';
         iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+        iframe.setAttribute('allow', getIframePermissions());
         
         this.container.appendChild(iframe);
         this.currentIframe = iframe;
@@ -142,6 +161,7 @@
         iframe.style.border = 'none';
         iframe.style.borderRadius = '8px';
         iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+        iframe.setAttribute('allow', getIframePermissions());
         
         this.container.appendChild(iframe);
         this.currentIframe = iframe;

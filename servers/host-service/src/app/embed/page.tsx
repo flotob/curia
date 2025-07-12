@@ -27,7 +27,6 @@ import {
   CommunitySelectionStep,
   AuthCompleteStep
 } from '@/components/embed';
-import { useIframeResize } from '@/lib/embed/hooks';
 import { EmbedConfig, EmbedStep, ProfileData } from '@/types/embed';
 
 const EmbedContent: React.FC = () => {
@@ -36,9 +35,6 @@ const EmbedContent: React.FC = () => {
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
   const [useModernFlow, setUseModernFlow] = useState(true); // Use proven AuthenticationFlow by default
-  
-  // Setup iframe communication
-  useIframeResize();
 
   // Parse embed configuration from URL parameters
   const config: EmbedConfig = {

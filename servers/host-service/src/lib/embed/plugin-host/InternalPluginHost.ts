@@ -46,6 +46,26 @@ interface InternalPluginMessage {
 }
 
 /**
+ * Get iframe permissions for forum functionality
+ */
+function getIframePermissions(): string {
+  return [
+    'clipboard-write *',
+    'clipboard-read *', 
+    'fullscreen *',
+    'web-share *',
+    'autoplay *',
+    'picture-in-picture *',
+    'payment *',
+    'encrypted-media *',
+    'storage-access *',
+    'camera *',
+    'microphone *',
+    'geolocation *'
+  ].join('; ');
+}
+
+/**
  * Internal Plugin Host - completely self-contained within embed script
  */
 export class InternalPluginHost {
@@ -81,6 +101,7 @@ export class InternalPluginHost {
     iframe.style.border = 'none';
     iframe.style.borderRadius = '8px';
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+    iframe.setAttribute('allow', getIframePermissions());
     
     // Add iframe to container
     this.container.appendChild(iframe);
@@ -180,6 +201,7 @@ export class InternalPluginHost {
     iframe.style.border = 'none';
     iframe.style.borderRadius = '8px';
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+    iframe.setAttribute('allow', getIframePermissions());
     
     // Add forum iframe to container
     this.container.appendChild(iframe);
@@ -311,6 +333,24 @@ export class InternalPluginHost {
  */
 export function generateInternalPluginHostCode(urls: { hostUrl: string; forumUrl: string }): string {
   return `
+    // Get iframe permissions for forum functionality
+    function getIframePermissions() {
+      return [
+        'clipboard-write *',
+        'clipboard-read *', 
+        'fullscreen *',
+        'web-share *',
+        'autoplay *',
+        'picture-in-picture *',
+        'payment *',
+        'encrypted-media *',
+        'storage-access *',
+        'camera *',
+        'microphone *',
+        'geolocation *'
+      ].join('; ');
+    }
+
     // Internal Plugin Host - Self-contained plugin hosting
     class InternalPluginHost {
       constructor(container, config, hostServiceUrl, forumUrl) {
@@ -336,6 +376,7 @@ export function generateInternalPluginHostCode(urls: { hostUrl: string; forumUrl
         iframe.style.border = 'none';
         iframe.style.borderRadius = '8px';
         iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+        iframe.setAttribute('allow', getIframePermissions());
         
         this.container.appendChild(iframe);
         this.currentIframe = iframe;
@@ -416,6 +457,7 @@ export function generateInternalPluginHostCode(urls: { hostUrl: string; forumUrl
         iframe.style.border = 'none';
         iframe.style.borderRadius = '8px';
         iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+        iframe.setAttribute('allow', getIframePermissions());
         
         this.container.appendChild(iframe);
         this.currentIframe = iframe;
