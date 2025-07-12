@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "yarn build"
+buildCommand = "yarn build:embed && yarn build"
 
 [deploy]
 startCommand = "yarn start"
@@ -18,4 +18,8 @@ SERVICE_NAME = "curia-host-service"
 # JWT_SECRET = ""
 # CURIA_PRIVATE_KEY = ""
 # CURIA_PUBLIC_KEY = ""
-# CURIA_KEY_ID = "" 
+# CURIA_KEY_ID = ""
+
+# Embed system environment variables (CRITICAL for production)
+# NEXT_PUBLIC_HOST_SERVICE_URL = "https://your-host-service.railway.app"
+# NEXT_PUBLIC_CURIA_FORUM_URL = "https://your-main-forum.railway.app" 
