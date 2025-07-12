@@ -169,14 +169,12 @@ const EmbedContent: React.FC = () => {
       if (profileData) {
         // User went through full authentication flow
         console.log('[Embed] DEBUG - Using profileData for auth complete');
-        if (profileData.type === 'anonymous') {
-          userId = `anonymous_${Date.now()}`;
-        } else if (profileData.userId) {
-          // Use the actual database user_id (e.g., "ens:florianglatz.eth")
+        if (profileData.userId) {
+          // Use the actual database user_id for ALL user types (including anonymous)
           userId = profileData.userId;
         } else {
           // Fallback for cases without stored userId
-          userId = profileData.address || `wallet_${Date.now()}`;
+          userId = profileData.address || `fallback_${Date.now()}`;
         }
         sessionToken = profileData.sessionToken;
       } else {
