@@ -7,6 +7,7 @@ export interface EmbedConfig {
   theme: 'light' | 'dark';
   container: string | null;
   height: string;
+  width: string;
 }
 
 export interface EmbedState {

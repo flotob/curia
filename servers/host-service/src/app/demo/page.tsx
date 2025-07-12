@@ -18,6 +18,8 @@ export default function DemoPage() {
     script.setAttribute('data-container', 'curia-forum');
     script.setAttribute('data-community', 'test-community');
     script.setAttribute('data-theme', 'auto');
+    script.setAttribute('data-width', '100%');
+    script.setAttribute('data-height', '100%');
     
     document.head.appendChild(script);
 

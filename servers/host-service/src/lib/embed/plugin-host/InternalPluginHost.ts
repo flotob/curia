@@ -96,7 +96,7 @@ export class InternalPluginHost {
     // Create auth iframe
     const iframe = document.createElement('iframe');
     iframe.src = `${this.hostServiceUrl}/embed`;
-    iframe.style.width = '100%';
+    iframe.style.width = this.config.width || '100%';
     iframe.style.height = this.config.height || '700px';
     iframe.style.border = 'none';
     iframe.style.borderRadius = '8px';
@@ -196,7 +196,7 @@ export class InternalPluginHost {
     // Create forum iframe
     const iframe = document.createElement('iframe');
     iframe.src = forumUrl.toString();
-    iframe.style.width = '100%';
+    iframe.style.width = this.config.width || '100%';
     iframe.style.height = this.config.height || '700px';
     iframe.style.border = 'none';
     iframe.style.borderRadius = '8px';
@@ -371,7 +371,7 @@ export function generateInternalPluginHostCode(urls: { hostUrl: string; forumUrl
         
         const iframe = document.createElement('iframe');
         iframe.src = this.hostServiceUrl + '/embed';
-        iframe.style.width = '100%';
+        iframe.style.width = this.config.width || '100%';
         iframe.style.height = this.config.height || '700px';
         iframe.style.border = 'none';
         iframe.style.borderRadius = '8px';
@@ -452,7 +452,7 @@ export function generateInternalPluginHostCode(urls: { hostUrl: string; forumUrl
         
         const iframe = document.createElement('iframe');
         iframe.src = forumUrl.toString();
-        iframe.style.width = '100%';
+        iframe.style.width = this.config.width || '100%';
         iframe.style.height = this.config.height || '700px';
         iframe.style.border = 'none';
         iframe.style.borderRadius = '8px';
