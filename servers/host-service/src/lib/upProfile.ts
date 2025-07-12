@@ -51,13 +51,17 @@ const resolveIpfsUrl = (url: string): string => {
  */
 const generateUsername = (name?: string, address?: string): string => {
   if (name && address) {
-    const addressHash = address.slice(-4);
+    // Use first 4 characters after 0x for hash
+    const addressHash = address.slice(2, 6);
     return `@${name.toLowerCase().replace(/\s+/g, '')}#${addressHash}`;
   }
   if (address) {
+    // No name but have address - use address parts for unique username
     return `@${address.slice(2, 6)}${address.slice(-4)}.lukso`;
   }
-  return '@unknown.lukso';
+  // No address at all - create unique identifier with timestamp
+  const uniqueId = Date.now().toString(36).slice(-6);
+  return `@user${uniqueId}.lukso`;
 };
 
 /**
@@ -101,6 +105,8 @@ export const getUPSocialProfile = async (address: string): Promise<UPSocialProfi
     // Fetch profile data
     const profileData = await erc725.fetchData('LSP3Profile');
     
+    console.log(`[getUPSocialProfile] 🐛 Raw profileData from ERC725:`, JSON.stringify(profileData, null, 2));
+    
     if (!profileData || !profileData.value) {
       console.log(`[getUPSocialProfile] No profile data found for ${address}`);
       return createFallbackProfile(address);
@@ -110,6 +116,8 @@ export const getUPSocialProfile = async (address: string): Promise<UPSocialProfi
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lsp3Profile = profileData.value as any;
     const metadata = lsp3Profile?.LSP3Profile;
+    
+    console.log(`[getUPSocialProfile] 🐛 Parsed metadata:`, JSON.stringify(metadata, null, 2));
 
     if (!metadata) {
       return createFallbackProfile(address);
@@ -117,11 +125,16 @@ export const getUPSocialProfile = async (address: string): Promise<UPSocialProfi
 
     // Extract profile image
     let profileImageUrl: string | undefined;
+    console.log(`[getUPSocialProfile] 🐛 Raw metadata.profileImage:`, JSON.stringify(metadata.profileImage, null, 2));
+    
     if (metadata.profileImage && Array.isArray(metadata.profileImage) && metadata.profileImage.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profileImg = (metadata.profileImage as any[]).find((img) => img.url);
+      console.log(`[getUPSocialProfile] 🐛 Found profile image object:`, JSON.stringify(profileImg, null, 2));
+      
       if (profileImg) {
         profileImageUrl = resolveIpfsUrl(profileImg.url);
+        console.log(`[getUPSocialProfile] 🐛 Resolved profile image URL:`, profileImageUrl);
       }
     }
 
@@ -140,6 +153,7 @@ export const getUPSocialProfile = async (address: string): Promise<UPSocialProfi
       lastFetched: new Date()
     };
 
+    console.log(`[getUPSocialProfile] 🐛 Complete social profile object:`, JSON.stringify(socialProfile, null, 2));
     console.log(`[getUPSocialProfile] Successfully fetched profile for ${address}:`, socialProfile);
     return socialProfile;
 

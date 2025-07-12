@@ -102,7 +102,7 @@ async function verifyENSBlockchainState(ethAddress: string, claimedEnsName?: str
 /**
  * Verify Universal Profile metadata exists for address (adapted from main forum app)
  */
-async function verifyUPBlockchainState(upAddress: string): Promise<{ valid: boolean; error?: string; verifiedProfileData?: { name: string } }> {
+async function verifyUPBlockchainState(upAddress: string): Promise<{ valid: boolean; error?: string; verifiedProfileData?: { name: string; profileImage?: string } }> {
   try {
     console.log(`[verifyUPBlockchainState] Checking UP metadata for ${upAddress}`);
 
@@ -127,7 +127,10 @@ async function verifyUPBlockchainState(upAddress: string): Promise<{ valid: bool
       console.log(`[verifyUPBlockchainState] ✅ UP verification passed with metadata: ${profileData.name}`);
       return { 
         valid: true,
-        verifiedProfileData: { name: profileData.name }
+        verifiedProfileData: { 
+          name: profileData.name,
+          profileImage: profileData.profileImage 
+        }
       };
     } else {
       return {
@@ -207,19 +210,26 @@ async function rawEthereumCall(method: string, params: unknown[]): Promise<unkno
 /**
  * Fetch UP profile data using simplified version
  */
-async function fetchUPProfileData(upAddress: string): Promise<{ name?: string } | null> {
+async function fetchUPProfileData(upAddress: string): Promise<{ name?: string; profileImage?: string } | null> {
   try {
     // Use the simplified UP profile fetcher from our lib
     const { getUPSocialProfile } = await import('@/lib/upProfile');
     const profile = await getUPSocialProfile(upAddress);
     
+    console.log(`[fetchUPProfileData] 🐛 Raw profile data:`, JSON.stringify(profile, null, 2));
+    
     if (profile.error) {
+      console.log(`[fetchUPProfileData] ❌ Profile has error:`, profile.error);
       return null;
     }
 
-    return {
-      name: profile.displayName
+    const result = {
+      name: profile.displayName,
+      profileImage: profile.profileImage
     };
+    
+    console.log(`[fetchUPProfileData] 🐛 Returning profile data:`, JSON.stringify(result, null, 2));
+    return result;
   } catch (error) {
     console.error('[fetchUPProfileData] Error:', error);
     return null;
@@ -732,10 +742,11 @@ export async function POST(request: NextRequest) {
       // 🐛 FIX: Fetch UP metadata from UP contract address, not signer address
       const upVerification = await verifyUPBlockchainState(upAddress!);
       verifiedUpProfileData = upVerification.verifiedProfileData;
+      console.log(`[verify-signature] 🐛 UP verification result:`, JSON.stringify(upVerification, null, 2));
     }
 
     // 🚀 ATOMIC TRANSACTION: Create user and session together 
-    const { user, session } = await createUserAndSession({
+    const createUserParams = {
       identityType,
       walletAddress: identityType === 'ens' ? walletAddress : undefined,
       ensName: verifiedEnsName,
@@ -744,7 +755,11 @@ export async function POST(request: NextRequest) {
       signerAddress,
       signedMessage: message,
       signature
-    });
+    };
+    
+    console.log(`[verify-signature] 🐛 Calling createUserAndSession with params:`, JSON.stringify(createUserParams, null, 2));
+    
+    const { user, session } = await createUserAndSession(createUserParams);
 
     const responseData = {
       user: {
@@ -762,6 +777,7 @@ export async function POST(request: NextRequest) {
       authMethod: identityType
     };
 
+    console.log(`[verify-signature] 🐛 Final response data:`, JSON.stringify(responseData, null, 2));
     return NextResponse.json(responseData);
 
   } catch (error) {
@@ -808,7 +824,7 @@ async function createUserAndSession(params: {
   walletAddress?: string;
   ensName?: string;
   upAddress?: string;
-  verifiedUpProfileData?: { name: string };
+  verifiedUpProfileData?: { name: string; profileImage?: string };
   signerAddress: string;
   signedMessage: string;
   signature: string;
@@ -830,17 +846,34 @@ async function createUserAndSession(params: {
   try {
     await client.query('BEGIN');
 
-    // Generate user ID and name
+    // Generate user ID, name, and profile picture URL
     let userId: string;
     let name: string;
+    let profilePictureUrl: string | null = null;
+    
+    console.log(`[createUserAndSession] 🐛 Processing user data:`, {
+      identityType,
+      upAddress,
+      ensName,
+      verifiedUpProfileData: JSON.stringify(verifiedUpProfileData, null, 2)
+    });
     
     if (identityType === 'ens') {
       userId = `ens:${ensName}`;
       name = ensName || `User ${walletAddress?.slice(-6)}`;
+      // ENS avatars would go here if we fetch them from ENS records
     } else {
       userId = `up:${upAddress}`;
       name = verifiedUpProfileData?.name || `UP ${upAddress?.slice(-6)}`;
+      // 🐛 FIX: Extract profile picture URL from UP metadata
+      profilePictureUrl = verifiedUpProfileData?.profileImage || null;
     }
+    
+    console.log(`[createUserAndSession] 🐛 Generated user fields:`, {
+      userId,
+      name,
+      profilePictureUrl
+    });
 
     // Check if user exists
     const existingUserQuery = `SELECT * FROM users WHERE user_id = $1`;
@@ -851,9 +884,11 @@ async function createUserAndSession(params: {
       // Update existing user
       const updateQuery = `
         UPDATE users SET 
-          wallet_address = $2,
-          ens_domain = $3,
-          up_address = $4,
+          name = $2,
+          profile_picture_url = $3,
+          wallet_address = $4,
+          ens_domain = $5,
+          up_address = $6,
           last_auth_at = NOW(),
           auth_expires_at = NOW() + INTERVAL '30 days',
           updated_at = NOW()
@@ -861,12 +896,18 @@ async function createUserAndSession(params: {
         RETURNING *
       `;
       
-      const result = await client.query(updateQuery, [
+      const updateParams = [
         userId,
+        name,
+        profilePictureUrl,
         identityType === 'ens' ? walletAddress : null,
         identityType === 'ens' ? ensName : null,
         identityType === 'universal_profile' ? upAddress : null
-      ]);
+      ];
+      
+      console.log(`[createUserAndSession] 🐛 UPDATE query params:`, updateParams);
+      
+      const result = await client.query(updateQuery, updateParams);
       
       user = result.rows[0];
     } else {
@@ -875,6 +916,7 @@ async function createUserAndSession(params: {
         INSERT INTO users (
           user_id,
           name,
+          profile_picture_url,
           identity_type,
           wallet_address,
           ens_domain,
@@ -883,22 +925,27 @@ async function createUserAndSession(params: {
           auth_expires_at,
           last_auth_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, 
+          $1, $2, $3, $4, $5, $6, $7, $8, 
           NOW() + INTERVAL '30 days',
           NOW()
         )
         RETURNING *
       `;
       
-      const result = await client.query(insertQuery, [
+      const insertParams = [
         userId,
         name,
+        profilePictureUrl,
         identityType,
         identityType === 'ens' ? walletAddress : null,
         identityType === 'ens' ? ensName : null,
         identityType === 'universal_profile' ? upAddress : null,
         false
-      ]);
+      ];
+      
+      console.log(`[createUserAndSession] 🐛 INSERT query params:`, insertParams);
+      
+      const result = await client.query(insertQuery, insertParams);
       
       user = result.rows[0];
     }
@@ -942,6 +989,7 @@ async function createUserAndSession(params: {
     await client.query('COMMIT');
     
     console.log(`[createUserAndSession] ✅ User and session created atomically: ${userId}`);
+    console.log(`[createUserAndSession] 🐛 Final user data:`, JSON.stringify(user, null, 2));
     return { user, session };
 
   } catch (error) {
