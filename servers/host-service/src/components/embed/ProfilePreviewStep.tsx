@@ -33,7 +33,7 @@ export const ProfilePreviewStep: React.FC<ProfilePreviewStepProps> = ({
             onBack={onSwitchAccount} // Go back to main authentication selection
             onSwitchWallet={() => {}} // UP extension handles this internally now
             onContinue={(updatedProfileData) => onContinue(updatedProfileData)}
-            className="embed-card"
+            className="embed-card embed-card--md"
           />
         </UniversalProfileProvider>
       </div>
@@ -52,7 +52,7 @@ export const ProfilePreviewStep: React.FC<ProfilePreviewStepProps> = ({
             onBack={onSwitchAccount} // Go back to main authentication selection
             onSwitchWallet={() => {}} // RainbowKit handles this internally now
             onContinue={(updatedProfileData) => onContinue(updatedProfileData)}
-            className="embed-card"
+            className="embed-card embed-card--md"
           />
         </EthereumProfileProvider>
       </div>
