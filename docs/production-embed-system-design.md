@@ -72,13 +72,17 @@ servers/host-service/
 │   └── ... (existing host service structure)
 ```
 
-#### **Production Output** (Via Next.js API Route)
+#### **Production Output** (Static Build)
 ```
-GET /embed.js                        # Serves compiled embed script
-├── Generated from lib/embed/main.ts
-├── Includes all modules compiled together
-├── Production minification
-└── Source maps for debugging
+Build Process:
+scripts/build-embed.ts → public/embed.js
+
+Static File Serving:
+GET /embed.js                        # Serves pre-built static file
+├── Built from lib/embed/main.ts at build time
+├── All modules compiled together
+├── Production minified
+└── Cached by CDN/browser
 ```
 
 ### Core Requirements
@@ -357,25 +361,31 @@ export async function GET() {
 
 **The logic is actually quite good - we just need to extract it into proper TypeScript modules!**
 
-#### **New Approach** (Within Host Service)
+#### **New Approach** (Static Build)
 ```typescript
-// src/app/embed.js/route.ts - NEW APPROACH
+// scripts/build-embed.ts - BUILD TIME COMPILATION
 import { buildEmbedScript } from '@/lib/embed/main';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
-export async function GET() {
+export async function buildEmbedForProduction() {
   const embedScript = await buildEmbedScript({
-    environment: process.env.NODE_ENV || 'development',
-    minify: process.env.NODE_ENV === 'production',
-    sourceMap: process.env.NODE_ENV === 'development'
+    environment: 'production',
+    minify: true,
+    sourceMap: false
   });
   
-  return new Response(embedScript, {
-    headers: { 
-      'Content-Type': 'application/javascript',
-      'Cache-Control': 'public, max-age=3600' // 1 hour cache
-    }
-  });
+  // Write to public directory
+  writeFileSync(
+    join(process.cwd(), 'public/embed.js'),
+    embedScript
+  );
+  
+  console.log('✅ Built embed.js to public/embed.js');
 }
+
+// REMOVE: src/app/embed.js/route.ts (no longer needed)
+// Serve directly from public/embed.js as static file
 ```
 
 #### **Build Function Architecture**
@@ -422,14 +432,28 @@ export async function buildEmbedScript(options: BuildOptions): Promise<string> {
 - ✅ **Development**: Hot reload already works
 - ✅ **Production**: Next.js optimization built-in
 - ✅ **Deployment**: Existing deployment pipeline works
+- ✅ **Static Serving**: Next.js serves public/ files automatically
+
+### **Build Integration**
+```json
+// package.json - Add to existing scripts
+{
+  "scripts": {
+    "build": "next build && npm run build:embed",
+    "build:embed": "tsx scripts/build-embed.ts",
+    "dev": "npm run build:embed && next dev",
+    "dev:embed": "tsx scripts/build-embed.ts --watch"
+  }
+}
+```
 
 ## 🔧 Implementation Strategy
 
 ### **Phase 1: Replace Template String Hell**
 1. **Create `src/lib/embed/` structure**: Set up well-organized modules within host service
 2. **Build system function**: Create `buildEmbedScript()` in `src/lib/embed/main.ts`
-3. **Replace API route**: Update `src/app/embed.js/route.ts` to use new build function
-4. **Verify serving**: Ensure `/embed.js` endpoint works with new architecture
+3. **Build script**: Create `scripts/build-embed.ts` to compile modules to `public/embed.js`
+4. **Remove API route**: Delete `src/app/embed.js/route.ts` (serve as static file instead)
 
 ### **Phase 2: Extract Demo Logic**
 1. **Analyze demo page**: Study `src/app/demo/page.tsx` ClientPluginHost usage
@@ -675,14 +699,82 @@ Users: ens:florianglatz.eth (real) → Complete Forum Experience
 
 ---
 
+## 📋 Implementation Roadmap
+
+### **Phase 1: Build System Setup** (Day 1-2)
+```typescript
+// Create: scripts/build-embed.ts
+import { buildEmbedScript } from '@/lib/embed/main';
+import { writeFileSync } from 'fs';
+
+export async function buildEmbedForProduction() {
+  const embedScript = await buildEmbedScript({
+    environment: 'production',
+    minify: true
+  });
+  
+  writeFileSync('public/embed.js', embedScript);
+  console.log('✅ Built embed.js to public/embed.js');
+}
+
+// Update: package.json scripts
+{
+  "scripts": {
+    "build": "next build && npm run build:embed",
+    "build:embed": "tsx scripts/build-embed.ts"
+  }
+}
+
+// Remove: src/app/embed.js/route.ts (serve as static file)
+```
+
+### **Phase 2: Extract Template String Logic** (Day 3-5)
+```
+Current: 349 lines of template string
+Target: Organized TypeScript modules
+
+src/lib/embed/
+├── core/EmbedConfig.ts        # Parse data attributes
+├── ui/ContainerManager.ts     # DOM container creation  
+├── ui/IframeManager.ts        # Iframe switching (auth→forum)
+├── plugin-host/ApiRouter.ts   # PostMessage API routing
+└── main.ts                    # buildEmbedScript() function
+```
+
+### **Phase 3: Test & Validate** (Day 6-7)
+```typescript
+// Create: src/app/demo2/page.tsx
+export default function Demo2() {
+  return (
+    <div>
+      <h1>Standalone Embed Test</h1>
+      <script src="/embed.js" 
+              data-community="test-community"
+              async />
+    </div>
+  );
+}
+```
+
+### **Phase 4: Production Deploy** (Day 8)
+```bash
+# Build process creates public/embed.js
+npm run build
+
+# Deploy via existing pipeline
+# embed.js served as static file with CDN caching
+```
+
+---
+
 ## 🚀 Next Steps
 
 1. **Create `src/lib/embed/` structure**: Set up well-organized modules within existing host service
-2. **Replace template string approach**: Build `buildEmbedScript()` function to generate proper JavaScript
+2. **Build system**: Create `scripts/build-embed.ts` to compile modules to `public/embed.js`
 3. **Extract demo logic**: Move working ClientPluginHost logic to structured TypeScript modules
 4. **Self-contained plugin host**: Implement complete API routing internally within the embed script
 5. **Production hardening**: Add error handling, security, performance optimization to build process
 6. **Demo2 validation**: Create minimal test page with just `<script src="/embed.js">`
-7. **Serve via existing infrastructure**: Use existing Next.js `/embed.js` route and deployment pipeline
+7. **Serve as static file**: Use Next.js static serving from `public/embed.js`
 
 **This will be the final production-ready embed system that customers can trust - built within our existing, proven infrastructure.** 
