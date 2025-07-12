@@ -37,284 +37,278 @@
   }
   
 
-  // Embed state tracking
-  let currentPhase = 'auth'; // 'auth' or 'forum'
-  let authContext = null;
-  let iframe = null;
-  let loadingDiv = null;
-
-  // Build initial embed iframe URL with parameters  
-  const buildEmbedUrl = () => {
-    const baseUrl = 'http://localhost:3001/embed';
-    const params = new URLSearchParams();
-    
-    if (config.community) params.append('community', config.community);
-    if (config.theme) params.append('theme', config.theme);
-    
-    return baseUrl + (params.toString() ? '?' + params.toString() : '');
-  };
-
-  // Build forum URL for iframe switching
-  const buildForumUrl = () => {
-    const baseUrl = 'http://localhost:3000';
-    const params = new URLSearchParams();
-    
-    params.append('mod', 'standalone');
-    params.append('cg_theme', config.theme);
-    
-    if (config.theme === 'dark') {
-      params.append('cg_bg_color', '%23161820');
-    }
-    
-    return baseUrl + '?' + params.toString();
-  };
-
-  // Create iframe element
-  const createIframe = (url) => {
-    const newIframe = document.createElement('iframe');
-    newIframe.style.width = '100%';
-    newIframe.style.height = config.height;
-    newIframe.style.border = 'none';
-    newIframe.style.borderRadius = '8px';
-    newIframe.style.display = 'block';
-    newIframe.setAttribute('allowtransparency', 'true');
-    newIframe.setAttribute('scrolling', 'no');
-    newIframe.title = 'Curia Community Forum';
-    
-    // Set sandbox permissions (critical for iframe content to load)
-    newIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
-    
-    return newIframe;
-  };
-
-  // Create loading state
-  const createLoadingDiv = () => {
-    const loading = document.createElement('div');
-    loading.innerHTML = `
-      <div style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: ${config.height};
-        background: #f9fafb;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        color: #6b7280;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      ">
-        <div style="text-align: center;">
-          <div style="
-            width: 32px;
-            height: 32px;
-            border: 3px solid #e5e7eb;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            margin: 0 auto 12px;
-            animation: spin 1s linear infinite;
-          "></div>
-          <div>${currentPhase === 'auth' ? 'Loading Curia...' : 'Loading forum...'}</div>
-        </div>
-      </div>
-      <style>
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      </style>
-    `;
-    return loading;
-  };
-
-  // Switch iframe from embed to forum
-  const switchToForum = (authData) => {
-    console.log('[Curia] Switching to forum phase with auth data:', authData);
-    
-    currentPhase = 'forum';
-    authContext = authData;
-    
-    // Create new iframe for forum
-    const forumIframe = createIframe(buildForumUrl());
-    
-    // Update loading message
-    if (loadingDiv) {
-      loadingDiv.innerHTML = loadingDiv.innerHTML.replace('Loading Curia...', 'Loading forum...');
-    }
-    
-    // Replace current iframe with forum iframe
-    if (iframe && iframe.parentNode) {
-      iframe.parentNode.replaceChild(forumIframe, iframe);
-    } else {
-      container.appendChild(forumIframe);
-    }
-    
-    iframe = forumIframe;
-    
-    // Set iframe source
-    iframe.src = buildForumUrl();
-    
-    // Set up forum iframe handlers
-    setupForumIframeHandlers(forumIframe);
-    
-    console.log('[Curia] Switched to forum URL:', buildForumUrl());
-  };
-
-  // Handle iframe load success
-  const setupIframeHandlers = (targetIframe) => {
-    targetIframe.onload = function() {
-      console.log('[Curia] Iframe loaded successfully');
-      
-      try {
-        // Hide loading div and show iframe
-        if (loadingDiv && container && container.contains(loadingDiv)) {
-          loadingDiv.style.display = 'none';
-          console.log('[Curia] Loading div hidden');
-        }
+    // Internal Plugin Host - Self-contained plugin hosting
+    class InternalPluginHost {
+      constructor(container, config, hostServiceUrl, forumUrl) {
+        this.container = container;
+        this.config = config;
+        this.authContext = null;
+        this.currentIframe = null;
+        this.currentIframeUid = null;
+        this.hostServiceUrl = hostServiceUrl;
+        this.forumUrl = forumUrl;
         
-        // Show the iframe
-        targetIframe.style.display = 'block';
-        console.log('[Curia] Iframe shown');
-        
-        console.log('[Curia] Embed ready');
-      } catch (error) {
-        console.warn('[Curia] Error during iframe display:', error);
+        this.setupMessageListener();
+        this.initializeAuthPhase();
       }
-    };
 
-    // Handle iframe load error
-    targetIframe.onerror = function() {
-      console.error('[Curia] Failed to load iframe');
-      
-      const errorDiv = document.createElement('div');
-      errorDiv.innerHTML = `
-        <div style="
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: ${config.height};
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          border-radius: 8px;
-          color: #dc2626;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        ">
-          <div style="text-align: center;">
-            <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
-            <div><strong>Failed to load Curia</strong></div>
-            <div style="font-size: 12px; margin-top: 4px; opacity: 0.7;">
-              Check if the service is running at: ${targetIframe.src}
-            </div>
-          </div>
-        </div>
-      `;
-      
-      // Replace content with error state
-      try {
-        if (container) {
-          while (container.firstChild) {
-            container.removeChild(container.firstChild);
+      initializeAuthPhase() {
+        console.log('[InternalPluginHost] Initializing auth phase');
+        
+        const iframe = document.createElement('iframe');
+        iframe.src = this.hostServiceUrl + '/embed';
+        iframe.style.width = '100%';
+        iframe.style.height = this.config.height || '700px';
+        iframe.style.border = 'none';
+        iframe.style.borderRadius = '8px';
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+        
+        this.container.appendChild(iframe);
+        this.currentIframe = iframe;
+        
+        console.log('[InternalPluginHost] Auth iframe loaded');
+      }
+
+      setupMessageListener() {
+        window.addEventListener('message', (event) => {
+          this.handleMessage(event);
+        });
+      }
+
+      async handleMessage(event) {
+        if (!event.data || typeof event.data !== 'object') {
+          return;
+        }
+
+        // Handle auth completion from embed iframe
+        if (event.data.type === 'curia-auth-complete') {
+          await this.handleAuthCompletion(event.data);
+          return;
+        }
+
+        // Handle API requests from forum
+        const message = event.data;
+        if (message.type === 'api_request') {
+          await this.handleApiRequest(message, event.source);
+          return;
+        }
+
+        // Handle forum init
+        if (message.type === 'init') {
+          console.log('[InternalPluginHost] Forum initialized');
+          return;
+        }
+      }
+
+      async handleAuthCompletion(authData) {
+        console.log('[InternalPluginHost] Auth completion received:', authData);
+        
+        this.authContext = {
+          userId: authData.userId,
+          communityId: authData.communityId,
+          sessionToken: authData.sessionToken
+        };
+        
+        console.log('[InternalPluginHost] Auth context set:', this.authContext);
+        
+        await this.switchToForum();
+      }
+
+      async switchToForum() {
+        console.log('[InternalPluginHost] Switching to forum phase');
+        
+        if (!this.authContext) {
+          console.error('[InternalPluginHost] Cannot switch to forum - no auth context');
+          return;
+        }
+
+        this.currentIframeUid = this.generateIframeUid();
+        
+        const forumUrl = new URL(this.forumUrl);
+        forumUrl.searchParams.set('mod', 'standalone');
+        forumUrl.searchParams.set('cg_theme', this.config.theme || 'light');
+        forumUrl.searchParams.set('iframeUid', this.currentIframeUid);
+        
+        console.log('[InternalPluginHost] Forum URL:', forumUrl.toString());
+        
+        if (this.currentIframe && this.currentIframe.parentElement) {
+          this.currentIframe.parentElement.removeChild(this.currentIframe);
+        }
+        
+        const iframe = document.createElement('iframe');
+        iframe.src = forumUrl.toString();
+        iframe.style.width = '100%';
+        iframe.style.height = this.config.height || '700px';
+        iframe.style.border = 'none';
+        iframe.style.borderRadius = '8px';
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+        
+        this.container.appendChild(iframe);
+        this.currentIframe = iframe;
+        
+        console.log('[InternalPluginHost] Forum iframe loaded');
+      }
+
+      async handleApiRequest(message, source) {
+        try {
+          console.log('[InternalPluginHost] API request:', message.method, message.params);
+          
+          if (!this.authContext) {
+            throw new Error('No authentication context available');
           }
-          container.appendChild(errorDiv);
-          console.log('[Curia] Error state displayed');
+
+          if (!this.currentIframeUid || message.iframeUid !== this.currentIframeUid) {
+            throw new Error('Invalid iframe UID');
+          }
+
+          let apiEndpoint;
+          switch (message.method) {
+            case 'getUserInfo':
+            case 'getUserFriends':
+            case 'getContextData':
+              apiEndpoint = this.hostServiceUrl + '/api/user';
+              break;
+              
+            case 'getCommunityInfo':
+            case 'giveRole':
+              apiEndpoint = this.hostServiceUrl + '/api/community';
+              break;
+              
+            default:
+              throw new Error('Unknown API method: ' + message.method);
+          }
+
+          const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              method: message.method,
+              params: message.params,
+              communityId: this.authContext.communityId,
+              userId: this.authContext.userId
+            })
+          });
+
+          const result = await response.json();
+          
+          if (result.success) {
+            this.sendResponse(source, message, result.data);
+          } else {
+            throw new Error(result.error || 'API request failed');
+          }
+          
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[InternalPluginHost] API error:', errorMessage);
+          this.sendError(source, message, errorMessage);
         }
+      }
+
+      sendResponse(source, originalMessage, data) {
+        const response = {
+          type: 'api_response',
+          iframeUid: originalMessage.iframeUid,
+          requestId: originalMessage.requestId,
+          data: data
+        };
+        
+        source.postMessage(response, '*');
+      }
+
+      sendError(source, originalMessage, error) {
+        const response = {
+          type: 'api_response',
+          iframeUid: originalMessage.iframeUid,
+          requestId: originalMessage.requestId,
+          error: error
+        };
+        
+        source.postMessage(response, '*');
+      }
+
+      generateIframeUid() {
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+        return (timestamp + random).substring(0, 10);
+      }
+
+      destroy() {
+        if (this.currentIframe && this.currentIframe.parentElement) {
+          this.currentIframe.parentElement.removeChild(this.currentIframe);
+        }
+        
+        this.currentIframe = null;
+        this.currentIframeUid = null;
+        this.authContext = null;
+        
+        console.log('[InternalPluginHost] Destroyed');
+      }
+    }
+  
+
+    // Initialize the embed when script loads
+    function initializeEmbed() {
+      console.log('[CuriaEmbed] Initializing embed');
+      
+      try {
+        // Parse configuration from script attributes
+        const config = parseEmbedConfig();
+        console.log('[CuriaEmbed] Config parsed:', config);
+        
+        // Create container
+        const container = createEmbedContainer(config);
+        console.log('[CuriaEmbed] Container created');
+        
+        // Initialize InternalPluginHost (self-contained)
+        const pluginHost = new InternalPluginHost(
+          container, 
+          config, 
+          'http://localhost:3001', 
+          'http://localhost:3000'
+        );
+        console.log('[CuriaEmbed] InternalPluginHost initialized');
+        
+        // Store global reference
+        window.curiaEmbed = {
+          container,
+          pluginHost,
+          config,
+          destroy: () => {
+            if (pluginHost) {
+              pluginHost.destroy();
+            }
+            if (container && container.parentElement) {
+              container.parentElement.removeChild(container);
+            }
+            delete window.curiaEmbed;
+          }
+        };
+        
+        console.log('[CuriaEmbed] Embed initialized successfully');
+        
       } catch (error) {
-        console.warn('[Curia] Error showing error state:', error);
+        console.error('[CuriaEmbed] Initialization failed:', error);
+        
+        // Try to show error in a container if possible
+        try {
+          const config = parseEmbedConfig();
+          const container = createEmbedContainer(config);
+          container.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: #ef4444; border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 16px;">Failed to Load Forum</h3>
+              <p style="margin: 0; font-size: 14px; opacity: 0.8;">Please check your configuration and try again.</p>
+            </div>
+          `;
+        } catch (fallbackError) {
+          console.error('[CuriaEmbed] Fallback error display failed:', fallbackError);
+        }
       }
-    };
-  };
-
-  // Set up forum iframe handlers with PostMessage API support
-  const setupForumIframeHandlers = (forumIframe) => {
-    setupIframeHandlers(forumIframe);
-    
-    // TODO: Add PostMessage API handling for forum communication
-    // This would include handling getUserInfo, getCommunityInfo, etc.
-    console.log('[Curia] Forum iframe handlers set up (PostMessage API pending)');
-  };
-
-  // Initialize embed iframe
-  const initializeEmbed = () => {
-    // Clear container and add loading state
-    container.innerHTML = '';
-    container.style.position = 'relative';
-    
-    loadingDiv = createLoadingDiv();
-    container.appendChild(loadingDiv);
-
-    // Create initial embed iframe
-    iframe = createIframe(buildEmbedUrl());
-    
-    // Hide iframe initially (loading div shows first)
-    iframe.style.display = 'none';
-
-    // Add iframe to DOM BEFORE setting src
-    container.appendChild(iframe);
-    console.log('[Curia] Embed iframe added to DOM');
-
-    // Set up iframe handlers
-    setupIframeHandlers(iframe);
-
-    // Set iframe src AFTER iframe is in DOM
-    iframe.src = buildEmbedUrl();
-    console.log('[Curia] Embed iframe src set to:', iframe.src);
-  };
-  
-
-  // Listen for messages from iframes
-  function handleMessage(event) {
-    // Verify origin for security
-    const allowedOrigins = ['http://localhost:3001', 'http://localhost:3000'];
-    if (!allowedOrigins.includes(event.origin)) {
-      return;
     }
-
-    const data = event.data;
     
-    // Handle auth completion from embed iframe
-    if (data && data.type === 'curia-auth-complete') {
-      console.log('[Curia] Auth completion received:', data);
-      switchToForum(data);
-      return;
-    }
-
-    // Handle iframe resize requests
-    if (data && data.type === 'curia-resize' && data.height) {
-      if (iframe) {
-        iframe.style.height = data.height + 'px';
-        console.log('[Curia] Resized to height:', data.height);
-      }
-      return;
-    }
-
-    // Handle PostMessage API requests from forum (future implementation)
-    if (data && data.type === 'api_request' && currentPhase === 'forum') {
-      console.log('[Curia] API request from forum:', data.method);
-      // TODO: Route to actual API endpoints with auth context
-      return;
-    }
-  }
-
-  // Add message listener for iframe communication
-  if (window.addEventListener) {
-    window.addEventListener('message', handleMessage, false);
-  } else {
-    // IE8 fallback
-    window.attachEvent('onmessage', handleMessage);
-  }
-  
-
-  // Initialize the embed
-  initializeEmbed();
-  
-
-  // Store reference for potential cleanup
-  window.curiaEmbed = window.curiaEmbed || {};
-  window.curiaEmbed[config.container || 'default'] = {
-    iframe: iframe,
-    container: container,
-    config: config,
-    authContext: authContext,
-    phase: currentPhase
-  };
+    // Initialize the embed
+    initializeEmbed();
   
 
 })();

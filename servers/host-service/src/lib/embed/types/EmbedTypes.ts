@@ -36,9 +36,18 @@ export interface EmbedReference {
   phase: 'auth' | 'forum';
 }
 
+// Phase 3: Single embed per page (self-contained)
+export interface Phase3EmbedReference {
+  container: HTMLElement;
+  pluginHost: any;
+  config: EmbedConfig;
+  destroy: () => void;
+}
+
 // Global embed references
 declare global {
   interface Window {
-    curiaEmbed?: Record<string, EmbedReference>;
+    // Phase 3: Single embed per page
+    curiaEmbed?: Phase3EmbedReference;
   }
 } 

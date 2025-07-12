@@ -18,8 +18,7 @@ export async function buildEmbedScript(options: BuildOptions): Promise<string> {
   // Import all the modular components
   const { generateConfigCode } = await import('./core/EmbedConfig');
   const { generateContainerCode } = await import('./ui/ContainerManager');
-  const { generateIframeCode } = await import('./ui/IframeManager');
-  const { generatePostMessageCode, generateEmbedReferenceCode } = await import('./plugin-host/PostMessageHandler');
+  const { generateInternalPluginHostCode } = await import('./plugin-host/InternalPluginHost');
   const { generateInitializationCode, generateEmbedWrapper } = await import('./core/EmbedLifecycle');
 
   // Get environment URLs
@@ -32,10 +31,8 @@ export async function buildEmbedScript(options: BuildOptions): Promise<string> {
   const innerCode = [
     generateConfigCode({} as any), // Config will be parsed at runtime
     generateContainerCode(),
-    generateIframeCode(urls),
-    generatePostMessageCode(urls),
-    generateInitializationCode(),
-    generateEmbedReferenceCode()
+    generateInternalPluginHostCode(urls), // Self-contained plugin host
+    generateInitializationCode(urls), // Updated to use InternalPluginHost
   ].join('\n');
 
   // Wrap in IIFE
