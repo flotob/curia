@@ -18,6 +18,11 @@ export const ProfilePreviewStep: React.FC<ProfilePreviewStepProps> = ({
   onSwitchAccount, 
   onContinue 
 }) => {
+  // Handler for anonymous/fallback continue button
+  const handleContinueClick = () => {
+    // For anonymous users, no updated profile data to pass back
+    onContinue();
+  };
   // Handle Universal Profile display
   if (profileData.type === 'universal_profile' && profileData.address) {
     return (
@@ -27,7 +32,7 @@ export const ProfilePreviewStep: React.FC<ProfilePreviewStepProps> = ({
             address={profileData.address}
             onBack={onSwitchAccount} // Go back to main authentication selection
             onSwitchWallet={() => {}} // UP extension handles this internally now
-            onContinue={onContinue}
+            onContinue={(updatedProfileData) => onContinue(updatedProfileData)}
             className="embed-card"
           />
         </UniversalProfileProvider>
@@ -46,7 +51,7 @@ export const ProfilePreviewStep: React.FC<ProfilePreviewStepProps> = ({
             ensAvatar={profileData.avatar || undefined}
             onBack={onSwitchAccount} // Go back to main authentication selection
             onSwitchWallet={() => {}} // RainbowKit handles this internally now
-            onContinue={onContinue}
+            onContinue={(updatedProfileData) => onContinue(updatedProfileData)}
             className="embed-card"
           />
         </EthereumProfileProvider>
@@ -92,7 +97,7 @@ export const ProfilePreviewStep: React.FC<ProfilePreviewStepProps> = ({
               </button>
               
               <button
-                onClick={onContinue}
+                onClick={handleContinueClick}
                 className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 Continue

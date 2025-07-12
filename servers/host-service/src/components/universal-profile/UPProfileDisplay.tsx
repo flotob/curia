@@ -24,13 +24,22 @@ import {
 import { getUPSocialProfile, UPSocialProfile } from '../../lib/upProfile';
 import { lsp26Registry, LSP26Stats } from '../../lib/lsp26';
 
+// TypeScript declarations for Universal Profile extension
+declare global {
+  interface Window {
+    lukso?: {
+      request: (args: { method: string; params?: any[] }) => Promise<any>;
+    };
+  }
+}
+
 // ===== TYPES =====
 
 export interface UPProfileDisplayProps {
   address: string;
   onSwitchWallet?: () => void; // Switch to different UP account
   onBack?: () => void; // Go back to main authentication selection
-  onContinue?: () => void;
+  onContinue?: (updatedProfileData?: any) => void; // Pass back updated profile data after signing
   className?: string;
 }
 
@@ -49,6 +58,7 @@ export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isValidUP, setIsValidUP] = useState<boolean | null>(null); // null = checking, true = valid UP, false = not a UP
+  const [isSigningChallenge, setIsSigningChallenge] = useState(false);
 
   // ===== PROFILE FETCHING =====
   
@@ -163,6 +173,99 @@ export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
       return `${(num / 1000).toFixed(1)}K`;
     }
     return num.toString();
+  };
+
+  // Handle immediate signing when Continue is clicked
+  const handleContinueWithSigning = async () => {
+    if (!profile?.displayName || !address) {
+      console.error('[UPProfileDisplay] Missing required data for signing');
+      return;
+    }
+
+    setIsSigningChallenge(true);
+
+    try {
+      // Generate challenge
+      const challengeResponse = await fetch('/api/auth/generate-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identityType: 'universal_profile',
+          upAddress: address
+        })
+      });
+
+      if (!challengeResponse.ok) {
+        throw new Error('Failed to generate challenge');
+      }
+
+      const { challenge, message } = await challengeResponse.json();
+
+      // Sign the message using Universal Profile extension
+      console.log('[UPProfileDisplay] Requesting UP signature...');
+      
+      // Check if UP extension is available
+      if (typeof window === 'undefined' || !window.lukso) {
+        throw new Error('Universal Profile extension not found. Please install the Universal Profile browser extension.');
+      }
+
+      // Sign using UP extension
+      const signature = await window.lukso.request({
+        method: 'personal_sign',
+        params: [message, address]
+      });
+      
+      console.log('[UPProfileDisplay] ✅ Message signed, verifying...');
+
+      // Verify signature with backend
+      const verifyResponse = await fetch('/api/auth/verify-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identityType: 'universal_profile',
+          challenge,
+          signature,
+          message,
+          upAddress: address
+        })
+      });
+
+      if (!verifyResponse.ok) {
+        throw new Error('Signature verification failed');
+      }
+
+      const { user, token, expiresAt } = await verifyResponse.json();
+      console.log('[UPProfileDisplay] ✅ Authentication complete!', { user, token });
+      
+      // Store session token
+      if (token) {
+        localStorage.setItem('curia_session_token', token);
+      }
+
+      // 🎯 CRITICAL FIX: Create updated ProfileData with database user information
+      const updatedProfileData = {
+        type: 'universal_profile' as const,
+        address: address,
+        name: user.name || profile.displayName,
+        avatar: user.profile_picture_url || profile.profileImage,
+        userId: user.user_id,  // Add database user ID
+        sessionToken: token,
+        verificationLevel: 'verified' as const
+      };
+
+      console.log('[UPProfileDisplay] ✅ Passing back updated ProfileData:', updatedProfileData);
+
+      // Continue to next step with updated profile data that includes database info
+      if (onContinue) {
+        onContinue(updatedProfileData);
+      }
+
+    } catch (error) {
+      console.error('[UPProfileDisplay] Signing error:', error);
+      alert(`Failed to authenticate: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSigningChallenge(false);
+    }
   };
 
   // ===== RENDER =====
@@ -328,15 +431,22 @@ export const UPProfileDisplay: React.FC<UPProfileDisplayProps> = ({
             {/* Primary Action Button */}
             {onContinue && (
               <Button
-                onClick={onContinue}
-                disabled={isValidUP !== true} // Only enable when valid UP is confirmed
+                onClick={handleContinueWithSigning}
+                disabled={isValidUP !== true || isSigningChallenge} // Only enable when valid UP is confirmed
                 className={`w-full ${
                   isValidUP === true
                     ? 'bg-emerald-600 hover:bg-emerald-700'
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
               >
-                {isValidUP === null ? 'Validating...' : isValidUP ? 'Continue' : 'Invalid Universal Profile'}
+                {isSigningChallenge 
+                  ? 'Signing...' 
+                  : isValidUP === null 
+                    ? 'Validating...' 
+                    : isValidUP 
+                      ? 'Continue & Sign' 
+                      : 'Universal Profile Required'
+                }
               </Button>
             )}
 

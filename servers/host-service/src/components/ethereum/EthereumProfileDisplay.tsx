@@ -43,7 +43,7 @@ export interface EthereumProfileDisplayProps {
   ensAvatar?: string;
   onSwitchWallet?: () => void; // Switch to different wallet within same ecosystem
   onBack?: () => void; // Go back to main authentication selection
-  onContinue?: () => void;
+  onContinue?: (updatedProfileData?: any) => void; // Pass back updated profile data after signing
   className?: string;
 }
 
@@ -286,9 +286,23 @@ export const EthereumProfileDisplay: React.FC<EthereumProfileDisplayProps> = ({
         localStorage.setItem('curia_session_token', token);
       }
 
-      // Continue to next step with updated profile data that includes the session token
+      // 🎯 CRITICAL FIX: Create updated ProfileData with database user information
+      const updatedProfileData = {
+        type: 'ens' as const,
+        address: connectedAddress,
+        name: user.name || efpProfile?.ensName || ensName,
+        avatar: user.profile_picture_url || efpProfile?.avatar || ensAvatar,
+        domain: efpProfile?.ensName || ensName,
+        userId: user.user_id,  // Add database user ID
+        sessionToken: token,
+        verificationLevel: 'verified' as const
+      };
+
+      console.log('[EthereumProfileDisplay] ✅ Passing back updated ProfileData:', updatedProfileData);
+
+      // Continue to next step with updated profile data that includes database info
       if (onContinue) {
-        onContinue();
+        onContinue(updatedProfileData);
       }
 
     } catch (error) {

@@ -68,12 +68,12 @@ export interface AuthenticationStepProps extends StepProps {
 export interface ProfilePreviewStepProps extends StepProps {
   profileData: ProfileData;
   onSwitchAccount: () => void;
-  onContinue: () => void;
+  onContinue: (updatedProfileData?: ProfileData) => void;
 }
 
 export interface SignatureVerificationStepProps extends StepProps {
   profileData: ProfileData;
-  onSignatureComplete: () => void;
+  onSignatureComplete: (updatedProfileData?: ProfileData) => void;
 }
 
 export interface CommunitySelectionStepProps extends StepProps {

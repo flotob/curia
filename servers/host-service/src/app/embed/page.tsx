@@ -131,8 +131,13 @@ const EmbedContent: React.FC = () => {
     }
   }, []);
 
-  const handleProfileContinue = useCallback(() => {
-    // Skip signature verification since we handle signing directly in the profile step
+  const handleProfileContinue = useCallback((updatedProfileData?: ProfileData) => {
+    // Update ProfileData with database user information if provided from signing
+    if (updatedProfileData) {
+      console.log('[Embed] ProfileData updated from profile preview signing:', updatedProfileData);
+      setProfileData(updatedProfileData);
+    }
+    // Skip signature verification - signing happens in profile preview
     setCurrentStep('community-selection');
   }, []);
 
@@ -141,7 +146,12 @@ const EmbedContent: React.FC = () => {
     setCurrentStep('authentication');
   }, []);
 
-  const handleSignatureComplete = useCallback(() => {
+  const handleSignatureComplete = useCallback((updatedProfileData?: ProfileData) => {
+    // Update ProfileData with database user information if provided
+    if (updatedProfileData) {
+      console.log('[Embed] ProfileData updated from signature verification:', updatedProfileData);
+      setProfileData(updatedProfileData);
+    }
     setCurrentStep('community-selection');
   }, []);
 
@@ -194,12 +204,7 @@ const EmbedContent: React.FC = () => {
     return () => clearTimeout(timer);
   }, [handleLoadingComplete]);
 
-  // Handle signature verification bypass
-  React.useEffect(() => {
-    if (currentStep === 'signature-verification') {
-      setCurrentStep('community-selection');
-    }
-  }, [currentStep]);
+  // Note: Signature verification is now properly integrated into the flow
 
   // Render current step
   const renderStep = () => {
@@ -234,17 +239,13 @@ const EmbedContent: React.FC = () => {
         ) : null;
         
       case 'signature-verification':
-        // Skip signature verification - now handled directly in profile step
-        // This should never be reached in normal flow
-        return (
-          <div className="embed-step">
-            <div className="embed-card embed-card--sm">
-              <div className="p-8 text-center">
-                <p className="text-muted-foreground">Redirecting...</p>
-              </div>
-            </div>
-          </div>
-        );
+        return profileData ? (
+          <SignatureVerificationStep 
+            config={config}
+            profileData={profileData}
+            onSignatureComplete={handleSignatureComplete}
+          />
+        ) : null;
         
       case 'community-selection':
         return (

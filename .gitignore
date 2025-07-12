@@ -54,3 +54,5 @@ postgres_data/
 /dist/
 
 .cursorrules
+
+/servers/host-service/public/embed.js

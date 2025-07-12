@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Shield, CheckCircle2, Edit3, ArrowRight, AlertCircle } from 'lucide-react';
-import { SignatureVerificationStepProps } from '@/types/embed';
+import { SignatureVerificationStepProps, ProfileData } from '@/types/embed';
 import { UniversalProfileProvider, useUniversalProfile } from '@/contexts/UniversalProfileContext';
 import { EthereumProfileProvider, useEthereumProfile } from '@/contexts/EthereumProfileContext';
 
@@ -124,20 +124,32 @@ const SignatureVerificationContent: React.FC<SignatureVerificationStepProps> = (
       setProgress(75);
 
       if (verifyResponse.ok) {
-        const { user, session } = await verifyResponse.json();
+        const { user, token: sessionToken } = await verifyResponse.json();
         console.log('[SignatureVerification] ✅ Signature verified successfully:', user);
         
         // Store session token
-        if (session?.session_token) {
-          localStorage.setItem('curia_session_token', session.session_token);
+        if (sessionToken) {
+          localStorage.setItem('curia_session_token', sessionToken);
         }
+
+        // 🎯 CRITICAL FIX: Update ProfileData with database user information
+        const updatedProfileData: ProfileData = {
+          ...profileData,
+          userId: user.user_id,  // Add database user ID
+          name: user.name || profileData.name,  // Use database name if available
+          avatar: user.profile_picture_url || profileData.avatar,  // Use database avatar if available
+          sessionToken,
+          verificationLevel: 'verified' as const
+        };
+        
+        console.log('[SignatureVerification] ✅ ProfileData updated with database user info:', updatedProfileData);
 
         setProgress(100);
         setVerificationStatus('complete');
         
-        // Wait a moment to show success, then continue
+        // Wait a moment to show success, then continue with updated ProfileData
         setTimeout(() => {
-          onSignatureComplete();
+          onSignatureComplete(updatedProfileData);
         }, 1000);
       } else {
         throw new Error(`Signature verification failed: ${verifyResponse.statusText}`);
@@ -148,6 +160,11 @@ const SignatureVerificationContent: React.FC<SignatureVerificationStepProps> = (
       setVerificationStatus('error');
       setProgress(0);
     }
+  };
+
+  const handleContinueClick = () => {
+    // Call onSignatureComplete without parameters for button click
+    onSignatureComplete();
   };
 
   const getStatusBadge = () => {
@@ -270,7 +287,7 @@ const SignatureVerificationContent: React.FC<SignatureVerificationStepProps> = (
 
             {verificationStatus === 'complete' && (
               <Button
-                onClick={onSignatureComplete}
+                onClick={handleContinueClick}
                 className="btn-gradient-green-blue min-w-[200px]"
               >
                 Continue to Communities
