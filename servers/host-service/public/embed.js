@@ -278,8 +278,8 @@
       const pluginHost = new InternalPluginHost(
         container, 
         config, 
-        'http://localhost:3001', 
-        'http://localhost:3000'
+        'https://curia.network', 
+        'https://embed.curia.network'
       );
       console.log('[CuriaEmbed] InternalPluginHost initialized');
       

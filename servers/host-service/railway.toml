@@ -2,6 +2,10 @@
 builder = "nixpacks"
 buildCommand = "yarn build:embed && yarn build"
 
+[build.env]
+NEXT_PUBLIC_HOST_SERVICE_URL = "$NEXT_PUBLIC_HOST_SERVICE_URL"
+NEXT_PUBLIC_CURIA_FORUM_URL = "$NEXT_PUBLIC_CURIA_FORUM_URL"
+
 [deploy]
 startCommand = "yarn start"
 healthcheckPath = "/api/health"
