@@ -729,7 +729,8 @@ export async function POST(request: NextRequest) {
       const ensVerification = await verifyENSBlockchainState(signerAddress, ensName);
       verifiedEnsName = ensVerification.verifiedEnsName || ensName;
     } else if (identityType === 'universal_profile') {
-      const upVerification = await verifyUPBlockchainState(signerAddress);
+      // 🐛 FIX: Fetch UP metadata from UP contract address, not signer address
+      const upVerification = await verifyUPBlockchainState(upAddress!);
       verifiedUpProfileData = upVerification.verifiedProfileData;
     }
 
