@@ -1,28 +1,28 @@
 /**
- * Curia Embed Script - Customer Integration
+ * Embed Script Builder - Main Entry Point
  * 
- * This is the JavaScript file that customers include on their sites.
- * It reads configuration from data attributes and creates the iframe.
- * 
- * ARCHITECTURE: Creates embed iframe → listens for curia-auth-complete message 
- * → switches iframe src to forum URL → handles PostMessage API communication
- * 
- * Usage:
- * <script src="https://host.curia.com/embed.js" 
- *         data-community="community-id" 
- *         data-theme="light"
- *         async></script>
+ * This module builds the complete embed.js script by combining all
+ * TypeScript modules into a single self-contained JavaScript file.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+export interface BuildOptions {
+  environment: 'development' | 'production';
+  minify: boolean;
+  sourceMap?: boolean;
+}
 
-export async function GET(request: NextRequest) {
+/**
+ * Build the complete embed script from TypeScript modules
+ */
+export async function buildEmbedScript(options: BuildOptions): Promise<string> {
+  // For now, extract the current working template string logic
+  // This will be replaced with proper module combination in Phase 2
   
-  // Resolve environment variables on server-side
   const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3001';
   const forumUrl = process.env.NEXT_PUBLIC_CURIA_FORUM_URL || 'http://localhost:3000';
   
-  // Generate the embed script
+  // TODO: Replace this with module combination in Phase 2
+  // This contains the working embed logic from the original API route
   const embedScript = `
 (function() {
   'use strict';
@@ -338,12 +338,17 @@ export async function GET(request: NextRequest) {
 })();
 `;
 
-  // Return JavaScript with proper headers
-  return new NextResponse(embedScript, {
-    headers: {
-      'Content-Type': 'application/javascript',
-      'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
-      'Access-Control-Allow-Origin': '*', // Allow from any domain
-    },
-  });
+  // Apply minification if requested
+  if (options.minify) {
+    // Simple minification - remove comments and extra whitespace
+    const minified = embedScript
+      .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+      .replace(/\/\/.*$/gm, '') // Remove // comments
+      .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+      .trim();
+    
+    return minified;
+  }
+
+  return embedScript;
 } 

@@ -4,8 +4,10 @@
   "description": "Curia Host Service - Standalone forum hosting infrastructure",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
-    "build": "next build",
+    "dev": "yarn build:embed && next dev --port 3001",
+    "build": "next build && yarn build:embed",
+    "build:embed": "tsx scripts/build-embed.ts",
+    "dev:embed": "tsx scripts/build-embed.ts --watch",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
@@ -48,6 +50,7 @@
     "eslint-config-next": "15.1.6",
     "postcss": "^8.5.6",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.20.3",
     "typescript": "^5"
   },
   "engines": {
