@@ -1,24 +1,23 @@
 /**
- * Demo - Real Customer Deployment Simulation
+ * Demo - Full Screen Forum Experience
  * 
- * This page simulates exactly what a customer would deploy on their website.
- * No fancy UI, no logging, no controls - just the embed script as intended.
+ * This page shows the forum embed in full-screen mode with a subtle top bar.
  */
 
 'use client';
 
 import { useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function DemoPage() {
   useEffect(() => {
-    // Load the embed script exactly as a customer would
+    // Load the embed script for full-screen experience
     const script = document.createElement('script');
     script.src = '/embed.js';
     script.async = true;
     script.setAttribute('data-container', 'curia-forum');
     script.setAttribute('data-community', 'test-community');
-    script.setAttribute('data-theme', 'light');
-    script.setAttribute('data-height', '700px');
+    script.setAttribute('data-theme', 'auto');
     
     document.head.appendChild(script);
 
@@ -38,42 +37,31 @@ export default function DemoPage() {
     };
   }, []);
 
-  return (
-    <div style={{ 
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '20px'
-    }}>
-      <h1 style={{ 
-        fontSize: '24px', 
-        marginBottom: '8px', 
-        color: '#1f2937' 
-      }}>
-        My Company Forum
-      </h1>
-      
-      <p style={{ 
-        fontSize: '16px', 
-        marginBottom: '24px', 
-        color: '#6b7280' 
-      }}>
-        Welcome to our community discussion forum. Join the conversation below.
-      </p>
+  const handleBack = () => {
+    window.location.href = '/';
+  };
 
-      {/* This is exactly what customers would include */}
-      <div id="curia-forum"></div>
-      
-      <footer style={{ 
-        marginTop: '40px', 
-        padding: '20px 0', 
-        borderTop: '1px solid #e5e7eb', 
-        fontSize: '14px', 
-        color: '#9ca3af',
-        textAlign: 'center' as const
-      }}>
-        © 2025 My Company. Powered by Curia Forums.
-      </footer>
+  return (
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Subtle Top Bar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-sm">
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors duration-200 font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Home
+        </button>
+        
+        <div className="ml-auto text-sm text-gray-500">
+          Full Page Demo
+        </div>
+      </div>
+
+      {/* Full Screen Embed Container */}
+      <div className="flex-1 bg-white">
+        <div id="curia-forum" className="w-full h-full"></div>
+      </div>
     </div>
   );
 } 

@@ -90,34 +90,24 @@ export function LiveDemo() {
                 </div>
               </CardHeader>
               
-              <CardContent className="p-0">
-                <div className="h-[500px] bg-white dark:bg-slate-800 p-4">
+              <CardContent className="p-4">
+                <div className="h-[500px] border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 overflow-hidden">
                   <div 
                     id="curia-live-demo"
                     ref={embedRef}
-                    className="h-full border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900"
+                    className="w-full h-full"
                   />
                 </div>
               </CardContent>
             </Card>
             
-            {/* Quick Actions */}
-            <div className="flex flex-col sm:flex-row gap-4">
+            {/* Main Action */}
+            <div className="text-center">
               <Button 
-                onClick={() => window.open('/demo', '_blank')}
-                variant="outline" 
-                className="flex-1"
+                size="lg"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
               >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Full Page Demo
-              </Button>
-              <Button 
-                onClick={() => window.open('#documentation', '_self')}
-                variant="outline" 
-                className="flex-1"
-              >
-                <Lightbulb className="w-4 h-4 mr-2" />
-                Integration Guide
+                🚀 Get Your Own Forum
               </Button>
             </div>
           </div>
