@@ -1,5 +1,5 @@
 /**
- * Demo4 - Real Customer Deployment Simulation
+ * Demo - Real Customer Deployment Simulation
  * 
  * This page simulates exactly what a customer would deploy on their website.
  * No fancy UI, no logging, no controls - just the embed script as intended.
@@ -9,7 +9,7 @@
 
 import { useEffect } from 'react';
 
-export default function Demo4Page() {
+export default function DemoPage() {
   useEffect(() => {
     // Load the embed script exactly as a customer would
     const script = document.createElement('script');

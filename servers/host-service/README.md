@@ -47,7 +47,7 @@ yarn build:embed
 yarn dev
 
 # Visit http://localhost:3001
-# Test customer integration at http://localhost:3001/demo4
+# Test customer integration at http://localhost:3001/demo
 ```
 
 ### Production Deployment
@@ -110,13 +110,12 @@ PostgreSQL → Response → Forum
 
 ### **Demo Pages**
 
-- **`/demo4`** - Real customer deployment simulation (minimal, production-like)
-- **`/demo`** - Complex development testing with ClientPluginHost (legacy)
+- **`/demo`** - Real customer deployment simulation (minimal, production-like)
 - **`/embed`** - Auth iframe endpoint for user authentication
 
 ### **Testing Your Integration**
 
-1. **Local Testing**: Visit `http://localhost:3001/demo4`
+1. **Local Testing**: Visit `http://localhost:3001/demo`
 2. **Production Testing**: Deploy and test on your domain
 3. **Debug Mode**: Check browser console for `[CuriaEmbed]` and `[InternalPluginHost]` logs
 
@@ -129,7 +128,7 @@ Host Service
 ├── 🎯 Embed System (NEW!)
 │   ├── /embed.js      # Self-contained embed script (10KB)
 │   ├── /embed         # Auth iframe endpoint  
-│   ├── /demo4         # Customer deployment simulation
+│   ├── /demo          # Customer deployment simulation
 │   └── InternalPluginHost # Complete self-contained logic
 ├── API Routes (/api/*)
 │   ├── /sign          # Request signing
@@ -297,7 +296,7 @@ servers/host-service/
 │   │   │   ├── sign/          # Request signing
 │   │   │   ├── user/          # User operations
 │   │   │   └── community/     # Community operations
-│   │   ├── demo4/             # Customer deployment simulation
+│   │   ├── demo/              # Customer deployment simulation
 │   │   ├── embed/             # Auth iframe endpoint
 │   │   ├── layout.tsx         # Root layout
 │   │   └── page.tsx           # Home page
