@@ -21,7 +21,7 @@ const pool = new Pool({
 /**
  * Verify ENS domain exists for address and matches claimed name (adapted from main forum app)
  */
-async function verifyENSBlockchainState(ethAddress: string, claimedEnsName?: string): Promise<{ valid: boolean; error?: string; verifiedEnsName?: string }> {
+async function verifyENSBlockchainState(ethAddress: string, claimedEnsName?: string): Promise<{ valid: boolean; error?: string; verifiedEnsName?: string; verifiedAvatar?: string }> {
   try {
     console.log(`[verifyENSBlockchainState] Checking ENS for ${ethAddress}, claimed: ${claimedEnsName}`);
 
@@ -87,10 +87,79 @@ async function verifyENSBlockchainState(ethAddress: string, claimedEnsName?: str
       };
     }
 
-    console.log(`[verifyENSBlockchainState] ✅ ENS verification passed: ${actualEnsName}`);
+    // Now fetch the ENS avatar if available
+    let verifiedAvatar: string | undefined;
+    try {
+      console.log(`[verifyENSBlockchainState] 🐛 Fetching ENS avatar for: ${actualEnsName}`);
+      
+      // Get the resolver for the forward name (not reverse)
+      const forwardNode = namehash(actualEnsName);
+      const forwardResolverData = await rawEthereumCall('eth_call', [
+        {
+          to: ENS_REGISTRY,
+          data: `0x0178b8bf${forwardNode.slice(2)}` // resolver(bytes32)
+        },
+        'latest'
+      ]);
+
+      const forwardResolverAddress = `0x${(forwardResolverData as string).slice(-40)}`;
+      
+      if (forwardResolverAddress !== '0x0000000000000000000000000000000000000000') {
+        // Call text(bytes32,string) function on resolver to get avatar
+        // Function selector for text(bytes32,string): 0x59d1d43c
+        const avatarKey = 'avatar';
+        const avatarKeyHex = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(avatarKey));
+        const paddedAvatarKey = ethers.utils.hexZeroPad(avatarKeyHex, 32);
+        
+        // ABI encode the parameters: nodehash and "avatar" string
+        const encodedParams = ethers.utils.defaultAbiCoder.encode(
+          ['bytes32', 'string'], 
+          [forwardNode, avatarKey]
+        );
+        
+        const avatarData = await rawEthereumCall('eth_call', [
+          {
+            to: forwardResolverAddress,
+            data: `0x59d1d43c${encodedParams.slice(2)}` // text(bytes32,string)
+          },
+          'latest'
+        ]);
+
+        // Decode the avatar string
+        if (avatarData && avatarData !== '0x') {
+          try {
+            const decoded = ethers.utils.defaultAbiCoder.decode(['string'], avatarData as string);
+            const avatarUrl = decoded[0];
+            
+            if (avatarUrl && avatarUrl.trim()) {
+              // Handle IPFS URLs
+              if (avatarUrl.startsWith('ipfs://')) {
+                verifiedAvatar = avatarUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+              } else if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+                verifiedAvatar = avatarUrl;
+              } else {
+                // Could be other formats, log for debugging
+                console.log(`[verifyENSBlockchainState] 🐛 Unusual avatar format: ${avatarUrl}`);
+                verifiedAvatar = avatarUrl;
+              }
+              
+              console.log(`[verifyENSBlockchainState] 🐛 Found ENS avatar: ${verifiedAvatar}`);
+            }
+          } catch (avatarDecodeError) {
+            console.log(`[verifyENSBlockchainState] ⚠️ Failed to decode avatar data:`, avatarDecodeError);
+          }
+        }
+      }
+    } catch (avatarError) {
+      console.log(`[verifyENSBlockchainState] ⚠️ Avatar fetch failed (non-critical):`, avatarError);
+      // Avatar fetch failure is non-critical, we can still proceed
+    }
+
+    console.log(`[verifyENSBlockchainState] ✅ ENS verification passed: ${actualEnsName}${verifiedAvatar ? ` with avatar: ${verifiedAvatar}` : ' (no avatar)'}`);
     return { 
       valid: true, 
-      verifiedEnsName: actualEnsName 
+      verifiedEnsName: actualEnsName,
+      verifiedAvatar
     };
 
   } catch (error) {
@@ -689,7 +758,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      console.log(`[verify-signature] ✅ ENS blockchain verification passed: ${ensVerification.verifiedEnsName}`);
+      console.log(`[verify-signature] ✅ ENS blockchain verification passed: ${ensVerification.verifiedEnsName}${ensVerification.verifiedAvatar ? ` with avatar: ${ensVerification.verifiedAvatar}` : ' (no avatar)'}`);
 
     } else if (identityType === 'universal_profile' && upAddress) {
       console.log('[verify-signature] 🐛 Checking UP identity - UP address:', upAddress);
@@ -732,12 +801,22 @@ export async function POST(request: NextRequest) {
 
     // 🚀 CRITICAL: Use verified data instead of claimed data
     let verifiedEnsName = ensName;
+    let verifiedEnsData = undefined;
     let verifiedUpProfileData = undefined;
     
     // Extract verified data from blockchain verification
     if (identityType === 'ens') {
       const ensVerification = await verifyENSBlockchainState(signerAddress, ensName);
       verifiedEnsName = ensVerification.verifiedEnsName || ensName;
+      
+      // Only set verifiedEnsData if we have a valid name
+      if (ensVerification.verifiedEnsName) {
+        verifiedEnsData = {
+          name: ensVerification.verifiedEnsName,
+          avatar: ensVerification.verifiedAvatar
+        };
+      }
+      console.log(`[verify-signature] 🐛 ENS verification result:`, JSON.stringify(ensVerification, null, 2));
     } else if (identityType === 'universal_profile') {
       // 🐛 FIX: Fetch UP metadata from UP contract address, not signer address
       const upVerification = await verifyUPBlockchainState(upAddress!);
@@ -751,6 +830,7 @@ export async function POST(request: NextRequest) {
       walletAddress: identityType === 'ens' ? walletAddress : undefined,
       ensName: verifiedEnsName,
       upAddress: identityType === 'universal_profile' ? upAddress : undefined,
+      verifiedEnsData,
       verifiedUpProfileData,
       signerAddress,
       signedMessage: message,
@@ -824,6 +904,7 @@ async function createUserAndSession(params: {
   walletAddress?: string;
   ensName?: string;
   upAddress?: string;
+  verifiedEnsData?: { name: string; avatar?: string };
   verifiedUpProfileData?: { name: string; profileImage?: string };
   signerAddress: string;
   signedMessage: string;
@@ -834,6 +915,7 @@ async function createUserAndSession(params: {
     walletAddress, 
     ensName, 
     upAddress, 
+    verifiedEnsData,
     verifiedUpProfileData,
     signerAddress,
     signedMessage,
@@ -855,13 +937,15 @@ async function createUserAndSession(params: {
       identityType,
       upAddress,
       ensName,
+      verifiedEnsData: JSON.stringify(verifiedEnsData, null, 2),
       verifiedUpProfileData: JSON.stringify(verifiedUpProfileData, null, 2)
     });
     
     if (identityType === 'ens') {
       userId = `ens:${ensName}`;
-      name = ensName || `User ${walletAddress?.slice(-6)}`;
-      // ENS avatars would go here if we fetch them from ENS records
+      name = verifiedEnsData?.name || ensName || `User ${walletAddress?.slice(-6)}`;
+      // 🐛 FIX: Extract profile picture URL from ENS records
+      profilePictureUrl = verifiedEnsData?.avatar || null;
     } else {
       userId = `up:${upAddress}`;
       name = verifiedUpProfileData?.name || `UP ${upAddress?.slice(-6)}`;
