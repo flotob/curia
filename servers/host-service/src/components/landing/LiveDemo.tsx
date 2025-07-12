@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { DemoModal } from "./DemoModal"
 import { 
   Play, 
   ExternalLink, 
@@ -14,7 +15,40 @@ import {
 } from "lucide-react"
 
 export function LiveDemo() {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const embedRef = useRef<HTMLDivElement>(null)
+  const scriptRef = useRef<HTMLScriptElement | null>(null)
+
+  useEffect(() => {
+    if (embedRef.current) {
+      // Load the embed script immediately
+      const script = document.createElement('script')
+      script.src = '/embed.js'
+      script.async = true
+      script.setAttribute('data-container', 'curia-live-demo')
+      script.setAttribute('data-community', 'test-community')
+      script.setAttribute('data-theme', 'light')
+      script.setAttribute('data-height', '500px')
+      
+      document.head.appendChild(script)
+      scriptRef.current = script
+    }
+
+    return () => {
+      // Cleanup when component unmounts
+      if (scriptRef.current && scriptRef.current.parentNode) {
+        scriptRef.current.parentNode.removeChild(scriptRef.current)
+      }
+      
+      // Clean up global reference
+      if (window.curiaEmbed) {
+        if (window.curiaEmbed.destroy) {
+          window.curiaEmbed.destroy()
+        }
+        delete window.curiaEmbed
+      }
+    }
+  }, [])
   
   return (
     <section className="py-20 sm:py-32">
@@ -39,9 +73,9 @@ export function LiveDemo() {
           </p>
         </div>
         
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
+        <div className="grid lg:grid-cols-3 gap-12 items-start">
           {/* Demo Preview */}
-          <div className="space-y-6">
+          <div className="space-y-6 lg:col-span-2">
             <Card className="overflow-hidden border-slate-200 dark:border-slate-700 shadow-xl">
               <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700">
                 <div className="flex items-center justify-between">
@@ -57,41 +91,13 @@ export function LiveDemo() {
               </CardHeader>
               
               <CardContent className="p-0">
-                {isExpanded ? (
-                  <div className="h-96 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center">
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 bg-blue-500 rounded-full mx-auto flex items-center justify-center">
-                        <MessageSquare className="w-8 h-8 text-white" />
-                      </div>
-                      <div className="space-y-2">
-                        <p className="font-semibold text-slate-900 dark:text-white">
-                          Demo Forum Loading...
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          This would show the actual embed
-                        </p>
-                      </div>
-                      <Button 
-                        onClick={() => window.open('/demo', '_blank')}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Open Full Demo
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="h-64 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center border-t">
-                    <Button 
-                      onClick={() => setIsExpanded(true)}
-                      size="lg"
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Play className="w-5 h-5 mr-2" />
-                      Start Interactive Demo
-                    </Button>
-                  </div>
-                )}
+                <div className="h-[500px] bg-white dark:bg-slate-800 p-4">
+                  <div 
+                    id="curia-live-demo"
+                    ref={embedRef}
+                    className="h-full border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900"
+                  />
+                </div>
               </CardContent>
             </Card>
             
@@ -117,7 +123,7 @@ export function LiveDemo() {
           </div>
           
           {/* Demo Features */}
-          <div className="space-y-8">
+          <div className="space-y-8 lg:col-span-1">
             <div className="space-y-6">
               <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
                 What you'll experience
@@ -171,35 +177,16 @@ export function LiveDemo() {
               </div>
             </div>
             
-            {/* Demo Stats */}
-            <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 border-slate-200 dark:border-slate-600">
-              <CardContent className="p-6">
-                <h4 className="font-semibold text-slate-900 dark:text-white mb-4">
-                  Demo Capabilities
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">3</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Auth Methods</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">Live</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Real-time</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">Web3</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Native</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">0ms</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Setup Time</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+
           </div>
         </div>
       </div>
+
+      {/* Demo Modal */}
+      <DemoModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     </section>
   )
 } 

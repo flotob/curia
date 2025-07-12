@@ -1,9 +1,14 @@
+"use client"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Zap, Shield, Globe } from "lucide-react"
+import { DemoModal } from "./DemoModal"
+import { ArrowRight, Zap, Shield, Globe, Play } from "lucide-react"
 
 export function LandingHero() {
+  const [isModalOpen, setIsModalOpen] = useState(false)
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
       {/* Background decoration */}
@@ -38,11 +43,17 @@ export function LandingHero() {
               
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="group text-base px-8 py-6 bg-blue-600 hover:bg-blue-700">
-                  Try Live Demo
+                  Get Started
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <Button variant="outline" size="lg" className="text-base px-8 py-6">
-                  View Documentation
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  className="text-base px-8 py-6"
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Try Live Demo
                 </Button>
               </div>
               
@@ -95,6 +106,12 @@ export function LandingHero() {
           </div>
         </div>
       </div>
+
+      {/* Demo Modal */}
+      <DemoModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     </section>
   )
 } 

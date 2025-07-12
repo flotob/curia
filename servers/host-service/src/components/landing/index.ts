@@ -1,4 +1,5 @@
 export { LandingHero } from './LandingHero'
 export { FeaturesGrid } from './FeaturesGrid'
 export { CodeExample } from './CodeExample'
-export { LiveDemo } from './LiveDemo' 
+export { LiveDemo } from './LiveDemo'
+export { DemoModal } from './DemoModal' 

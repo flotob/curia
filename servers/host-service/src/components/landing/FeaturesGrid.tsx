@@ -1,5 +1,9 @@
+"use client"
+
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { DemoModal } from "./DemoModal"
 import { 
   Wallet, 
   Users, 
@@ -9,7 +13,8 @@ import {
   Code, 
   MessageSquare, 
   Settings,
-  Sparkles
+  Sparkles,
+  Play
 } from "lucide-react"
 
 const features = [
@@ -58,6 +63,8 @@ const features = [
 ]
 
 export function FeaturesGrid() {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
   return (
     <section className="py-20 sm:py-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -133,23 +140,29 @@ export function FeaturesGrid() {
             Ready to add Web3 community features to your website?
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a 
-              href="/demo" 
+            <button 
+              onClick={() => setIsModalOpen(true)}
               className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
             >
-              <Globe className="w-5 h-5" />
+              <Play className="w-5 h-5" />
               Try Live Demo
-            </a>
+            </button>
             <a 
-              href="#documentation" 
+              href="/demo" 
               className="inline-flex items-center gap-2 px-6 py-3 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
             >
-              <Code className="w-5 h-5" />
-              View Docs
+              <Globe className="w-5 h-5" />
+              Full Page Demo
             </a>
           </div>
         </div>
       </div>
+
+      {/* Demo Modal */}
+      <DemoModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     </section>
   )
 } 
