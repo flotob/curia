@@ -29,7 +29,7 @@ async function buildEmbedForProduction() {
     
     const embedScript = await buildEmbedScript({
       environment: isProduction ? 'production' : 'development',
-      minify: isProduction,
+      minify: false, // Disable minification - the naive approach breaks syntax
       sourceMap: !isProduction
     });
     
