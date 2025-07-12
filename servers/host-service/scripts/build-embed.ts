@@ -11,6 +11,10 @@
  *   tsx scripts/build-embed.ts --watch  (for development)
  */
 
+// Load environment variables from .env file
+import { config } from 'dotenv';
+config();
+
 import { buildEmbedScript } from '../src/lib/embed/main';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';

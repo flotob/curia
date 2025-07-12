@@ -21,8 +21,8 @@ export async function buildEmbedScript(options: BuildOptions): Promise<string> {
   const { generateInternalPluginHostCode } = await import('./plugin-host/InternalPluginHost');
   const { generateInitializationCode, generateEmbedWrapper } = await import('./core/EmbedLifecycle');
 
-  // Get environment URLs
-  const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3001';
+  // Get environment URLs (injected at build time)
+  const hostUrl = process.env.NEXT_PUBLIC_HOST_SERVICE_URL || 'http://localhost:3001';
   const forumUrl = process.env.NEXT_PUBLIC_CURIA_FORUM_URL || 'http://localhost:3000';
   
   const urls = { hostUrl, forumUrl };
